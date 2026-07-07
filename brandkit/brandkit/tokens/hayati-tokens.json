@@ -1,0 +1,35 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "brand": "Hayati",
+  "version": "1.0",
+  "color": {
+    "night": { "value": "#231A33", "use": "Primary background (deep plum night)" },
+    "night.raised": { "value": "#2E2344", "use": "Cards, sheets" },
+    "pomegranate": { "value": "#C04A5A", "use": "Primary actions, streak seeds, brand accent" },
+    "pomegranate.deep": { "value": "#8E3140", "use": "Pressed states, gradients" },
+    "sand": { "value": "#F3E7D7", "use": "Primary text on dark, light surfaces" },
+    "gold": { "value": "#D9A441", "use": "Premium/celebration accents only" },
+    "sage": { "value": "#8FAE8B", "use": "Success, streak-safe states" },
+    "clay": { "value": "#B98A6E", "use": "Secondary/illustration tone" },
+    "alert": { "value": "#D96C5F", "use": "Errors, streak-at-risk. Never marketing." }
+  },
+  "typography": {
+    "family": { "value": "Rubik", "fallback": ["Noto Sans", "Noto Sans Arabic"] },
+    "display": { "size": 32, "weight": 700 },
+    "h1": { "size": 24, "weight": 700 },
+    "h2": { "size": 20, "weight": 600 },
+    "body": { "size": 16, "weight": 400, "lineHeight": { "latin": 1.5, "arabic": 1.7 } },
+    "caption": { "size": 13, "weight": 400 },
+    "minimumBodySize": 14,
+    "dynamicTypeMax": "130%"
+  },
+  "spacing": { "grid": 4, "screenGutter": 20, "cardPadding": 16 },
+  "radius": { "card": 16, "sheet": 24, "chip": "full" },
+  "iconography": { "set": "Phosphor", "weight": "rounded", "grid": 24, "stroke": 1.75 },
+  "rules": [
+    "Gold never for body UI",
+    "Alert never for marketing",
+    "All text pairs >= 4.5:1 contrast against night",
+    "RTL: author layouts with start/end only; directional assets ship mirrored"
+  ]
+}
