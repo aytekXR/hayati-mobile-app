@@ -1,6 +1,6 @@
 # Product Requirements Document — Hayati
 
-**Version:** 1.0 · **Owner:** Founder · **Status:** Approved for MVP build (post-Gate 1)
+**Version:** 1.0 · **Owner:** Founder · **Status:** Approved for MVP build (build de-gated from Gate 1 per ADR-007, 2026-07-08)
 
 ## 1. Product vision
 

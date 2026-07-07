@@ -47,7 +47,7 @@ PIN/biometric lock; discreet alternate icon (iOS; Android in M6.5); KVKK/PDPL ex
 
 **Accept:** delete cascade integration test (couple data gone, partner notified, entitlement handled); lock bypass attempts covered by widget tests; `release.yml` produces signed builds to TestFlight (Play internal track added in M6.5).
 
-## M6.5 — Android enablement & Play release (follow-on) · *gated on iOS MVP validation (Gate 3) per ADR-006*
+## M6.5 — Android enablement & Play release (follow-on) · *after the iOS MVP ships; timing is a founder decision informed by Gate 3 (ADR-006, ADR-007)*
 
 Android build/test/release hardening, kept cheap by the single Flutter codebase (`architecture.md` ADR-001). Play app signing + `release.yml` Play-internal track; Play Console store metadata TR/EN via Fastlane; discreet alternate icon on Android; Play Billing sandbox purchases (TR + SA storefronts) via RevenueCat; Android deep-link cold-start; mid-range Android performance pass.
 
