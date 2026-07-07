@@ -1,0 +1,44 @@
+# Roadmap — Hayati
+
+Gates from `feasibility-report.md` §10 govern phase transitions. Dates are relative to project start (T0); calendar note: **plan v1.5 so Ramadan mode ships ≥3 weeks before the next Ramadan**, whatever phase we're in.
+
+## Phase 0 — Validation (T0 → T0+3w) · *no product code beyond scaffold*
+
+- Content ops infra: 6 fresh TikTok accounts (3 TR / 3 AR), tracking spreadsheet (account, hook, format, views, likes, comments, comment-intent), 2 UGC creators contracted (TR + Gulf-dialect), AI slideshow pipeline.
+- Produce & post 60 slideshows (30 TR / 30 AR): couple-question hooks, "answer this with your partner" formats, reaction formats.
+- Parallel (allowed): M0 repo scaffold + CI (see `implementation-plan.md`).
+- **Exit = Gate 1:** ≥3 posts >100K views from <5K-follower accounts per language. Both fail → NO GO (archive learnings, stop). One fails → re-scope single-market, revise `feasibility-report.md`.
+
+## Phase 1 — MVP build (T0+3w → T0+9w)
+
+- Milestones M1–M6 (`implementation-plan.md`); content bank authoring (400 TR / 300 AR / 300 EN) runs alongside build; closed beta with 20 recruited couples in final week; store assets TR/EN.
+- Content ops continue at reduced cadence — accounts must be warm at launch.
+- **Exit:** MVP release criteria in `prd.md` §10 met.
+
+## Phase 2 — Turkey soft launch (T0+9w → T0+13w)
+
+- Ship to both stores TR storefront; content ops to full cadence (≥5 posts/day/language, winning hooks doubled); weekly funnel review against Gate 2; activation iteration only (pairing flow, notification copy, preview screen) — feature freeze otherwise.
+- **Exit = Gate 2:** paired ≥40% ≤7d; D7 couple retention ≥25%.
+
+## Phase 3 — Monetize (T0+13w → T0+17w)
+
+- Paywall experiments (price points, annual framing, gift flow prominence) via RevenueCat experiments; TR lifetime tier test; first cohort LTV read.
+- **Exit = Gate 3:** trial→paid ≥30%; install→paid ≥2%. Passing unlocks spend and GCC.
+
+## Phase 4 — Arabic launch & GCC push (T0+17w → T0+26w)
+
+- AR store listings (KSA, UAE, KW, QA, BH, OM + EG for volume); Gulf creator UGC scale-up; SAR/AED premium pricing live; diaspora targeting (DE/UK/FR/US Arabic+Turkish communities); RTL polish pass from beta feedback; Apple Search Ads *only if* Gate-3 economics support it.
+- KPI: GCC+diaspora ≥35% of new MRR by end of phase (path to the 50% month-12 target).
+
+## v1.5 (months 6–9)
+
+Quizzes + WhatsApp/IG share cards → Spice mode (18+, both-partner opt-in, region flags) → Bucket list + memories timeline (Hijri+Gregorian dates) → **Ramadan mode** (calendar-driven priority) → referral rewards → break-even checkpoint (~500–550 paying couples; if trending short, cut content spend before cutting price).
+
+## v2 (months 10–15)
+
+Anonymous community polls (the only extra-couple surface — see `prd.md` §6) → expert question-pack marketplace pilot (2–3 licensed TR/AR counselors, rev-share) → B2B premarital pilot (one GCC family-program or TR municipality conversation) → widgets/watch → dialect packs (Egyptian, Levantine) → evaluate web companion.
+
+## Standing decision points
+
+- **Month 6:** TR-only economics honest check — if GCC hypothesis is failing, decide: TR-volume/ads-assisted model vs. diaspora-first pivot.
+- **Month 12:** lifestyle-business vs. raise decision, driven by GCC ARPU data, not mood.
