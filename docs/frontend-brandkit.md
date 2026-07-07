@@ -1,5 +1,7 @@
 # Frontend Brand Kit — Hayati
 
+> **Exported assets (v1.0, July 2026) live at `brandkit/` in the repo root** — logos (SVG/PNG incl. Arabic lockup), design tokens (`brandkit/brandkit/tokens/hayati-tokens.{css,json}`), app icons (iOS 1024 / Play 512 / Android adaptive / discreet-mode alt), and TR/AR/EN social + store graphics. All design work uses those assets; this document remains the rationale and rulebook. In-app color tokens are mirrored in `app/lib/core/design_system/color_tokens.dart`.
+
 ## 1. Brand idea
 
 **Hayati (حياتي / Hayatım)** — "my life," the endearment spouses actually say to each other in both Arabic and Turkish. The brand must feel like the inside of a good marriage: warm, private, dignified, quietly playful. Never clinical (we are not therapy), never neon-dating (we are not Tinder), never saccharine.
