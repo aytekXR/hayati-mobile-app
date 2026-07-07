@@ -49,3 +49,26 @@
 - Flutter SDK on the dev machine lives at `~/flutter` (3.44.5 stable), installed this session.
 
 **Next objective written to resume-prompt.md:** Session 002 — M0.2 GitHub Actions CI + branch protection + PR template + ADR skeleton + Fastlane init.
+
+## Session 002 — 2026-07-08 — M0.2: GitHub Actions CI, branch protection, repo process skeleton
+
+**Objective (from resume-prompt.md):** M0.2 — `ci.yml` (format → analyze → RTL lint → test --coverage → coverage gate ≥60% → iOS build smoke per ADR-006), branch protection on `main`, PR template (W3 sections), ADR skeleton (README + 001..005 backfill), Fastlane init (iOS stub only).
+
+**Outcome:** done. **M0 is complete.**
+- `ci.yml`: `quality` job (ubuntu; the five-step gate sequence) + `ios-build-smoke` (macos-15, `flutter build ios --no-codesign --debug --target lib/main_dev.dart`). Cost containment on the 10×-billed macOS leg: draft PRs skip it, `needs: quality` fail-fasts it, concurrency cancels superseded runs; `pull_request` types include `ready_for_review` so a draft→ready flip re-fires the required check. Push trigger is main-only (every change lands via PR per W3; avoids double-billed duplicate runs). Timings with warm cache: quality ~1m, iOS smoke ~2m37s (~26 billed macOS min/run — sustainable).
+- `tool/coverage_gate.dart`: zero-dep lcov gate (PASS 0 / FAIL 1 / usage+zero-LF 64; zero-LF is an explicit error so an empty report can't silently pass). Baseline coverage 87.50% (LF 32, LH 28) vs the 60% floor.
+- Branch protection via `gh api` (NOT plan-gated — worked on this private repo): required contexts `quality` + `ios-build-smoke`, `enforce_admins`, linear history, no force pushes/deletions, no review requirement (solo self-merge, green required — rule #7). Repo set to squash-merge-only + delete-branch-on-merge (W3).
+- Acceptance proofs (PR #2, draft, closed unmerged): (1) deliberately failing test → `quality` FAILURE → `mergeStateStatus: BLOCKED` (run 28905568279); (2) gate raised to `--min 99` → job fails at the coverage step, `87.50% is below the 99% threshold` → BLOCKED (run 28905881305). `ios-build-smoke` correctly SKIPPED on the draft both times.
+- iOS smoke earned its keep on first contact: caught that the scaffold has no `lib/main.dart` (flavors are Dart entrypoints, Session 001) — fixed with explicit `--target`. Not reproducible locally (no macOS).
+- ADR-001..005 backfilled from `architecture.md` §11 in the ADR-006 format (provenance noted per file); `adr/README.md` format note + index; §11 now links all six records.
+- Fastlane skeleton: iOS lanes only (`build_debug` mirrors the CI smoke; `beta` fails fast pointing to M6); Appfile `com.hayati.app`, zero secrets; root Gemfile pins fastlane `~> 2.225`.
+- **Founder directive mid-session:** brand kit v1.0 dropped at `brandkit/` (logos incl. AR lockup, tokens css/json, app icons incl. discreet-mode alt, TR/AR/EN social/store graphics) — committed straight to `main` (75ba8cb + 473842a) with a pointer added in `frontend-brandkit.md`; kept out of the M0.2 PR (scope guard). All future design work sources from it.
+
+**Commits:** PR #1 → squash `d0b0a00` on main; brandkit `75ba8cb` + `473842a`; session-close docs PR (this commit).
+**CI:** green (PR #1 both checks; post-merge main run watched green via `gh run watch`).
+**Docs touched:** adr/README.md + adr/001..005 (new), architecture.md §11, frontend-brandkit.md (brandkit pointer), resume-prompt.md, past-prompts.md.
+**Notes / debt logged (none silent):**
+- `Gemfile.lock` intentionally absent until fastlane first runs for real (M6) — no ruby/bundler on the dev machine. Documented in `Gemfile` + `fastlane/README.md`.
+- Docs-only PRs run the full pipeline including the macOS smoke: `paths-ignore` on a required check would deadlock merges ("expected" forever), so it was deliberately not used. Revisit only if the Actions minute budget tightens.
+- Coverage ratchet: floor stays 60% in `ci.yml`; first bump to 62% lands when M1 closes (test-suite §3).
+**Next objective written to resume-prompt.md:** Session 003 — content pack validator v1 (Phase-0-parallel content tooling; Gate 1 standing note honored — M1.1 stays blocked until Gate 1 passes).
