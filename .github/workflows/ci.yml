@@ -57,7 +57,7 @@ jobs:
         run: flutter test --coverage
       - name: coverage gate
         # Threshold ratchets +2% per milestone (test-suite.md §3); never lowered.
-        run: dart tool/coverage_gate.dart --min 60 app/coverage/lcov.info
+        run: dart tool/coverage_gate.dart --min 99 app/coverage/lcov.info
 
   ios-build-smoke:
     name: ios-build-smoke
