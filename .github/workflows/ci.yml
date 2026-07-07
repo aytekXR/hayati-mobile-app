@@ -1,0 +1,88 @@
+# CI — quality gate (ubuntu) + iOS build smoke (macos).
+# See docs/architecture.md §9 (CI/CD) and ADR-006 (iOS-first validation/release
+# sequencing, docs/architecture.md §11). Green ci.yml is a merge requirement
+# (docs/project-rules.md #7). release.yml (Fastlane build/sign/TestFlight) is
+# M6 — deliberately not here.
+name: ci
+
+on:
+  pull_request:
+    # Default types + ready_for_review: ios-build-smoke skips drafts, so the
+    # workflow must re-fire when a draft is marked ready or the required check
+    # would sit "expected" until the next push.
+    types: [opened, synchronize, reopened, ready_for_review]
+  # Push runs on main only: every change lands via a PR (agent-workflows.md W3),
+  # so branch pushes are already covered by their PR run. main-only avoids
+  # double-billed duplicate runs on the same commit.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel a superseded run on the same ref (rapid re-push / force-push) to save
+# billed minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Must match local dev (past-prompts.md Session 001). Single source so both
+  # jobs stay on the same pin.
+  FLUTTER_VERSION: "3.44.5"
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: pub get
+        working-directory: app
+        run: flutter pub get
+      - name: format
+        # Explicit dirs (never '.') so we don't descend into build/ or ios/ Pods.
+        run: dart format --set-exit-if-changed app/lib app/test tool content
+      - name: analyze
+        working-directory: app
+        run: flutter analyze
+      - name: rtl lint
+        run: dart tool/rtl_lint.dart app/lib
+      - name: test
+        working-directory: app
+        run: flutter test --coverage
+      - name: coverage gate
+        # Threshold ratchets +2% per milestone (test-suite.md §3); never lowered.
+        run: dart tool/coverage_gate.dart --min 60 app/coverage/lcov.info
+
+  ios-build-smoke:
+    name: ios-build-smoke
+    # iOS-first build smoke (ADR-006). macOS minutes bill at 10x on private
+    # repos, so draft PRs (e.g. gate-proof PRs) skip it. Non-PR events (push,
+    # workflow_dispatch) have no draft field and still run.
+    if: ${{ github.event.pull_request.draft != true }}
+    # Deliberate cost-over-latency choice: don't start the 10x-billed macOS
+    # build until the cheap ubuntu checks pass (~2-4 min added happy-path
+    # latency; a red quality job still blocks merge either way).
+    needs: quality
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: pub get
+        working-directory: app
+        run: flutter pub get
+      - name: build ios (no codesign)
+        working-directory: app
+        # Explicit --target: the scaffold has no lib/main.dart — flavors are
+        # Dart entrypoints (main_dev.dart / main_prod.dart, Session 001).
+        run: flutter build ios --no-codesign --debug --target lib/main_dev.dart

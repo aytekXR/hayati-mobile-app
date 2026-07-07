@@ -1,0 +1,36 @@
+# Fastfile — Hayati release automation. SKELETON (M0.2).
+#
+# Scope today: iOS lane stubs only. `build_debug` mirrors the ci.yml iOS build
+# smoke so the skeleton is runnable with zero signing secrets; `beta` reserves
+# the TestFlight path for M6.
+#
+# iOS-first (ADR-006): there is deliberately NO `platform :android` block in
+# this file. Android lanes (Play internal/production tracks, Play app signing)
+# arrive with M6.5 — Android enablement & Play release. That absence is
+# documented, not an oversight — see docs/adr/006-ios-first-release-sequencing.md
+# and docs/implementation-plan.md (M6.5).
+#
+# Lanes shell out to the Flutter app at ../app, relative to this fastlane/
+# directory (architecture.md §2).
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build iOS unsigned (debug) — mirrors the ci.yml build smoke; no signing required"
+  lane :build_debug do
+    # Same command the CI macos runner runs (ci.yml). Runnable with zero secrets.
+    sh("cd ../app && flutter build ios --no-codesign --debug")
+  end
+
+  desc "Build + upload to TestFlight — NOT YET IMPLEMENTED (lands in M6)"
+  lane :beta do
+    UI.user_error!(
+      "TestFlight distribution is not wired up yet.\n" \
+      "Signed builds + TestFlight upload land in M6 (release hardening), driven " \
+      "by release.yml with signing credentials from GitHub environment secrets " \
+      "(architecture.md §9). See docs/implementation-plan.md (M6)."
+    )
+  end
+end
+
+# platform :android — intentionally absent until M6.5 (ADR-006). See header note.

@@ -1,0 +1,16 @@
+# Appfile — app + account identifiers, loaded by every lane in the Fastfile.
+#
+# Secrets policy (architecture.md §9): ZERO credentials live in this repo.
+# The Apple Developer / App Store Connect identifiers below stay commented and
+# are injected at release time (M6, release.yml) from GitHub environment
+# secrets — never committed here.
+
+app_identifier("com.hayati.app")     # iOS bundle id (Session 001)
+
+# --- Provided from GitHub environment secrets in M6; do NOT commit values ---
+# apple_id("...")        # App Store Connect login (Apple ID email)
+# itc_team_id("...")     # App Store Connect team id
+# team_id("...")         # Apple Developer portal team id
+
+# No Android block here: Play account credentials (json_key_file) arrive with
+# the Android lanes in M6.5 (ADR-006).
