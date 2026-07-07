@@ -27,7 +27,17 @@ This project runs on an agentic development loop. The rules are absolute:
 2. Every coding session executes **only** the single objective in `resume-prompt.md`.
 3. Every session ends by appending to `past-prompts.md`, regenerating `resume-prompt.md` from `roadmap.md`, and pushing green CI.
 
-## File index
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `docs/` | The documentation set below — the single source of truth |
+| `docs/adr/` | Architecture Decision Records (ADR-006: iOS-first release sequencing) |
+| `app/` | Flutter application — see `app/README.md` |
+| `content/` | Question packs: JSON schema, packs, validator (validator ships in M3) |
+| `tool/` | Repo tooling (`rtl_lint.dart` — logical `start`/`end` guard) |
+
+## File index (`docs/`)
 
 | File | Purpose |
 |---|---|

@@ -1,0 +1,22 @@
+{
+  "packId": "en_example",
+  "version": 1,
+  "locale": "en",
+  "register": "neutral",
+  "reviewedBy": "NONE — EXAMPLE ONLY",
+  "questions": [
+    {
+      "id": "en_example_001",
+      "category": "fun",
+      "depth": 1,
+      "text": "EXAMPLE (not shippable content): What small thing did your partner do this week that made you smile?"
+    },
+    {
+      "id": "en_example_002",
+      "category": "memories",
+      "depth": 2,
+      "seasonalWindow": "new_year",
+      "text": "EXAMPLE (not shippable content): What moment from our first year together do you replay the most?"
+    }
+  ]
+}

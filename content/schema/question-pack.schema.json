@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hayati.app/schemas/question-pack.schema.json",
+  "title": "Hayati Question Pack",
+  "description": "STUB (M0.1). Field set mirrors the question model in docs/architecture.md §3 and docs/prd.md §7. The enforcing validator ships in M3 (docs/implementation-plan.md); until then this file is the contract, not the enforcement.",
+  "type": "object",
+  "required": ["packId", "version", "locale", "register", "questions"],
+  "additionalProperties": false,
+  "properties": {
+    "packId": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$",
+      "description": "Stable pack identifier, e.g. tr_playful, tr_respectful, ar_msa_gulf, en"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing pack version for remote sync"
+    },
+    "locale": { "type": "string", "enum": ["tr", "ar", "en"] },
+    "register": {
+      "type": "string",
+      "enum": ["playful", "respectful", "msa_gulf", "neutral"],
+      "description": "Tone register per docs/frontend-brandkit.md §7"
+    },
+    "reviewedBy": {
+      "type": "string",
+      "description": "Native register owner who approved this pack (mandatory before shipping; Gulf reviewer for AR — docs/prd.md §7)"
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "depth", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+          "category": {
+            "type": "string",
+            "enum": ["fun", "deep", "memories", "future", "gratitude"]
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "description": "1 = icebreaker, 5 = deepest; drives paywall depth gating"
+          },
+          "seasonalWindow": {
+            "type": "string",
+            "description": "Optional seasonal tag, e.g. ramadan, eid, new_year; absent = evergreen"
+          },
+          "text": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

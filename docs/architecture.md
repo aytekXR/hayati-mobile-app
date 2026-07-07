@@ -76,7 +76,7 @@ App Check on all Functions; least-privilege rules; relationship content encrypte
 
 ## 9. CI/CD
 
-`ci.yml` on every push/PR: format → analyze → unit+widget tests → coverage gate → build debug. `release.yml` tag-triggered: integration tests (emulator matrix) → Fastlane build+sign → TestFlight / Play internal → store metadata per locale from `fastlane/metadata`. Pipeline-green is a merge requirement (`project-rules.md` #7). Secrets in GitHub OIDC/environment secrets; zero keys in repo.
+`ci.yml` on every push/PR: format → analyze → unit+widget tests → coverage gate → build debug. `release.yml` tag-triggered: integration tests (iOS simulator first per iOS-first sequencing (ADR-006); Android emulator matrix added in the Android enablement follow-on, M6.5) → Fastlane build+sign → TestFlight (Play internal deferred to the Android enablement follow-on, M6.5) → store metadata per locale from `fastlane/metadata`. Pipeline-green is a merge requirement (`project-rules.md` #7). Secrets in GitHub OIDC/environment secrets; zero keys in repo.
 
 ## 10. Scalability & cost posture
 
@@ -84,4 +84,4 @@ Firestore fan-out is trivial at our shape (couple-scoped docs, no global feeds �
 
 ## 11. Decision log
 
-ADRs live in `docs/adr/NNN-*.md`; every architectural decision gets one (`project-rules.md` #8). ADR-001: Flutter over native pair. ADR-002: Firebase over Supabase (offline + FCM + Remote Config maturity outweigh Postgres ergonomics for this shape). ADR-003: RevenueCat. ADR-004: EU region. ADR-005: couple-scoped data model, no global social graph.
+ADRs live in `docs/adr/NNN-*.md`; every architectural decision gets one (`project-rules.md` #8). ADR-001: Flutter over native pair. ADR-002: Firebase over Supabase (offline + FCM + Remote Config maturity outweigh Postgres ergonomics for this shape). ADR-003: RevenueCat. ADR-004: EU region. ADR-005: couple-scoped data model, no global social graph. ADR-006: iOS-first release/validation sequencing (M1–M6 validate on iOS and iOS ships first; Android build/test/release hardening is a follow-on milestone, M6.5 — single Flutter codebase retained per ADR-001).

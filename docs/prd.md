@@ -65,6 +65,6 @@ Offline-tolerant (answers queue and sync); cold start <2s mid-range Android (TR 
 **North star: couples with ≥4 mutual-answer days per week ("connected couples").**
 Activation: % signups paired ≤7d (Gate 2 ≥40%). Retention: D1/D7/D30 couple retention (D7 ≥25%). Revenue: install→trial ≥6%, trial→paid ≥30% (Gate 3), churn <10%/mo, GCC+diaspora revenue share ≥50% by month 12. Loop health: invites sent/signup, invite→pair conversion, share-card CTR.
 
-## 10. Release criteria (MVP)
+## 10. Release criteria (MVP — iOS-first)
 
-All P0 features pass acceptance tests in `test-suite.md`; RTL golden tests green; KVKK/PDPL delete+export verified; paywall verified with store sandbox in TR + SAR storefronts; crash-free sessions ≥99.5% in closed beta (20 couples, 2 weeks); Gate 2 instrumentation live from day one.
+All P0 features pass acceptance tests in `test-suite.md`; RTL golden tests green; KVKK/PDPL delete+export verified; paywall verified with App Store sandbox in TR + SAR storefronts; crash-free sessions ≥99.5% in iOS closed beta (TestFlight, 20 couples, 2 weeks); Gate 2 instrumentation live from day one. iOS is the first shipping platform (see ADR-006): these criteria gate the iOS MVP release. The equivalent Android release criteria — Play Store sandbox purchases, Play internal closed beta, and the mid-range Android cold-start target in §8 — are verified in the Android enablement follow-on (M6.5), not this MVP.

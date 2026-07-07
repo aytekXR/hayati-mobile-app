@@ -28,7 +28,7 @@ Docs are source code (rule #8): any behavior/architecture change edits the relev
 
 ## W7 — Release workflow
 
-Tag `vX.Y.Z` → `release.yml` → integration matrix → Fastlane signed builds → TestFlight / Play internal → smoke checklist on physical devices (one mid-range Android TR-locale, one iPhone AR-locale — RTL smoke mandatory) → staged rollout 10%→50%→100% watching crash-free ≥99.5% → store listing updates from `fastlane/metadata` per locale. Rollback = halt staged rollout + previous tag rebuild.
+Tag `vX.Y.Z` → `release.yml` → integration matrix → Fastlane signed builds → TestFlight (iOS ships first; Play internal + the Android device leg deferred to the Android enablement follow-on, M6.5, per ADR-006) → smoke checklist on physical devices (iOS-first: one iPhone TR-locale + one iPhone AR-locale — RTL smoke mandatory; mid-range Android TR-locale device added in the Android enablement follow-on, M6.5) → staged rollout 10%→50%→100% watching crash-free ≥99.5% → store listing updates from `fastlane/metadata` per locale. Rollback = halt staged rollout + previous tag rebuild.
 
 ## W8 — Content operations (growth engine)
 

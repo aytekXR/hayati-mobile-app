@@ -17,11 +17,11 @@ Security rules suite (the invariants in `architecture.md` §3 — especially *pa
 E2E-1 fresh install → signup → invite → (second device) preview → join → both answer → reveal → streak=1. E2E-2 trial start → sandbox purchase → premium unlocked on *both* devices. E2E-3 PIN lock + discreet icon behavior. Run in `release.yml`, not on every push (cost/flake budget).
 
 ### Smoke (post-build, physical devices)
-Signed artifact checklist on mid-range Android (TR locale) + iPhone (AR locale): cold start <2s, push received, purchase sheet opens, RTL sanity, crash-free session. 10 minutes, every release candidate.
+Signed artifact checklist on iPhone in TR + AR locales (TR = the iOS soft-launch cohort, AR = RTL sanity): cold start <2s, push received, purchase sheet opens, RTL sanity, crash-free session. 10 minutes, every release candidate. **iOS-first (ADR-006): the iPhone smoke gates the release pre-Android; the mid-range Android (TR locale) smoke re-enters as a release gate in the Android enablement follow-on (M6.5).**
 
 ## 2. CI validation
 
-`ci.yml` (every push/PR): format → analyze (RTL lint included) → unit + widget (incl. goldens) → coverage gate → debug build. `release.yml` (tags): emulator integration suite → E2E on emulator/simulator matrix (Android API 30/34; iOS current-1/current) → signed builds → distribute. Branch protection: no green, no merge (rule #7).
+`ci.yml` (every push/PR): format → analyze (RTL lint included) → unit + widget (incl. goldens) → coverage gate → debug build. `release.yml` (tags): emulator integration suite → E2E on the iOS simulator matrix (current-1/current) — iOS-first (ADR-006): the Android API 30/34 emulator matrix re-enters this release gate in the Android enablement follow-on (M6.5) → signed builds → distribute. Branch protection: no green, no merge (rule #7).
 
 ## 3. Coverage goals
 

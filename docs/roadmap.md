@@ -11,19 +11,24 @@ Gates from `feasibility-report.md` §10 govern phase transitions. Dates are rela
 
 ## Phase 1 — MVP build (T0+3w → T0+9w)
 
-- Milestones M1–M6 (`implementation-plan.md`); content bank authoring (400 TR / 300 AR / 300 EN) runs alongside build; closed beta with 20 recruited couples in final week; store assets TR/EN.
+- Milestones M1–M6 (`implementation-plan.md`); content bank authoring (400 TR / 300 AR / 300 EN) runs alongside build; closed beta with 20 recruited couples in final week via iOS TestFlight; App Store assets TR/EN (Play assets deferred to the Android enablement follow-on, M6.5).
 - Content ops continue at reduced cadence — accounts must be warm at launch.
 - **Exit:** MVP release criteria in `prd.md` §10 met.
 
 ## Phase 2 — Turkey soft launch (T0+9w → T0+13w)
 
-- Ship to both stores TR storefront; content ops to full cadence (≥5 posts/day/language, winning hooks doubled); weekly funnel review against Gate 2; activation iteration only (pairing flow, notification copy, preview screen) — feature freeze otherwise.
-- **Exit = Gate 2:** paired ≥40% ≤7d; D7 couple retention ≥25%.
+- Ship to the **iOS App Store** TR storefront (Android follows post-validation — see the Android enablement follow-on (M6.5) below and ADR-006); content ops to full cadence (≥5 posts/day/language, winning hooks doubled); weekly funnel review against Gate 2; activation iteration only (pairing flow, notification copy, preview screen) — feature freeze otherwise.
+- **Exit = Gate 2:** paired ≥40% ≤7d; D7 couple retention ≥25%. *(iOS-first caveat, ADR-006: this first Gate 2 read is the TR iOS cohort only — a minority platform in Android-heavy Turkey — so treat it as directional; the fuller read arrives once the Android enablement follow-on (M6.5) ships.)*
 
 ## Phase 3 — Monetize (T0+13w → T0+17w)
 
 - Paywall experiments (price points, annual framing, gift flow prominence) via RevenueCat experiments; TR lifetime tier test; first cohort LTV read.
-- **Exit = Gate 3:** trial→paid ≥30%; install→paid ≥2%. Passing unlocks spend and GCC.
+- **Exit = Gate 3:** trial→paid ≥30%; install→paid ≥2%. Passing unlocks spend, the Android enablement follow-on (M6.5), and GCC.
+
+## Android enablement & Play release (M6.5) — follow-on (after Gate 3 · iOS MVP validated)
+
+- Per iOS-first (ADR-006; detailed as **M6.5** in `implementation-plan.md`): Android release hardening (Play internal → production track, TR Play storefront + assets), RevenueCat/Play-billing parity, and Android-specific QA (deep-link cold start, discreet icon, push, RTL). Same Flutter codebase — platform hardening, not new product scope, so it stays cheap.
+- Un-blinds the Android-heavy TR market and lets the fuller TR cohort confirm the iOS-only Gate 2/3 reads (see the Phase 2 Gate 2 caveat). May run in parallel with Phase 4 (GCC is iOS-heavy), so it does not delay the Phase 4 window.
 
 ## Phase 4 — Arabic launch & GCC push (T0+17w → T0+26w)
 

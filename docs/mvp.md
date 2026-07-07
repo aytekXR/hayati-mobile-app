@@ -2,7 +2,7 @@
 
 **Rule: if it is not listed under IN, it is OUT. Scope additions require editing this file first, with a written justification appended below. The MVP exists to answer Gates 2 and 3 — nothing else.**
 
-**Target: 6 build-weeks after Gate 1 passes. Platforms: iOS + Android (Flutter, single codebase — Turkey is Android-heavy, GCC is iOS-heavy; shipping one platform would blind one gate.)**
+**Target: 6 build-weeks after Gate 1 passes. Platforms: iOS-first, then Android — single Flutter codebase retained so the Android follow-on stays cheap (Turkey is Android-heavy, GCC is iOS-heavy). iOS ships first; see the Scope-change log (2026-07-08) and ADR-006 for the iOS-first sequencing and its Gate 2 read caveat.**
 
 ## IN
 
@@ -31,4 +31,6 @@ Both green → execute GCC phase per `roadmap.md`. Either red → fix loop befor
 
 ## Scope-change log
 
-*(empty — keep it that way)*
+### 2026-07-08 — iOS-first release sequencing (founder directive)
+
+Justification: Platform target changed from simultaneous iOS + Android to **iOS-first** — a release/validation sequencing change, not a stack change. Milestones M1–M6 validate against iOS (simulator tests, iOS goldens, TestFlight); iOS is the first shipping platform (closed beta + TR soft launch on iOS); Android build/test/release + Play-store hardening becomes a follow-on milestone (**M6.5 — Android enablement & Play release**) after the iOS MVP is validated (Gate 3). The Flutter single codebase (`architecture.md` ADR-001) is retained specifically so the Android follow-on stays cheap. Accepted trade-off: Turkey is Android-heavy, so the initial Gate 2 read comes from the TR iOS cohort only — treat it as directional; Android confirms on the follow-on. Gate thresholds, pricing, and IN/OUT scope are unchanged. Decision recorded in ADR-006.
