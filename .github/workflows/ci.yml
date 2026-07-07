@@ -83,4 +83,6 @@ jobs:
         run: flutter pub get
       - name: build ios (no codesign)
         working-directory: app
-        run: flutter build ios --no-codesign --debug
+        # Explicit --target: the scaffold has no lib/main.dart — flavors are
+        # Dart entrypoints (main_dev.dart / main_prod.dart, Session 001).
+        run: flutter build ios --no-codesign --debug --target lib/main_dev.dart
