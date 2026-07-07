@@ -71,4 +71,15 @@
 - `Gemfile.lock` intentionally absent until fastlane first runs for real (M6) — no ruby/bundler on the dev machine. Documented in `Gemfile` + `fastlane/README.md`.
 - Docs-only PRs run the full pipeline including the macOS smoke: `paths-ignore` on a required check would deadlock merges ("expected" forever), so it was deliberately not used. Revisit only if the Actions minute budget tightens.
 - Coverage ratchet: floor stays 60% in `ci.yml`; first bump to 62% lands when M1 closes (test-suite §3).
-**Next objective written to resume-prompt.md:** Session 003 — content pack validator v1 (Phase-0-parallel content tooling; Gate 1 standing note honored — M1.1 stays blocked until Gate 1 passes).
+**Next objective written to resume-prompt.md:** Session 003 — content pack validator v1 (Phase-0-parallel content tooling; Gate 1 standing note honored — M1.1 stays blocked until Gate 1 passes). *[Superseded before execution by the 2026-07-08 de-gating directive — see the Directive entry below and ADR-007.]*
+
+## Directive — 2026-07-08 — De-gate build from content validation (ADR-007)
+
+**Trigger (founder, verbatim intent):** "skip tiktok parts. focus on developing app. even if no one uses the app, I and my wife will use it. continue developing the app iOS-first." Founder additionally commits personal-device testing (Mac + Xcode, personal iPhone) on request.
+
+**Resolution:** recorded as **ADR-007**. Engineering M1→M6 proceeds immediately, iOS-first (ADR-006 unchanged); Gate 1 decoupled from engineering; Gates 1–3 retained as marketing/spend/launch decision instruments only; TikTok/content-ops leave the session pipeline; content packs re-scoped as product/dogfood content (validator back to M3); personal-use-first quality bar (founder couple = first release target).
+
+**Docs touched:** adr/007 (new), adr/README.md (index), architecture.md §11, roadmap.md (de-gating note + Phase 0 header), prd.md (status line), implementation-plan.md (M6.5 gate wording), resume-prompt.md (regenerated: Session 003 = M1.1 Firebase foundation + Auth domain, superseding the unexecuted validator objective).
+
+**Outcome:** docs-only change, merged via PR with green pipeline.
+**Next objective in resume-prompt.md:** Session 003 — M1.1 Firebase foundation + Auth domain (external dependencies noted: founder `firebase login` at session start; Apple Developer Program status to confirm for M1.2 provider work).

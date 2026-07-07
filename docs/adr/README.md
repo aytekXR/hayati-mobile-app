@@ -30,3 +30,4 @@ ADR-001–005 were backfilled at M0.2 (Session 002) from the `architecture.md` �
 | [004](004-eu-firestore-region.md) | EU (europe-west multi-region) Firestore region | Accepted |
 | [005](005-couple-scoped-data-model.md) | Couple-scoped data model — no global social graph | Accepted |
 | [006](006-ios-first-release-sequencing.md) | iOS-first release & validation sequencing — Android re-sequenced to M6.5 | Accepted |
+| [007](007-de-gate-build-from-content-validation.md) | Build de-gated from content validation — gates become spend/launch instruments; personal-use-first | Accepted |

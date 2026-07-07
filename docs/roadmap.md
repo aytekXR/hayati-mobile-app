@@ -2,7 +2,9 @@
 
 Gates from `feasibility-report.md` §10 govern phase transitions. Dates are relative to project start (T0); calendar note: **plan v1.5 so Ramadan mode ships ≥3 weeks before the next Ramadan**, whatever phase we're in.
 
-## Phase 0 — Validation (T0 → T0+3w) · *no product code beyond scaffold*
+> **De-gating note (ADR-007, 2026-07-08):** the build (Phases 1+ engineering, M1→M6) proceeds immediately and independently of Phase 0 — gates are decision instruments for marketing/spend/launch posture, no longer build blockers. Phase 0 content ops are optional/founder-driven. First release target is the founder couple's own devices (personal-use-first). Phase timing below reads as sequence, not calendar commitments.
+
+## Phase 0 — Validation (T0 → T0+3w) · *optional / founder-driven since ADR-007 (was: gate for build investment)*
 
 - Content ops infra: 6 fresh TikTok accounts (3 TR / 3 AR), tracking spreadsheet (account, hook, format, views, likes, comments, comment-intent), 2 UGC creators contracted (TR + Gulf-dialect), AI slideshow pipeline.
 - Produce & post 60 slideshows (30 TR / 30 AR): couple-question hooks, "answer this with your partner" formats, reaction formats.
