@@ -60,6 +60,25 @@ void main() {
       expect(oauth.providerId, 'google.com');
     });
 
+    test('passes the configured OAuth client ids through to initialize '
+        '(issue #5 per-flavor seam)', () async {
+      gateway = GoogleSignInAuthGateway(
+        signIn: signIn,
+        clientId: 'ios-oauth-client-id',
+        serverClientId: 'web-oauth-client-id',
+      );
+      stubAuthenticate(account: accountWithIdToken('id-token-1'));
+
+      await gateway.acquireCredential();
+
+      verify(
+        () => signIn.initialize(
+          clientId: 'ios-oauth-client-id',
+          serverClientId: 'web-oauth-client-id',
+        ),
+      ).called(1);
+    });
+
     test('initializes google_sign_in exactly once across calls', () async {
       stubAuthenticate(account: accountWithIdToken('id-token-1'));
 

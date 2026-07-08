@@ -1,0 +1,13 @@
+# ARB-based l10n (docs/architecture.md §6). Generated on `flutter pub get` /
+# run / build (NOT on `flutter test` — run pub get after editing an ARB).
+# Output is gitignored: CI's pub get step regenerates it fresh, dart-format
+# clean (gen-l10n formats with the same SDK dart the format gate uses).
+arb-dir: lib/core/l10n/arb
+output-dir: lib/core/l10n/gen
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false
+# English first so unsupported device locales resolve to EN (mirrors the
+# domain's bootstrapContentLanguage fallback), not alphabetical-first AR.
+preferred-supported-locales: ["en"]

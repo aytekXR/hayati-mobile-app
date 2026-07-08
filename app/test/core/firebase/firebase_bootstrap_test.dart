@@ -17,8 +17,9 @@ void main() {
     test('dev on Android selects the dev Android options', () {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       expect(firebaseOptionsFor(AppFlavor.dev), DevFirebaseOptions.android);
-      // demo- prefix keeps the Auth emulator credential-free pre-provisioning.
-      expect(firebaseOptionsFor(AppFlavor.dev).projectId, 'demo-hayati');
+      // Real project since Session 004 (issue #5); emulator workflows still
+      // start firebase-tools under the demo-hayati alias.
+      expect(firebaseOptionsFor(AppFlavor.dev).projectId, 'hayatiapp-dev');
     });
 
     test('dev on iOS selects the dev iOS options', () {
@@ -30,7 +31,7 @@ void main() {
     test('prod on Android selects the prod Android options', () {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       expect(firebaseOptionsFor(AppFlavor.prod), ProdFirebaseOptions.android);
-      expect(firebaseOptionsFor(AppFlavor.prod).projectId, 'hayati-prod');
+      expect(firebaseOptionsFor(AppFlavor.prod).projectId, 'hayatiapp-prod');
     });
 
     test('prod on iOS selects the prod iOS options', () {
