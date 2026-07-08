@@ -153,9 +153,11 @@ void main() {
       expect(data['contentLanguage'], 'ar');
       expect(data['register'], 'respectful');
       expect(data['createdAt'], isA<FieldValue>());
-      // merge keeps server-owned fields (coupleId, fcmTokens) intact.
+      // merge:true is load-bearing — it is what keeps server-owned fields
+      // (createdAt on re-save, coupleId/fcmTokens later) intact. A non-null
+      // SetOptions is NOT enough (review W4: merge:false would ship green).
       final options = captured.last as SetOptions?;
-      expect(options, isNotNull);
+      expect(options?.merge, isTrue);
     });
 
     test('re-saving never rewrites createdAt', () async {
@@ -171,16 +173,17 @@ void main() {
 
       await repository.saveProfile('uid-1', profile);
 
-      final data =
-          verify(
-                () => transaction.set<Map<String, dynamic>>(
-                  doc,
-                  captureAny(),
-                  any(),
-                ),
-              ).captured.first
-              as Map<String, Object?>;
+      final captured = verify(
+        () => transaction.set<Map<String, dynamic>>(
+          doc,
+          captureAny(),
+          captureAny(),
+        ),
+      ).captured;
+      final data = captured.first as Map<String, Object?>;
       expect(data.containsKey('createdAt'), isFalse);
+      // Omitting createdAt only preserves it because the write merges.
+      expect((captured.last as SetOptions?)?.merge, isTrue);
     });
 
     test('maps rules denials to ProfilePermissionException', () {

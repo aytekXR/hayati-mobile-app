@@ -128,6 +128,27 @@ void main() {
       expect(saved?.register, ContentRegister.respectful);
     });
 
+    testWidgets('switching away from Turkish resets a playful register '
+        'choice', (tester) async {
+      // Covers the save-time reset branch (review W4): a playful pick made
+      // while Turkish was selected must NOT leak into a non-Turkish save.
+      final fake = await pumpCapture(tester, locale: const Locale('tr'));
+      final tr = l10nFor(const Locale('tr'));
+
+      await tester.tap(find.text(tr.statusMarried));
+      await tester.pump();
+      await tester.tap(find.text(tr.registerPlayful));
+      await tester.pump();
+      await tester.tap(find.text(tr.languageEnglish));
+      await tester.pump();
+      await tester.tap(find.text(tr.continueAction));
+      await tester.pumpAndSettle();
+
+      final saved = await fake.watchProfile('uid-1').first;
+      expect(saved?.contentLanguage, ContentLanguage.en);
+      expect(saved?.register, ContentRegister.respectful);
+    });
+
     testWidgets('shows progress while the save is in flight and debounces '
         'double taps', (tester) async {
       final fake = await pumpCapture(tester);

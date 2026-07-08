@@ -47,7 +47,12 @@ class FakeProfileRepository implements ProfileRepository {
   @override
   Stream<RelationshipProfile?> watchProfile(String uid) async* {
     yield _profiles[uid];
-    yield* _controllerFor(uid).stream;
+    // await-for (not yield*) so an emitted error TERMINATES this stream,
+    // exactly like the real repository's generator — with yield* the fake
+    // would keep delivering events after an error and hide resubscribe bugs.
+    await for (final profile in _controllerFor(uid).stream) {
+      yield profile;
+    }
   }
 
   @override
