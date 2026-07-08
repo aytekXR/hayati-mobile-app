@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "demo-hayati",
+    "dev": "hayati-dev",
+    "prod": "hayati-prod"
+  }
+}

@@ -1,0 +1,5 @@
+# Firebase CLI / emulator debris (repo root — the app has its own .gitignore)
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
+.firebase/
