@@ -4,8 +4,16 @@
       "host": "127.0.0.1",
       "port": 9099
     },
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8080
+    },
     "ui": {
       "enabled": false
     }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "location": "eur3"
   }
 }

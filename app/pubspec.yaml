@@ -7,12 +7,16 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  cloud_firestore: ^6.6.0
   firebase_auth: ^6.5.4
   firebase_core: ^4.11.0
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_riverpod: ^3.0.3
   google_sign_in: ^7.2.0
+  intl: any
   riverpod_annotation: ^3.0.3
 
 dev_dependencies:
@@ -27,4 +31,5 @@ dev_dependencies:
   riverpod_generator: ^3.0.3
 
 flutter:
+  generate: true
   uses-material-design: true

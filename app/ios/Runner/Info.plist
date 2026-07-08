@@ -22,6 +22,23 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<!-- Google Sign-In callback schemes (REVERSED_CLIENT_ID), one per
+		     flavor: dev (hayatiapp-dev) + prod (hayatiapp-prod). One Runner
+		     serves both Dart-entrypoint flavors, so both are registered;
+		     the client id itself is passed at runtime via
+		     GoogleSignInConfig (issue #5). -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.870954957461-d47kphokdf1vrrtn7g9fvqom7ofikies</string>
+				<string>com.googleusercontent.apps.419979715508-brk62sg117qfj212ig43cfv4da0k5jg0</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>

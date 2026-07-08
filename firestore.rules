@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// M1.2 minimal surface (docs/architecture.md §3/§8): a signed-in user owns
+// exactly their users/{uid} document; everything else is denied until the
+// milestone that introduces it ships rules WITH tests (couples/invites = M2).
+// Verified against the Firestore emulator's rules compiler in Session 004.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

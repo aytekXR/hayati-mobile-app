@@ -1,0 +1,91 @@
+{
+  "@@locale": "en",
+  "continueWithGoogle": "Continue with Google",
+  "@continueWithGoogle": {
+    "description": "Primary sign-in button on the auth screen"
+  },
+  "signInFailedTitle": "Sign-in failed",
+  "@signInFailedTitle": {
+    "description": "Title above the sign-in error detail"
+  },
+  "errorNetworkRetry": "Check your connection and try again.",
+  "@errorNetworkRetry": {
+    "description": "Detail copy for transient network failures (auth and profile save)"
+  },
+  "errorGeneric": "Something went wrong. Please try again.",
+  "@errorGeneric": {
+    "description": "Detail copy for unclassified failures"
+  },
+  "tryAgain": "Try again",
+  "@tryAgain": {
+    "description": "Retry button under any error state"
+  },
+  "signOut": "Sign out",
+  "@signOut": {
+    "description": "Sign-out action"
+  },
+  "onboardingTitle": "About you two",
+  "@onboardingTitle": {
+    "description": "Profile capture screen title; sets the couple-first tone"
+  },
+  "relationshipStatusLabel": "Your relationship",
+  "@relationshipStatusLabel": {
+    "description": "Label for the relationship status choice (dating/engaged/married)"
+  },
+  "statusDating": "Dating",
+  "@statusDating": {
+    "description": "RelationshipStatus.dating option (TR/AR use first-person-dual voice)"
+  },
+  "statusEngaged": "Engaged",
+  "@statusEngaged": {
+    "description": "RelationshipStatus.engaged option"
+  },
+  "statusMarried": "Married",
+  "@statusMarried": {
+    "description": "RelationshipStatus.married option"
+  },
+  "contentLanguageLabel": "Question language",
+  "@contentLanguageLabel": {
+    "description": "Label for the daily-question content language choice"
+  },
+  "languageTurkish": "Türkçe",
+  "@languageTurkish": {
+    "description": "Endonym — rendered identically in every UI locale"
+  },
+  "languageArabic": "العربية",
+  "@languageArabic": {
+    "description": "Endonym — rendered identically in every UI locale"
+  },
+  "languageEnglish": "English",
+  "@languageEnglish": {
+    "description": "Endonym — rendered identically in every UI locale"
+  },
+  "registerLabel": "Tone",
+  "@registerLabel": {
+    "description": "Label for the Turkish dual-register choice (docs/prd.md F1)"
+  },
+  "registerPlayful": "Playful",
+  "@registerPlayful": {
+    "description": "ContentRegister.playful option"
+  },
+  "registerRespectful": "Respectful",
+  "@registerRespectful": {
+    "description": "ContentRegister.respectful option"
+  },
+  "continueAction": "Continue",
+  "@continueAction": {
+    "description": "Generic forward action (submits profile capture)"
+  },
+  "profileSaveFailedTitle": "Couldn't save your profile",
+  "@profileSaveFailedTitle": {
+    "description": "Title above the profile-save error detail"
+  },
+  "invitePartnerTitle": "Invite your partner",
+  "@invitePartnerTitle": {
+    "description": "Post-capture placeholder title; real pairing is M2"
+  },
+  "invitePartnerBody": "Pairing is coming soon. You're all set for now.",
+  "@invitePartnerBody": {
+    "description": "Body of the M2 pairing placeholder"
+  }
+}

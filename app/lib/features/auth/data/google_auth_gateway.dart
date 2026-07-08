@@ -21,14 +21,21 @@ abstract interface class GoogleAuthGateway {
 /// v7 splits authentication (id token) from authorization (access tokens);
 /// Firebase only needs the id token, so no authorization call is made.
 class GoogleSignInAuthGateway implements GoogleAuthGateway {
-  GoogleSignInAuthGateway({GoogleSignIn? signIn, this.serverClientId})
-    : _signIn = signIn ?? GoogleSignIn.instance;
+  GoogleSignInAuthGateway({
+    GoogleSignIn? signIn,
+    this.clientId,
+    this.serverClientId,
+  }) : _signIn = signIn ?? GoogleSignIn.instance;
 
   final GoogleSignIn _signIn;
 
+  /// iOS OAuth client id (runtime `GIDClientID`); per-flavor because one
+  /// Runner serves both flavors. Sourced from `GoogleSignInConfig`
+  /// (core/firebase). Null until issue #5's console enablement lands.
+  final String? clientId;
+
   /// Android needs the Firebase web/OAuth client id to mint a
-  /// Firebase-verifiable id token; iOS reads its client id from the
-  /// (M1.2-provisioned, issue #5) plist. Null until real config lands.
+  /// Firebase-verifiable id token. Null until real config lands (issue #5).
   final String? serverClientId;
 
   Future<void>? _initialization;
@@ -42,6 +49,7 @@ class GoogleSignInAuthGateway implements GoogleAuthGateway {
   Future<void> _ensureInitialized() async {
     try {
       await (_initialization ??= _signIn.initialize(
+        clientId: clientId,
         serverClientId: serverClientId,
       ));
     } on GoogleSignInException catch (failure) {
