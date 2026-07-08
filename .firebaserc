@@ -1,7 +1,7 @@
 {
   "projects": {
     "default": "demo-hayati",
-    "dev": "hayati-dev",
-    "prod": "hayati-prod"
+    "dev": "hayatiapp-dev",
+    "prod": "hayatiapp-prod"
   }
 }

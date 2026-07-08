@@ -107,3 +107,15 @@
 - Coverage floor stays 60% (`ci.yml`); ratchet to 62% when M1 closes (test-suite §3, Session-002 note).
 
 **Next objective written to resume-prompt.md:** Session 004 — M1.2 Firebase provisioning (#5, founder-gated with emulator-only fallback) + profile capture & locale bootstrapping (l10n scaffold TR/AR/EN, profile domain TDD, Firestore-emulator-backed repository, onboarding capture states).
+
+## Directive — 2026-07-08 — Post-Session-003: automation preference, Apple Developer confirmed, Firebase provisioned
+
+**Trigger (founder, same day as Session 003 close):** (1) "all automated if possible" — minimize founder-in-the-loop steps; (2) founder enrolled in the **paid Apple Developer Program** (the open question from the Session-003 external dependencies is now answered: **yes**); (3) founder authorized executing the cloud half of issue #5 immediately.
+
+**Resolution:**
+- **Automation preference (standing):** prefer scripted provisioning and automated emulator/CI verification over manual device smokes; manual smokes become optional/nice-to-have, never acceptance-blocking. Reflected in the regenerated Session-004 prompt.
+- **Apple Developer:** confirmed → M1.3 proceeds with Sign in with Apple + APNs/phone auth as planned. Nothing buildable from the Linux box today; certificate/profile automation (Fastlane match) remains M6.
+- **Firebase provisioning (issue #5, cloud half):** first attempt under the founder's **org account** (`beyondkaira.com`) failed — every `addFirebase` 403'd despite proven Owner role, enabled API, and a clean org policy; root cause was simply the **wrong account**. Re-login with the personal account succeeded instantly. Created + Firebase-attached **`hayatiapp-dev`** / **`hayatiapp-prod`**, registered iOS+Android apps for `com.hayati.app` on both, verified config retrieval via `apps:sdkconfig`, updated `.firebaserc` dev/prod aliases (default stays `demo-hayati` for the emulator). Full app IDs in the issue #5 comment. Burned/orphaned IDs flagged for optional cleanup: `hayati-dev` (taken by a third party), `hayati-app-dev` (orphaned GCP project in the beyondkaira org), `hayati-app-dev-697a5` (console-created duplicate during troubleshooting).
+
+**Docs touched:** resume-prompt.md (Session-004 item 1 rescoped to the repo half; external dependencies cleared; automated-verification acceptance wording), `.firebaserc`, issue #5 comment, past-prompts.md (this entry).
+**Outcome:** docs-only change, merged via PR with green pipeline. Session 004 starts with zero founder-gated blockers.
