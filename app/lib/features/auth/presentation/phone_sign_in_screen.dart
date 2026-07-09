@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../domain/auth_exception.dart';
 import '../domain/auth_state.dart';
@@ -12,8 +13,9 @@ import 'state/phone_sign_in_controller.dart';
 
 /// Phone sign-in flow (docs/resume-prompt.md M1.3): phone-number entry →
 /// SMS-code entry, driven by [phoneSignInControllerProvider]. Pushed on top of
-/// `SignInScreen`; deliberately unstyled beyond theme defaults (brandkit is a
-/// later M1 slice). Layout is logical-direction only (RTL-safe).
+/// `SignInScreen`; brand styling comes from the theme
+/// (core/design_system/hayati_theme.dart) plus the spacing tokens below.
+/// Layout is logical-direction only (RTL-safe).
 ///
 /// Signed-in hand-off: the controller never flips the global `AuthState` — a
 /// successful confirm surfaces as `AuthSignedIn` on the `authStateChanges`
@@ -42,7 +44,9 @@ class PhoneSignInScreen extends ConsumerWidget {
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(
+              horizontal: SpacingTokens.screenGutter,
+            ),
             child: switch (state) {
               PhoneEntry() => const _PhoneNumberEntry(),
               // A failure with no retained session (send failure or an expired
@@ -114,8 +118,15 @@ class _PhoneNumberEntryState extends ConsumerState<_PhoneNumberEntry> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (error != null) ...[
-          Text(_errorCopy(l10n, error), textAlign: TextAlign.center),
-          const SizedBox(height: 16),
+          // Error copy in the theme's alert colour (alert-on-night 4.94:1 OK).
+          Text(
+            _errorCopy(l10n, error),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
+          const SizedBox(height: SpacingTokens.x4),
         ],
         TextField(
           controller: _controller,
@@ -127,7 +138,7 @@ class _PhoneNumberEntryState extends ConsumerState<_PhoneNumberEntry> {
             hintText: l10n.phoneNumberHint,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: SpacingTokens.x6),
         FilledButton(onPressed: _submit, child: Text(l10n.sendCode)),
       ],
     );
@@ -173,8 +184,15 @@ class _SmsCodeEntryState extends ConsumerState<_SmsCodeEntry> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (error != null) ...[
-          Text(_errorCopy(l10n, error), textAlign: TextAlign.center),
-          const SizedBox(height: 16),
+          // Error copy in the theme's alert colour (alert-on-night 4.94:1 OK).
+          Text(
+            _errorCopy(l10n, error),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
+          const SizedBox(height: SpacingTokens.x4),
         ],
         TextField(
           controller: _controller,
@@ -183,12 +201,12 @@ class _SmsCodeEntryState extends ConsumerState<_SmsCodeEntry> {
           onSubmitted: (_) => _submit(),
           decoration: InputDecoration(labelText: l10n.smsCodeLabel),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: SpacingTokens.x6),
         FilledButton(onPressed: _submit, child: Text(l10n.verifyCode)),
-        const SizedBox(height: 8),
+        const SizedBox(height: SpacingTokens.x2),
         if (widget.resending)
           const Padding(
-            padding: EdgeInsets.all(8),
+            padding: EdgeInsets.all(SpacingTokens.x2),
             child: SizedBox(
               height: 16,
               width: 16,

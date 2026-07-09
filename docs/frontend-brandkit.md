@@ -61,3 +61,12 @@ WCAG AA contrast; touch targets ≥44dp; full TalkBack/VoiceOver labels in all t
 3. **The reveal is the product** — spend polish budget there.
 4. **Culturally authored, not translated** — copy reviewed by native register owners before merge.
 5. **Restraint reads premium** — especially with gold.
+
+## 10. Implementation notes & gaps (M1.4)
+
+Gaps found applying tokens v1.0 to the M1 surfaces, each resolved with a defensible default. Tokens are mirrored in `app/lib/core/design_system/`, which is the in-app source of truth.
+
+1. **No on-`pomegranate` text token.** Button labels on `pomegranate` fills render `sand` (3.94:1 on `pomegranate`) — the ≥4.5:1 rule as authored (§2) covers text on `night`, and `sand` is the warmest legible label color on the fill.
+2. **`pomegranate` fails as body text on `night`** (3.45:1, below ≥4.5:1). So link / `TextButton` labels render `sand`; `pomegranate` stays a fill and accent color only, never body text on `night`.
+3. **Button/input radii unspecified.** Buttons take the chip token (full / stadium); inputs take the card token (16).
+4. **Heading line-heights unspecified.** Font defaults are kept for Display/H1/H2; only body and caption carry the 1.5 Latin / 1.7 Arabic rule.

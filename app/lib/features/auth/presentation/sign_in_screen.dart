@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_config_provider.dart';
+import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../profile/presentation/onboarding_gate.dart';
 import '../domain/auth_exception.dart';
@@ -11,10 +12,11 @@ import '../domain/auth_state.dart';
 import 'phone_sign_in_screen.dart';
 import 'state/auth_controller.dart';
 
-/// Minimal auth shell for M1.1: one widget per [AuthState]. Deliberately
-/// unstyled beyond theme defaults — brandkit application is a later M1
-/// slice. Copy comes from the ARB bundles (tr/ar/en, M1.2 —
-/// docs/architecture.md §6). Layout is logical-direction only (RTL-safe).
+/// Minimal auth shell for M1.1: one widget per [AuthState]. Brand styling comes
+/// from the theme (core/design_system/hayati_theme.dart) and the spacing tokens
+/// below; per-widget overrides only where a surface needs emphasis. Copy comes
+/// from the ARB bundles (tr/ar/en, M1.2 — docs/architecture.md §6). Layout is
+/// logical-direction only (RTL-safe).
 class SignInScreen extends ConsumerWidget {
   const SignInScreen({super.key});
 
@@ -30,7 +32,9 @@ class SignInScreen extends ConsumerWidget {
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(
+              horizontal: SpacingTokens.screenGutter,
+            ),
             child: switch (authState) {
               AuthSignedOut() => const _SignedOutView(),
               AuthError(:final failure) => _ErrorView(failure: failure),
@@ -52,8 +56,10 @@ class _SignedOutView extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(config.appName, style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 32),
+        // Hero wordmark on the display role (sand — pomegranate-on-night fails
+        // the >=4.5 contrast rule, so the brand text stays sand).
+        Text(config.appName, style: Theme.of(context).textTheme.displaySmall),
+        const SizedBox(height: SpacingTokens.x8),
         const _ProviderActions(),
       ],
     );
@@ -81,12 +87,12 @@ class _ProviderActions extends ConsumerWidget {
           onPressed: () => unawaited(notifier.signInWithApple()),
           child: Text(l10n.continueWithApple),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: SpacingTokens.x3),
         FilledButton(
           onPressed: () => unawaited(notifier.signInWithGoogle()),
           child: Text(l10n.continueWithGoogle),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: SpacingTokens.x3),
         TextButton(
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const PhoneSignInScreen()),
@@ -112,16 +118,21 @@ class _ErrorView extends ConsumerWidget {
       AuthSessionExpiredException() => l10n.errorSessionExpired,
       AuthCancelledException() || AuthUnknownException() => l10n.errorGeneric,
     };
+    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        Text(l10n.signInFailedTitle, style: theme.textTheme.titleLarge),
+        const SizedBox(height: SpacingTokens.x2),
+        // Error copy in the theme's alert colour (alert-on-night 4.94:1 OK).
         Text(
-          l10n.signInFailedTitle,
-          style: Theme.of(context).textTheme.titleLarge,
+          detail,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.error,
+          ),
         ),
-        const SizedBox(height: 8),
-        Text(detail, textAlign: TextAlign.center),
-        const SizedBox(height: 24),
+        const SizedBox(height: SpacingTokens.x6),
         const _ProviderActions(),
       ],
     );

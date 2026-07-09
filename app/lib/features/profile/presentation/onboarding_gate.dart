@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/domain/auth_user.dart';
 import '../domain/profile_exception.dart';
@@ -48,6 +49,7 @@ class _GateErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final detail = switch (error) {
       ProfileNetworkException() => l10n.errorNetworkRetry,
@@ -57,12 +59,21 @@ class _GateErrorView extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(
+              horizontal: SpacingTokens.screenGutter,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(detail, textAlign: TextAlign.center),
-                const SizedBox(height: 24),
+                // Error copy in the theme's alert colour (alert-on-night OK).
+                Text(
+                  detail,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+                const SizedBox(height: SpacingTokens.x6),
                 FilledButton(onPressed: onRetry, child: Text(l10n.tryAgain)),
               ],
             ),
