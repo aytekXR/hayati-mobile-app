@@ -21,9 +21,10 @@ The operating contract for every coding session. `project-rules.md` is the const
 
 1. Append a session entry to `past-prompts.md` (template in that file). Never edit prior entries.
 2. Regenerate `resume-prompt.md`: inspect `roadmap.md` + current milestone progress + open `ci-debt` issues → choose the single highest-priority next task → write it with concrete acceptance criteria (rule #3). One objective only.
-3. `git add -A && git commit` (Conventional Commits: `feat(m2): partner preview screen with locked answer state`) `&& git push`.
-4. `gh run watch` until the pipeline concludes. Green → session over. Red → quick fix (≤15 min) now and re-push; structural → `gh issue create --label ci-debt` with failing-log excerpt, note it in `past-prompts.md`, and only then end (rule #5). A session never ends with an *unexamined* red pipeline.
-5. `codegraph sync` after the merge lands, so the local index reflects merged `main` — the next session's step-4 orientation depends on it (founder directive 2026-07-09).
+3. Refresh `docs/operator-expected.md` (founder directive, Session 009): what is expected from the founder right now, what becomes blocking soon, and the plan-progress/readiness snapshot. It is the committed, canonical founder checklist — the founder reads it instead of the session log.
+4. `git add -A && git commit` (Conventional Commits: `feat(m2): partner preview screen with locked answer state`) `&& git push`.
+5. `gh run watch` until the pipeline concludes. Green → session over. Red → quick fix (≤15 min) now and re-push; structural → `gh issue create --label ci-debt` with failing-log excerpt, note it in `past-prompts.md`, and only then end (rule #5). A session never ends with an *unexamined* red pipeline.
+6. `codegraph sync` after the merge lands, so the local index reflects merged `main` — the next session's step-4 orientation depends on it (founder directive 2026-07-09).
 
 ## 4. Blocked protocol
 

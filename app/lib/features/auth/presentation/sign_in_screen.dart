@@ -32,7 +32,12 @@ class SignInScreen extends ConsumerWidget {
     // opened `hayati://invite/<code>` cold): show WHO invited them before they
     // commit to sign-in — the activation moment (M2.3). The preview screen
     // brings its own Scaffold like OnboardingGate, so return it directly.
-    if (ref.watch(pendingInviteProvider) != null) {
+    //
+    // EXCEPT after a failed sign-in: an AuthError must fall through to the error
+    // view below (which re-offers the providers with error copy) rather than be
+    // swallowed by the preview. The pending code is keepAlive, so a successful
+    // retry resumes the preview / join flow.
+    if (authState is! AuthError && ref.watch(pendingInviteProvider) != null) {
       return const PartnerPreviewScreen();
     }
     return Scaffold(

@@ -7,27 +7,25 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-10 (early AM), Session 009 (M2.3) — **late stage,
-closing**._
+_Last refreshed: 2026-07-10, Session 009 (M2.3) — **closed**._
 
 ## Expected from you right now: **nothing is blocking.**
 
-Session 009 (M2.3 — transactional join + race rejection + partner preview
-screen) runs entirely against the emulators; nothing from you was needed and
-nothing is pending on you to close it. Status at this refresh: **server side
-done and verified** (`joinInvite` + rules hardening, 129 functions tests, 100%
-coverage), **app-side seams done** (395 unit tests green), app UI (partner
-preview screen + goldens + integration test) in final verification, then
-review → PR → CI → merge. Everything below is either optional-now or queued
-for a later milestone.
+Session 009 shipped M2.3 (transactional join + race rejection + partner
+preview screen) entirely against the emulators — nothing from you was needed.
+Evidence: functions 129 tests / **100% coverage**; app 471 tests / **87.50%**
+(gate 62); 21-agent adversarial review — server/security dimensions clean, 5
+app-flow/docs findings confirmed and fixed. The next session
+(`docs/resume-prompt.md`: **M2.4 — solo mode, closing M2**) is emulator-first
+too; start it as usual, nothing from you required.
 
-**Plan tracking:** after this session closes, M2 is 3/4 done →
-≈ 8/22 session-units (~36%) in 9 sessions. **On track — no plan or scope
-changes were made in Session 009** (the plan gets its normal progress note
-only). Readiness remains **pre-MVP, emulator/CI-proven**: the full pairing
-loop (issue → WhatsApp share → zero-auth preview → transactional join) now
-works end-to-end against emulators; still nothing deployed (Spark) and nothing
-on-device (items 1–3 below own that path).
+**Plan tracking:** M0 ✅ · M1 ✅ · **M2 3/4** · M3–M6 pending →
+≈ **8/22 session-units (~36%) in 9 sessions**. **On track — no plan or scope
+changes in Session 009** (M1's +1 session remains the only slippage ever).
+Readiness: **pre-MVP, emulator/CI-proven** — the activation-critical pairing
+loop (issue → WhatsApp share → zero-auth preview → race-safe transactional
+join) is complete end-to-end against emulators; still nothing deployed
+(Spark) and nothing on-device (items 1–3 below own that path, then M6).
 
 ## 1. Blaze plan decision — **last call, optional bonus otherwise**
 

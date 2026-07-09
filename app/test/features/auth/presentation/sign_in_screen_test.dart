@@ -241,6 +241,37 @@ void main() {
       expect(find.byType(PartnerPreviewScreen), findsNothing);
       expect(find.text(kBrandName), findsOneWidget);
     });
+
+    testWidgets('a failed sign-in from the preview surfaces the error rather '
+        'than being swallowed by the pending invite', (tester) async {
+      final fake = await pumpScreen(
+        tester,
+        initialLink: Uri.parse('hayati://invite/ABCD2345'),
+      );
+      await tester.pumpAndSettle();
+      // The preview offers the sign-in providers (the activation moment).
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+
+      fake.onSignInWithGoogle = () async {
+        throw const AuthNetworkException(message: 'offline');
+      };
+      await tester.tap(find.text(en.continueWithGoogle));
+      await tester.pumpAndSettle();
+
+      // An AuthError falls through to the error view; it is NOT hidden behind
+      // the still-pending invite (finding 2).
+      expect(find.byType(PartnerPreviewScreen), findsNothing);
+      expect(find.text(en.signInFailedTitle), findsOneWidget);
+      expect(find.text(en.errorNetworkRetry), findsOneWidget);
+
+      // The invite is keepAlive, so a successful retry resumes the flow.
+      fake.onSignInWithGoogle = () async => testUser;
+      await tester.tap(find.text(en.continueWithGoogle));
+      await tester.pumpAndSettle();
+
+      // Fresh signup → onboarding; the pending invite waits behind capture.
+      expect(find.byType(ProfileCaptureScreen), findsOneWidget);
+    });
   });
 
   group('signed-in routing', () {

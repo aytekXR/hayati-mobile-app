@@ -29,7 +29,13 @@ void main() {
   // callable, auth) and pumps it as the app's home route. A non-null
   // [initialLink] seeds the pending deep-link code; otherwise the screen opens
   // on the manual-entry empty state.
-  Future<({FakeInviteRepository invites, FakeInvitePreviewRepository previews})>
+  Future<
+    ({
+      FakeInviteRepository invites,
+      FakeInvitePreviewRepository previews,
+      FakeDeepLinkSource deepLinks,
+    })
+  >
   pumpScreen(
     WidgetTester tester, {
     AuthUser? initialUser,
@@ -38,6 +44,9 @@ void main() {
     Future<InvitePreviewResult> Function(String code)? onPreview,
     Future<String> Function(String code)? onJoin,
     Locale locale = const Locale('en'),
+    // Defaults to the screen standalone; the gate-style parent tests pass a
+    // wrapper that routes on pendingInviteProvider like OnboardingGate.
+    Widget home = const PartnerPreviewScreen(),
   }) async {
     final auth = FakeAuthRepository(initialUser: initialUser);
     final deepLinks = FakeDeepLinkSource(initialUri: initialLink);
@@ -51,7 +60,7 @@ void main() {
 
     await tester.pumpWidget(
       localizedApp(
-        const PartnerPreviewScreen(),
+        home,
         locale: locale,
         overrides: [
           authRepositoryProvider.overrideWith((ref) => auth),
@@ -61,7 +70,7 @@ void main() {
         ],
       ),
     );
-    return (invites: invites, previews: previews);
+    return (invites: invites, previews: previews, deepLinks: deepLinks);
   }
 
   ProviderContainer containerOf(WidgetTester tester) =>
@@ -126,6 +135,19 @@ void main() {
       await tester.pump();
       expect(find.text(en.inviteCodeInvalid), findsNothing);
     });
+
+    testWidgets(
+      'the code field is pinned LTR and centred so the fixed-alphabet '
+      'code reads left-to-right even in Arabic',
+      (tester) async {
+        await pumpScreen(tester, locale: const Locale('ar'));
+        await tester.pumpAndSettle();
+
+        final field = tester.widget<TextField>(find.byType(TextField));
+        expect(field.textDirection, TextDirection.ltr);
+        expect(field.textAlign, TextAlign.center);
+      },
+    );
   });
 
   group('loading state', () {
@@ -197,8 +219,8 @@ void main() {
   });
 
   group('join (signed in)', () {
-    testWidgets('tapping Accept redeems the code and clears the pending '
-        'invite on success', (tester) async {
+    testWidgets('tapping Accept redeems the code and KEEPS the pending invite '
+        'on success (the users-doc stream re-routes the gate)', (tester) async {
       final fakes = await pumpScreen(
         tester,
         initialUser: _user,
@@ -209,12 +231,17 @@ void main() {
       expect(container.read(pendingInviteProvider), _code);
 
       await tester.tap(find.text(en.joinAcceptButton));
-      await tester.pumpAndSettle();
+      // pump (not pumpAndSettle): the success state holds an animating spinner
+      // while the gate would re-route, so it never settles.
+      await tester.pump();
+      await tester.pump();
 
       expect(fakes.invites.joinedCodes, [_code]);
-      // Success is a hand-off: the pending invite is cleared (the users-doc
-      // stream re-routes the gate elsewhere).
-      expect(container.read(pendingInviteProvider), isNull);
+      // Success is a hand-off: the pending invite is NOT cleared here. Clearing
+      // it at the gate mount would re-route before the users-doc stream lands
+      // coupleId and transiently flash the share screen (finding 3); coupleId's
+      // precedence replaces this screen once the stream delivers it.
+      expect(container.read(pendingInviteProvider), _code);
     });
 
     testWidgets(
@@ -315,9 +342,8 @@ void main() {
       });
     }
 
-    testWidgets('a terminal failure re-entry returns to manual entry', (
-      tester,
-    ) async {
+    testWidgets('a terminal failure re-entry returns to manual entry in place '
+        'WITHOUT clearing the pending invite', (tester) async {
       await pumpScreen(
         tester,
         initialUser: _user,
@@ -332,7 +358,98 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.joinHaveCodeTitle), findsOneWidget);
-      expect(containerOf(tester).read(pendingInviteProvider), isNull);
+      // Re-entry flips a local mode, NOT the pending invite: clearing it would
+      // unmount the screen at the gate / sign-in mounts (finding 1).
+      expect(containerOf(tester).read(pendingInviteProvider), _code);
+    });
+
+    testWidgets('at a gate-style mount, terminal-failure re-entry stays on the '
+        'screen in place (the parent never falls back to its marker)', (
+      tester,
+    ) async {
+      // The standalone mounts miss finding 1: the gate/sign-in parents route on
+      // the same provider the screen used to clear. This mounts the screen under
+      // a minimal parent that routes exactly like OnboardingGate.
+      await pumpScreen(
+        tester,
+        home: const _GateLikeParent(),
+        initialUser: _user,
+        initialLink: Uri.parse('hayati://invite/$_code'),
+        onJoin: (_) async => throw const InviteJoinConsumedException(),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+
+      await tester.tap(find.text(en.joinAcceptButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.joinEnterAnotherCode));
+      await tester.pumpAndSettle();
+
+      // Manual entry IN PLACE — the parent never uncovered its marker.
+      expect(find.text(en.joinHaveCodeTitle), findsOneWidget);
+      expect(find.text(_marker), findsNothing);
+      expect(containerOf(tester).read(pendingInviteProvider), _code);
+    });
+
+    testWidgets('at a gate-style mount, a successful join keeps the screen up '
+        '(no fall-back to the marker) and shows a waiting indicator', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        home: const _GateLikeParent(),
+        initialUser: _user,
+        initialLink: Uri.parse('hayati://invite/$_code'),
+        onJoin: (_) async => 'couple-1',
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(en.joinAcceptButton));
+      // pump (not pumpAndSettle): the waiting spinner animates indefinitely.
+      await tester.pump();
+      await tester.pump();
+
+      // Success does not clear the pending invite, so the parent stays on the
+      // screen (the coupleId-first precedence, not modelled here, is what would
+      // replace it once the profile stream lands). The share-screen marker must
+      // never flash.
+      expect(find.text(_marker), findsNothing);
+      expect(containerOf(tester).read(pendingInviteProvider), _code);
+      // The CTA holds a disabled progress button while the re-route is pending.
+      expect(find.text(en.joinAcceptButton), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(FilledButton),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a fresh deep link supersedes in-place manual mode (last '
+        'wins) and previews the new code', (tester) async {
+      final fakes = await pumpScreen(
+        tester,
+        initialUser: _user,
+        initialLink: Uri.parse('hayati://invite/$_code'),
+        onJoin: (_) async => throw const InviteJoinConsumedException(),
+      );
+      await tester.pumpAndSettle();
+
+      // Drop into manual entry via a terminal failure + re-entry.
+      await tester.tap(find.text(en.joinAcceptButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.joinEnterAnotherCode));
+      await tester.pumpAndSettle();
+      expect(find.text(en.joinHaveCodeTitle), findsOneWidget);
+
+      // A new deep link lands mid-manual-entry: last wins, so manual mode exits
+      // straight onto the new code's preview.
+      fakes.deepLinks.emit(Uri.parse('hayati://invite/WXYZ6789'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.joinHaveCodeTitle), findsNothing);
+      expect(fakes.previews.previewedCodes, contains('WXYZ6789'));
     });
   });
 
@@ -428,4 +545,24 @@ void main() {
       });
     }
   });
+}
+
+/// Marker copy the [_GateLikeParent] renders when no code is pending, standing
+/// in for the share screen OnboardingGate falls back to.
+const _marker = 'GATE-FALLBACK-MARKER';
+
+/// Minimal stand-in for OnboardingGate's routing: renders the partner preview
+/// while a code is pending and the [_marker] otherwise, on the SAME provider the
+/// screen mutates. It proves in-place re-entry / success do not unmount the
+/// screen — something the standalone mounts structurally cannot catch.
+class _GateLikeParent extends ConsumerWidget {
+  const _GateLikeParent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(pendingInviteProvider) != null) {
+      return const PartnerPreviewScreen();
+    }
+    return const Scaffold(body: Center(child: Text(_marker)));
+  }
 }

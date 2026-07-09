@@ -26,12 +26,23 @@ import 'state/pending_invite.dart';
 ///  - a manual `Navigator.push` from the invite share screen ("Have a code?"),
 ///    for the invitee who only got a WhatsApp code and no deep link.
 ///
-/// The effective code is a manually entered one (last wins) or the pending
-/// deep-link code; with neither, the EMPTY state invites manual entry. Brand
-/// styling comes from the theme (core/design_system) plus the spacing tokens;
-/// logical-direction only (RTL-safe). Each state view brings its own Scaffold,
-/// mirroring `InviteShareScreen`, so this screen can be returned directly by the
-/// gate or pushed as a route.
+/// Crucially the screen must NOT drive its own visibility: at the first two
+/// mounts the parent routes on `pendingInviteProvider` — the very state the
+/// screen would otherwise clear to re-offer entry — so clearing it there
+/// unmounts the screen (gate → share screen, sign-in → auth shell) and in-place
+/// re-entry becomes unreachable. "Enter another code" therefore flips a LOCAL
+/// [_PartnerPreviewScreenState._manualMode] instead, swapping to manual entry
+/// in place while the pending code stays put. The effective code is: manual
+/// mode → what was typed (null → the entry form); otherwise the pending
+/// deep-link code, falling back to an earlier manual entry (the pushed mount,
+/// where nothing is pending). A NEW deep link always supersedes manual mode
+/// (the provider's last-wins doctrine); only the deliberate "not now" dismiss
+/// clears the pending invite.
+///
+/// Brand styling comes from the theme (core/design_system) plus the spacing
+/// tokens; logical-direction only (RTL-safe). Each state view brings its own
+/// Scaffold, mirroring `InviteShareScreen`, so this screen can be returned
+/// directly by the gate or pushed as a route.
 class PartnerPreviewScreen extends ConsumerStatefulWidget {
   const PartnerPreviewScreen({super.key});
 
@@ -41,15 +52,32 @@ class PartnerPreviewScreen extends ConsumerStatefulWidget {
 }
 
 class _PartnerPreviewScreenState extends ConsumerState<PartnerPreviewScreen> {
-  /// A manually typed, already-normalized code. Takes precedence over the
-  /// pending deep-link code (last wins) and is cleared to fall back to entry.
+  /// A manually typed, already-normalized code (null until the user submits
+  /// one). In [_manualMode] this IS the active code; otherwise it is only the
+  /// fallback behind the pending deep-link code (the pushed "Have a code?"
+  /// mount, where nothing is pending).
   String? _manualCode;
+
+  /// True once the user chose "enter another code": force the manual-entry UI
+  /// in place, independent of the still-pending deep-link code, so the two
+  /// provider-routing parents (gate / sign-in) don't unmount us. A fresh deep
+  /// link clears it (last wins).
+  bool _manualMode = false;
 
   @override
   Widget build(BuildContext context) {
-    // Manual entry wins over the pending deep-link code (the user just typed
-    // it); with neither, there is nothing to preview yet.
-    final code = _manualCode ?? ref.watch(pendingInviteProvider);
+    // A fresh deep link supersedes an in-place re-entry: last wins, so drop out
+    // of manual mode straight onto the new code's preview.
+    ref.listen(pendingInviteProvider, (previous, next) {
+      if (next != null && _manualMode) {
+        setState(() => _manualMode = false);
+      }
+    });
+    final pending = ref.watch(pendingInviteProvider);
+    // Manual mode shows exactly what was typed (null → the entry form);
+    // otherwise the pending code leads, with an earlier manual entry (the
+    // pushed mount) as the fallback.
+    final code = _manualMode ? _manualCode : (pending ?? _manualCode);
     if (code == null) {
       return _ManualCodeEntry(onSubmit: _useCode);
     }
@@ -58,23 +86,30 @@ class _PartnerPreviewScreenState extends ConsumerState<PartnerPreviewScreen> {
 
   void _useCode(String code) => setState(() => _manualCode = code);
 
-  /// Drops the current code and returns to manual entry (from the unavailable
-  /// state, or a terminal join failure where this code will never work). Stays
-  /// on the screen — no pop — so the user can type a different code.
-  void _reenter() {
-    ref.read(pendingInviteProvider.notifier).clear();
-    setState(() => _manualCode = null);
-  }
+  /// Switches to manual entry IN PLACE — from the unavailable state, or a
+  /// terminal join failure where this code will never work. It deliberately
+  /// does NOT clear `pendingInviteProvider`: the gate / sign-in parents route
+  /// on that state, so clearing it would unmount this screen before the user
+  /// could type again. A later deep link still supersedes this mode (see
+  /// [build]).
+  void _reenter() => setState(() {
+    _manualMode = true;
+    _manualCode = null;
+  });
 
-  /// Post-auth "not now": clears the pending invite so `OnboardingGate` falls
-  /// back to the share screen, or pops back to it when we were pushed on top.
+  /// Post-auth "not now": the deliberate exit of the flow. Clears the pending
+  /// invite so `OnboardingGate` falls back to the share screen, or pops back to
+  /// it when we were pushed on top.
   void _dismiss() {
     final navigator = Navigator.of(context);
     ref.read(pendingInviteProvider.notifier).clear();
     if (navigator.canPop()) {
       navigator.pop();
     } else {
-      setState(() => _manualCode = null);
+      setState(() {
+        _manualMode = false;
+        _manualCode = null;
+      });
     }
   }
 }
@@ -160,6 +195,13 @@ class _ManualCodeEntryState extends ConsumerState<_ManualCodeEntry> {
                   autocorrect: false,
                   textCapitalization: TextCapitalization.characters,
                   textInputAction: TextInputAction.done,
+                  // The invite code is a fixed 8-char LTR token, so the INPUT is
+                  // pinned LTR and centred to match the share screen's code card
+                  // — otherwise the ar locale enters it right-aligned / RTL-
+                  // origin. The label stays locale-directional (only the edited
+                  // text is forced).
+                  textDirection: TextDirection.ltr, // rtl-ok
+                  textAlign: TextAlign.center,
                   onChanged: (_) {
                     if (_invalid) setState(() => _invalid = false);
                   },
@@ -308,14 +350,19 @@ class _QuestionSlot extends StatelessWidget {
 ///  - NOT signed in → the shared [ProviderActions]. The invitee saw who invited
 ///    them first; signing in is the commitment (the activation moment).
 ///  - signed in → the [joinInviteControllerProvider]-driven Accept button:
-///    idle → enabled; in-flight → disabled + progress; a terminal-code failure
-///    swaps in a re-enter affordance; a retryable failure keeps Accept. Plus the
-///    post-auth "not now" dismiss.
+///    idle → enabled; in-flight OR joined-and-waiting → disabled + progress; a
+///    terminal-code failure swaps in a re-enter affordance; a retryable failure
+///    keeps Accept. The post-auth "not now" dismiss shows until success.
 ///
 /// Success is a hand-off, not a navigation: `joinInvite` stamps `coupleId`
-/// server-side, the live `users/{uid}` stream re-routes the gate to the paired
-/// home (coupleId wins the gate precedence), and here we only clear the pending
-/// invite and pop if we were pushed. The autoDispose join controller may drop
+/// server-side and the live `users/{uid}` stream re-routes the gate to the
+/// paired home (coupleId wins the gate precedence). We deliberately do NOT clear
+/// the pending invite on success — at the gate mount (`canPop` false) the gate
+/// would re-evaluate BEFORE the stream delivers coupleId and transiently flash
+/// the share screen, so instead we hold a waiting indicator until coupleId lands
+/// (the stale pending code is unreachable behind coupleId's precedence). When we
+/// were PUSHED we pop to uncover the re-routed gate underneath (mirrors
+/// PhoneSignInScreen's pop-on-signin). The autoDispose join controller may drop
 /// its success value on that teardown — deliberately fine, because nothing reads
 /// the coupleId from it.
 class _JoinActions extends ConsumerWidget {
@@ -337,14 +384,15 @@ class _JoinActions extends ConsumerWidget {
       return const ProviderActions();
     }
 
-    // Success hand-off: clear the pending invite and, if pushed, pop to uncover
-    // the re-routed gate underneath (mirrors PhoneSignInScreen's pop-on-signin).
+    // Success hand-off: if we were PUSHED, pop to uncover the re-routed gate
+    // underneath (mirrors PhoneSignInScreen's pop-on-signin). We do NOT clear
+    // the pending invite — at the gate mount that would re-route before the
+    // users-doc stream lands coupleId and flash the share screen (finding 3).
     ref.listen(joinInviteControllerProvider, (previous, next) {
       // A settled, non-null coupleId is the success terminal (idle is
       // data(null); loading/error never carry one), so this fires exactly once.
       final coupleId = next.value;
       if (!next.isLoading && coupleId != null) {
-        ref.read(pendingInviteProvider.notifier).clear();
         final navigator = Navigator.of(context);
         if (navigator.canPop()) navigator.pop();
       }
@@ -352,6 +400,9 @@ class _JoinActions extends ConsumerWidget {
 
     final join = ref.watch(joinInviteControllerProvider);
     final error = join.error;
+    // A settled non-null coupleId means the join landed; at the gate mount we
+    // stay put and hold a waiting indicator until coupleId re-routes the gate.
+    final joined = !join.isLoading && join.value != null;
     final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -374,7 +425,9 @@ class _JoinActions extends ConsumerWidget {
             onPressed: onReenter,
             child: Text(l10n.joinEnterAnotherCode),
           )
-        else if (join.isLoading)
+        else if (join.isLoading || joined)
+          // In-flight, or joined and waiting for the gate to re-route: a
+          // disabled progress button either way.
           const FilledButton(
             onPressed: null,
             child: SizedBox(
@@ -390,8 +443,12 @@ class _JoinActions extends ConsumerWidget {
             ),
             child: Text(l10n.joinAcceptButton),
           ),
-        const SizedBox(height: SpacingTokens.x4),
-        TextButton(onPressed: onDismiss, child: Text(l10n.joinSkipForNow)),
+        // The "not now" exit disappears once the join succeeds — dismissing a
+        // completed pairing makes no sense.
+        if (!joined) ...[
+          const SizedBox(height: SpacingTokens.x4),
+          TextButton(onPressed: onDismiss, child: Text(l10n.joinSkipForNow)),
+        ],
       ],
     );
   }
