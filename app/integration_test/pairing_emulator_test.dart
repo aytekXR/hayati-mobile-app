@@ -50,23 +50,32 @@ void main() {
     // FirebaseOptions.projectId, and the functions emulator serves functions
     // ONLY under its `--project` (demo-hayati) — dev options 404 (NOT FOUND).
     // The auth/firestore emulators resolve any project id, which is why the
-    // older suites never hit this. Values besides projectId are dummies; the
-    // emulators ignore API keys.
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'fake-emulator-key',
-        appId: '1:0:ios:emulator-only',
-        messagingSenderId: '0',
-        projectId: 'demo-hayati',
-      ),
-    );
-    await FirebaseAuth.instance.useAuthEmulator(
-      kAuthEmulatorHost,
-      kAuthEmulatorPort,
-    );
-    FirebaseFunctions.instanceFor(
-      region: kFunctionsRegion,
-    ).useFunctionsEmulator(kAuthEmulatorHost, kFunctionsEmulatorPort);
+    // older suites never hit this. Every value besides projectId is a dummy,
+    // but the SHAPES must stay valid: the native Firebase iOS SDK validates
+    // GOOGLE_APP_ID structure (`1:<number>:ios:<hex>`) at configure time, so
+    // a free-form appId kills setUpAll before any Dart error can print.
+    try {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: 'AIzaSyD-demo-hayati-emulator-0000000000',
+          appId: '1:870954957461:ios:0000000000000000000000',
+          messagingSenderId: '870954957461',
+          projectId: 'demo-hayati',
+          iosBundleId: 'com.hayati.app',
+        ),
+      );
+      await FirebaseAuth.instance.useAuthEmulator(
+        kAuthEmulatorHost,
+        kAuthEmulatorPort,
+      );
+      FirebaseFunctions.instanceFor(
+        region: kFunctionsRegion,
+      ).useFunctionsEmulator(kAuthEmulatorHost, kFunctionsEmulatorPort);
+    } catch (error, stack) {
+      // The CI runner is headless — surface the real failure instead of the
+      // framework's bare "(setUpAll) did not complete".
+      fail('emulator bootstrap failed: $error\n$stack');
+    }
     // The Auth emulator accepts an unsigned JSON id_token (Session 003).
     await FirebaseAuth.instance.signInWithCredential(
       GoogleAuthProvider.credential(
