@@ -25,6 +25,8 @@ Invite Function (code + deep link), WhatsApp-formatted share message, partner pr
 
 **Accept:** rules tests prove non-members can't read couple docs and preview never leaks answer content; integration test: two emulated devices pair via code; deep link cold-start test on iOS (Android cold-start added in M6.5).
 
+**Progress:** M2.1 ✅ *(Session 007, 2026-07-09)* — `functions/` TS workspace (functions v7/Node 20, vitest coverage gate hard-fail <80%), `createInvite` callable (europe-west1, one-active-invite re-issue policy, collision-safe transaction, App Check plumbed/enforcement OFF), rules hardening (invites function-only, couples member-only + frozen `memberUids`, `createdAt` create-once) with mutation-proven rules suite, per-PR ubuntu `functions-rules` CI job. Remaining: M2.2 deep link + share + preview, M2.3 transactional join, M2.4 solo mode.
+
 ## M3 — Daily loop & streak (4 sessions)
 
 Question packs pipeline (`content/` JSON → validator → bundled + remote sync); rollover Function (timezone buckets, register/seasonal selection, deterministic); answer → mutual reveal → private thread; streak with grace token; pushes (daily, partner-answered, streak-at-risk) with quiet hours + discreet-text mode.

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    // Tests execute under vitest (esbuild/bundler semantics, where
+    // import.meta is legal), not under the commonjs build the runtime uses.
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

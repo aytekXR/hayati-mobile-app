@@ -1,14 +1,59 @@
 rules_version = '2';
 
-// M1.2 minimal surface (docs/architecture.md §3/§8): a signed-in user owns
-// exactly their users/{uid} document; everything else is denied until the
-// milestone that introduces it ships rules WITH tests (couples/invites = M2).
-// Verified against the Firestore emulator's rules compiler in Session 004.
+// M2.1 surface (docs/architecture.md §3/§8): least privilege, deny-by-default.
+// Every allow below is proven by the emulator rules suite in
+// functions/test/emulator/firestore-rules.test.ts, including mutation tests
+// that show the suite goes red if a guard here is weakened. Collections not
+// matched (questions, subscriptions, coach_sessions, days) stay denied until
+// the milestone that introduces them ships rules WITH tests.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    function isSelf(uid) {
+      return request.auth != null && request.auth.uid == uid;
     }
+
+    match /users/{uid} {
+      allow read: if isSelf(uid);
+      // createdAt is create-once and server-stamped: the client transaction
+      // sends FieldValue.serverTimestamp() on first write (M1.2,
+      // FirestoreProfileRepository.saveProfile), which rules see as
+      // request.time.
+      allow create: if isSelf(uid)
+        && request.resource.data.createdAt == request.time;
+      // Updates may never move createdAt. merge:true writes that omit it pass
+      // (request.resource.data is the post-merge document); a write that
+      // changes or deletes it is denied.
+      allow update: if isSelf(uid)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      // Hard delete is the M6 KVKK/PDPL cascade Function's job (admin SDK,
+      // bypasses rules); clients never delete profile documents.
+      allow delete: if false;
+    }
+
+    // Member-only skeleton (M2.1). Couple documents are CREATED only by the
+    // M2.3 transactional-join Function (admin SDK, bypasses rules), so client
+    // create/delete stay denied. Members may read and update, but memberUids
+    // is frozen — membership changes are a Function-only operation.
+    match /couples/{coupleId} {
+      allow read: if request.auth != null
+        && request.auth.uid in resource.data.memberUids;
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.memberUids
+        && request.resource.data.memberUids == resource.data.memberUids;
+      allow create, delete: if false;
+    }
+
+    // Invites are function-write-only AND function-read-only: createInvite
+    // (M2.1) writes them with the admin SDK, and the invitee-facing preview is
+    // the zero-auth rate-limited Function endpoint (M2.2) — never a direct
+    // client read, so codes can't be enumerated or inspected past what the
+    // preview chooses to expose. Explicit match kept even though the
+    // deny-by-default catch-all would cover it: this is a documented invariant
+    // (architecture.md §3), not an accident of fallthrough.
+    match /invites/{code} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
