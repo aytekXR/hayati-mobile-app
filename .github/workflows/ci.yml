@@ -76,6 +76,61 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  functions-rules:
+    name: functions-rules
+    # M2.1: Cloud Functions (TS) + firestore.rules suites against the auth/
+    # firestore/functions emulators. PER-PR on ubuntu (unlike the 10x-billed
+    # macOS integration-emulator leg): rules regressions must be pre-merge
+    # signals (resume-prompt Session 007). Coverage hard-fails <80% via vitest
+    # thresholds (test-suite.md §3: target 85).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      # firestore emulator needs Java 21+, discovered via PATH only (JAVA_HOME
+      # is never read by firebase-tools) — setup-java prepends it to PATH.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: npm ci
+        working-directory: functions
+        run: npm ci
+      - name: lint
+        working-directory: functions
+        run: npm run lint
+      # vitest transpiles tests via esbuild WITHOUT typechecking, and the build
+      # tsconfig only covers src/ — this is the only step that typechecks test/.
+      - name: typecheck (incl. tests)
+        working-directory: functions
+        run: npm run typecheck
+      # The functions emulator never compiles TS — it require()s package.json
+      # "main" (lib/index.js), so the build must land before emulators:exec.
+      - name: build
+        working-directory: functions
+        run: npm run build
+      - name: install firebase-tools (pinned to dev-box version)
+        run: npm install -g firebase-tools@15.22.4
+      # Same jar-cache pattern as integration-emulator, keyed per-OS.
+      - name: Cache Firebase emulator jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-ubuntu-fbtools-15.22.4
+      - name: Pre-fetch firestore emulator jar
+        run: firebase setup:emulators:firestore
+      # One deterministic pass/fail (W4): emulators:exec propagates the vitest
+      # exit code, which already encodes tests AND the coverage gate.
+      - name: Rules + Functions tests (auth + firestore + functions emulators)
+        run: |
+          firebase emulators:exec --only auth,firestore,functions --project demo-hayati \
+            'cd functions && npm run test:ci'
+
   ios-build-smoke:
     name: ios-build-smoke
     # iOS-first build smoke (ADR-006). macOS minutes bill at 10x on private
@@ -83,9 +138,10 @@ jobs:
     # workflow_dispatch) have no draft field and still run.
     if: ${{ github.event.pull_request.draft != true }}
     # Deliberate cost-over-latency choice: don't start the 10x-billed macOS
-    # build until the cheap ubuntu checks pass (~2-4 min added happy-path
-    # latency; a red quality job still blocks merge either way).
-    needs: quality
+    # build until BOTH cheap ubuntu checks pass (~2-4 min added happy-path
+    # latency; a red ubuntu job still blocks merge either way). functions-rules
+    # added M2.1 — a rules-only regression must not start a macOS build.
+    needs: [quality, functions-rules]
     runs-on: macos-15
     timeout-minutes: 45
     steps:

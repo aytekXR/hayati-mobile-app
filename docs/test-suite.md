@@ -13,6 +13,9 @@ Each screen: states (loading/empty/error/content) + interaction contracts. **Gol
 ### Integration tests (`integration_test/` + Firebase Emulator Suite)
 Security rules suite (the invariants in `architecture.md` §3 — especially *partner answer unreadable before own answer* and *preview endpoint never leaks answer content*); auth→pair two-device flow; answer→reveal→thread round trip; delete-cascade with partner notification; RevenueCat sandbox/StoreKit-test purchase → entitlement mirror; coach_proxy contract tests against recorded LLM fixtures + live safety tests (seeded crisis phrases in all three languages must route to the help path).
 
+### Functions + rules tests (`functions/test/`, M2.1) — vitest against the Emulator Suite
+**Tooling decision (Session 007): vitest** over jest — TS-native via esbuild, first-class v8 coverage with `thresholds` as the §3 hard gate (proven to exit non-zero below 80%), one config. `fast-check` for property tests (code charset/length/collision). Because esbuild strips types **without checking them** and the build tsconfig covers only `src/`, `npm run typecheck` (`tsconfig.test.json`, bundler module semantics) is the step that typechecks `test/` — wired into the CI job. Three layers, all in one `firebase emulators:exec --only auth,firestore,functions --project demo-hayati 'cd functions && npm run test:ci'` run: **pure unit** (no emulator), **service/handler in-process** against the firestore emulator (admin SDK, injectable seams for error paths), and **callable end-to-end** through the functions emulator (real HTTP callable protocol + auth-emulator idTokens — note the functions emulator *skips* real token verification, so production token rejection is untestable here; handlers guard `auth.uid` themselves). The **rules suite** (`@firebase/rules-unit-testing` v5) proves every shipped invariant and adds **mutation tests**: each protecting clause is weakened in a copy of the rules (loaded under its own `demo-*` projectId — the emulator stores rules per project) and the previously-denied op must then succeed, so a commented-out rule turns the suite red instead of silently shrinking the net. Runs per-PR in the ubuntu `functions-rules` CI job (`architecture.md` §9).
+
 ### End-to-end (Patrol) — critical paths only, release-gated
 E2E-1 fresh install → signup → invite → (second device) preview → join → both answer → reveal → streak=1. E2E-2 trial start → sandbox purchase → premium unlocked on *both* devices. E2E-3 PIN lock + discreet icon behavior. Run in `release.yml`, not on every push (cost/flake budget).
 
@@ -24,7 +27,7 @@ Plain `flutter_test` `matchesGoldenFile` + a small in-repo harness (`app/test/su
 
 ## 2. CI validation
 
-`ci.yml` (every push/PR): format → analyze (RTL lint included) → unit + widget (incl. goldens) → coverage gate → debug build. `release.yml` (tags): emulator integration suite → E2E on the iOS simulator matrix (current-1/current) — iOS-first (ADR-006): the Android API 30/34 emulator matrix re-enters this release gate in the Android enablement follow-on (M6.5) → signed builds → distribute. Branch protection: no green, no merge (rule #7).
+`ci.yml` (every push/PR): format → analyze (RTL lint included) → unit + widget (incl. goldens) → coverage gate → debug build; plus the ubuntu `functions-rules` job (Functions + rules emulator suites with the TS coverage gate, M2.1). `release.yml` (tags): emulator integration suite → E2E on the iOS simulator matrix (current-1/current) — iOS-first (ADR-006): the Android API 30/34 emulator matrix re-enters this release gate in the Android enablement follow-on (M6.5) → signed builds → distribute. Branch protection: no green, no merge (rule #7).
 
 ## 3. Coverage goals
 

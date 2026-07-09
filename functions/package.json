@@ -1,0 +1,32 @@
+{
+  "name": "hayati-functions",
+  "description": "Hayati Cloud Functions (TypeScript) — docs/architecture.md §2",
+  "private": true,
+  "type": "commonjs",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^7.2.5"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "@types/node": "^20.19.43",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.6.0",
+    "fast-check": "^4.9.0",
+    "firebase": "^12.16.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.63.0",
+    "vitest": "^4.1.10"
+  }
+}
