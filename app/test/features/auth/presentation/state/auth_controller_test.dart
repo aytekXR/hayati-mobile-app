@@ -189,6 +189,88 @@ void main() {
     });
   });
 
+  group('signInWithApple', () {
+    test(
+      'happy path transitions signing-in then signed-in exactly once',
+      () async {
+        final (container, fake) = makeContainer();
+        fake.onSignInWithApple = () async => testUser;
+
+        final states = <AuthState>[];
+        container.listen<AuthState>(
+          authControllerProvider,
+          (_, next) => states.add(next),
+          fireImmediately: true,
+        );
+
+        await container.read(authControllerProvider.notifier).signInWithApple();
+        await pumpEventQueue();
+
+        expect(states, const [
+          AuthSignedOut(),
+          AuthSigningIn(),
+          AuthSignedIn(testUser),
+        ]);
+        expect(fake.signInWithAppleCalls, 1);
+      },
+    );
+
+    test('cancellation returns to signed out, not error', () async {
+      final (container, fake) = makeContainer();
+      fake.onSignInWithApple = () async {
+        throw const AuthCancelledException();
+      };
+
+      final states = <AuthState>[];
+      container.listen<AuthState>(
+        authControllerProvider,
+        (_, next) => states.add(next),
+        fireImmediately: true,
+      );
+
+      await container.read(authControllerProvider.notifier).signInWithApple();
+
+      expect(states, const [AuthSignedOut(), AuthSigningIn(), AuthSignedOut()]);
+    });
+
+    test('a domain failure surfaces as AuthError', () async {
+      final (container, fake) = makeContainer();
+      fake.onSignInWithApple = () async {
+        throw const AuthNetworkException(message: 'offline');
+      };
+
+      await container.read(authControllerProvider.notifier).signInWithApple();
+
+      expect(
+        container.read(authControllerProvider),
+        const AuthError(AuthNetworkException(message: 'offline')),
+      );
+    });
+
+    test(
+      'overlapping calls are debounced to a single repository call',
+      () async {
+        final (container, fake) = makeContainer();
+        final completer = Completer<AuthUser>();
+        fake.onSignInWithApple = () => completer.future;
+
+        final notifier = container.read(authControllerProvider.notifier);
+        unawaited(notifier.signInWithApple());
+        unawaited(notifier.signInWithApple());
+        await pumpEventQueue();
+
+        expect(fake.signInWithAppleCalls, 1);
+
+        completer.complete(testUser);
+        await pumpEventQueue();
+        expect(
+          container.read(authControllerProvider),
+          const AuthSignedIn(testUser),
+        );
+      },
+    );
+  });
+
   group('signOut', () {
     test('moves the state to signed out', () async {
       final (container, fake) = makeContainer(initialUser: testUser);

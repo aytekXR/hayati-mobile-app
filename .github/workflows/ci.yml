@@ -24,8 +24,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege token: every job only checks out and builds — none writes to
+# the repo, releases, or issues — so scope the whole workflow to read-only.
+permissions:
+  contents: read
+
 env:
-  # Must match local dev (past-prompts.md Session 001). Single source so both
+  # Must match local dev (past-prompts.md Session 001). Single source so all
   # jobs stay on the same pin.
   FLUTTER_VERSION: "3.44.5"
 
@@ -86,3 +91,79 @@ jobs:
         # Explicit --target: the scaffold has no lib/main.dart — flavors are
         # Dart entrypoints (main_dev.dart / main_prod.dart, Session 001).
         run: flutter build ios --no-codesign --debug --target lib/main_dev.dart
+
+  integration-emulator:
+    name: integration-emulator
+    # ci-debt #6. Full simulator debug compile + auth/firestore emulator
+    # round-trips (~10-14 min wall, ~100-140 billed min at 10x macOS). Cost-
+    # driven MAIN-ONLY + on-demand trigger (Session-004 billing incident;
+    # resume-prompt blessing). It is a POST-MERGE signal: a broken emulator flow
+    # reaches main before CI catches it, so run the suite locally before merge
+    # (see integration_test/*_test.dart headers). Prove green on a PR branch via
+    # `gh workflow run ci.yml --ref <branch>` (workflow_dispatch on a branch ref).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    # Same cost-over-latency gate as ios-build-smoke: don't spend 10x-billed
+    # macOS minutes until the cheap ubuntu quality job is green.
+    needs: quality
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # firestore emulator needs Java 21+. macos-15 already defaults to Temurin
+      # 21; pin it so a future image default-bump can't silently regress the
+      # emulator (the JDK is cached on the image, so this step is ~5-10s).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: pub get
+        working-directory: app
+        run: flutter pub get
+      - name: install firebase-tools (pinned to dev-box version)
+        run: npm install -g firebase-tools@15.22.4
+      # Cache the firestore emulator JAR (~138 MB, the only large download; the
+      # auth emulator ships inside firebase-tools). Key on the firebase-tools
+      # version so a pin bump re-fetches; a cache miss just re-downloads.
+      - name: Cache Firebase emulator jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-macos-fbtools-15.22.4
+      - name: Pre-fetch firestore emulator jar
+        run: firebase setup:emulators:firestore
+      # Deterministic sim boot: pin Xcode 16.4, create a FRESH device on the
+      # lowest available iOS runtime (18.x pairs with 16.4; the image's 26.x
+      # runtimes need Xcode 26), and block until booted (no sleep). Explicit
+      # -d $DEVICE_ID is required — the runner exposes macOS-desktop + the sim,
+      # so flutter test cannot auto-pick.
+      - name: Boot iOS simulator
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app
+          RUNTIME=$(xcrun simctl list runtimes ios --json | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runtimes'] if x.get('isAvailable')]; r.sort(key=lambda x:[int(n) for n in x['version'].split('.')]); print(r[0]['identifier'])")
+          echo "runtime=$RUNTIME"
+          DEVICE_ID=$(xcrun simctl create hayati-ci 'iPhone 16' "$RUNTIME")
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+      # emulators:exec starts auth+firestore, WAITS for readiness, runs the
+      # script, tears the emulators down, and propagates the exit code — one
+      # deterministic pass/fail, no orphans, no manual port-poll (W4: no silent
+      # retries, no `|| true`). demo-hayati is credential-free (no secrets). Runs
+      # from repo root (firebase.json lives here). --timeout none keeps the long
+      # first-run sim compile from tripping the per-test timeout (the 30-min job
+      # timeout is the real bound); -r expanded streams progress so a wedge shows.
+      - name: Integration tests (auth + firestore emulators)
+        run: |
+          firebase emulators:exec --only auth,firestore --project demo-hayati \
+            "cd app && flutter test integration_test \
+               --dart-define=USE_AUTH_EMULATOR=true \
+               --dart-define=USE_FIRESTORE_EMULATOR=true \
+               -d $DEVICE_ID -r expanded --timeout none"

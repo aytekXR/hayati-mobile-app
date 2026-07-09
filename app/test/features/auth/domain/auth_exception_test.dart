@@ -29,10 +29,32 @@ void main() {
       );
     });
 
+    test('AuthInvalidCodeException instances are equal', () {
+      expect(
+        const AuthInvalidCodeException(),
+        const AuthInvalidCodeException(),
+      );
+      expect(
+        const AuthInvalidCodeException().hashCode,
+        const AuthInvalidCodeException().hashCode,
+      );
+    });
+
+    test('AuthSessionExpiredException instances are equal', () {
+      expect(
+        const AuthSessionExpiredException(),
+        const AuthSessionExpiredException(),
+      );
+    });
+
     test('subtypes of different types are unequal', () {
       expect(
         const AuthCancelledException(),
         isNot(const AuthNetworkException()),
+      );
+      expect(
+        const AuthInvalidCodeException(),
+        isNot(const AuthSessionExpiredException()),
       );
     });
 
@@ -54,10 +76,14 @@ void main() {
       String describe(AuthException e) => switch (e) {
         AuthCancelledException() => 'cancelled',
         AuthNetworkException() => 'network',
+        AuthInvalidCodeException() => 'invalid-code',
+        AuthSessionExpiredException() => 'session-expired',
         AuthUnknownException() => 'unknown',
       };
       expect(describe(const AuthCancelledException()), 'cancelled');
       expect(describe(const AuthNetworkException()), 'network');
+      expect(describe(const AuthInvalidCodeException()), 'invalid-code');
+      expect(describe(const AuthSessionExpiredException()), 'session-expired');
       expect(describe(const AuthUnknownException()), 'unknown');
     });
   });

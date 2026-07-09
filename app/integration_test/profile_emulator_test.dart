@@ -11,7 +11,11 @@
 //     -d <device>   # physical device needs
 //                   # --dart-define=AUTH_EMULATOR_HOST=<host LAN IP>
 //
-// CI wiring stays ci-debt issue #6 (same runner story as the auth leg).
+// CI runs this suite on the main-only `integration-emulator` job (macOS runner +
+// iOS simulator + auth/firestore emulators via `firebase emulators:exec`); see
+// .github/workflows/ci.yml (ci-debt #6). It is a POST-MERGE signal, so run it
+// locally (above) before merging, or trigger it on a branch with
+// `gh workflow run ci.yml --ref <branch>`.
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';

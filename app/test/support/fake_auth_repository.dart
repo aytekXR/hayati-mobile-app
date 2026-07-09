@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:hayati_app/features/auth/domain/auth_repository.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/auth/domain/phone_sign_in_session.dart';
 
 /// Hand-written fake backing the domain/presentation tests. Behaviour knobs
 /// beat mock stubbing here: the auth state machine is driven by a live stream
@@ -19,13 +20,33 @@ class FakeAuthRepository implements AuthRepository {
   /// arrangement fails loudly instead of hanging.
   Future<AuthUser> Function()? onSignInWithGoogle;
 
+  /// Behaviour of the next [signInWithApple] call; same loud-default contract
+  /// as [onSignInWithGoogle].
+  Future<AuthUser> Function()? onSignInWithApple;
+
   /// Optional override for [signOut]; default clears [currentUser] silently
   /// (the real repository does not emit synchronously either — emissions are
   /// always explicit via [emit]).
   Future<void> Function()? onSignOut;
 
+  /// Behaviour of the next [sendPhoneCode] call. Tests must set this before
+  /// triggering the phone flow; the fake throws otherwise so a missing
+  /// arrangement fails loudly instead of hanging.
+  Future<PhoneSignInSession> Function(
+    String phoneNumber, {
+    PhoneSignInSession? resendFrom,
+  })?
+  onSendPhoneCode;
+
+  /// Behaviour of the next [confirmPhoneCode] call; same loud-default contract.
+  Future<AuthUser> Function(PhoneSignInSession session, String smsCode)?
+  onConfirmPhoneCode;
+
   int signInCalls = 0;
+  int signInWithAppleCalls = 0;
   int signOutCalls = 0;
+  int sendPhoneCodeCalls = 0;
+  int confirmPhoneCodeCalls = 0;
 
   /// Pushes an external auth-state event (session restore, remote sign-out).
   void emit(AuthUser? user) {
@@ -49,6 +70,48 @@ class FakeAuthRepository implements AuthRepository {
       );
     }
     return handler();
+  }
+
+  @override
+  Future<AuthUser> signInWithApple() {
+    signInWithAppleCalls++;
+    final handler = onSignInWithApple;
+    if (handler == null) {
+      throw StateError(
+        'FakeAuthRepository.onSignInWithApple was not configured.',
+      );
+    }
+    return handler();
+  }
+
+  @override
+  Future<PhoneSignInSession> sendPhoneCode(
+    String phoneNumber, {
+    PhoneSignInSession? resendFrom,
+  }) {
+    sendPhoneCodeCalls++;
+    final handler = onSendPhoneCode;
+    if (handler == null) {
+      throw StateError(
+        'FakeAuthRepository.onSendPhoneCode was not configured.',
+      );
+    }
+    return handler(phoneNumber, resendFrom: resendFrom);
+  }
+
+  @override
+  Future<AuthUser> confirmPhoneCode(
+    PhoneSignInSession session,
+    String smsCode,
+  ) {
+    confirmPhoneCodeCalls++;
+    final handler = onConfirmPhoneCode;
+    if (handler == null) {
+      throw StateError(
+        'FakeAuthRepository.onConfirmPhoneCode was not configured.',
+      );
+    }
+    return handler(session, smsCode);
   }
 
   @override

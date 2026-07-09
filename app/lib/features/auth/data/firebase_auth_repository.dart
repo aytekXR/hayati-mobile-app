@@ -3,7 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../domain/auth_exception.dart';
 import '../domain/auth_repository.dart';
 import '../domain/auth_user.dart';
+import '../domain/phone_sign_in_session.dart';
+import 'apple_auth_gateway.dart';
 import 'google_auth_gateway.dart';
+import 'phone_auth_gateway.dart';
 
 /// Firebase-backed [AuthRepository]. Owns the User→AuthUser mapping and the
 /// FirebaseAuthException→AuthException taxonomy — no Firebase type leaks
@@ -12,11 +15,17 @@ class FirebaseAuthRepository implements AuthRepository {
   FirebaseAuthRepository({
     required FirebaseAuth firebaseAuth,
     required GoogleAuthGateway googleGateway,
+    required AppleAuthGateway appleGateway,
+    required PhoneAuthGateway phoneGateway,
   }) : _auth = firebaseAuth,
-       _google = googleGateway;
+       _google = googleGateway,
+       _apple = appleGateway,
+       _phone = phoneGateway;
 
   final FirebaseAuth _auth;
   final GoogleAuthGateway _google;
+  final AppleAuthGateway _apple;
+  final PhoneAuthGateway _phone;
 
   @override
   Stream<AuthUser?> authStateChanges() =>
@@ -32,6 +41,53 @@ class FirebaseAuthRepository implements AuthRepository {
     if (credential == null) {
       throw const AuthCancelledException();
     }
+    final result = await _auth.signInWithCredential(credential);
+    final user = _toAuthUser(result.user);
+    if (user == null) {
+      throw const AuthUnknownException(
+        code: 'missing-user',
+        message: 'Sign-in returned no user.',
+      );
+    }
+    return user;
+  });
+
+  @override
+  Future<AuthUser> signInWithApple() => _guarded(() async {
+    // Gateway failures are already AuthException subtypes and pass through.
+    final credential = await _apple.acquireCredential();
+    if (credential == null) {
+      throw const AuthCancelledException();
+    }
+    final result = await _auth.signInWithCredential(credential);
+    final user = _toAuthUser(result.user);
+    if (user == null) {
+      throw const AuthUnknownException(
+        code: 'missing-user',
+        message: 'Sign-in returned no user.',
+      );
+    }
+    return user;
+  });
+
+  @override
+  Future<PhoneSignInSession> sendPhoneCode(
+    String phoneNumber, {
+    PhoneSignInSession? resendFrom,
+  }) => _guarded(
+    // The gateway already maps its FirebaseAuthExceptions to the taxonomy;
+    // _guarded just passes those AuthException subtypes through.
+    () => _phone.sendCode(phoneNumber, resendToken: resendFrom?.resendToken),
+  );
+
+  @override
+  Future<AuthUser> confirmPhoneCode(
+    PhoneSignInSession session,
+    String smsCode,
+  ) => _guarded(() async {
+    // credentialFor is pure; the FirebaseAuthException from signInWithCredential
+    // (invalid-verification-code / -id) is mapped by _mapFirebase below.
+    final credential = _phone.credentialFor(session, smsCode);
     final result = await _auth.signInWithCredential(credential);
     final user = _toAuthUser(result.user);
     if (user == null) {
@@ -86,6 +142,11 @@ class FirebaseAuthRepository implements AuthRepository {
         'network-request-failed' => AuthNetworkException(
           message: failure.message,
         ),
+        // Phone confirm step: recoverable inline (re-enter the code).
+        'invalid-verification-code' => const AuthInvalidCodeException(),
+        // Phone confirm step: session dead, restart from phone entry.
+        'invalid-verification-id' ||
+        'session-expired' => const AuthSessionExpiredException(),
         _ => AuthUnknownException(code: failure.code, message: failure.message),
       };
 }

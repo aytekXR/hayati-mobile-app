@@ -87,5 +87,45 @@
   "invitePartnerBody": "Pairing is coming soon. You're all set for now.",
   "@invitePartnerBody": {
     "description": "Body of the M2 pairing placeholder"
+  },
+  "continueWithApple": "Continue with Apple",
+  "@continueWithApple": {
+    "description": "Sign-in button for the native Sign in with Apple flow; listed first (iOS-first convention)"
+  },
+  "continueWithPhone": "Continue with phone",
+  "@continueWithPhone": {
+    "description": "Sign-in affordance that opens the phone-number flow; also titles the phone screen"
+  },
+  "phoneNumberLabel": "Your phone number",
+  "@phoneNumberLabel": {
+    "description": "Label for the phone-number field on the phone sign-in screen"
+  },
+  "phoneNumberHint": "+90 555 123 45 67",
+  "@phoneNumberHint": {
+    "description": "Placeholder example (E.164) for the phone-number field; kept identical across locales"
+  },
+  "sendCode": "Send code",
+  "@sendCode": {
+    "description": "Submits the phone number to request an SMS verification code"
+  },
+  "smsCodeLabel": "Verification code",
+  "@smsCodeLabel": {
+    "description": "Label for the SMS code field on the phone sign-in screen"
+  },
+  "verifyCode": "Verify",
+  "@verifyCode": {
+    "description": "Submits the entered SMS code for confirmation"
+  },
+  "resendCode": "Resend code",
+  "@resendCode": {
+    "description": "Requests a fresh SMS code from the code-entry screen"
+  },
+  "errorInvalidCode": "That code didn't match. Try again.",
+  "@errorInvalidCode": {
+    "description": "Inline error when the entered SMS code is wrong; the code screen stays for retry"
+  },
+  "errorSessionExpired": "That took too long. Start again.",
+  "@errorSessionExpired": {
+    "description": "Error when the verification session expired; the flow restarts from phone entry"
   }
 }

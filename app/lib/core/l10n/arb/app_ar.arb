@@ -21,5 +21,15 @@
   "continueAction": "متابعة",
   "profileSaveFailedTitle": "تعذّر حفظ ملفك",
   "invitePartnerTitle": "ادعُ شريكك",
-  "invitePartnerBody": "الاقتران قادم قريبًا. كل شيء جاهز الآن."
+  "invitePartnerBody": "الاقتران قادم قريبًا. كل شيء جاهز الآن.",
+  "continueWithApple": "المتابعة عبر Apple",
+  "continueWithPhone": "المتابعة عبر الهاتف",
+  "phoneNumberLabel": "رقم هاتفك",
+  "phoneNumberHint": "+90 555 123 45 67",
+  "sendCode": "إرسال الرمز",
+  "smsCodeLabel": "رمز التحقق",
+  "verifyCode": "تحقّق",
+  "resendCode": "إعادة إرسال الرمز",
+  "errorInvalidCode": "الرمز غير مطابق. حاول مرة أخرى.",
+  "errorSessionExpired": "انتهت المهلة. ابدأ من جديد."
 }
