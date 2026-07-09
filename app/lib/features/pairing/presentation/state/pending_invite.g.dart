@@ -71,7 +71,7 @@ final class PendingInviteProvider
   }
 }
 
-String _$pendingInviteHash() => r'058c5aa383e13ceb90757820799005e88b2ec8c8';
+String _$pendingInviteHash() => r'3d77221890523914da88e8997ed65ee4aad7055e';
 
 /// The invite code captured from a `hayati://invite/<code>` deep link, or null
 /// when none is pending. keepAlive + activated from the app root (app.dart) so

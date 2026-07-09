@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/daily_question/presentation/paired_home_placeholder.dart';
+import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
+import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
 import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
+import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.dart';
 import 'package:hayati_app/features/profile/domain/profile_exception.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
@@ -11,6 +15,8 @@ import 'package:hayati_app/features/profile/presentation/onboarding_gate.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_deep_link_source.dart';
+import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/localized_app.dart';
@@ -21,19 +27,34 @@ const existingProfile = RelationshipProfile(
   contentLanguage: ContentLanguage.tr,
   register: ContentRegister.playful,
 );
+const pairedProfile = RelationshipProfile(
+  status: RelationshipStatus.married,
+  contentLanguage: ContentLanguage.tr,
+  register: ContentRegister.playful,
+  coupleId: 'couple-42',
+);
 
 void main() {
   Future<FakeProfileRepository> pumpGate(
     WidgetTester tester, {
     RelationshipProfile? profile,
+    Uri? initialLink,
     Locale locale = const Locale('en'),
   }) async {
     final fake = FakeProfileRepository(initialProfiles: {user.uid: ?profile});
     final fakeAuth = FakeAuthRepository(initialUser: user);
     final fakeInvites = FakeInviteRepository();
+    final fakePreviews = FakeInvitePreviewRepository();
+    // The gate now watches pendingInviteProvider → deepLinkSourceProvider (which
+    // throws unoverridden); an empty source (the default) keeps the pending
+    // invite null so an onboarded-but-solo profile routes to the share screen.
+    // A non-null [initialLink] seeds a pending code for the precedence tests.
+    final fakeDeepLinks = FakeDeepLinkSource(initialUri: initialLink);
     addTearDown(fake.dispose);
     addTearDown(fakeAuth.dispose);
     addTearDown(fakeInvites.dispose);
+    addTearDown(fakePreviews.dispose);
+    addTearDown(fakeDeepLinks.dispose);
     await tester.pumpWidget(
       localizedApp(
         const OnboardingGate(user: user),
@@ -42,6 +63,8 @@ void main() {
           profileRepositoryProvider.overrideWith((ref) => fake),
           authRepositoryProvider.overrideWith((ref) => fakeAuth),
           inviteRepositoryProvider.overrideWith((ref) => fakeInvites),
+          invitePreviewRepositoryProvider.overrideWith((ref) => fakePreviews),
+          deepLinkSourceProvider.overrideWith((ref) => fakeDeepLinks),
         ],
       ),
     );
@@ -70,14 +93,56 @@ void main() {
       expect(find.byType(InviteShareScreen), findsNothing);
     });
 
-    testWidgets('an existing profile routes to the invite share screen', (
-      tester,
-    ) async {
+    testWidgets('an existing solo profile with no pending invite routes to '
+        'the invite share screen', (tester) async {
       await pumpGate(tester, profile: existingProfile);
       await tester.pumpAndSettle();
 
       expect(find.byType(InviteShareScreen), findsOneWidget);
       expect(find.byType(ProfileCaptureScreen), findsNothing);
+    });
+
+    testWidgets('a solo profile WITH a pending invite routes to the partner '
+        'preview (pending beats the share screen)', (tester) async {
+      await pumpGate(
+        tester,
+        profile: existingProfile,
+        initialLink: Uri.parse('hayati://invite/ABCD2345'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+      expect(find.byType(InviteShareScreen), findsNothing);
+    });
+
+    testWidgets('a paired profile routes to the paired home — coupleId beats '
+        'even a pending invite', (tester) async {
+      await pumpGate(
+        tester,
+        profile: pairedProfile,
+        initialLink: Uri.parse('hayati://invite/ABCD2345'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PairedHomePlaceholder), findsOneWidget);
+      expect(find.byType(PartnerPreviewScreen), findsNothing);
+      expect(find.byType(InviteShareScreen), findsNothing);
+    });
+
+    testWidgets('pairing completing on another device swaps the preview for '
+        'the paired home live', (tester) async {
+      final fake = await pumpGate(
+        tester,
+        profile: existingProfile,
+        initialLink: Uri.parse('hayati://invite/ABCD2345'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+
+      fake.emitProfile(user.uid, pairedProfile);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PairedHomePlaceholder), findsOneWidget);
     });
 
     testWidgets('a profile arriving from another device swaps to the '

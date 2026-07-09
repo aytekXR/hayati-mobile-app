@@ -1,6 +1,7 @@
 import { FieldValue, Firestore, Timestamp } from 'firebase-admin/firestore';
 
 import { generateInviteCode } from './invite-code';
+import { hasCoupleId } from './join-service';
 
 /**
  * Invite lifetime. 48h covers "sent the WhatsApp message Friday night, partner
@@ -32,6 +33,19 @@ export class InviteCodeSpaceExhaustedError extends Error {
 }
 
 /**
+ * The creator is already half of a couple, so minting (or re-issuing) an invite
+ * is meaningless — one account pairs once (M2.3). Mapped by create-invite.ts to
+ * failed-precondition {reason: 'already-paired'}, matching the join Function's
+ * own already-paired surface.
+ */
+export class CreatorAlreadyPairedError extends Error {
+  constructor() {
+    super('creator is already paired');
+    this.name = 'CreatorAlreadyPairedError';
+  }
+}
+
+/**
  * Issues a pairing code for `creatorUid` (architecture.md §3, invites/{code}).
  *
  * Re-issue policy (documented decision, Session 007): ONE active invite per
@@ -53,6 +67,15 @@ export async function issueInvite(
   return db.runTransaction(async (tx) => {
     const invites = db.collection('invites');
     const now = Timestamp.now();
+
+    // M2.3 guard (read-before-writes): a creator who is already paired must not
+    // mint OR re-use an invite, so this precedes the pending-invite lookup and
+    // the reuse-return below. A MISSING users doc keeps the M2.1 behavior
+    // (proceed) — issuing does not itself require a profile; only pairing does.
+    const creatorSnap = await tx.get(db.collection('users').doc(creatorUid));
+    if (hasCoupleId(creatorSnap)) {
+      throw new CreatorAlreadyPairedError();
+    }
 
     // Equality-only conjunction: served by Firestore's merged single-field
     // indexes — no composite index entry needed (the emulator would not catch

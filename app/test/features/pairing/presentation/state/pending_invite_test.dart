@@ -69,6 +69,30 @@ void main() {
     expect(container.read(pendingInviteProvider), isNull);
   });
 
+  test('clear() drops a pending code once the join flow consumes it', () async {
+    final source = FakeDeepLinkSource(
+      initialUri: Uri.parse('hayati://invite/ABCD2345'),
+    );
+    final container = makeContainer(source);
+    keepAlive(container);
+    await pumpEventQueue();
+    expect(container.read(pendingInviteProvider), 'ABCD2345');
+
+    container.read(pendingInviteProvider.notifier).clear();
+
+    expect(container.read(pendingInviteProvider), isNull);
+  });
+
+  test('clear() is idempotent when nothing is pending', () {
+    final source = FakeDeepLinkSource();
+    final container = makeContainer(source);
+    keepAlive(container);
+
+    container.read(pendingInviteProvider.notifier).clear();
+
+    expect(container.read(pendingInviteProvider), isNull);
+  });
+
   test(
     'the most recent valid code wins and an invalid one never clobbers it',
     () async {

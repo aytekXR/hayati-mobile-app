@@ -3,12 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
+import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/pairing/domain/invite_exception.dart';
+import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
 import 'package:hayati_app/features/pairing/domain/invite_share_launcher.dart';
 import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
+import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_deep_link_source.dart';
+import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_invite_share_launcher.dart';
 import '../../../support/localized_app.dart';
@@ -24,9 +29,16 @@ void main() {
     Locale locale = const Locale('en'),
   }) async {
     final auth = FakeAuthRepository();
+    // The "Have a code?" affordance pushes PartnerPreviewScreen, which watches
+    // pendingInviteProvider → deepLinkSourceProvider and the preview seam; an
+    // empty deep-link source lands it on the manual-entry state.
+    final deepLinks = FakeDeepLinkSource();
+    final previews = FakeInvitePreviewRepository();
     addTearDown(invites.dispose);
     addTearDown(launcher.dispose);
     addTearDown(auth.dispose);
+    addTearDown(deepLinks.dispose);
+    addTearDown(previews.dispose);
     await tester.pumpWidget(
       localizedApp(
         const InviteShareScreen(),
@@ -35,6 +47,8 @@ void main() {
           inviteRepositoryProvider.overrideWith((ref) => invites),
           inviteShareLauncherProvider.overrideWith((ref) => launcher),
           authRepositoryProvider.overrideWith((ref) => auth),
+          deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+          invitePreviewRepositoryProvider.overrideWith((ref) => previews),
         ],
       ),
     );
@@ -84,6 +98,24 @@ void main() {
         );
       });
     }
+  });
+
+  group('have-a-code affordance', () {
+    testWidgets('opens the partner preview / manual-entry screen', (
+      tester,
+    ) async {
+      final l10n = l10nFor(const Locale('en'));
+      final (invites, launcher) = makeFakes();
+      await pumpScreen(tester, invites, launcher);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(l10n.joinHaveCodeAction));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+      // No pending code → manual entry.
+      expect(find.text(l10n.joinHaveCodeTitle), findsOneWidget);
+    });
   });
 
   group('error state', () {

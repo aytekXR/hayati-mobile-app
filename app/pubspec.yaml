@@ -21,6 +21,7 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^3.0.3
   google_sign_in: ^7.2.0
+  http: ^1.6.0
   intl: any
   riverpod_annotation: ^3.0.3
   share_plus: ^13.2.0

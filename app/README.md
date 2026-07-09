@@ -44,12 +44,17 @@ flutter run -t lib/main_dev.dart \
 # (shared by both emulators)
 
 # integration tests (device/simulator only — firebase_auth needs platform
-# channels, so these never run in the `flutter test` VM)
+# channels, so these never run in the `flutter test` VM). The pairing suite
+# also needs the functions emulator (boot it with --only auth,firestore,functions
+# after `npm run build` in functions/ — the emulator never compiles TS):
 flutter test integration_test --dart-define=USE_AUTH_EMULATOR=true \
-  --dart-define=USE_FIRESTORE_EMULATOR=true -d <device>
+  --dart-define=USE_FIRESTORE_EMULATOR=true \
+  --dart-define=USE_FUNCTIONS_EMULATOR=true -d <device>
 ```
 
-The suites cover Google, Apple, and phone sign-in plus the profile round-trip.
+The suites cover Google, Apple, and phone sign-in, the profile round-trip, and
+the pairing flow (`pairing_emulator_test.dart` drives the real `createInvite`/
+`joinInvite` callables and the `invitePreview` endpoint, M2.2/M2.3).
 Apple and Google are faked with unsigned JSON id_tokens (the emulator does not
 verify them); phone codes are minted randomly by the emulator and read back from
 `/emulator/v1/projects/demo-hayati/verificationCodes` — note that path carries

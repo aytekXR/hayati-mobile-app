@@ -10,10 +10,12 @@ import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/domain/phone_sign_in_session.dart';
 import 'package:hayati_app/features/auth/presentation/phone_sign_in_screen.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_deep_link_source.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/localized_app.dart';
 
@@ -203,8 +205,13 @@ void main() {
     ) async {
       final fake = FakeAuthRepository();
       final fakeProfiles = FakeProfileRepository();
+      // The signed-out SignInScreen watches pendingInviteProvider →
+      // deepLinkSourceProvider; an empty source keeps the pending invite null so
+      // the post-signin tree is the plain fresh-signup gate.
+      final deepLinks = FakeDeepLinkSource();
       addTearDown(fake.dispose);
       addTearDown(fakeProfiles.dispose);
+      addTearDown(deepLinks.dispose);
       await tester.pumpWidget(
         localizedApp(
           const SignInScreen(),
@@ -214,6 +221,7 @@ void main() {
             ),
             authRepositoryProvider.overrideWith((ref) => fake),
             profileRepositoryProvider.overrideWith((ref) => fakeProfiles),
+            deepLinkSourceProvider.overrideWith((ref) => deepLinks),
           ],
         ),
       );

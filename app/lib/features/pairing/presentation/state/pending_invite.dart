@@ -38,4 +38,10 @@ class PendingInvite extends _$PendingInvite {
     final code = inviteCodeFromUri(uri);
     if (code != null) state = code;
   }
+
+  /// Drops the pending code once the join flow has consumed it (a successful
+  /// join, or the user dismissing the prompt) so a returning session is not
+  /// re-offered a code it already acted on. Idempotent — clearing when already
+  /// null is a no-op.
+  void clear() => state = null;
 }

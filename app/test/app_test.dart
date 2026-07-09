@@ -5,13 +5,20 @@ import 'package:hayati_app/core/config/app_config.dart';
 import 'package:hayati_app/core/config/app_config_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 
 import 'support/fake_auth_repository.dart';
+import 'support/fake_deep_link_source.dart';
 
 void main() {
   Future<void> pumpFlavor(WidgetTester tester, AppFlavor flavor) async {
     final fake = FakeAuthRepository();
+    // The signed-out SignInScreen now watches pendingInviteProvider →
+    // deepLinkSourceProvider (which the entrypoints override with the real
+    // app_links adapter); compose the same seam with a fake instead.
+    final deepLinks = FakeDeepLinkSource();
     addTearDown(fake.dispose);
+    addTearDown(deepLinks.dispose);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -19,6 +26,7 @@ void main() {
           // Widget tests compose the same seam the entrypoints use
           // (runHayati extraOverrides) with a fake instead of Firebase.
           authRepositoryProvider.overrideWith((ref) => fake),
+          deepLinkSourceProvider.overrideWith((ref) => deepLinks),
         ],
         child: const HayatiApp(),
       ),

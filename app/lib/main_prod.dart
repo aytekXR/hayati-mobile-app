@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseFirestore;
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
+import 'package:http/http.dart' as http;
 
 import 'app.dart';
 import 'core/config/app_config.dart';
@@ -15,8 +16,10 @@ import 'features/auth/data/phone_auth_gateway.dart';
 import 'features/auth/domain/auth_repository_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
 import 'features/pairing/data/functions_invite_repository.dart';
+import 'features/pairing/data/http_invite_preview_repository.dart';
 import 'features/pairing/data/share_plus_invite_share_launcher.dart';
 import 'features/pairing/domain/deep_link_source.dart';
+import 'features/pairing/domain/invite_preview_repository.dart';
 import 'features/pairing/domain/invite_repository_provider.dart';
 import 'features/pairing/domain/invite_share_launcher.dart';
 import 'features/profile/data/firestore_profile_repository.dart';
@@ -54,6 +57,12 @@ Future<void> main() async {
       ),
       inviteRepositoryProvider.overrideWith(
         (ref) => FunctionsInviteRepository(),
+      ),
+      invitePreviewRepositoryProvider.overrideWith(
+        (ref) => HttpInvitePreviewRepository(
+          client: http.Client(),
+          baseUri: invitePreviewUri(flavor: config.flavor),
+        ),
       ),
       inviteShareLauncherProvider.overrideWith(
         (ref) => const SharePlusInviteShareLauncher(),

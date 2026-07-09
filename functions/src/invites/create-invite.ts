@@ -7,6 +7,7 @@ import {
 } from 'firebase-functions/v2/https';
 
 import {
+  CreatorAlreadyPairedError,
   InviteCodeSpaceExhaustedError,
   IssuedInvite,
   issueInvite,
@@ -51,6 +52,15 @@ export function makeCreateInviteHandler(issue: typeof issueInvite = issueInvite)
         throw new HttpsError(
           'resource-exhausted',
           'No invite code could be allocated; please try again.',
+        );
+      }
+      if (error instanceof CreatorAlreadyPairedError) {
+        // Same surface as the join Function's already-paired rejection, so the
+        // client maps one reason across both callables (M2.3 wire contract).
+        throw new HttpsError(
+          'failed-precondition',
+          'This account is already paired.',
+          { reason: 'already-paired' },
         );
       }
       logger.error('createInvite failed', error);

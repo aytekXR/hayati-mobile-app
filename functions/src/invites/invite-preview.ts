@@ -5,7 +5,7 @@ import { type Request, onRequest } from 'firebase-functions/v2/https';
 import type { Response } from 'express';
 
 import { FUNCTIONS_REGION } from './create-invite';
-import { INVITE_CODE_ALPHABET, INVITE_CODE_LENGTH } from './invite-code';
+import { normalizeInviteCode } from './invite-code';
 
 /**
  * The invitee has no account when they follow the WhatsApp link, so this
@@ -45,21 +45,6 @@ function invitePreviewResult(
     result.creatorDisplayName = creatorDisplayName;
   }
   return result;
-}
-
-/**
- * Code-format check derived from the single source of truth in invite-code.ts
- * (alphabet + length) — no second hardcoded regex to drift. Trims + uppercases
- * (codes are read aloud / retyped from WhatsApp), returns the normalized code
- * or null when it can't be a real code.
- */
-const INVITE_CODE_PATTERN = new RegExp(
-  `^[${INVITE_CODE_ALPHABET}]{${INVITE_CODE_LENGTH}}$`,
-);
-
-export function normalizeInviteCode(raw: string): string | null {
-  const normalized = raw.trim().toUpperCase();
-  return INVITE_CODE_PATTERN.test(normalized) ? normalized : null;
 }
 
 /** Resolves a creator's display name (injectable so the auth call is fakeable). */

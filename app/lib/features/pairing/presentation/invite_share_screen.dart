@@ -8,6 +8,7 @@ import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/presentation/state/auth_controller.dart';
 import '../domain/issued_invite.dart';
+import 'partner_preview_screen.dart';
 import 'state/invite_share_controller.dart';
 
 /// The real pairing entry point after profile capture (M2.2, replacing the M1
@@ -92,6 +93,19 @@ class _InviteReadyView extends ConsumerWidget {
                 FilledButton(
                   onPressed: () => _share(ref, l10n),
                   child: Text(l10n.inviteShareButton),
+                ),
+                const SizedBox(height: SpacingTokens.x4),
+                // Modest cross-path for the invitee who received only a WhatsApp
+                // code (no deep link): opens the partner-preview / manual-entry
+                // screen so they can type it. Pushed (not a gate re-route) so a
+                // dismiss pops straight back here.
+                TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PartnerPreviewScreen(),
+                    ),
+                  ),
+                  child: Text(l10n.joinHaveCodeAction),
                 ),
                 const SizedBox(height: SpacingTokens.x4),
                 TextButton(

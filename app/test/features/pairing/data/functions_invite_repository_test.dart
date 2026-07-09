@@ -5,9 +5,14 @@ import 'package:hayati_app/features/pairing/domain/invite_exception.dart';
 
 // The plugin's FirebaseFunctionsException constructor is @protected; a subclass
 // may still invoke it via super, which is how we fabricate the real exception
-// TYPE the boundary switches on without touching a live callable.
+// TYPE the boundary switches on without touching a live callable. [details]
+// carries the join contract's `{reason: …}` discriminator.
 class _FunctionsException extends FirebaseFunctionsException {
-  _FunctionsException({required super.code, super.message = 'boom'});
+  _FunctionsException({
+    required super.code,
+    super.message = 'boom',
+    super.details,
+  });
 }
 
 void main() {
@@ -107,6 +112,137 @@ void main() {
       );
       expect(
         mapFunctionsFailure(const FormatException('bad payload')),
+        isA<InviteUnknownException>(),
+      );
+    });
+  });
+
+  group('coupleIdFromCallable', () {
+    test('extracts the coupleId from the callable payload', () {
+      expect(coupleIdFromCallable({'coupleId': 'couple-9'}), 'couple-9');
+    });
+
+    test('rejects a non-map payload loudly', () {
+      expect(() => coupleIdFromCallable('nope'), throwsFormatException);
+      expect(() => coupleIdFromCallable(null), throwsFormatException);
+    });
+
+    test('rejects a missing or wrongly-typed coupleId loudly', () {
+      expect(
+        () => coupleIdFromCallable(<String, Object?>{}),
+        throwsFormatException,
+      );
+      expect(
+        () => coupleIdFromCallable({'coupleId': 42}),
+        throwsFormatException,
+      );
+    });
+  });
+
+  group('mapJoinFailure', () {
+    InviteException mapReason(String code, String? reason) => mapJoinFailure(
+      _FunctionsException(
+        code: code,
+        details: reason == null ? null : {'reason': reason},
+      ),
+    );
+
+    test('not-found becomes the unknown-code join failure', () {
+      expect(
+        mapReason('not-found', 'unknown'),
+        isA<InviteJoinUnknownCodeException>(),
+      );
+      // Robust to a missing reason — the code alone classifies it.
+      expect(
+        mapReason('not-found', null),
+        isA<InviteJoinUnknownCodeException>(),
+      );
+    });
+
+    test('each failed-precondition reason maps to its own member', () {
+      expect(
+        mapReason('failed-precondition', 'expired'),
+        isA<InviteJoinExpiredException>(),
+      );
+      expect(
+        mapReason('failed-precondition', 'consumed'),
+        isA<InviteJoinConsumedException>(),
+      );
+      expect(
+        mapReason('failed-precondition', 'self-join'),
+        isA<InviteJoinSelfJoinException>(),
+      );
+      expect(
+        mapReason('failed-precondition', 'already-paired'),
+        isA<InviteJoinAlreadyPairedException>(),
+      );
+      expect(
+        mapReason('failed-precondition', 'profile-missing'),
+        isA<InviteJoinProfileMissingException>(),
+      );
+    });
+
+    test(
+      'failed-precondition with a missing/unknown reason keeps its raw code',
+      () {
+        final missing = mapReason('failed-precondition', null);
+        expect(missing, isA<InviteUnknownException>());
+        expect((missing as InviteUnknownException).code, 'failed-precondition');
+
+        final unknown = mapReason('failed-precondition', 'brand-new-reason');
+        expect(unknown, isA<InviteUnknownException>());
+        expect((unknown as InviteUnknownException).code, 'failed-precondition');
+      },
+    );
+
+    test('a non-map or non-string details never throws — falls through', () {
+      expect(
+        mapJoinFailure(
+          _FunctionsException(code: 'failed-precondition', details: 'oops'),
+        ),
+        isA<InviteUnknownException>(),
+      );
+      expect(
+        mapJoinFailure(
+          _FunctionsException(
+            code: 'failed-precondition',
+            details: {'reason': 123},
+          ),
+        ),
+        isA<InviteUnknownException>(),
+      );
+    });
+
+    test('transport codes classify exactly like createInvite', () {
+      expect(mapReason('unavailable', null), isA<InviteNetworkException>());
+      expect(
+        mapReason('deadline-exceeded', null),
+        isA<InviteNetworkException>(),
+      );
+      expect(
+        mapReason('unauthenticated', null),
+        isA<InvitePermissionException>(),
+      );
+      expect(
+        mapReason('permission-denied', null),
+        isA<InvitePermissionException>(),
+      );
+    });
+
+    test('internal keeps its raw code under the generic surface', () {
+      final failure = mapReason('internal', null);
+      expect(failure, isA<InviteUnknownException>());
+      expect((failure as InviteUnknownException).code, 'internal');
+    });
+
+    test('an already-mapped InviteException passes through unchanged', () {
+      const original = InviteJoinConsumedException(message: 'used');
+      expect(mapJoinFailure(original), same(original));
+    });
+
+    test('a parse FormatException is wrapped, never rethrown raw', () {
+      expect(
+        mapJoinFailure(const FormatException('bad payload')),
         isA<InviteUnknownException>(),
       );
     });

@@ -1,6 +1,7 @@
-// Pure unit tests for the preview's code-format helper — no emulator required.
-// The regex is derived from invite-code.ts (single source of truth), so these
-// pin the normalize-then-validate contract the endpoint relies on.
+// Pure unit tests for the code-format helper — no emulator required. Since M2.3
+// `normalizeInviteCode` lives in invite-code.ts (single source of truth: BOTH
+// the preview and the join Function validate codes), so these import it from
+// there; they pin the normalize-then-validate contract both endpoints rely on.
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
@@ -8,8 +9,8 @@ import {
   INVITE_CODE_ALPHABET,
   INVITE_CODE_LENGTH,
   generateInviteCode,
+  normalizeInviteCode,
 } from '../../src/invites/invite-code';
-import { normalizeInviteCode } from '../../src/invites/invite-preview';
 
 describe('normalizeInviteCode', () => {
   it('accepts any well-formed generated code and returns it uppercased', () => {

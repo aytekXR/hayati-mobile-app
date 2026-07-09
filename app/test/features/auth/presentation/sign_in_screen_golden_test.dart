@@ -4,9 +4,11 @@ import 'package:hayati_app/core/config/app_config_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_exception.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_deep_link_source.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/golden/golden_harness.dart';
 import '../../../support/localized_app.dart';
@@ -19,8 +21,10 @@ void main() {
     testWidgets('signed_out ${cell.suffix}', (tester) async {
       final auth = FakeAuthRepository();
       final profiles = FakeProfileRepository();
+      final deepLinks = FakeDeepLinkSource();
       addTearDown(auth.dispose);
       addTearDown(profiles.dispose);
+      addTearDown(deepLinks.dispose);
 
       await pumpGolden(
         tester,
@@ -33,6 +37,7 @@ void main() {
           ),
           authRepositoryProvider.overrideWith((ref) => auth),
           profileRepositoryProvider.overrideWith((ref) => profiles),
+          deepLinkSourceProvider.overrideWith((ref) => deepLinks),
         ],
       );
       await tester.pumpAndSettle();
@@ -48,8 +53,10 @@ void main() {
     testWidgets('error ${cell.suffix}', (tester) async {
       final auth = FakeAuthRepository();
       final profiles = FakeProfileRepository();
+      final deepLinks = FakeDeepLinkSource();
       addTearDown(auth.dispose);
       addTearDown(profiles.dispose);
+      addTearDown(deepLinks.dispose);
       auth.onSignInWithGoogle = () async {
         throw const AuthNetworkException(message: 'offline');
       };
@@ -65,6 +72,7 @@ void main() {
           ),
           authRepositoryProvider.overrideWith((ref) => auth),
           profileRepositoryProvider.overrideWith((ref) => profiles),
+          deepLinkSourceProvider.overrideWith((ref) => deepLinks),
         ],
       );
       await tester.pumpAndSettle();

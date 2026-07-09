@@ -31,6 +31,7 @@ const CODE_ANON = 'BBBB3333';
 const CODE_EXPIRED_STATUS = 'CCCC4444';
 const CODE_EXPIRED_PAST = 'DDDD5555';
 const CODE_ABSENT = 'EEEE6666';
+const CODE_JOINED = 'FFFF7777';
 const MALFORMED = 'not-a-code';
 
 function seedInvite(
@@ -157,6 +158,29 @@ describe('invitePreview (functions emulator)', () => {
     const body = (await response.json()) as Record<string, unknown>;
     expect(body).toEqual({ status: 'unknown' });
     expect(Object.keys(body).sort()).toEqual(['status']);
+  });
+
+  it("a 'joined' invite previews as uniform 'expired' (no consumed oracle)", async () => {
+    // M2.3 added the terminal 'joined' status; preview is UNCHANGED — a joined
+    // invite is not 'pending', so it reports the uniform 'expired' surface, the
+    // same as a stale or non-existent code (a joiner who already paired learns
+    // nothing extra). The field surface stays exactly {status}.
+    const creatorUid = 'creator-joined-uid';
+    await seedInvite(CODE_JOINED, {
+      creatorUid,
+      status: 'joined',
+      coupleId: 'couple-xyz',
+      joinerUid: 'some-joiner',
+      // Future expiresAt proves the join status — not the clock — drives this.
+      expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
+    });
+
+    const response = await getPreview(CODE_JOINED);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toEqual({ status: 'expired' });
+    expect(Object.keys(body).sort()).toEqual(['status']);
+    expect(JSON.stringify(body)).not.toContain('couple-xyz');
   });
 
   it('a missing code param returns 400 missing-code', async () => {

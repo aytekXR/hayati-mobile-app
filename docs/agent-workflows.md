@@ -4,7 +4,7 @@ How every recurring activity runs. Sub-agents are used wherever the tooling of a
 
 ## W1 — Idea / feature validation
 
-Trigger: any new feature idea. Steps: (1) write a one-paragraph hypothesis + the gate metric it should move; (2) **Researcher sub-agent**: pull comparable implementations, store reviews, cultural risk scan (TR + AR); (3) score against `prd.md` non-goals and `mvp.md` OUT list — if it's on the OUT list, it needs a scope-change entry, not enthusiasm; (4) verdict logged as an ADR-lite note in `docs/decisions-log.md`. Nothing enters `roadmap.md` without this.
+Trigger: any new feature idea. Steps: (1) write a one-paragraph hypothesis + the gate metric it should move; (2) **Researcher sub-agent**: pull comparable implementations, store reviews, cultural risk scan (TR + AR); (3) score against `prd.md` non-goals and `mvp.md` OUT list — if it's on the OUT list, it needs a scope-change entry, not enthusiasm; (4) verdict logged as an ADR in `docs/adr/` (indexed in `adr/README.md`; `architecture.md` §11 is the running decision log). Nothing enters `roadmap.md` without this.
 
 ## W2 — Coding session (the core loop)
 
