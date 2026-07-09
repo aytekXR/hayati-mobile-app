@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../domain/content_language_bootstrap.dart';
 import '../domain/profile_exception.dart';
@@ -11,7 +12,8 @@ import 'state/profile_capture_controller.dart';
 
 /// Onboarding profile capture (docs/prd.md F1): relationship status,
 /// content language (bootstrapped from the locale, user-overridable) and —
-/// for Turkish only — the dual tone register. Unstyled pre-brandkit,
+/// for Turkish only — the dual tone register. Brand styling comes from the
+/// theme (core/design_system/hayati_theme.dart) plus the spacing tokens below;
 /// logical-direction only (RTL-safe).
 class ProfileCaptureScreen extends ConsumerStatefulWidget {
   const ProfileCaptureScreen({super.key, required this.uid});
@@ -65,13 +67,16 @@ class _ProfileCaptureScreenState extends ConsumerState<ProfileCaptureScreen> {
     return Scaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: SpacingTokens.screenGutter,
+            vertical: SpacingTokens.x6,
+          ),
           children: [
             Text(
               l10n.onboardingTitle,
               style: Theme.of(context).textTheme.headlineMedium,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: SpacingTokens.x6),
             _ChoiceSection<RelationshipStatus>(
               label: l10n.relationshipStatusLabel,
               values: RelationshipStatus.values,
@@ -84,7 +89,7 @@ class _ProfileCaptureScreenState extends ConsumerState<ProfileCaptureScreen> {
               enabled: !saving,
               onSelected: (status) => setState(() => _status = status),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: SpacingTokens.x6),
             _ChoiceSection<ContentLanguage>(
               label: l10n.contentLanguageLabel,
               values: ContentLanguage.values,
@@ -98,7 +103,7 @@ class _ProfileCaptureScreenState extends ConsumerState<ProfileCaptureScreen> {
               onSelected: (value) => setState(() => _languageOverride = value),
             ),
             if (language == ContentLanguage.tr) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: SpacingTokens.x6),
               _ChoiceSection<ContentRegister>(
                 label: l10n.registerLabel,
                 values: ContentRegister.values,
@@ -112,13 +117,13 @@ class _ProfileCaptureScreenState extends ConsumerState<ProfileCaptureScreen> {
               ),
             ],
             if (capture case CaptureFailure(:final failure)) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: SpacingTokens.x6),
               _SaveErrorView(failure: failure),
             ],
-            const SizedBox(height: 32),
+            const SizedBox(height: SpacingTokens.x8),
             if (saving) ...[
               const Center(child: CircularProgressIndicator()),
-              const SizedBox(height: 16),
+              const SizedBox(height: SpacingTokens.x4),
             ],
             FilledButton(
               onPressed: (_status == null || saving)
@@ -156,12 +161,12 @@ class _ChoiceSection<T> extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
+        const SizedBox(height: SpacingTokens.x3),
         // Wrap flows with text direction and never overflows, whatever the
         // locale's label lengths — safer than a segmented row pre-brandkit.
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: SpacingTokens.x2,
+          runSpacing: SpacingTokens.x2,
           children: [
             for (final value in values)
               ChoiceChip(
@@ -183,6 +188,7 @@ class _SaveErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final detail = switch (failure) {
       ProfileNetworkException() => l10n.errorNetworkRetry,
@@ -192,12 +198,15 @@ class _SaveErrorView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(l10n.profileSaveFailedTitle, style: theme.textTheme.titleMedium),
+        const SizedBox(height: SpacingTokens.x2),
+        // Error copy in the theme's alert colour (alert-on-night 4.94:1 OK).
         Text(
-          l10n.profileSaveFailedTitle,
-          style: Theme.of(context).textTheme.titleMedium,
+          detail,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.error,
+          ),
         ),
-        const SizedBox(height: 8),
-        Text(detail),
       ],
     );
   }

@@ -6,7 +6,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
 
 import 'core/config/app_config.dart';
 import 'core/config/app_config_provider.dart';
-import 'core/design_system/color_tokens.dart';
+import 'core/design_system/hayati_theme.dart';
 import 'core/l10n/gen/app_localizations.dart';
 import 'core/observability/crash_reporter.dart';
 import 'core/observability/error_hooks.dart';
@@ -54,14 +54,18 @@ class HayatiApp extends ConsumerWidget {
       // EN (preferred-supported-locales) like bootstrapContentLanguage.
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      // MVP ships dark-first only, single theme (docs/mvp.md OUT list).
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: ColorTokens.pomegranate,
-          brightness: Brightness.dark,
-          surface: ColorTokens.night,
+      // MVP ships dark-first only, single brand theme built from the design
+      // tokens (core/design_system). 'en' is the pre-locale default; the
+      // builder below rebuilds it against the RESOLVED locale so the Arabic
+      // body line-height (1.7 vs 1.5) follows the actual language.
+      theme: hayatiTheme(languageCode: 'en'),
+      builder: (context, child) => Theme(
+        // The builder sits below MaterialApp's Localizations, so localeOf
+        // resolves the device-negotiated locale here.
+        data: hayatiTheme(
+          languageCode: Localizations.localeOf(context).languageCode,
         ),
-        scaffoldBackgroundColor: ColorTokens.night,
+        child: child ?? const SizedBox.shrink(),
       ),
       home: const SignInScreen(),
     );

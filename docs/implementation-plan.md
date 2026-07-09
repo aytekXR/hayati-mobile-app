@@ -11,11 +11,13 @@ Milestones are sized in **sessions** (one session = one `resume-prompt.md` objec
 
 **Accept:** fresh clone → `flutter test` green; pushed PR shows all checks; a deliberately failing test blocks merge.
 
-## M1 — Auth & profile (3 sessions)
+## M1 — Auth & profile (3 sessions) · ✅ *(Session 006, 2026-07-09)*
 
 Apple/Google/phone auth via Firebase; relationship profile capture (status, language, register); locale bootstrapping (device → override); Crashlytics + App Check live.
 
 **Accept:** unit tests on profile domain; widget tests on onboarding states (all 3 locales); emulator integration test: fresh signup lands on "invite your partner."
+
+**Evidence:** unit+widget tests across tr/ar/en (238+ tests), emulator integration suite (Google/Apple/profile) green on CI, six-cell goldens live, coverage gate 62%.
 
 ## M2 — Pairing (4 sessions) · *highest-risk milestone — the activation gate lives here*
 
