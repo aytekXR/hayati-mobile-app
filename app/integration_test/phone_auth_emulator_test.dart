@@ -17,11 +17,15 @@
 //     -d <device>   # iOS simulator; a physical device needs
 //                   # --dart-define=AUTH_EMULATOR_HOST=<host LAN IP>
 //
-// CI runs this suite on the main-only `integration-emulator` job (macOS runner +
-// iOS simulator + auth/firestore emulators via `firebase emulators:exec`); see
-// .github/workflows/ci.yml (ci-debt #6). It is a POST-MERGE signal, so run it
-// locally (above) before merging, or trigger it on a branch with
-// `gh workflow run ci.yml --ref <branch>`.
+// QUARANTINED FROM CI — issue #15. On the iOS simulator this suite crashes the
+// app process natively inside `verifyPhoneNumber` (no Dart exception; the app
+// simply exits ~1s in), so the `integration-emulator` job skips it with a
+// warning annotation rather than failing every run. The likely cause is the
+// native app-verification path (APNs → reCAPTCHA fallback): the emulator was
+// assumed to bypass it, and that assumption is the one thing no package source
+// could confirm. Everything this suite asserts is also covered by VM unit tests
+// with fakes; the emulator REST semantics it relies on were verified directly.
+// Do not delete it — fix issue #15 and re-enable in .github/workflows/ci.yml.
 import 'dart:convert';
 import 'dart:io';
 

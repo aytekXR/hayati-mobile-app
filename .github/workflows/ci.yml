@@ -172,10 +172,21 @@ jobs:
       #
       # DEVICE_ID reaches the inner shell through the step env (GITHUB_ENV), so
       # the single-quoted script is expanded by that shell, not this one.
+      # phone_auth_emulator_test is QUARANTINED, not silently dropped: it crashes
+      # the app process natively inside verifyPhoneNumber on the simulator (no
+      # Dart exception, app just exits). Tracked in issue #15 with the crash
+      # signature and next steps; the ::warning:: keeps it visible in every run
+      # so it cannot rot unnoticed (W4: quarantine same-day with an issue, never
+      # a silent retry). The phone flow stays covered by VM unit tests with fakes.
       - name: Integration tests (auth + firestore emulators)
         run: |
           firebase emulators:exec --only auth,firestore --project demo-hayati \
             'cd app && for suite in integration_test/*_test.dart; do
+               case "$suite" in
+                 */phone_auth_emulator_test.dart)
+                   echo "::warning file=app/$suite::Quarantined from CI — crashes the app natively in verifyPhoneNumber on the iOS simulator (issue #15). Covered by VM unit tests."
+                   continue;;
+               esac
                echo "::group::$suite"
                flutter test "$suite" \
                  --dart-define=USE_AUTH_EMULATOR=true \

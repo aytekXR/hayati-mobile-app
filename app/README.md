@@ -59,6 +59,10 @@ In CI these run in the `integration-emulator` job, which is **main-push-only**
 because macOS minutes bill at 10× (see `docs/architecture.md` §9). To exercise it
 on a branch before merging: `gh workflow run ci.yml --ref <branch>`.
 
+The phone suite is **quarantined from that job** (issue #15): `verifyPhoneNumber`
+crashes the app natively on the iOS simulator. Google, Apple, and the profile
+round-trip do gate it. The phone flow is covered by VM unit tests meanwhile.
+
 ## Conventions
 
 - Flavors are Dart entrypoints (`main_dev.dart` / `main_prod.dart`) overriding
