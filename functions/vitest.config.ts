@@ -6,6 +6,12 @@ export default defineConfig({
     // Emulator-backed suites share one firestore emulator and clear it between
     // files; parallel files would race each other's clearFirestore().
     fileParallelism: false,
+    // The contended-transaction tests (concurrent createInvite) involve a
+    // server-side lock wait + the admin SDK's ABORTED retry backoff (~1s
+    // initial delay) — on a 2-core CI runner that legitimately exceeds the
+    // 5s default (observed: PR #20 first run). Unit tests finish in ms
+    // regardless, so one generous ceiling beats per-test annotations.
+    testTimeout: 30_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
