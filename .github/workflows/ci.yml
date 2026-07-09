@@ -108,7 +108,9 @@ jobs:
     # macOS minutes until the cheap ubuntu quality job is green.
     needs: quality
     runs-on: macos-15
-    timeout-minutes: 30
+    # Each suite compiles its own simulator binary and they run serially, so the
+    # bound is ~3 Xcode debug builds plus the emulator round-trips.
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
@@ -160,10 +162,24 @@ jobs:
       # from repo root (firebase.json lives here). --timeout none keeps the long
       # first-run sim compile from tripping the per-test timeout (the 30-min job
       # timeout is the real bound); -r expanded streams progress so a wedge shows.
+      # One `flutter test` invocation PER SUITE, sequentially. Passing the
+      # integration_test/ directory lets flutter_tools run the suites
+      # concurrently against the one simulator, where they fight over the shared
+      # com.hayati.app bundle: the first run died with "Unable to terminate
+      # com.hayati.app" and a whole suite reported "did not complete". Suites are
+      # serialized here instead; `set -e` + the explicit exit make any red suite
+      # fail the job (W4: no silent retries, no `|| true`).
+      #
+      # DEVICE_ID reaches the inner shell through the step env (GITHUB_ENV), so
+      # the single-quoted script is expanded by that shell, not this one.
       - name: Integration tests (auth + firestore emulators)
         run: |
           firebase emulators:exec --only auth,firestore --project demo-hayati \
-            "cd app && flutter test integration_test \
-               --dart-define=USE_AUTH_EMULATOR=true \
-               --dart-define=USE_FIRESTORE_EMULATOR=true \
-               -d $DEVICE_ID -r expanded --timeout none"
+            'cd app && for suite in integration_test/*_test.dart; do
+               echo "::group::$suite"
+               flutter test "$suite" \
+                 --dart-define=USE_AUTH_EMULATOR=true \
+                 --dart-define=USE_FIRESTORE_EMULATOR=true \
+                 -d "$DEVICE_ID" -r expanded --timeout none || exit 1
+               echo "::endgroup::"
+             done'

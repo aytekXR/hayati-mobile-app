@@ -69,7 +69,13 @@ void main() {
     expect(await repository.watchProfile(uid).first, isNull);
 
     await repository.saveProfile(uid, _profile);
-    expect(await repository.watchProfile(uid).first, _profile);
+    // `emitsThrough`, not `.first`: saveProfile commits through a transaction,
+    // which the server executes with no local latency compensation. A fresh
+    // listener therefore emits the stale cached "no document" (null) before the
+    // server snapshot lands. The app never sees that window — OnboardingGate
+    // holds one long-lived subscription — but a listener opened per assertion
+    // does, and `.first` would race it (observed red on the CI emulator leg).
+    await expectLater(repository.watchProfile(uid), emitsThrough(_profile));
 
     // createdAt is server-stamped exactly once (create-once transaction).
     final doc = await FirebaseFirestore.instance
