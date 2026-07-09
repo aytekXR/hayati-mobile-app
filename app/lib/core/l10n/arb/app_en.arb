@@ -82,11 +82,44 @@
   },
   "invitePartnerTitle": "Invite your partner",
   "@invitePartnerTitle": {
-    "description": "Post-capture placeholder title; real pairing is M2"
+    "description": "Title of the invite share screen (M2.2 pairing)"
   },
-  "invitePartnerBody": "Pairing is coming soon. You're all set for now.",
-  "@invitePartnerBody": {
-    "description": "Body of the M2 pairing placeholder"
+  "inviteShareBody": "Your invite code is ready. Share it with your partner to pair.",
+  "@inviteShareBody": {
+    "description": "Body under the invite title explaining what to do with the code"
+  },
+  "inviteCodeExpiresAt": "Expires {expiresAt}",
+  "@inviteCodeExpiresAt": {
+    "description": "Invite code expiry line on the share screen (48h TTL)",
+    "placeholders": {
+      "expiresAt": {
+        "type": "DateTime",
+        "format": "d MMM y, h:mm a",
+        "isCustomDateFormat": "true"
+      }
+    }
+  },
+  "inviteShareButton": "Share invite",
+  "@inviteShareButton": {
+    "description": "Button that opens the system share sheet with the invite message"
+  },
+  "inviteShareMessage": "I'm waiting for you on Hayati ❤️\nInvite code: {code}\n{link}",
+  "@inviteShareMessage": {
+    "description": "WhatsApp-formatted share text: warm one-liner + code + deep link on its own line",
+    "placeholders": {
+      "code": {
+        "type": "String",
+        "example": "ABCD2345"
+      },
+      "link": {
+        "type": "String",
+        "example": "hayati://invite/ABCD2345"
+      }
+    }
+  },
+  "inviteLoadFailedBody": "We couldn't create your invite. Please try again.",
+  "@inviteLoadFailedBody": {
+    "description": "Error copy when createInvite fails on the share screen"
   },
   "continueWithApple": "Continue with Apple",
   "@continueWithApple": {

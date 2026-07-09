@@ -11,6 +11,7 @@ import 'core/l10n/gen/app_localizations.dart';
 import 'core/observability/crash_reporter.dart';
 import 'core/observability/error_hooks.dart';
 import 'features/auth/presentation/sign_in_screen.dart';
+import 'features/pairing/presentation/state/pending_invite.dart';
 
 /// Boots the app for the given flavor [config]. Called only by the flavor
 /// entrypoints (`main_dev.dart` / `main_prod.dart`), which pass the
@@ -45,6 +46,11 @@ class HayatiApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
+    // Activate the pending-invite watcher from the first frame (it is
+    // keepAlive) so a cold-start hayati://invite/<code> link — captured before
+    // any pairing screen mounts — is held, not dropped. State only this
+    // session; the join flow (M2.3) reads the code from pendingInviteProvider.
+    ref.listen(pendingInviteProvider, (_, _) {});
     return MaterialApp(
       // Brand name stays sourced from core/config (never the ARBs) so a
       // rename touches one place (docs/frontend-brandkit.md §1).

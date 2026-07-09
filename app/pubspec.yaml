@@ -7,7 +7,9 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  app_links: ^7.2.1
   cloud_firestore: ^6.6.0
+  cloud_functions: ^6.3.3
   crypto: ^3.0.7
   firebase_app_check: ^0.4.5
   firebase_auth: ^6.5.4
@@ -21,6 +23,7 @@ dependencies:
   google_sign_in: ^7.2.0
   intl: any
   riverpod_annotation: ^3.0.3
+  share_plus: ^13.2.0
   sign_in_with_apple: ^8.1.0
 
 dev_dependencies:

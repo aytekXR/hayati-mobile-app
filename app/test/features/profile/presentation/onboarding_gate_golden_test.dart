@@ -14,7 +14,7 @@ const _user = AuthUser(uid: 'uid-1', displayName: 'Aytek');
 // The gate's loading state is deliberately NOT golden'd (a transient spinner
 // with no stable frame); its fresh-signup destination is covered by the
 // ProfileCaptureScreen goldens, and its existing-profile destination by the
-// InvitePartnerPlaceholder goldens. Only the _GateErrorView is captured here.
+// InviteShareScreen goldens. Only the _GateErrorView is captured here.
 void main() {
   for (final cell in sixCells) {
     testWidgets('error ${cell.suffix}', (tester) async {

@@ -13,6 +13,12 @@ import 'features/auth/data/firebase_auth_repository.dart';
 import 'features/auth/data/google_auth_gateway.dart';
 import 'features/auth/data/phone_auth_gateway.dart';
 import 'features/auth/domain/auth_repository_provider.dart';
+import 'features/pairing/data/app_links_deep_link_source.dart';
+import 'features/pairing/data/functions_invite_repository.dart';
+import 'features/pairing/data/share_plus_invite_share_launcher.dart';
+import 'features/pairing/domain/deep_link_source.dart';
+import 'features/pairing/domain/invite_repository_provider.dart';
+import 'features/pairing/domain/invite_share_launcher.dart';
 import 'features/profile/data/firestore_profile_repository.dart';
 import 'features/profile/domain/profile_repository_provider.dart';
 
@@ -46,6 +52,13 @@ Future<void> main() async {
         (ref) =>
             FirestoreProfileRepository(firestore: FirebaseFirestore.instance),
       ),
+      inviteRepositoryProvider.overrideWith(
+        (ref) => FunctionsInviteRepository(),
+      ),
+      inviteShareLauncherProvider.overrideWith(
+        (ref) => const SharePlusInviteShareLauncher(),
+      ),
+      deepLinkSourceProvider.overrideWith((ref) => AppLinksDeepLinkSource()),
     ],
   );
 }

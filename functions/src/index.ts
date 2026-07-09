@@ -6,3 +6,4 @@ import { initializeApp } from 'firebase-admin/app';
 initializeApp();
 
 export { createInvite } from './invites/create-invite';
+export { invitePreview } from './invites/invite-preview';
