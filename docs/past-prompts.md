@@ -144,3 +144,16 @@
 - Brandkit visual application + goldens (test-suite §1 six-cell matrix, now unblocked by l10n) remains the final M1 slice after M1.3.
 
 **Next objective written to resume-prompt.md:** Session 005 — M1.3: Apple + phone auth providers (emulator-first), Crashlytics + App Check, CI emulator integration leg (#6).
+
+## Directive — 2026-07-09 — Adopt CodeGraph for code navigation (sessions + agents)
+
+**Trigger (founder, post-Session-004 close):** CodeGraph newly installed; "starting from next session I will utilize it" — agents should use CodeGraph during sessions, and the index must be updated before each session ends.
+
+**Resolution:** CodeGraph (CLI at `~/.local/bin/codegraph`; MCP server `codegraph` registered globally in `~/.claude.json`, so `codegraph_explore`/`codegraph_node` tools are live from Session 005 on) becomes the standing code-navigation layer:
+- **Session start (session-rules §1 step 4):** `codegraph status`, sync if stale; orientation and symbol/call-path/impact questions go through `codegraph_explore`/`codegraph_node` (CLI fallback `codegraph explore|node|callers`) instead of raw grep sweeps; sub-agents/workflow agents are pointed at the same MCP tools (reachable via ToolSearch).
+- **Session end (session-rules §3 step 5):** `codegraph sync` after the merge lands, so the index reflects merged `main` for the next session.
+- **Index hygiene:** the index is a machine-local sqlite DB — `.codegraph/` added to the root `.gitignore` (2.93 MB at adoption; never repo content); a fresh machine runs `codegraph init` once. Repo indexed this session: 82 files, 739 nodes, 1,820 edges, current with main `58faae6`.
+
+**Docs touched:** session-rules.md (§1 step 4 new, §3 step 5 new), agent-workflows.md (W2 sequence), resume-prompt.md (standing tooling note in the header block — survives regenerations like the ADR-006/007 notes), .gitignore (`.codegraph/`), past-prompts.md (this entry).
+**Outcome:** docs-only change, merged via PR with green pipeline.
+**Next objective in resume-prompt.md:** unchanged — Session 005 — M1.3 (Apple + phone providers, Crashlytics + App Check, ci-debt #6 CI emulator leg).
