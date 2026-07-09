@@ -58,6 +58,30 @@ class AuthController extends _$AuthController {
     }
   }
 
+  /// Runs the native Sign in with Apple flow. Re-entrant calls are dropped
+  /// while one is in flight (double-tap debounce).
+  Future<void> signInWithApple() async {
+    if (_manualInProgress) return;
+    _manualInProgress = true;
+    final repo = ref.read(authRepositoryProvider);
+    state = const AuthSigningIn();
+    try {
+      final user = await repo.signInWithApple();
+      if (!ref.mounted) return;
+      state = AuthSignedIn(user);
+    } on AuthCancelledException {
+      if (!ref.mounted) return;
+      state = const AuthSignedOut();
+    } on AuthException catch (failure) {
+      if (!ref.mounted) return;
+      state = AuthError(failure);
+    } finally {
+      if (ref.mounted) {
+        _manualInProgress = false;
+      }
+    }
+  }
+
   Future<void> signOut() async {
     if (_manualInProgress) return;
     _manualInProgress = true;

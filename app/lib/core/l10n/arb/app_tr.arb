@@ -21,5 +21,15 @@
   "continueAction": "Devam et",
   "profileSaveFailedTitle": "Profilin kaydedilemedi",
   "invitePartnerTitle": "Partnerini davet et",
-  "invitePartnerBody": "Eşleştirme çok yakında. Şimdilik her şey hazır."
+  "invitePartnerBody": "Eşleştirme çok yakında. Şimdilik her şey hazır.",
+  "continueWithApple": "Apple ile devam et",
+  "continueWithPhone": "Telefonla devam et",
+  "phoneNumberLabel": "Telefon numaran",
+  "phoneNumberHint": "+90 555 123 45 67",
+  "sendCode": "Kod gönder",
+  "smsCodeLabel": "Doğrulama kodu",
+  "verifyCode": "Doğrula",
+  "resendCode": "Kodu yeniden gönder",
+  "errorInvalidCode": "Kod eşleşmedi. Tekrar dene.",
+  "errorSessionExpired": "Süre doldu. Baştan başla."
 }

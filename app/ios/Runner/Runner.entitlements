@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sign in with Apple (M1.3). Entitlements are consumed only at codesign
+	     time, so CI's `flutter build ios --no-codesign` is unaffected; the
+	     emulator integration tests never invoke native ASAuthorization either.
+	     App Attest (com.apple.developer.devicecheck.appattest-environment) is
+	     deliberately NOT declared yet - deferred to the on-device/Mac slice
+	     with the rest of prod App Check attestation (docs/architecture.md). -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+</dict>
+</plist>

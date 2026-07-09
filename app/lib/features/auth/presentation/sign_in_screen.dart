@@ -8,6 +8,7 @@ import '../../../core/l10n/gen/app_localizations.dart';
 import '../../profile/presentation/onboarding_gate.dart';
 import '../domain/auth_exception.dart';
 import '../domain/auth_state.dart';
+import 'phone_sign_in_screen.dart';
 import 'state/auth_controller.dart';
 
 /// Minimal auth shell for M1.1: one widget per [AuthState]. Deliberately
@@ -53,11 +54,44 @@ class _SignedOutView extends ConsumerWidget {
       children: [
         Text(config.appName, style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 32),
+        const _ProviderActions(),
+      ],
+    );
+  }
+}
+
+/// The three sign-in affordances, shared by the signed-out and error views.
+///
+/// The error view offers the same choice rather than a single "try again"
+/// bound to one provider: an [AuthError] can come from any provider (or from a
+/// failed sign-out), so a hardcoded retry would silently start a *different*
+/// flow than the one that just failed.
+class _ProviderActions extends ConsumerWidget {
+  const _ProviderActions();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final notifier = ref.read(authControllerProvider.notifier);
+    // Apple first (iOS-first convention), then Google, then phone.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         FilledButton(
-          onPressed: () => unawaited(
-            ref.read(authControllerProvider.notifier).signInWithGoogle(),
+          onPressed: () => unawaited(notifier.signInWithApple()),
+          child: Text(l10n.continueWithApple),
+        ),
+        const SizedBox(height: 12),
+        FilledButton(
+          onPressed: () => unawaited(notifier.signInWithGoogle()),
+          child: Text(l10n.continueWithGoogle),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const PhoneSignInScreen()),
           ),
-          child: Text(AppLocalizations.of(context).continueWithGoogle),
+          child: Text(l10n.continueWithPhone),
         ),
       ],
     );
@@ -74,6 +108,8 @@ class _ErrorView extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final detail = switch (failure) {
       AuthNetworkException() => l10n.errorNetworkRetry,
+      AuthInvalidCodeException() => l10n.errorInvalidCode,
+      AuthSessionExpiredException() => l10n.errorSessionExpired,
       AuthCancelledException() || AuthUnknownException() => l10n.errorGeneric,
     };
     return Column(
@@ -86,12 +122,7 @@ class _ErrorView extends ConsumerWidget {
         const SizedBox(height: 8),
         Text(detail, textAlign: TextAlign.center),
         const SizedBox(height: 24),
-        FilledButton(
-          onPressed: () => unawaited(
-            ref.read(authControllerProvider.notifier).signInWithGoogle(),
-          ),
-          child: Text(l10n.tryAgain),
-        ),
+        const _ProviderActions(),
       ],
     );
   }

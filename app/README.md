@@ -43,10 +43,25 @@ flutter run -t lib/main_dev.dart \
 # physical device: add --dart-define=AUTH_EMULATOR_HOST=<your LAN IP>
 # (shared by both emulators)
 
-# integration tests (device/simulator only; ci-debt #6)
+# integration tests (device/simulator only — firebase_auth needs platform
+# channels, so these never run in the `flutter test` VM)
 flutter test integration_test --dart-define=USE_AUTH_EMULATOR=true \
   --dart-define=USE_FIRESTORE_EMULATOR=true -d <device>
 ```
+
+The suites cover Google, Apple, and phone sign-in plus the profile round-trip.
+Apple and Google are faked with unsigned JSON id_tokens (the emulator does not
+verify them); phone codes are minted randomly by the emulator and read back from
+`/emulator/v1/projects/demo-hayati/verificationCodes` — note that path carries
+the project the **emulator was booted with**, not the app's `projectId`.
+
+In CI these run in the `integration-emulator` job, which is **main-push-only**
+because macOS minutes bill at 10× (see `docs/architecture.md` §9). To exercise it
+on a branch before merging: `gh workflow run ci.yml --ref <branch>`.
+
+The phone suite is **quarantined from that job** (issue #15): `verifyPhoneNumber`
+crashes the app natively on the iOS simulator. Google, Apple, and the profile
+round-trip do gate it. The phone flow is covered by VM unit tests meanwhile.
 
 ## Conventions
 

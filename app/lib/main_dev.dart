@@ -4,10 +4,14 @@ import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 
 import 'app.dart';
 import 'core/config/app_config.dart';
+import 'core/firebase/app_check_bootstrap.dart';
 import 'core/firebase/firebase_bootstrap.dart';
 import 'core/firebase/google_sign_in_config.dart';
+import 'core/observability/crashlytics_bootstrap.dart';
+import 'features/auth/data/apple_auth_gateway.dart';
 import 'features/auth/data/firebase_auth_repository.dart';
 import 'features/auth/data/google_auth_gateway.dart';
+import 'features/auth/data/phone_auth_gateway.dart';
 import 'features/auth/domain/auth_repository_provider.dart';
 import 'features/profile/data/firestore_profile_repository.dart';
 import 'features/profile/domain/profile_repository_provider.dart';
@@ -16,9 +20,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const config = AppConfig(flavor: AppFlavor.dev);
   await initializeFirebase(config);
+  // Both must follow initializeFirebase (they resolve the default FirebaseApp)
+  // and must stay out of initializeFirebase itself: each drives a platform
+  // channel that throws in the plain test VM, where the bootstrap is unit-tested
+  // (docs/architecture.md §2). Dev keeps Crashlytics collection off.
+  await activateAppCheck(config);
+  final crashReporter = await initializeCrashlytics(config);
   final googleConfig = googleSignInConfigFor(config.flavor);
   runHayati(
     config,
+    crashReporter: crashReporter,
     extraOverrides: [
       authRepositoryProvider.overrideWith(
         (ref) => FirebaseAuthRepository(
@@ -27,6 +38,8 @@ Future<void> main() async {
             clientId: googleConfig.iosClientId,
             serverClientId: googleConfig.serverClientId,
           ),
+          appleGateway: SignInWithAppleGateway(),
+          phoneGateway: FirebaseVerifyPhoneGateway(FirebaseAuth.instance),
         ),
       ),
       profileRepositoryProvider.overrideWith(

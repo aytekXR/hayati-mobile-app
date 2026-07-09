@@ -11,7 +11,11 @@
 //     -d <device>   # physical device needs
 //                   # --dart-define=AUTH_EMULATOR_HOST=<host LAN IP>
 //
-// CI wiring stays ci-debt issue #6 (same runner story as the auth leg).
+// CI runs this suite on the main-only `integration-emulator` job (macOS runner +
+// iOS simulator + auth/firestore emulators via `firebase emulators:exec`); see
+// .github/workflows/ci.yml (ci-debt #6). It is a POST-MERGE signal, so run it
+// locally (above) before merging, or trigger it on a branch with
+// `gh workflow run ci.yml --ref <branch>`.
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -65,7 +69,13 @@ void main() {
     expect(await repository.watchProfile(uid).first, isNull);
 
     await repository.saveProfile(uid, _profile);
-    expect(await repository.watchProfile(uid).first, _profile);
+    // `emitsThrough`, not `.first`: saveProfile commits through a transaction,
+    // which the server executes with no local latency compensation. A fresh
+    // listener therefore emits the stale cached "no document" (null) before the
+    // server snapshot lands. The app never sees that window — OnboardingGate
+    // holds one long-lived subscription — but a listener opened per assertion
+    // does, and `.first` would race it (observed red on the CI emulator leg).
+    await expectLater(repository.watchProfile(uid), emitsThrough(_profile));
 
     // createdAt is server-stamped exactly once (create-once transaction).
     final doc = await FirebaseFirestore.instance

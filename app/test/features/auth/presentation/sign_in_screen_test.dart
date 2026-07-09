@@ -7,6 +7,7 @@ import 'package:hayati_app/core/config/app_config_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_exception.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/auth/presentation/phone_sign_in_screen.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
@@ -64,6 +65,14 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
+    testWidgets('offers Apple, Google and phone affordances', (tester) async {
+      await pumpScreen(tester);
+
+      expect(find.text(en.continueWithApple), findsOneWidget);
+      expect(find.text(en.continueWithGoogle), findsOneWidget);
+      expect(find.text(en.continueWithPhone), findsOneWidget);
+    });
+
     testWidgets('tapping the button starts the Google flow', (tester) async {
       final fake = await pumpScreen(tester);
       final completer = Completer<AuthUser>();
@@ -76,6 +85,29 @@ void main() {
 
       completer.complete(testUser);
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('tapping Apple starts the Apple flow', (tester) async {
+      final fake = await pumpScreen(tester);
+      final completer = Completer<AuthUser>();
+      fake.onSignInWithApple = () => completer.future;
+
+      await tester.tap(find.text(en.continueWithApple));
+      await tester.pump();
+
+      expect(fake.signInWithAppleCalls, 1);
+
+      completer.complete(testUser);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('tapping phone opens the phone sign-in screen', (tester) async {
+      await pumpScreen(tester);
+
+      await tester.tap(find.text(en.continueWithPhone));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PhoneSignInScreen), findsOneWidget);
     });
   });
 
@@ -107,14 +139,36 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.signInFailedTitle), findsOneWidget);
-      expect(find.text(en.tryAgain), findsOneWidget);
+      expect(find.text(en.continueWithGoogle), findsOneWidget);
 
       fake.onSignInWithGoogle = () async => testUser;
-      await tester.tap(find.text(en.tryAgain));
+      await tester.tap(find.text(en.continueWithGoogle));
       await tester.pumpAndSettle();
 
       expect(fake.signInCalls, 2);
       // Successful sign-in hands the screen to onboarding (fresh signup).
+      expect(find.byType(ProfileCaptureScreen), findsOneWidget);
+    });
+
+    testWidgets('the error view retries the provider that failed, not a '
+        'hardcoded one', (tester) async {
+      final fake = await pumpScreen(tester);
+      fake.onSignInWithApple = () async {
+        throw const AuthNetworkException(message: 'offline');
+      };
+
+      await tester.tap(find.text(en.continueWithApple));
+      await tester.pumpAndSettle();
+      expect(find.text(en.signInFailedTitle), findsOneWidget);
+
+      // Retrying from the error view must re-run Apple; a single "try again"
+      // bound to Google would silently start the wrong flow.
+      fake.onSignInWithApple = () async => testUser;
+      await tester.tap(find.text(en.continueWithApple));
+      await tester.pumpAndSettle();
+
+      expect(fake.signInWithAppleCalls, 2);
+      expect(fake.signInCalls, 0);
       expect(find.byType(ProfileCaptureScreen), findsOneWidget);
     });
 
@@ -198,7 +252,11 @@ void main() {
 
         expect(find.text(l10n.signInFailedTitle), findsOneWidget);
         expect(find.text(l10n.errorGeneric), findsOneWidget);
-        expect(find.text(l10n.tryAgain), findsOneWidget);
+        // The error view re-offers every provider (localized), so the user can
+        // retry the one that failed rather than a hardcoded default.
+        expect(find.text(l10n.continueWithApple), findsOneWidget);
+        expect(find.text(l10n.continueWithGoogle), findsOneWidget);
+        expect(find.text(l10n.continueWithPhone), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }

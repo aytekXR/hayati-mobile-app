@@ -8,13 +8,26 @@ import 'core/config/app_config.dart';
 import 'core/config/app_config_provider.dart';
 import 'core/design_system/color_tokens.dart';
 import 'core/l10n/gen/app_localizations.dart';
+import 'core/observability/crash_reporter.dart';
+import 'core/observability/error_hooks.dart';
 import 'features/auth/presentation/sign_in_screen.dart';
 
 /// Boots the app for the given flavor [config]. Called only by the flavor
 /// entrypoints (`main_dev.dart` / `main_prod.dart`), which pass the
 /// environment bindings (e.g. the Firebase-backed auth repository) as
-/// [extraOverrides] so widget tests can compose fakes the same way.
-void runHayati(AppConfig config, {List<Override> extraOverrides = const []}) {
+/// [extraOverrides] so widget tests can compose fakes the same way. The
+/// entrypoints also pass the Crashlytics-backed [crashReporter]; when it is
+/// null (widget tests, or a reporter-less boot) no channel-bound error hooks
+/// are installed, keeping those paths off the Crashlytics channel
+/// (docs/resume-prompt.md M1.3).
+void runHayati(
+  AppConfig config, {
+  List<Override> extraOverrides = const [],
+  CrashReporter? crashReporter,
+}) {
+  if (crashReporter != null) {
+    installErrorHooks(crashReporter);
+  }
   runApp(
     ProviderScope(
       overrides: [
