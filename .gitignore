@@ -4,3 +4,6 @@ firebase-debug.*.log
 ui-debug.log
 .firebase/
 firestore-debug.log
+
+# CodeGraph local index (machine-local sqlite DB; each machine runs `codegraph init` once — session-rules §1)
+.codegraph/

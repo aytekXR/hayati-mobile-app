@@ -8,7 +8,7 @@ Trigger: any new feature idea. Steps: (1) write a one-paragraph hypothesis + the
 
 ## W2 — Coding session (the core loop)
 
-Governed by `project-rules.md` + `session-rules.md`. Sequence: read `resume-prompt.md` → plan (≤10 bullets) → **Tester sub-agent** drafts failing tests from acceptance criteria → implement to green → **Reviewer sub-agent** pass (diff review against `architecture.md` conventions, security rules, RTL lint) → docs sync → end-of-session sequence (append `past-prompts.md`, regenerate `resume-prompt.md` from `roadmap.md` + progress, `git add/commit/push`, verify CI via `gh run watch`; fix-fast or log-and-defer per rule #5).
+Governed by `project-rules.md` + `session-rules.md`. Sequence: read `resume-prompt.md` → orient via **CodeGraph** (`codegraph_explore`/`codegraph_node` MCP tools for symbol/call-path/impact questions; sub-agents use them too, via ToolSearch — session-rules §1) → plan (≤10 bullets) → **Tester sub-agent** drafts failing tests from acceptance criteria → implement to green → **Reviewer sub-agent** pass (diff review against `architecture.md` conventions, security rules, RTL lint) → docs sync → end-of-session sequence (append `past-prompts.md`, regenerate `resume-prompt.md` from `roadmap.md` + progress, `git add/commit/push`, verify CI via `gh run watch`, `codegraph sync` post-merge; fix-fast or log-and-defer per rule #5).
 
 ## W3 — PR workflow
 

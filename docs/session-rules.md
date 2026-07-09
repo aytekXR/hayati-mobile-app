@@ -7,7 +7,8 @@ The operating contract for every coding session. `project-rules.md` is the const
 1. Read `project-rules.md` (skim, it's short and immutable).
 2. Read `resume-prompt.md`. It contains exactly one objective. **That objective is the session. Nothing else is.**
 3. Read the acceptance criteria of the relevant milestone in `implementation-plan.md`.
-4. Write a plan of ≤10 bullets before touching code. If the plan reveals the objective is mis-scoped (>1 session of work), split it: do the first coherent slice, and note the remainder for the next `resume-prompt.md` — do not stretch the session.
+4. Orient with **CodeGraph** (founder directive 2026-07-09): `codegraph status` — sync if stale (the previous end sequence should have left it current; a fresh machine runs `codegraph init` once). For symbol/call-path/impact questions during the session, use the `codegraph_explore`/`codegraph_node` MCP tools (CLI fallback: `codegraph explore|node|callers`) instead of raw grep sweeps — and point sub-agents/workflow agents at the same tools (they reach MCP via ToolSearch). The index is machine-local (`.codegraph/`, gitignored).
+5. Write a plan of ≤10 bullets before touching code. If the plan reveals the objective is mis-scoped (>1 session of work), split it: do the first coherent slice, and note the remainder for the next `resume-prompt.md` — do not stretch the session.
 
 ## 2. During the session
 
@@ -22,6 +23,7 @@ The operating contract for every coding session. `project-rules.md` is the const
 2. Regenerate `resume-prompt.md`: inspect `roadmap.md` + current milestone progress + open `ci-debt` issues → choose the single highest-priority next task → write it with concrete acceptance criteria (rule #3). One objective only.
 3. `git add -A && git commit` (Conventional Commits: `feat(m2): partner preview screen with locked answer state`) `&& git push`.
 4. `gh run watch` until the pipeline concludes. Green → session over. Red → quick fix (≤15 min) now and re-push; structural → `gh issue create --label ci-debt` with failing-log excerpt, note it in `past-prompts.md`, and only then end (rule #5). A session never ends with an *unexamined* red pipeline.
+5. `codegraph sync` after the merge lands, so the local index reflects merged `main` — the next session's step-4 orientation depends on it (founder directive 2026-07-09).
 
 ## 4. Blocked protocol
 
