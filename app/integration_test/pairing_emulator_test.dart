@@ -22,9 +22,10 @@
 // `gh workflow run ci.yml --ref <branch>`.
 import 'dart:convert';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hayati_app/core/config/app_config.dart';
 import 'package:hayati_app/core/firebase/firebase_bootstrap.dart';
 import 'package:hayati_app/features/pairing/data/functions_invite_repository.dart';
 import 'package:integration_test/integration_test.dart';
@@ -44,7 +45,28 @@ void main() {
         '--dart-define=USE_FUNCTIONS_EMULATOR=true (see file header).',
       );
     }
-    await initializeFirebase(const AppConfig(flavor: AppFlavor.dev));
+    // The default app must carry the EMULATOR project id, not a flavor's:
+    // cloud_functions derives the emulated callable URL from
+    // FirebaseOptions.projectId, and the functions emulator serves functions
+    // ONLY under its `--project` (demo-hayati) — dev options 404 (NOT FOUND).
+    // The auth/firestore emulators resolve any project id, which is why the
+    // older suites never hit this. Values besides projectId are dummies; the
+    // emulators ignore API keys.
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: 'fake-emulator-key',
+        appId: '1:0:ios:emulator-only',
+        messagingSenderId: '0',
+        projectId: 'demo-hayati',
+      ),
+    );
+    await FirebaseAuth.instance.useAuthEmulator(
+      kAuthEmulatorHost,
+      kAuthEmulatorPort,
+    );
+    FirebaseFunctions.instanceFor(
+      region: kFunctionsRegion,
+    ).useFunctionsEmulator(kAuthEmulatorHost, kFunctionsEmulatorPort);
     // The Auth emulator accepts an unsigned JSON id_token (Session 003).
     await FirebaseAuth.instance.signInWithCredential(
       GoogleAuthProvider.credential(
