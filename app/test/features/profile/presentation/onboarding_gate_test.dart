@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
+import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
 import 'package:hayati_app/features/profile/domain/profile_exception.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
-import 'package:hayati_app/features/profile/presentation/invite_partner_placeholder.dart';
 import 'package:hayati_app/features/profile/presentation/onboarding_gate.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/localized_app.dart';
 
@@ -28,8 +30,10 @@ void main() {
   }) async {
     final fake = FakeProfileRepository(initialProfiles: {user.uid: ?profile});
     final fakeAuth = FakeAuthRepository(initialUser: user);
+    final fakeInvites = FakeInviteRepository();
     addTearDown(fake.dispose);
     addTearDown(fakeAuth.dispose);
+    addTearDown(fakeInvites.dispose);
     await tester.pumpWidget(
       localizedApp(
         const OnboardingGate(user: user),
@@ -37,6 +41,7 @@ void main() {
         overrides: [
           profileRepositoryProvider.overrideWith((ref) => fake),
           authRepositoryProvider.overrideWith((ref) => fakeAuth),
+          inviteRepositoryProvider.overrideWith((ref) => fakeInvites),
         ],
       ),
     );
@@ -62,21 +67,21 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfileCaptureScreen), findsOneWidget);
-      expect(find.byType(InvitePartnerPlaceholder), findsNothing);
+      expect(find.byType(InviteShareScreen), findsNothing);
     });
 
-    testWidgets('an existing profile routes to the invite placeholder', (
+    testWidgets('an existing profile routes to the invite share screen', (
       tester,
     ) async {
       await pumpGate(tester, profile: existingProfile);
       await tester.pumpAndSettle();
 
-      expect(find.byType(InvitePartnerPlaceholder), findsOneWidget);
+      expect(find.byType(InviteShareScreen), findsOneWidget);
       expect(find.byType(ProfileCaptureScreen), findsNothing);
     });
 
     testWidgets('a profile arriving from another device swaps to the '
-        'placeholder live', (tester) async {
+        'invite share screen live', (tester) async {
       final fake = await pumpGate(tester);
       await tester.pumpAndSettle();
       expect(find.byType(ProfileCaptureScreen), findsOneWidget);
@@ -84,7 +89,7 @@ void main() {
       fake.emitProfile(user.uid, existingProfile);
       await tester.pumpAndSettle();
 
-      expect(find.byType(InvitePartnerPlaceholder), findsOneWidget);
+      expect(find.byType(InviteShareScreen), findsOneWidget);
     });
   });
 
@@ -109,7 +114,7 @@ void main() {
 
   group('locale matrix', () {
     for (final locale in supportedTestLocales) {
-      testWidgets('renders loading→capture→placeholder localized ($locale)', (
+      testWidgets('renders loading→capture→invite share localized ($locale)', (
         tester,
       ) async {
         final l10n = l10nFor(locale);
@@ -123,7 +128,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text(l10n.invitePartnerTitle), findsOneWidget);
-        expect(find.text(l10n.invitePartnerBody), findsOneWidget);
+        expect(find.text(l10n.inviteShareBody), findsOneWidget);
         expect(
           Directionality.of(tester.element(find.byType(OnboardingGate))),
           locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr,

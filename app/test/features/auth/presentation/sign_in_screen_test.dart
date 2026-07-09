@@ -9,12 +9,14 @@ import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/presentation/phone_sign_in_screen.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
+import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
-import 'package:hayati_app/features/profile/presentation/invite_partner_placeholder.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/localized_app.dart';
 
@@ -36,8 +38,10 @@ void main() {
     final fakeProfiles = FakeProfileRepository(
       initialProfiles: {testUser.uid: ?profile},
     );
+    final fakeInvites = FakeInviteRepository();
     addTearDown(fake.dispose);
     addTearDown(fakeProfiles.dispose);
+    addTearDown(fakeInvites.dispose);
     await tester.pumpWidget(
       localizedApp(
         const SignInScreen(),
@@ -48,6 +52,7 @@ void main() {
           ),
           authRepositoryProvider.overrideWith((ref) => fake),
           profileRepositoryProvider.overrideWith((ref) => fakeProfiles),
+          inviteRepositoryProvider.overrideWith((ref) => fakeInvites),
         ],
       ),
     );
@@ -206,7 +211,7 @@ void main() {
       expect(find.text(en.onboardingTitle), findsOneWidget);
     });
 
-    testWidgets('an existing profile lands on the invite placeholder and '
+    testWidgets('an existing profile lands on the invite share screen and '
         'can sign out', (tester) async {
       final fake = await pumpScreen(
         tester,
@@ -215,7 +220,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(InvitePartnerPlaceholder), findsOneWidget);
+      expect(find.byType(InviteShareScreen), findsOneWidget);
       expect(find.text(en.signOut), findsOneWidget);
 
       await tester.tap(find.text(en.signOut));

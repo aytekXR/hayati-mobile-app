@@ -4,15 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/domain/auth_user.dart';
+import '../../pairing/presentation/invite_share_screen.dart';
 import '../domain/profile_exception.dart';
-import 'invite_partner_placeholder.dart';
 import 'profile_capture_screen.dart';
 import 'state/profile_providers.dart';
 
 /// Post-sign-in routing (docs/implementation-plan.md M1 accept criterion):
-/// fresh signup → profile capture; existing profile → the M2 pairing
-/// placeholder. Driven by the live `users/{uid}` stream so a profile saved
-/// on the user's other device swaps this one without a restart.
+/// fresh signup → profile capture; existing profile → the M2.2 invite share
+/// screen. Driven by the live `users/{uid}` stream so a profile saved on the
+/// user's other device swaps this one without a restart.
 class OnboardingGate extends ConsumerWidget {
   const OnboardingGate({super.key, required this.user});
 
@@ -37,7 +37,7 @@ class OnboardingGate extends ConsumerWidget {
     }
     return profile.value == null
         ? ProfileCaptureScreen(uid: user.uid)
-        : const InvitePartnerPlaceholder();
+        : const InviteShareScreen();
   }
 }
 

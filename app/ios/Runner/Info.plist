@@ -38,6 +38,20 @@
 				<string>com.googleusercontent.apps.419979715508-brk62sg117qfj212ig43cfv4da0k5jg0</string>
 			</array>
 		</dict>
+		<!-- Custom scheme for invite deep links (hayati://invite/<code>),
+		     M2.2. Universal links (associated domains) are deferred until
+		     Apple Developer enrollment lands (FOUNDER-ACTIONS). Parsed by
+		     app_links → PendingInvite. -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.hayati.app.invite</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>hayati</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>

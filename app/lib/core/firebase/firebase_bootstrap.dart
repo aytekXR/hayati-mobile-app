@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -40,6 +41,25 @@ const int kFirestoreEmulatorPort = int.fromEnvironment(
   defaultValue: 8080,
 );
 
+/// Opt-in Cloud Functions emulator wiring, symmetric with [kUseAuthEmulator].
+/// The `createInvite` callable (M2.1) is only reachable through this behind
+/// the emulator; production calls hit the deployed `europe-west1` function.
+const bool kUseFunctionsEmulator = bool.fromEnvironment(
+  'USE_FUNCTIONS_EMULATOR',
+);
+
+const int kFunctionsEmulatorPort = int.fromEnvironment(
+  'FUNCTIONS_EMULATOR_PORT',
+  defaultValue: 5001,
+);
+
+/// The single region every callable is deployed to (`functions/` mirrors this
+/// as `FUNCTIONS_REGION`): closest to Istanbul + Riyadh, matching the eur3
+/// Firestore location. The Functions client MUST resolve its instance for this
+/// region — `FirebaseFunctions.instanceFor(region: kFunctionsRegion)` — so both
+/// the emulator wiring here and the callable repository reuse one constant.
+const String kFunctionsRegion = 'europe-west1';
+
 /// Pure flavor→options selection, unit-tested without any Firebase mock.
 FirebaseOptions firebaseOptionsFor(AppFlavor flavor) => switch (flavor) {
   AppFlavor.dev => DevFirebaseOptions.currentPlatform,
@@ -75,5 +95,13 @@ Future<void> initializeFirebase(AppConfig config) async {
       kAuthEmulatorHost,
       kFirestoreEmulatorPort,
     );
+  }
+  if (kUseFunctionsEmulator) {
+    // Wire the emulator on the region-scoped instance the callable repository
+    // resolves too (instanceFor caches per app+region, so it is the same
+    // object) — shares the auth host override, one LAN IP for all emulators.
+    FirebaseFunctions.instanceFor(
+      region: kFunctionsRegion,
+    ).useFunctionsEmulator(kAuthEmulatorHost, kFunctionsEmulatorPort);
   }
 }
