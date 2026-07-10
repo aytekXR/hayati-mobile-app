@@ -110,12 +110,25 @@ void main() {
       uid,
       _profile.copyWith(register: ContentRegister.playful),
     );
-    final rewritten = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    expect(rewritten.data()!['createdAt'], createdAt);
-    expect(rewritten.data()!['register'], 'playful');
+    // Watch, don't get: same emulator-leg discipline as the comment above.
+    // A one-shot get() after the awaited transaction can still serve the
+    // pre-commit snapshot on this CI leg (observed red on the first
+    // post-M3.2 main run: Expected 'playful', Actual 'respectful' — the
+    // write had committed, the read raced). The watch settles instead of
+    // racing; createdAt equality against the captured stamp proves the
+    // create-once transaction never re-stamped it.
+    await expectLater(
+      repository.watchProfile(uid),
+      emitsThrough(
+        isA<RelationshipProfile>()
+            .having((p) => p.register, 'register', ContentRegister.playful)
+            .having(
+              (p) => p.createdAt,
+              'createdAt (unchanged by re-save)',
+              (createdAt as Timestamp).toDate(),
+            ),
+      ),
+    );
   });
 
   testWidgets('rules deny reading another user\'s profile', (tester) async {
