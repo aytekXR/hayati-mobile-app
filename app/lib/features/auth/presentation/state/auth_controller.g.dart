@@ -62,7 +62,7 @@ final class AuthControllerProvider
   }
 }
 
-String _$authControllerHash() => r'63fcee9bd7a14ace38cbd84f32d584718b75eec1';
+String _$authControllerHash() => r'43d544a55e6b848db44c0084569cf92d10238c02';
 
 /// Drives the auth state machine (docs/resume-prompt.md M1.1).
 ///

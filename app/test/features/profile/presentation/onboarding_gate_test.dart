@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/daily_question/domain/couple.dart';
+import 'package:hayati_app/features/daily_question/domain/couple_answers_repository_provider.dart';
+import 'package:hayati_app/features/daily_question/domain/couple_day_repository_provider.dart';
+import 'package:hayati_app/features/daily_question/domain/couple_repository_provider.dart';
+import 'package:hayati_app/features/daily_question/domain/question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_answers_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
-import 'package:hayati_app/features/daily_question/presentation/paired_home_placeholder.dart';
+import 'package:hayati_app/features/daily_question/presentation/paired_home_screen.dart';
 import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
@@ -17,10 +22,14 @@ import 'package:hayati_app/features/profile/presentation/onboarding_gate.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_couple_answers_repository.dart';
+import '../../../support/fake_couple_day_repository.dart';
+import '../../../support/fake_couple_repository.dart';
 import '../../../support/fake_deep_link_source.dart';
 import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_profile_repository.dart';
+import '../../../support/fake_question_pack_repository.dart';
 import '../../../support/fake_solo_answers_repository.dart';
 import '../../../support/fake_solo_question_pack_repository.dart';
 import '../../../support/localized_app.dart';
@@ -59,6 +68,25 @@ void main() {
     // because the const test profiles carry no createdAt.
     final fakePacks = FakeSoloQuestionPackRepository();
     final fakeAnswers = FakeSoloAnswersRepository();
+    // The paired route (M3.3) needs the couple seams. The seeded couple-42
+    // matches pairedProfile.coupleId; the unseeded day replays null, so the
+    // paired home settles on the honest no-day-yet state — the gate tests
+    // only assert routing.
+    final fakeCouples = FakeCoupleRepository(
+      initialCouples: {
+        'couple-42': Couple(
+          id: 'couple-42',
+          memberUids: [user.uid, 'uid-partner'],
+          timezone: 'Europe/Istanbul',
+        ),
+      },
+    );
+    final fakeDays = FakeCoupleDayRepository();
+    final fakeCoupleAnswers = FakeCoupleAnswersRepository();
+    final fakeCouplePacks = FakeQuestionPackRepository();
+    addTearDown(fakeCouples.dispose);
+    addTearDown(fakeDays.dispose);
+    addTearDown(fakeCoupleAnswers.dispose);
     addTearDown(fake.dispose);
     addTearDown(fakeAuth.dispose);
     addTearDown(fakeInvites.dispose);
@@ -77,6 +105,12 @@ void main() {
           deepLinkSourceProvider.overrideWith((ref) => fakeDeepLinks),
           soloQuestionPackRepositoryProvider.overrideWith((ref) => fakePacks),
           soloAnswersRepositoryProvider.overrideWith((ref) => fakeAnswers),
+          coupleRepositoryProvider.overrideWith((ref) => fakeCouples),
+          coupleDayRepositoryProvider.overrideWith((ref) => fakeDays),
+          coupleAnswersRepositoryProvider.overrideWith(
+            (ref) => fakeCoupleAnswers,
+          ),
+          questionPackRepositoryProvider.overrideWith((ref) => fakeCouplePacks),
         ],
       ),
     );
@@ -136,7 +170,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(PairedHomePlaceholder), findsOneWidget);
+      expect(find.byType(PairedHomeScreen), findsOneWidget);
       expect(find.byType(PartnerPreviewScreen), findsNothing);
       expect(find.byType(SoloHomeScreen), findsNothing);
     });
@@ -154,7 +188,7 @@ void main() {
       fake.emitProfile(user.uid, pairedProfile);
       await tester.pumpAndSettle();
 
-      expect(find.byType(PairedHomePlaceholder), findsOneWidget);
+      expect(find.byType(PairedHomeScreen), findsOneWidget);
     });
 
     testWidgets('a profile arriving from another device swaps to the '
@@ -178,7 +212,7 @@ void main() {
       fake.emitProfile(user.uid, pairedProfile);
       await tester.pumpAndSettle();
 
-      expect(find.byType(PairedHomePlaceholder), findsOneWidget);
+      expect(find.byType(PairedHomeScreen), findsOneWidget);
       expect(find.byType(SoloHomeScreen), findsNothing);
     });
   });

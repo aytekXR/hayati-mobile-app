@@ -251,13 +251,53 @@
   "@joinSkipForNow": {
     "description": "Post-auth dismiss affordance on the partner preview that clears the pending invite so the gate falls back to the share screen (M2.3)"
   },
-  "pairedTitle": "You're paired",
-  "@pairedTitle": {
-    "description": "Title of the paired-home placeholder shown once a coupleId lands (the M3 daily-question screen's slot)"
+  "pairedQuestionTitle": "Today's question",
+  "@pairedQuestionTitle": {
+    "description": "Caption above the paired daily question (M3.3 mutual-reveal home)"
   },
-  "pairedBody": "Your daily questions begin here soon.",
-  "@pairedBody": {
-    "description": "Body of the paired-home placeholder, marking it the M3 daily-question slot"
+  "pairedAnswerHint": "Write your answer…",
+  "@pairedAnswerHint": {
+    "description": "Hint inside the paired answer entry field"
+  },
+  "pairedAnswerSave": "Save answer",
+  "@pairedAnswerSave": {
+    "description": "Primary action on the paired home persisting the day's answer"
+  },
+  "pairedAnswerSavedCaption": "Saved — you can edit until you both answer.",
+  "@pairedAnswerSavedCaption": {
+    "description": "Confirmation under the paired answer field once the persisted answer matches the entry; honest about the M3.3 freeze-on-reveal rule (editable only until both answers exist)"
+  },
+  "pairedPartnerLocked": "Your partner's answer unlocks when you answer.",
+  "@pairedPartnerLocked": {
+    "description": "Locked partner slot pre-answer — the server-side reveal invariant surfaced as UX (M3.3): never shows the text, invitational not nagging"
+  },
+  "pairedPartnerWaiting": "You answered — waiting for your partner.",
+  "@pairedPartnerWaiting": {
+    "description": "Partner slot after own answer is saved while the partner has not answered yet"
+  },
+  "pairedPartnerAnswerLabel": "Your partner's answer",
+  "@pairedPartnerAnswerLabel": {
+    "description": "Label above the revealed partner answer text"
+  },
+  "pairedRevealedCaption": "You both answered today.",
+  "@pairedRevealedCaption": {
+    "description": "Caption of the revealed state — both answers exist, the day is complete (answers frozen)"
+  },
+  "pairedNoDayTitle": "No question yet today",
+  "@pairedNoDayTitle": {
+    "description": "Title of the honest no-day-yet state: the rollover has not assigned today's day doc (pre-first-rollover, offline, or the ≤1h post-midnight window; ADR-011 — the server assignment is authoritative, the client never predicts)"
+  },
+  "pairedNoDayBody": "Today's question is on its way — it arrives shortly after your midnight.",
+  "@pairedNoDayBody": {
+    "description": "Body of the no-day-yet state; the screen streams the day doc in live when the hourly rollover assigns it"
+  },
+  "pairedPackUpdateTitle": "Update Hayati",
+  "@pairedPackUpdateTitle": {
+    "description": "Title of the pack-lag state: the day doc references a pack/question this install does not bundle (deployed Function outpaced the app) — the remedy is an app update, not a retry"
+  },
+  "pairedPackUpdateBody": "Today's question needs a newer version of the app.",
+  "@pairedPackUpdateBody": {
+    "description": "Body of the pack-lag state"
   },
   "soloDayProgress": "Day {day} of 7",
   "@soloDayProgress": {
