@@ -4,7 +4,7 @@ rules_version = '2';
 // Every allow below is proven by the emulator rules suite in
 // functions/test/emulator/firestore-rules.test.ts, including mutation tests
 // that show the suite goes red if a guard here is weakened. Collections not
-// matched (questions, subscriptions, coach_sessions, days) stay denied until
+// matched (questions, subscriptions, coach_sessions) stay denied until
 // the milestone that introduces them ships rules WITH tests.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -72,6 +72,22 @@ service cloud.firestore {
         && request.auth.uid in resource.data.memberUids
         && request.resource.data.memberUids == resource.data.memberUids;
       allow create, delete: if false;
+
+      // M3.2 daily rollover (ADR-011): days/{yyyymmdd} carries question/
+      // assignment metadata ONLY (questionId, packId, packVersion,
+      // assignedAt), written exclusively by the questionRollover Function
+      // (admin SDK, bypasses rules) — every client write is denied. Reads are
+      // member-only via the parent couple's memberUids (resource.data here is
+      // the day doc, so membership needs the get(); an orphaned day doc under
+      // a deleted couple fails closed because get() finds nothing). M3.3
+      // answers must NOT be embedded on this doc: rules are document-granular
+      // and an embedded partner answer would leak pre-reveal — answers land
+      // in a reveal-gated per-user subcollection (architecture.md §3).
+      match /days/{dayKey} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;
+        allow write: if false; // days: function-only (admin SDK)
+      }
     }
 
     // Invites are function-write-only AND function-read-only: createInvite

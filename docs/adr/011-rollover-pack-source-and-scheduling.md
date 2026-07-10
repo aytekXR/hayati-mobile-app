@@ -55,8 +55,15 @@ came due, each with real alternatives:
    assigns within ≤1h of local midnight (sub-hour-offset zones get their doc
    at the first run after their midnight — up to 45 min late, accepted).
    Cost shape: O(couples) document reads per hour — trivial at personal-use
-   scale; the documented scale path is a `timezone`-indexed query filtered to
-   zones currently in their first local hour.
+   scale. The binding ceiling at fleet scale is the invocation wall-clock
+   (sequential per-couple history reads), not read cost — the scheduler
+   options pin `timeoutSeconds` explicitly, and the documented scale path is
+   a `timezone`-indexed query filtered to zones currently in their first
+   local hour. Self-healing is **intra-day only** by design: only *today's*
+   dayKey is ever written, a fully-missed calendar day is skipped, never
+   backfilled — the no-overlapping-writes safety argument rests on this, so
+   backfill must not be added without revisiting it. No scheduler retries:
+   the next hourly sweep IS the retry (idempotent by construction).
 3. **`packConfig: { packId: string }`**, optional on the couple doc. Absent →
    `DEFAULT_PACK_ID = 'solo_tr'` (the founder-couple register-neutral TR pack,
    mirroring the `DEFAULT_COUPLE_TIMEZONE = 'Europe/Istanbul'` precedent —
@@ -64,10 +71,18 @@ came due, each with real alternatives:
    pack bank (`tr_playful`, `tr_respectful`, `ar_msa_gulf`, `en`) arrives with
    W9 authoring, and pack *choice* UI is a later milestone; nothing writes
    `packConfig` today. A present-but-malformed `packConfig` (non-string or
-   unknown `packId`) is a **loud per-couple failure** (logged, run marked
-   failed), never a silent fallback — misconfiguration must not masquerade as
-   the default. Register is a *pack-level* property, so "register honored"
-   holds by construction: selection never leaves the configured pack.
+   unknown `packId`) is a **loud per-couple skip** — `logger.error` with the
+   coupleId plus a failure count in the run summary — never a silent
+   fallback: misconfiguration must not masquerade as the default. The same
+   error boundary covers a missing/corrupt `timezone`: the stored zone is
+   used **verbatim** (never re-resolved through the join-time
+   `resolveCoupleTimezone`, whose silent-Istanbul fallback would mask corrupt
+   state), and an absent or non-IANA zone is a per-couple skip. Per-couple
+   failures do **not** fail the run — one poisoned couple document must not
+   paint every hourly sweep red and drown real outages; the throw is
+   reserved for systemic failures (couples unlistable, handler-level
+   errors). Register is a *pack-level* property, so "register honored" holds
+   by construction: selection never leaves the configured pack.
 4. **Evergreen-only selection policy (explicit deferral).** Questions carrying
    any `seasonalWindow` are excluded from selection. No shipped question has a
    window today, so the filter is a no-op in practice; the Hijri window→date
@@ -83,6 +98,31 @@ came due, each with real alternatives:
    docs stay the single source of truth (no cursor-drift class of bugs).
 
 ## Consequences
+
+**Contracts this fixes for M3.3+ (decided here, binding)**
+
+- **The couple dayKey is a pure function of `couples/{cid}.timezone`** —
+  never the device clock. The app-side day read must compute the key from
+  the couple's stored zone (a TS/Dart mirror of `localDayKey`), NOT reuse
+  `soloDayKey(DateTime.now())`: a couple stored as `Europe/Istanbul` with
+  devices in another zone would otherwise read the wrong doc around
+  midnight. The stored zone is treated as stable; a member editing it
+  mid-day can shift their own couple's next assignment by up to a day
+  (bounded, self-correcting, no security boundary crossed — accepted).
+- **The day doc is question/assignment metadata ONLY**
+  (`questionId`, `packId`, `packVersion`, `assignedAt`) and its member-only
+  read rule applies to exactly that surface. Answers must NOT be embedded as
+  fields on this doc — Firestore rules are document-granular, so an embedded
+  `answers{uid}` map would leak the partner's answer pre-reveal. M3.3 puts
+  answers in a reveal-gated per-user structure
+  (`couples/{cid}/days/{dayKey}/answers/{uid}`), updating architecture §3
+  accordingly. `packId` is a deliberate addition to the resume-prompt's
+  minimal list (`questionId`, `assignedAt`, pack version): a bare version
+  number is meaningless once `packConfig` can point at different packs.
+- **The server assignment is authoritative.** Client offline prefetch is a
+  *prediction* (same selection over the same bundled pack); an app whose
+  bundled pack version lags the deployed Function's can predict differently,
+  so the client reconciles to the day doc's `questionId` when it syncs.
 
 **Positive**
 

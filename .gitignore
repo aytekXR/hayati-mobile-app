@@ -10,3 +10,6 @@ firestore-debug.log
 
 # Golden mismatch artifacts (LocalFileComparator writes these beside the test on failure)
 **/failures/
+
+# Stray tool caches at repo root (packages live in functions/ and app/)
+node_modules/
