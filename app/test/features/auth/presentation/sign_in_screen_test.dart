@@ -9,9 +9,13 @@ import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/presentation/phone_sign_in_screen.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/features/daily_question/domain/solo_answers_repository_provider.dart';
+import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
+import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
+import 'package:hayati_app/features/pairing/domain/invite_share_launcher.dart';
 import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
 import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
@@ -22,7 +26,10 @@ import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_deep_link_source.dart';
 import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
+import '../../../support/fake_invite_share_launcher.dart';
 import '../../../support/fake_profile_repository.dart';
+import '../../../support/fake_solo_answers_repository.dart';
+import '../../../support/fake_solo_question_pack_repository.dart';
 import '../../../support/localized_app.dart';
 
 const testUser = AuthUser(uid: 'uid-1', displayName: 'Aytek');
@@ -52,11 +59,19 @@ void main() {
     // auth shell. A non-null [initialLink] seeds a pending code so the pre-auth
     // partner-preview branch renders instead.
     final fakeDeepLinks = FakeDeepLinkSource(initialUri: initialLink);
+    // The signed-in gate's unpaired fallback is the solo home (M2.4), so its
+    // pack/answers seams must be bound; the share screen it pushes needs the
+    // launcher too.
+    final fakePacks = FakeSoloQuestionPackRepository();
+    final fakeAnswers = FakeSoloAnswersRepository();
+    final fakeLauncher = FakeInviteShareLauncher();
     addTearDown(fake.dispose);
     addTearDown(fakeProfiles.dispose);
     addTearDown(fakeInvites.dispose);
     addTearDown(fakePreviews.dispose);
     addTearDown(fakeDeepLinks.dispose);
+    addTearDown(fakeAnswers.dispose);
+    addTearDown(fakeLauncher.dispose);
     await tester.pumpWidget(
       localizedApp(
         const SignInScreen(),
@@ -70,6 +85,9 @@ void main() {
           inviteRepositoryProvider.overrideWith((ref) => fakeInvites),
           invitePreviewRepositoryProvider.overrideWith((ref) => fakePreviews),
           deepLinkSourceProvider.overrideWith((ref) => fakeDeepLinks),
+          soloQuestionPackRepositoryProvider.overrideWith((ref) => fakePacks),
+          soloAnswersRepositoryProvider.overrideWith((ref) => fakeAnswers),
+          inviteShareLauncherProvider.overrideWith((ref) => fakeLauncher),
         ],
       ),
     );
@@ -283,8 +301,8 @@ void main() {
       expect(find.text(en.onboardingTitle), findsOneWidget);
     });
 
-    testWidgets('an existing profile lands on the invite share screen and '
-        'can sign out', (tester) async {
+    testWidgets('an existing profile lands on the solo home (M2.4); the '
+        'share flow stays one nudge away and can sign out', (tester) async {
       final fake = await pumpScreen(
         tester,
         initialUser: testUser,
@@ -292,13 +310,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
+      expect(find.text(en.soloNudgeAction), findsOneWidget);
+
+      // Sign-out lives on the share screen, one nudge tap away.
+      await tester.tap(find.text(en.soloNudgeAction));
+      await tester.pumpAndSettle();
       expect(find.byType(InviteShareScreen), findsOneWidget);
-      expect(find.text(en.signOut), findsOneWidget);
 
       await tester.tap(find.text(en.signOut));
       await tester.pumpAndSettle();
 
       expect(fake.signOutCalls, 1);
+      // The pushed share screen popped itself on sign-out, uncovering the
+      // auth shell.
+      expect(find.byType(InviteShareScreen), findsNothing);
       expect(find.text(en.continueWithGoogle), findsOneWidget);
     });
   });

@@ -58,5 +58,13 @@
   "joinErrorProfileMissing": "أكمل إعداد ملفك الشخصي أولًا.",
   "joinSkipForNow": "ليس الآن",
   "pairedTitle": "تم الاقتران",
-  "pairedBody": "تبدأ أسئلتكما اليومية هنا قريبًا."
+  "pairedBody": "تبدأ أسئلتكما اليومية هنا قريبًا.",
+  "soloDayProgress": "اليوم {day} من 7",
+  "soloAnswerHint": "اكتب إجابتك…",
+  "soloAnswerSave": "حفظ الإجابة",
+  "soloAnswerSavedCaption": "تم الحفظ لهذا اليوم.",
+  "soloNudgeBody": "حياتي أجمل معًا. ادعُ شريكك — وستكون تأملاتك في انتظاركما عند الاقتران.",
+  "soloNudgeAction": "ادعُ شريكك",
+  "soloCompletedTitle": "اكتملت أيامك السبعة",
+  "soloCompletedBody": "أنهيت سبعة أيام من التأمل. صُمم حياتي لشخصين — اقترنا لمواصلة الرحلة، وستجد إجاباتك في انتظارك."
 }

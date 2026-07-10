@@ -1,0 +1,51 @@
+{
+  "packId": "solo_ar",
+  "version": 1,
+  "locale": "ar",
+  "register": "neutral",
+  "reviewedBy": "PENDING native Gulf review (drafted Session 010; W9 register-owner review required before public launch — docs/operator-expected.md)",
+  "questions": [
+    {
+      "id": "solo_ar_001",
+      "category": "gratitude",
+      "depth": 1,
+      "text": "ما الشيء الصغير الذي فعله شريك حياتك مؤخرًا ولم تُتَح لك فرصة شكره عليه؟"
+    },
+    {
+      "id": "solo_ar_002",
+      "category": "memories",
+      "depth": 2,
+      "text": "أي لحظة عشتماها معًا تستعيدها كثيرًا في ذهنك — وما الذي يجعلها عالقة في ذاكرتك؟"
+    },
+    {
+      "id": "solo_ar_003",
+      "category": "fun",
+      "depth": 1,
+      "text": "لو كان لديكما غدًا يوم فارغ تمامًا، كيف ستقضيانه؟"
+    },
+    {
+      "id": "solo_ar_004",
+      "category": "deep",
+      "depth": 3,
+      "text": "متى تشعر بأنك الأقرب إلى شريك حياتك؟ وما الذي يحقق ذلك عادةً؟"
+    },
+    {
+      "id": "solo_ar_005",
+      "category": "future",
+      "depth": 3,
+      "text": "ما الشيء الذي تتمنى أن تفعلاه معًا خلال السنة القادمة؟"
+    },
+    {
+      "id": "solo_ar_006",
+      "category": "deep",
+      "depth": 4,
+      "text": "ما الأمر الذي تجد صعوبة في قوله لشريك حياتك — وما الذي يجعله صعبًا؟"
+    },
+    {
+      "id": "solo_ar_007",
+      "category": "gratitude",
+      "depth": 2,
+      "text": "ماذا علّمك شريك حياتك عن نفسك؟"
+    }
+  ]
+}

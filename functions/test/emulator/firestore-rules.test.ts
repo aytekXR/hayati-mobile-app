@@ -234,6 +234,110 @@ describe('users/{uid}', () => {
   });
 });
 
+describe('users/{uid}/soloAnswers/{dayKey}', () => {
+  const ANSWER_PATH = `users/${ALICE}/soloAnswers/20260710`;
+
+  const validAnswer = () => ({
+    questionId: 'solo_tr_003',
+    text: 'Birlikte sakin bir sabah.',
+    answeredAt: serverTimestamp(),
+  });
+
+  async function seedAliceAnswer(): Promise<void> {
+    await seed(ANSWER_PATH, {
+      questionId: 'solo_tr_003',
+      text: 'Birlikte sakin bir sabah.',
+      answeredAt: Timestamp.now(),
+    });
+  }
+
+  it('owner creates a server-stamped answer (the app write shape)', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(setDoc(doc(alice, ANSWER_PATH), validAnswer()));
+  });
+
+  it('owner overwrites the day (answers stay editable all day)', async () => {
+    await seedAliceAnswer();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(
+      setDoc(doc(alice, ANSWER_PATH), {
+        ...validAnswer(),
+        text: 'İkinci düşünce.',
+      }),
+    );
+  });
+
+  it('owner reads own answers; others and anonymous cannot', async () => {
+    await seedAliceAnswer();
+    await assertSucceeds(
+      getDoc(doc(env.authenticatedContext(ALICE).firestore(), ANSWER_PATH)),
+    );
+    await assertFails(
+      getDoc(doc(env.authenticatedContext(CHARLIE).firestore(), ANSWER_PATH)),
+    );
+    await assertFails(
+      getDoc(doc(env.unauthenticatedContext().firestore(), ANSWER_PATH)),
+    );
+  });
+
+  it('only the owner writes their answers', async () => {
+    const charlie = env.authenticatedContext(CHARLIE).firestore();
+    await assertFails(setDoc(doc(charlie, ANSWER_PATH), validAnswer()));
+  });
+
+  it('create is denied with a client-clock answeredAt', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, ANSWER_PATH), {
+        ...validAnswer(),
+        answeredAt: Timestamp.fromMillis(1_000_000),
+      }),
+    );
+  });
+
+  it('create is denied without answeredAt', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, ANSWER_PATH), {
+        questionId: 'solo_tr_003',
+        text: 'Birlikte sakin bir sabah.',
+      }),
+    );
+  });
+
+  it('create is denied with fields outside the frozen surface', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, ANSWER_PATH), { ...validAnswer(), mood: 'great' }),
+    );
+  });
+
+  it('create is denied with a missing questionId or empty/oversized text', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, ANSWER_PATH), {
+        text: 'Birlikte sakin bir sabah.',
+        answeredAt: serverTimestamp(),
+      }),
+    );
+    await assertFails(
+      setDoc(doc(alice, ANSWER_PATH), { ...validAnswer(), text: '' }),
+    );
+    await assertFails(
+      setDoc(doc(alice, ANSWER_PATH), {
+        ...validAnswer(),
+        text: 'x'.repeat(2001),
+      }),
+    );
+  });
+
+  it('clients never delete answers (M6 cascade Function only)', async () => {
+    await seedAliceAnswer();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(deleteDoc(doc(alice, ANSWER_PATH)));
+  });
+});
+
 describe('couples/{coupleId}', () => {
   it('members read their couple; non-members and anonymous cannot', async () => {
     await seedCouple();
@@ -447,6 +551,87 @@ const MUTATIONS: Mutation[] = [
           creatorUid: ALICE,
           status: 'pending',
           expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
+        },
+      ),
+  },
+  {
+    // M2.4 soloAnswers. Multi-line anchor: the bare 'allow read: if
+    // isSelf(uid);' also appears on the users doc itself, so the anchor
+    // carries the subcollection match line to stay unique.
+    name: 'weakening the soloAnswers read guard readmits cross-user reads',
+    anchor:
+      'match /soloAnswers/{dayKey} {\n        allow read: if isSelf(uid);',
+    replacement:
+      'match /soloAnswers/{dayKey} {\n        allow read: if request.auth != null;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(
+          doc(context.firestore(), `users/${ALICE}/soloAnswers/20260710`),
+          {
+            questionId: 'solo_tr_003',
+            text: 'Birlikte sakin bir sabah.',
+            answeredAt: Timestamp.now(),
+          },
+        );
+      });
+      return getDoc(
+        doc(
+          mutant.authenticatedContext(CHARLIE).firestore(),
+          `users/${ALICE}/soloAnswers/20260710`,
+        ),
+      );
+    },
+  },
+  {
+    name: 'weakening the soloAnswers write guard readmits cross-user writes',
+    anchor: 'allow create, update: if isSelf(uid)\n          &&',
+    replacement: 'allow create, update: if request.auth != null\n          &&',
+    demonstrate: (mutant) =>
+      setDoc(
+        doc(
+          mutant.authenticatedContext(CHARLIE).firestore(),
+          `users/${ALICE}/soloAnswers/20260710`,
+        ),
+        {
+          questionId: 'solo_tr_003',
+          text: 'Forged by Charlie.',
+          answeredAt: serverTimestamp(),
+        },
+      ),
+  },
+  {
+    name: 'dropping the answeredAt server-stamp guard readmits client-clock stamps',
+    anchor: '&& request.resource.data.answeredAt == request.time;',
+    replacement: ';',
+    demonstrate: (mutant) =>
+      setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `users/${ALICE}/soloAnswers/20260710`,
+        ),
+        {
+          questionId: 'solo_tr_003',
+          text: 'Backdated.',
+          answeredAt: Timestamp.fromMillis(42),
+        },
+      ),
+  },
+  {
+    name: 'dropping the soloAnswers hasOnly guard readmits junk fields',
+    anchor:
+      "&& request.resource.data.keys().hasOnly(['questionId', 'text', 'answeredAt'])",
+    replacement: '',
+    demonstrate: (mutant) =>
+      setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `users/${ALICE}/soloAnswers/20260710`,
+        ),
+        {
+          questionId: 'solo_tr_003',
+          text: 'Birlikte sakin bir sabah.',
+          answeredAt: serverTimestamp(),
+          mood: 'great',
         },
       ),
   },

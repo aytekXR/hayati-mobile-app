@@ -41,6 +41,11 @@ dev_dependencies:
 flutter:
   generate: true
   uses-material-design: true
+  # M2.4: the bundled solo question packs (schema-shaped JSON, one per
+  # ContentLanguage — docs/adr/009). The M3 content pipeline takes over
+  # authoring/validation under content/ and syncs into this directory.
+  assets:
+    - assets/content/
   fonts:
     - family: Rubik
       fonts:

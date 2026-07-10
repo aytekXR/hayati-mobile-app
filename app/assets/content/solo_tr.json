@@ -1,0 +1,51 @@
+{
+  "packId": "solo_tr",
+  "version": 1,
+  "locale": "tr",
+  "register": "neutral",
+  "reviewedBy": "PENDING native review (drafted Session 010; W9 register-owner review required before public launch — docs/operator-expected.md)",
+  "questions": [
+    {
+      "id": "solo_tr_001",
+      "category": "gratitude",
+      "depth": 1,
+      "text": "Partnerinin son zamanlarda yaptığı, teşekkür etmeye fırsat bulamadığın küçük bir şey ne?"
+    },
+    {
+      "id": "solo_tr_002",
+      "category": "memories",
+      "depth": 2,
+      "text": "Birlikte yaşadığınız hangi anı aklında en çok tekrar ediyorsun — onu bu kadar akılda kalıcı yapan ne?"
+    },
+    {
+      "id": "solo_tr_003",
+      "category": "fun",
+      "depth": 1,
+      "text": "Yarın ikinize tamamen boş bir gün kalsa, nasıl geçirirdiniz?"
+    },
+    {
+      "id": "solo_tr_004",
+      "category": "deep",
+      "depth": 3,
+      "text": "Kendini partnerine en yakın ne zaman hissediyorsun? Bunu genellikle ne sağlıyor?"
+    },
+    {
+      "id": "solo_tr_005",
+      "category": "future",
+      "depth": 3,
+      "text": "Önümüzdeki bir yıl içinde birlikte yapmayı en çok umduğun şey ne?"
+    },
+    {
+      "id": "solo_tr_006",
+      "category": "deep",
+      "depth": 4,
+      "text": "Partnerine yüksek sesle söylemekte zorlandığın bir şey var mı — onu zorlaştıran ne?"
+    },
+    {
+      "id": "solo_tr_007",
+      "category": "gratitude",
+      "depth": 2,
+      "text": "Partnerin sana kendinle ilgili ne öğretti?"
+    }
+  ]
+}

@@ -58,5 +58,13 @@
   "joinErrorProfileMissing": "Önce profilini tamamla.",
   "joinSkipForNow": "Şimdi değil",
   "pairedTitle": "Eşleştiniz",
-  "pairedBody": "Günlük sorularınız yakında burada başlıyor."
+  "pairedBody": "Günlük sorularınız yakında burada başlıyor.",
+  "soloDayProgress": "{day}. gün / 7",
+  "soloAnswerHint": "Cevabını yaz…",
+  "soloAnswerSave": "Cevabı kaydet",
+  "soloAnswerSavedCaption": "Bugün için kaydedildi.",
+  "soloNudgeBody": "Hayati birlikte daha güzel. Partnerini davet et — eşleştiğinizde yazdıkların seni bekliyor olacak.",
+  "soloNudgeAction": "Partnerini davet et",
+  "soloCompletedTitle": "Yedi günün tamamlandı",
+  "soloCompletedBody": "Yedi günlük düşünme yolculuğun bitti. Hayati iki kişi için tasarlandı — devam etmek için eşleşin; cevapların seni bekliyor olacak."
 }
