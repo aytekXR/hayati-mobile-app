@@ -494,6 +494,24 @@ void _shellTests(String schemaSource) {
     _check('orphan message names the file', err.contains('orphan_en.json'));
     File('${appDir.path}/orphan_en.json').deleteSync();
 
+    // Violation class: authored pack with NO bundled copy at all (a new pack
+    // whose --sync was forgotten — the copy==null drift branch, distinct from
+    // the byte-drift branch above; review finding, Session 011).
+    File('${appDir.path}/solo_en.json').deleteSync();
+    (code, out, err) = run([]);
+    _check('missing bundled copy exits non-zero', code != 0);
+    _check(
+      'missing-copy message names the file and --sync',
+      err.contains('missing bundled copy') &&
+          err.contains('solo_en.json') &&
+          err.contains('--sync'),
+    );
+    (code, out, err) = run(['--sync']);
+    _check(
+      '--sync restores the missing copy',
+      code == 0 && File('${appDir.path}/solo_en.json').existsSync(),
+    );
+
     _check('unknown argument exits 64', run(['--nope']).$1 == 64);
   } finally {
     temp.deleteSync(recursive: true);

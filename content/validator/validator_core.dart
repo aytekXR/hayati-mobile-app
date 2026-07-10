@@ -7,9 +7,9 @@
 /// pre-launch per ADR-007/W9; `--strict-review` promotes it at launch).
 ///
 /// Pure by construction: no dart:io, no side effects — every function maps
-/// inputs to a list of [PackIssue]s, so the self-tests
-/// (`validator_core_test.dart`) cover it without touching the filesystem.
-/// The thin IO shell is `validate.dart`.
+/// inputs to a list of [PackIssue]s, so the self-tests (`validate_test.dart`)
+/// cover it without touching the filesystem. The thin IO shell is
+/// `validate.dart`.
 library;
 
 import 'dart:convert';
