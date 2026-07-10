@@ -226,7 +226,8 @@ jobs:
     needs: quality
     runs-on: macos-15
     # Each suite compiles its own simulator binary and they run serially, so the
-    # bound is ~3 Xcode debug builds plus the emulator round-trips.
+    # bound is ~4 Xcode debug builds plus the emulator round-trips (auth,
+    # pairing, profile, daily_question; phone_auth stays quarantined, issue #15).
     timeout-minutes: 40
     permissions:
       contents: read

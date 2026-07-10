@@ -111,7 +111,7 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
   M2.2; upgrade path documented in `architecture.md` §4.
 - First **real-device pairing test** (pairs with item 2: deploy first).
 
-## X. Cross-project: Unhooked panic-button verification (reported 2026-07-11)
+## Parked (cross-project): Unhooked panic-button verification (reported 2026-07-11)
 
 > Not a Hayati item — parked here because this is the checklist you read.
 > The **unhooked** iOS panic-control fix sits UNCOMMITTED on your Mac
