@@ -258,5 +258,43 @@
   "pairedBody": "Your daily questions begin here soon.",
   "@pairedBody": {
     "description": "Body of the paired-home placeholder, marking it the M3 daily-question slot"
+  },
+  "soloDayProgress": "Day {day} of 7",
+  "@soloDayProgress": {
+    "description": "Progress caption above the solo reflection question (M2.4 solo week, day 1-7)",
+    "placeholders": {
+      "day": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "soloAnswerHint": "Write your answer…",
+  "@soloAnswerHint": {
+    "description": "Hint inside the solo answer entry field"
+  },
+  "soloAnswerSave": "Save answer",
+  "@soloAnswerSave": {
+    "description": "Primary action on the solo home persisting the day's answer"
+  },
+  "soloAnswerSavedCaption": "Saved for today.",
+  "@soloAnswerSavedCaption": {
+    "description": "Subtle confirmation under the answer field once the persisted answer matches the entry; the answer stays editable all day"
+  },
+  "soloNudgeBody": "Hayati is better together. Invite your partner — your reflections will be waiting when you pair up.",
+  "@soloNudgeBody": {
+    "description": "Persistent invite-nudge banner on every solo state: honest better-together framing, invitational never guilt-tripping (docs/prd.md F1, brand voice §7)"
+  },
+  "soloNudgeAction": "Invite your partner",
+  "@soloNudgeAction": {
+    "description": "Nudge CTA routing to the invite share screen; also the primary action of the completed solo state"
+  },
+  "soloCompletedTitle": "Your seven days are complete",
+  "@soloCompletedTitle": {
+    "description": "Title of the day-8+ solo state — the 7-question cycle finished and never repeats (docs/adr/009)"
+  },
+  "soloCompletedBody": "Seven days of reflection, done. Hayati is built for two — pair up to keep going, and your answers will be waiting.",
+  "@soloCompletedBody": {
+    "description": "Body of the completed solo state; honest that the ritual continues only as a couple"
   }
 }

@@ -14,6 +14,10 @@ import 'features/auth/data/firebase_auth_repository.dart';
 import 'features/auth/data/google_auth_gateway.dart';
 import 'features/auth/data/phone_auth_gateway.dart';
 import 'features/auth/domain/auth_repository_provider.dart';
+import 'features/daily_question/data/asset_solo_question_pack_repository.dart';
+import 'features/daily_question/data/firestore_solo_answers_repository.dart';
+import 'features/daily_question/domain/solo_answers_repository_provider.dart';
+import 'features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
 import 'features/pairing/data/functions_invite_repository.dart';
 import 'features/pairing/data/http_invite_preview_repository.dart';
@@ -68,6 +72,14 @@ Future<void> main() async {
         (ref) => const SharePlusInviteShareLauncher(),
       ),
       deepLinkSourceProvider.overrideWith((ref) => AppLinksDeepLinkSource()),
+      soloQuestionPackRepositoryProvider.overrideWith(
+        (ref) => const AssetSoloQuestionPackRepository(),
+      ),
+      soloAnswersRepositoryProvider.overrideWith(
+        (ref) => FirestoreSoloAnswersRepository(
+          firestore: FirebaseFirestore.instance,
+        ),
+      ),
     ],
   );
 }

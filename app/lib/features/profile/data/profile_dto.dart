@@ -11,6 +11,12 @@ import '../domain/relationship_profile.dart';
 /// absent → null, present non-string → [FormatException] (same loud discipline
 /// as the enums — a corrupt pairing is a visible failure, not silently lost).
 /// It is deliberately NOT round-tripped by [profileToMap].
+///
+/// [createdAt] crosses READ-ONLY at M2.4 (the solo day-N anchor). To keep this
+/// mapper pure the repository converts the wire `Timestamp` to a [DateTime]
+/// BEFORE calling in; a still-`Timestamp` value here is therefore a missed
+/// boundary conversion and fails loudly. Null is legitimate: the local echo of
+/// the very first save carries a pending server timestamp.
 RelationshipProfile profileFromMap(Map<String, dynamic> data) =>
     RelationshipProfile(
       status: _enumField(data, 'status', RelationshipStatus.values),
@@ -21,6 +27,7 @@ RelationshipProfile profileFromMap(Map<String, dynamic> data) =>
       ),
       register: _enumField(data, 'register', ContentRegister.values),
       coupleId: _optionalString(data, 'coupleId'),
+      createdAt: _optionalDateTime(data, 'createdAt'),
     );
 
 /// Client-owned fields only: server-owned fields (createdAt, coupleId,
@@ -62,6 +69,21 @@ String? _optionalString(Map<String, dynamic> data, String field) {
   if (raw is! String) {
     throw FormatException(
       'users doc field "$field": expected a string, got ${raw.runtimeType}',
+    );
+  }
+  return raw;
+}
+
+/// Reads an optional server-owned timestamp field that the repository has
+/// already converted to a [DateTime] at the Firestore boundary: absent (or
+/// pending server stamp → explicit null) → null; anything else non-DateTime →
+/// [FormatException], same loud style as [_optionalString].
+DateTime? _optionalDateTime(Map<String, dynamic> data, String field) {
+  final raw = data[field];
+  if (raw == null) return null;
+  if (raw is! DateTime) {
+    throw FormatException(
+      'users doc field "$field": expected a DateTime, got ${raw.runtimeType}',
     );
   }
   return raw;

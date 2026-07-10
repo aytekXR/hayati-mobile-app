@@ -24,11 +24,24 @@ class FirestoreProfileRepository implements ProfileRepository {
       // every change — the contract FakeProfileRepository mirrors.
       await for (final snapshot in _doc(uid).snapshots()) {
         final data = snapshot.data();
-        yield data == null ? null : profileFromMap(data);
+        yield data == null ? null : profileFromMap(_domainReady(data));
       }
     } catch (failure) {
       throw mapFirestoreFailure(failure);
     }
+  }
+
+  /// Converts the wire types the pure mapper must not know about: `createdAt`
+  /// arrives as a Firestore `Timestamp` (or null while the very first save's
+  /// server stamp is pending) and crosses to the domain as a [DateTime]
+  /// (M2.4 — it anchors the solo day-N rotation). Non-Timestamp junk is left
+  /// as-is for `profileFromMap` to reject loudly.
+  Map<String, dynamic> _domainReady(Map<String, dynamic> data) {
+    final createdAt = data['createdAt'];
+    return {
+      ...data,
+      'createdAt': createdAt is Timestamp ? createdAt.toDate() : createdAt,
+    };
   }
 
   @override

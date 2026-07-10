@@ -86,7 +86,8 @@ void main() {
   }
 
   group('watchProfile', () {
-    test('maps a document into the domain entity', () async {
+    test('maps a document into the domain entity, converting the wire '
+        'createdAt Timestamp (M2.4)', () async {
       when(doc.snapshots).thenAnswer(
         (_) => Stream.value(
           snapshotWith({
@@ -94,6 +95,29 @@ void main() {
             'contentLanguage': 'ar',
             'register': 'respectful',
             'createdAt': Timestamp.fromMillisecondsSinceEpoch(1751980000000),
+          }),
+        ),
+      );
+
+      expect(
+        await repository.watchProfile('uid-1').first,
+        RelationshipProfile(
+          status: RelationshipStatus.married,
+          contentLanguage: ContentLanguage.ar,
+          register: ContentRegister.respectful,
+          createdAt: DateTime.fromMillisecondsSinceEpoch(1751980000000),
+        ),
+      );
+    });
+
+    test('a pending createdAt server stamp (local echo) crosses as '
+        'null', () async {
+      when(doc.snapshots).thenAnswer(
+        (_) => Stream.value(
+          snapshotWith({
+            'status': 'married',
+            'contentLanguage': 'ar',
+            'register': 'respectful',
           }),
         ),
       );

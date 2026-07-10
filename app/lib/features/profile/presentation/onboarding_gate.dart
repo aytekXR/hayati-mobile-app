@@ -5,7 +5,7 @@ import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/domain/auth_user.dart';
 import '../../daily_question/presentation/paired_home_placeholder.dart';
-import '../../pairing/presentation/invite_share_screen.dart';
+import '../../daily_question/presentation/solo_home_screen.dart';
 import '../../pairing/presentation/partner_preview_screen.dart';
 import '../../pairing/presentation/state/pending_invite.dart';
 import '../domain/profile_exception.dart';
@@ -13,9 +13,10 @@ import 'profile_capture_screen.dart';
 import 'state/profile_providers.dart';
 
 /// Post-sign-in routing (docs/implementation-plan.md M1 criterion, extended at
-/// M2.3). Driven by the live `users/{uid}` stream plus the pending deep-link
-/// invite so a profile saved — or a pairing completed — on the user's other
-/// device swaps this one without a restart. Settled-data precedence, in order:
+/// M2.3/M2.4). Driven by the live `users/{uid}` stream plus the pending
+/// deep-link invite so a profile saved — or a pairing completed — on the
+/// user's other device swaps this one without a restart. Settled-data
+/// precedence, in order:
 ///
 ///  1. profile == null            → capture (onboarding isn't done);
 ///  2. profile.coupleId != null   → the paired home (M3 slot) — the terminal
@@ -24,7 +25,9 @@ import 'state/profile_providers.dart';
 ///  3. pendingInvite != null      → the partner preview / join screen — an
 ///     onboarded-but-solo user who arrived on a `hayati://invite/<code>` link
 ///     sees who invited them and can accept;
-///  4. otherwise                  → the invite share screen (invite a partner).
+///  4. otherwise                  → the solo home (M2.4): the day-N solo
+///     reflection question with the persistent invite nudge — the share flow
+///     stays one tap away behind the nudge.
 class OnboardingGate extends ConsumerWidget {
   const OnboardingGate({super.key, required this.user});
 
@@ -59,7 +62,7 @@ class OnboardingGate extends ConsumerWidget {
     if (ref.watch(pendingInviteProvider) != null) {
       return const PartnerPreviewScreen();
     }
-    return const InviteShareScreen();
+    return SoloHomeScreen(uid: user.uid, profile: value);
   }
 }
 

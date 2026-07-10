@@ -35,6 +35,30 @@ service cloud.firestore {
       // Hard delete is the M6 KVKK/PDPL cascade Function's job (admin SDK,
       // bypasses rules); clients never delete profile documents.
       allow delete: if false;
+
+      // M2.4 solo mode: the user's own daily solo reflections
+      // (soloAnswers/{yyyymmdd}, docs/architecture.md §3). Self-only both
+      // ways. The document surface is frozen to exactly the app's write
+      // shape: hasOnly guards junk fields, answeredAt must be the server
+      // stamp (== request.time, same discipline as createdAt above) so a
+      // client clock can never forge the answer time, and text is bounded
+      // non-empty (2000 mirrors soloAnswerMaxLength in solo_answer.dart —
+      // the entry field hard-caps there, so this bound is defense-in-depth).
+      // Same-day overwrites are deliberate (the answer stays editable all
+      // day); client delete is denied — removal belongs to the M6 KVKK/PDPL
+      // cascade.
+      match /soloAnswers/{dayKey} {
+        allow read: if isSelf(uid);
+        allow create, update: if isSelf(uid)
+          && request.resource.data.keys().hasOnly(['questionId', 'text', 'answeredAt'])
+          && request.resource.data.questionId is string
+          && request.resource.data.questionId.size() > 0
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.answeredAt == request.time;
+        allow delete: if false;
+      }
     }
 
     // Member-only skeleton (M2.1). Couple documents are CREATED only by the

@@ -58,12 +58,33 @@ void main() {
     test('ignores other server-owned and unknown fields', () {
       final data = {
         ...profileToMap(profile),
-        'createdAt': Timestamp.fromMillisecondsSinceEpoch(1751980000000),
         'fcmTokens': ['t1'],
         'someFutureField': 42,
       };
 
       expect(profileFromMap(data), profile);
+    });
+
+    test('reads the boundary-converted createdAt READ-ONLY (M2.4)', () {
+      final data = {
+        ...profileToMap(profile),
+        'createdAt': DateTime.utc(2026, 7, 8),
+      };
+
+      expect(profileFromMap(data).createdAt, DateTime.utc(2026, 7, 8));
+      // Absent createdAt → null (the pending-serverTimestamp local echo).
+      expect(profileFromMap(profileToMap(profile)).createdAt, isNull);
+    });
+
+    test('rejects a raw Timestamp createdAt loudly (missed boundary '
+        'conversion)', () {
+      expect(
+        () => profileFromMap({
+          ...profileToMap(profile),
+          'createdAt': Timestamp.fromMillisecondsSinceEpoch(1751980000000),
+        }),
+        throwsFormatException,
+      );
     });
 
     test('rejects unknown enum wire values loudly', () {

@@ -39,8 +39,41 @@ jobs:
     name: quality
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      # ci-debt #17: 'false' only for a docs-only push to main — the signal
+      # that lets the 10x-billed macOS jobs skip a run that cannot change
+      # their outcome. Computed here because per-job paths filters don't
+      # exist and workflow-level paths-ignore would deadlock required checks
+      # (Session 002 decision, past-prompts.md).
+      code_changed: ${{ steps.changes.outputs.code }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the docs-only detection can diff the push's
+          # before..after range (the repo is small; this costs seconds).
+          fetch-depth: 0
+      # ci-debt #17: PRs and manual dispatches always count as code — the
+      # guard only trims docs-only pushes to main (session-close commits).
+      # Unknown parents (branch's first push, force-push) fail OPEN to
+      # code=true: the safe default is to run the expensive legs.
+      - name: detect docs-only push
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          base='${{ github.event.before }}'
+          if [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base" 2>/dev/null; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Everything the macOS jobs exercise; docs/, README, tool/ and
+          # repo-root content/ deliberately excluded (ubuntu jobs still cover
+          # them on every push).
+          if git diff --quiet "$base" "${{ github.sha }}" -- app functions firebase.json firestore.rules .github/workflows; then
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -62,8 +95,8 @@ jobs:
         run: flutter test --coverage
       - name: coverage gate
         # Threshold ratchets +2% per milestone (test-suite.md §3); never lowered:
-        # 60 → 62 at M1 close (Session 006).
-        run: dart tool/coverage_gate.dart --min 62 app/coverage/lcov.info
+        # 60 → 62 at M1 close (Session 006) → 64 at M2 close (Session 010).
+        run: dart tool/coverage_gate.dart --min 64 app/coverage/lcov.info
       # Goldens are Linux-canonical (rendered/verified in this ubuntu job); on a
       # mismatch the comparator writes diffs to failures/ next to the test, so
       # upload them to make a red golden inspectable without re-running locally.
@@ -134,9 +167,13 @@ jobs:
   ios-build-smoke:
     name: ios-build-smoke
     # iOS-first build smoke (ADR-006). macOS minutes bill at 10x on private
-    # repos, so draft PRs (e.g. gate-proof PRs) skip it. Non-PR events (push,
-    # workflow_dispatch) have no draft field and still run.
-    if: ${{ github.event.pull_request.draft != true }}
+    # repos, so draft PRs (e.g. gate-proof PRs) skip it, and docs-only pushes
+    # to main skip it too (ci-debt #17 — the PR run already built this code;
+    # required-check semantics are untouched because PR events always run).
+    # workflow_dispatch has neither a draft field nor a push base and runs.
+    if: >-
+      github.event.pull_request.draft != true &&
+      (github.event_name != 'push' || needs.quality.outputs.code_changed == 'true')
     # Deliberate cost-over-latency choice: don't start the 10x-billed macOS
     # build until BOTH cheap ubuntu checks pass (~2-4 min added happy-path
     # latency; a red ubuntu job still blocks merge either way). functions-rules
@@ -169,9 +206,12 @@ jobs:
     # reaches main before CI catches it, so run the suite locally before merge
     # (see integration_test/*_test.dart headers). Prove green on a PR branch via
     # `gh workflow run ci.yml --ref <branch>` (workflow_dispatch on a branch ref).
+    # Docs-only pushes to main skip it (ci-debt #17, closed Session 010): a
+    # session-close commit cannot change this job's outcome.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      (github.event_name == 'push' && github.ref == 'refs/heads/main'
+       && needs.quality.outputs.code_changed == 'true')
     # Same cost-over-latency gate as ios-build-smoke: don't spend 10x-billed
     # macOS minutes until the cheap ubuntu quality job is green.
     needs: quality

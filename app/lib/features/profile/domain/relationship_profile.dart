@@ -21,13 +21,15 @@ enum ContentRegister { playful, respectful }
 /// boundary READ-ONLY: the join flow stamps it server-side and the app reads it
 /// to route a paired user past onboarding, but a profile edit must PRESERVE —
 /// never clobber — it (see `FirestoreProfileRepository.saveProfile`'s merge).
-/// createdAt and fcmTokens remain server-only and still do not surface here.
+/// At M2.4 [createdAt] crosses the same way (READ-ONLY) to anchor the solo
+/// day-N rotation; fcmTokens remain server-only and still do not surface here.
 class RelationshipProfile {
   const RelationshipProfile({
     required this.status,
     required this.contentLanguage,
     required this.register,
     this.coupleId,
+    this.createdAt,
   });
 
   final RelationshipStatus status;
@@ -41,6 +43,14 @@ class RelationshipProfile {
   /// erase a pairing) yet is carried THROUGH copyWith so an edit preserves it.
   final String? coupleId;
 
+  /// When the `users/{uid}` doc was first created — the rules-enforced,
+  /// create-once server stamp (M1.2/M2.1) that anchors the solo day-N
+  /// rotation (M2.4, `solo_day.dart`). Server-owned READ-ONLY like [coupleId]:
+  /// never emitted by `profileToMap`, not a [copyWith] parameter, carried
+  /// THROUGH copyWith. Null only inside the pending-serverTimestamp window
+  /// (the local echo of the very first save) — treated as day 1.
+  final DateTime? createdAt;
+
   RelationshipProfile copyWith({
     RelationshipStatus? status,
     ContentLanguage? contentLanguage,
@@ -50,6 +60,7 @@ class RelationshipProfile {
     contentLanguage: contentLanguage ?? this.contentLanguage,
     register: register ?? this.register,
     coupleId: coupleId,
+    createdAt: createdAt,
   );
 
   @override
@@ -59,13 +70,16 @@ class RelationshipProfile {
           other.status == status &&
           other.contentLanguage == contentLanguage &&
           other.register == register &&
-          other.coupleId == coupleId;
+          other.coupleId == coupleId &&
+          other.createdAt == createdAt;
 
   @override
-  int get hashCode => Object.hash(status, contentLanguage, register, coupleId);
+  int get hashCode =>
+      Object.hash(status, contentLanguage, register, coupleId, createdAt);
 
   @override
   String toString() =>
       'RelationshipProfile(status: $status, contentLanguage: '
-      '$contentLanguage, register: $register, coupleId: $coupleId)';
+      '$contentLanguage, register: $register, coupleId: $coupleId, '
+      'createdAt: $createdAt)';
 }

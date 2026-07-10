@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/daily_question/domain/solo_answers_repository_provider.dart';
+import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/presentation/paired_home_placeholder.dart';
+import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
-import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
 import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.dart';
 import 'package:hayati_app/features/profile/domain/profile_exception.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
@@ -19,6 +21,8 @@ import '../../../support/fake_deep_link_source.dart';
 import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_profile_repository.dart';
+import '../../../support/fake_solo_answers_repository.dart';
+import '../../../support/fake_solo_question_pack_repository.dart';
 import '../../../support/localized_app.dart';
 
 const user = AuthUser(uid: 'uid-1', displayName: 'Aytek');
@@ -47,14 +51,20 @@ void main() {
     final fakePreviews = FakeInvitePreviewRepository();
     // The gate now watches pendingInviteProvider → deepLinkSourceProvider (which
     // throws unoverridden); an empty source (the default) keeps the pending
-    // invite null so an onboarded-but-solo profile routes to the share screen.
-    // A non-null [initialLink] seeds a pending code for the precedence tests.
+    // invite null so an onboarded-but-solo profile routes to the solo home
+    // (M2.4). A non-null [initialLink] seeds a pending code for the
+    // precedence tests.
     final fakeDeepLinks = FakeDeepLinkSource(initialUri: initialLink);
+    // The solo-home fallback needs its pack + answers seams; day-N stays 1
+    // because the const test profiles carry no createdAt.
+    final fakePacks = FakeSoloQuestionPackRepository();
+    final fakeAnswers = FakeSoloAnswersRepository();
     addTearDown(fake.dispose);
     addTearDown(fakeAuth.dispose);
     addTearDown(fakeInvites.dispose);
     addTearDown(fakePreviews.dispose);
     addTearDown(fakeDeepLinks.dispose);
+    addTearDown(fakeAnswers.dispose);
     await tester.pumpWidget(
       localizedApp(
         const OnboardingGate(user: user),
@@ -65,6 +75,8 @@ void main() {
           inviteRepositoryProvider.overrideWith((ref) => fakeInvites),
           invitePreviewRepositoryProvider.overrideWith((ref) => fakePreviews),
           deepLinkSourceProvider.overrideWith((ref) => fakeDeepLinks),
+          soloQuestionPackRepositoryProvider.overrideWith((ref) => fakePacks),
+          soloAnswersRepositoryProvider.overrideWith((ref) => fakeAnswers),
         ],
       ),
     );
@@ -90,15 +102,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfileCaptureScreen), findsOneWidget);
-      expect(find.byType(InviteShareScreen), findsNothing);
+      expect(find.byType(SoloHomeScreen), findsNothing);
     });
 
     testWidgets('an existing solo profile with no pending invite routes to '
-        'the invite share screen', (tester) async {
+        'the solo home (M2.4)', (tester) async {
       await pumpGate(tester, profile: existingProfile);
       await tester.pumpAndSettle();
 
-      expect(find.byType(InviteShareScreen), findsOneWidget);
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
       expect(find.byType(ProfileCaptureScreen), findsNothing);
     });
 
@@ -112,7 +124,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(PartnerPreviewScreen), findsOneWidget);
-      expect(find.byType(InviteShareScreen), findsNothing);
+      expect(find.byType(SoloHomeScreen), findsNothing);
     });
 
     testWidgets('a paired profile routes to the paired home — coupleId beats '
@@ -126,7 +138,7 @@ void main() {
 
       expect(find.byType(PairedHomePlaceholder), findsOneWidget);
       expect(find.byType(PartnerPreviewScreen), findsNothing);
-      expect(find.byType(InviteShareScreen), findsNothing);
+      expect(find.byType(SoloHomeScreen), findsNothing);
     });
 
     testWidgets('pairing completing on another device swaps the preview for '
@@ -146,7 +158,7 @@ void main() {
     });
 
     testWidgets('a profile arriving from another device swaps to the '
-        'invite share screen live', (tester) async {
+        'solo home live', (tester) async {
       final fake = await pumpGate(tester);
       await tester.pumpAndSettle();
       expect(find.byType(ProfileCaptureScreen), findsOneWidget);
@@ -154,7 +166,20 @@ void main() {
       fake.emitProfile(user.uid, existingProfile);
       await tester.pumpAndSettle();
 
-      expect(find.byType(InviteShareScreen), findsOneWidget);
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
+    });
+
+    testWidgets('pairing mid-solo (coupleId arriving on the live stream) '
+        're-routes the solo home to the paired home', (tester) async {
+      final fake = await pumpGate(tester, profile: existingProfile);
+      await tester.pumpAndSettle();
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
+
+      fake.emitProfile(user.uid, pairedProfile);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PairedHomePlaceholder), findsOneWidget);
+      expect(find.byType(SoloHomeScreen), findsNothing);
     });
   });
 
@@ -179,7 +204,7 @@ void main() {
 
   group('locale matrix', () {
     for (final locale in supportedTestLocales) {
-      testWidgets('renders loading→capture→invite share localized ($locale)', (
+      testWidgets('renders loading→capture→solo home localized ($locale)', (
         tester,
       ) async {
         final l10n = l10nFor(locale);
@@ -192,8 +217,12 @@ void main() {
         fake.emitProfile(user.uid, existingProfile);
         await tester.pumpAndSettle();
 
-        expect(find.text(l10n.invitePartnerTitle), findsOneWidget);
-        expect(find.text(l10n.inviteShareBody), findsOneWidget);
+        // Day 1 (no createdAt on the test profile) with the persistent nudge;
+        // UI chrome follows the UI locale while the question itself renders
+        // in the profile's content language (tr for existingProfile).
+        expect(find.text(l10n.soloDayProgress(1)), findsOneWidget);
+        expect(find.text(l10n.soloNudgeAction), findsOneWidget);
+        expect(find.text('TR solo question 1'), findsOneWidget);
         expect(
           Directionality.of(tester.element(find.byType(OnboardingGate))),
           locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr,

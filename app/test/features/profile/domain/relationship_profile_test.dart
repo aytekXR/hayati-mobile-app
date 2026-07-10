@@ -84,6 +84,33 @@ void main() {
       },
     );
 
+    test('createdAt participates in equality and toString (M2.4)', () {
+      final stamped = RelationshipProfile(
+        status: RelationshipStatus.married,
+        contentLanguage: ContentLanguage.tr,
+        register: ContentRegister.playful,
+        createdAt: DateTime.utc(2026, 7, 8),
+      );
+      expect(stamped, isNot(profile)); // profile has createdAt null
+      expect(stamped.hashCode, isNot(profile.hashCode));
+      expect(stamped.toString(), contains('2026-07-08'));
+    });
+
+    test('copyWith preserves the server-owned createdAt '
+        '(no param to move it)', () {
+      final stamped = RelationshipProfile(
+        status: RelationshipStatus.married,
+        contentLanguage: ContentLanguage.tr,
+        register: ContentRegister.playful,
+        createdAt: DateTime.utc(2026, 7, 8),
+      );
+
+      // The solo day-N anchor must survive a client profile edit.
+      final edited = stamped.copyWith(register: ContentRegister.respectful);
+      expect(edited.createdAt, DateTime.utc(2026, 7, 8));
+      expect(edited.register, ContentRegister.respectful);
+    });
+
     test('captures the PRD F1 option sets exactly', () {
       // docs/prd.md F1: status dating/engaged/married; language tr/ar/en;
       // register playful/respectful. A new enum value must be a deliberate
