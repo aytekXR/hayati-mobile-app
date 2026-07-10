@@ -33,24 +33,27 @@ File _parityFixture() {
 void main() {
   final fixture =
       jsonDecode(_parityFixture().readAsStringSync()) as Map<String, dynamic>;
-  final cases = (fixture['cases'] as List<dynamic>).cast<Map<String, dynamic>>();
+  final cases = (fixture['cases'] as List<dynamic>)
+      .cast<Map<String, dynamic>>();
 
   group('coupleDayKey ↔ localDayKey parity fixture (Dart side)', () {
-    test('carries a usable spread: boundaries, DST shifts, sub-hour offsets',
-        () {
-      expect(cases.length, greaterThanOrEqualTo(15));
-      final zones = cases.map((c) => c['zone']).toSet();
-      expect(
-        zones,
-        containsAll([
-          'Europe/Istanbul',
-          'America/New_York',
-          'Europe/London',
-          'Asia/Kathmandu',
-          'Pacific/Chatham',
-        ]),
-      );
-    });
+    test(
+      'carries a usable spread: boundaries, DST shifts, sub-hour offsets',
+      () {
+        expect(cases.length, greaterThanOrEqualTo(15));
+        final zones = cases.map((c) => c['zone']).toSet();
+        expect(
+          zones,
+          containsAll([
+            'Europe/Istanbul',
+            'America/New_York',
+            'Europe/London',
+            'Asia/Kathmandu',
+            'Pacific/Chatham',
+          ]),
+        );
+      },
+    );
 
     for (final parityCase in cases) {
       final instant = parityCase['instant'] as String;
@@ -60,7 +63,8 @@ void main() {
         expect(
           coupleDayKey(DateTime.parse(instant), zone),
           dayKey,
-          reason: 'parity mismatch for $instant @ $zone — '
+          reason:
+              'parity mismatch for $instant @ $zone — '
               'tzdata skew (package:timezone vs Node ICU) or a broken mirror',
         );
       });
@@ -88,29 +92,34 @@ void main() {
       );
     });
 
-    test('hourly steps across the London fall-back day never rewind or skip',
-        () {
-      // Mini-sweep mirroring the TS fast-check property on the hardest day:
-      // the 25-hour 2026-10-25 (Europe/London). Keys must be monotonically
-      // non-decreasing and step by exactly one calendar day.
-      var previous = coupleDayKey(DateTime.utc(2026, 10, 24, 20), 'Europe/London');
-      for (var hour = 21; hour <= 52; hour++) {
-        final key = coupleDayKey(
-          DateTime.utc(2026, 10, 24, 20).add(Duration(hours: hour - 20)),
+    test(
+      'hourly steps across the London fall-back day never rewind or skip',
+      () {
+        // Mini-sweep mirroring the TS fast-check property on the hardest day:
+        // the 25-hour 2026-10-25 (Europe/London). Keys must be monotonically
+        // non-decreasing and step by exactly one calendar day.
+        var previous = coupleDayKey(
+          DateTime.utc(2026, 10, 24, 20),
           'Europe/London',
         );
-        expect(key.compareTo(previous), greaterThanOrEqualTo(0));
-        if (key != previous) {
-          DateTime toDate(String k) => DateTime.utc(
-                int.parse(k.substring(0, 4)),
-                int.parse(k.substring(4, 6)),
-                int.parse(k.substring(6, 8)),
-              );
-          expect(toDate(key).difference(toDate(previous)).inDays, 1);
+        for (var hour = 21; hour <= 52; hour++) {
+          final key = coupleDayKey(
+            DateTime.utc(2026, 10, 24, 20).add(Duration(hours: hour - 20)),
+            'Europe/London',
+          );
+          expect(key.compareTo(previous), greaterThanOrEqualTo(0));
+          if (key != previous) {
+            DateTime toDate(String k) => DateTime.utc(
+              int.parse(k.substring(0, 4)),
+              int.parse(k.substring(4, 6)),
+              int.parse(k.substring(6, 8)),
+            );
+            expect(toDate(key).difference(toDate(previous)).inDays, 1);
+          }
+          previous = key;
         }
-        previous = key;
-      }
-    });
+      },
+    );
 
     test('ensureCoupleTimeZonesInitialized is idempotent', () {
       ensureCoupleTimeZonesInitialized();

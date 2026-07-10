@@ -18,12 +18,13 @@ class FirestoreCoupleDayRepository implements CoupleDayRepository {
   @override
   Stream<CoupleDayAssignment?> watchDay(String coupleId, String dayKey) async* {
     try {
-      await for (final snapshot in _firestore
-          .collection('couples')
-          .doc(coupleId)
-          .collection('days')
-          .doc(dayKey)
-          .snapshots()) {
+      await for (final snapshot
+          in _firestore
+              .collection('couples')
+              .doc(coupleId)
+              .collection('days')
+              .doc(dayKey)
+              .snapshots()) {
         final data = snapshot.data();
         yield data == null
             ? null

@@ -97,7 +97,8 @@ Future<void> main() async {
         (ref) => const AssetQuestionPackRepository(),
       ),
       coupleRepositoryProvider.overrideWith(
-        (ref) => FirestoreCoupleRepository(firestore: FirebaseFirestore.instance),
+        (ref) =>
+            FirestoreCoupleRepository(firestore: FirebaseFirestore.instance),
       ),
       coupleDayRepositoryProvider.overrideWith(
         (ref) =>

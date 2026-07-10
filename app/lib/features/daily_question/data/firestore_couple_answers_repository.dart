@@ -36,8 +36,11 @@ class FirestoreCoupleAnswersRepository implements CoupleAnswersRepository {
     try {
       // Current document immediately on listen, then every change — the
       // contract FakeCoupleAnswersRepository mirrors.
-      await for (final snapshot
-          in _doc(coupleId, dayKey, authorUid).snapshots()) {
+      await for (final snapshot in _doc(
+        coupleId,
+        dayKey,
+        authorUid,
+      ).snapshots()) {
         final data = snapshot.data();
         yield data == null ? null : coupleAnswerFromMap(_domainReady(data));
       }

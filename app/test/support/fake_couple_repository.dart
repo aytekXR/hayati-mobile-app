@@ -14,8 +14,8 @@ class FakeCoupleRepository implements CoupleRepository {
   final Map<String, Couple> _couples;
   final Map<String, StreamController<Couple?>> _controllers = {};
 
-  StreamController<Couple?> _controllerFor(String coupleId) => _controllers
-      .putIfAbsent(coupleId, StreamController<Couple?>.broadcast);
+  StreamController<Couple?> _controllerFor(String coupleId) =>
+      _controllers.putIfAbsent(coupleId, StreamController<Couple?>.broadcast);
 
   /// Pushes an external couple event (e.g. a server-side field change).
   void emitCouple(String coupleId, Couple? couple) {

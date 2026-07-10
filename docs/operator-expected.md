@@ -7,43 +7,40 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-11, Session 013 IN PROGRESS (M3.3 — answer → mutual
-reveal). Interim refresh on operator request; the full close-of-session
-refresh follows when M3.3 merges._
+_Last refreshed: 2026-07-11, Session 013 (M3.3 — answer → mutual reveal)._
 
 ## Expected from you right now: **nothing is blocking.**
 
-**Session 013 interim status (M3.3, emulator-only):** the M3 accept-line
-invariant is landed and proven — the answers subcollection rules deny the
-partner's answer until your own exists (77 rules tests incl. 25 weakened-rules
-mutation tests), answers freeze once both exist, and `couples.timezone` is now
-rules-frozen (a member rewrite would have bricked the couple's daily loop).
-The Dart↔TS dayKey parity fixture is green on both sides. The paired-home
-UI/goldens and session-close docs are in flight. Recovery note: the prior
-session's terminal loss cost nothing — Session 012 closed verified green
-(post-merge main CI + codegraph sync).
+Session 013 shipped M3.3 entirely emulator-side: **your daily loop now
+closes** — the paired home shows the day's server-assigned question, each of
+you answers, and the partner's answer stays server-side-unreadable until your
+own exists (the M3 accept-line invariant, proven with mutation tests: weaken
+the rule and the suite goes red), then streams in live; once both exist the
+day is revealed and both answers freeze. The app computes the couple's day
+from the couple's STORED timezone (never the device zone), byte-pinned to the
+server by a shared Dart↔TS parity fixture. `couples.timezone` is now
+rules-frozen (a member rewrite would have bricked the loop). Until the W9
+couple packs land, the questions are your 7 solo questions (`solo_tr`,
+ADR-011) — you will recognize them; that is the accepted dogfooding posture
+(and one more reason item 1 below pays off twice). One session-013 note for
+you: two Claude sessions briefly ran concurrently on this milestone (an old
+tmux window `uh` was still alive); it was detected, stopped, and cost
+nothing — all work was reconciled and verified from scratch.
 
-Session 012 shipped M3.2 entirely emulator-side: the daily rollover is real —
-a scheduled Function (`questionRollover`, the repo's first) sweeps hourly,
-buckets couples by timezone, and deterministically assigns each couple its
-day's question at ITS local midnight (`couples/{cid}/days/{yyyymmdd}`,
-DST-proven incl. sub-hour zones), idempotent and race-proof, with the new
-`days` security rules mutation-tested (member-only read, client writes
-denied). Packs bundle into the Function build from the same validated
-`content/packs/` home (ADR-011). Functions suite: 207 tests, 98.9% coverage.
-The next session (`docs/resume-prompt.md`: **M3.3 — answer → mutual reveal:
-paired-home question UI, reveal-gated answers, the server-side reveal
-invariant**) is emulator-only; start it as usual, nothing from you required.
+The next session (`docs/resume-prompt.md`: **M3.4 — streak engine + pushes**)
+is emulator-only for the streak half; the push half needs APNs = Mac slice
+(item 4), so notifications will land device-verifiable-later like everything
+else. Start it as usual, nothing from you required.
 
-**Plan tracking:** M0 ✅ · M1 ✅ · M2 ✅ · **M3 2/4** · M4–M6 pending →
-**11/22 session-units (50%) in 12 sessions — 11 planned session-units
-remain** (M3: 2 · M4: 3 · M5: 3 · M6: 3; M6.5 Android follow-on sits outside
+**Plan tracking:** M0 ✅ · M1 ✅ · M2 ✅ · **M3 3/4** · M4–M6 pending →
+**12/22 session-units (55%) in 13 sessions — 10 planned session-units
+remain** (M3: 1 · M4: 3 · M5: 3 · M6: 3; M6.5 Android follow-on sits outside
 the 22-unit MVP count, timed by Gate 3). **On track — no plan or scope changes
-in Session 012** (M1's +1 session remains the only slippage ever).
+in Session 013** (M1's +1 session remains the only slippage ever).
 Readiness: **pre-MVP, emulator/CI-proven** — pairing loop, solo week, content
-pipeline, and now the server half of the daily loop are green end-to-end;
-still nothing deployed (Spark) and nothing on-device (items 2–4 below own
-that path, then M6).
+pipeline, and now the FULL daily loop (server assignment + answer + mutual
+reveal) are green end-to-end; still nothing deployed (Spark) and nothing
+on-device (items 2–4 below own that path, then M6).
 
 ## 1. Native review of the solo question content (before public launch)
 

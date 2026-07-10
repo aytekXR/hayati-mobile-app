@@ -112,7 +112,10 @@ class _PairedHomeScreenState extends ConsumerState<PairedHomeScreen>
     final String dayKey;
     try {
       // NEVER the device zone (ADR-011): the stored zone keys the day.
-      dayKey = coupleDayKey(ref.watch(soloClockProvider)(), coupleData.timezone);
+      dayKey = coupleDayKey(
+        ref.watch(soloClockProvider)(),
+        coupleData.timezone,
+      );
     } on Object {
       // A stored zone the bundled tz db cannot resolve (corrupt doc or
       // tzdata skew): an honest error beats a guessed date — and it must
@@ -134,8 +137,9 @@ class _PairedHomeScreenState extends ConsumerState<PairedHomeScreen>
         detail: (l10n) => dayError is CoupleDataNetworkException
             ? l10n.errorNetworkRetry
             : l10n.errorGeneric,
-        onRetry: () =>
-            ref.invalidate(coupleDayAssignmentProvider(widget.coupleId, dayKey)),
+        onRetry: () => ref.invalidate(
+          coupleDayAssignmentProvider(widget.coupleId, dayKey),
+        ),
       );
     }
     final assignment = day.value;

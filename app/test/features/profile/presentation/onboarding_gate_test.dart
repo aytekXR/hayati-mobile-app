@@ -110,9 +110,7 @@ void main() {
           coupleAnswersRepositoryProvider.overrideWith(
             (ref) => fakeCoupleAnswers,
           ),
-          questionPackRepositoryProvider.overrideWith(
-            (ref) => fakeCouplePacks,
-          ),
+          questionPackRepositoryProvider.overrideWith((ref) => fakeCouplePacks),
         ],
       ),
     );
