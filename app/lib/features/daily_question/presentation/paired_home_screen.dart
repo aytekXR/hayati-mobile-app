@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
-import '../domain/couple.dart';
 import '../domain/couple_answer.dart';
 import '../domain/couple_data_exception.dart';
 import '../domain/couple_day.dart';
