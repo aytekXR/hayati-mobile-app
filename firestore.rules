@@ -64,13 +64,21 @@ service cloud.firestore {
     // Member-only skeleton (M2.1). Couple documents are CREATED only by the
     // M2.3 transactional-join Function (admin SDK, bypasses rules), so client
     // create/delete stay denied. Members may read and update, but memberUids
-    // is frozen — membership changes are a Function-only operation.
+    // is frozen — membership changes are a Function-only operation. Since
+    // M3.3 timezone and createdAt are frozen too: the stored timezone is
+    // dayKey-load-bearing on BOTH sides (the rollover buckets by it, the app
+    // computes the couple dayKey from it — ADR-011), so a member rewriting it
+    // to junk would brick the couple's daily loop; createdAt keeps the same
+    // server-stamp discipline as users. Zone changes move behind a future
+    // settings Function, like membership changes.
     match /couples/{coupleId} {
       allow read: if request.auth != null
         && request.auth.uid in resource.data.memberUids;
       allow update: if request.auth != null
         && request.auth.uid in resource.data.memberUids
-        && request.resource.data.memberUids == resource.data.memberUids;
+        && request.resource.data.memberUids == resource.data.memberUids
+        && request.resource.data.timezone == resource.data.timezone
+        && request.resource.data.createdAt == resource.data.createdAt;
       allow create, delete: if false;
 
       // M3.2 daily rollover (ADR-011): days/{yyyymmdd} carries question/
@@ -79,14 +87,66 @@ service cloud.firestore {
       // (admin SDK, bypasses rules) — every client write is denied. Reads are
       // member-only via the parent couple's memberUids (resource.data here is
       // the day doc, so membership needs the get(); an orphaned day doc under
-      // a deleted couple fails closed because get() finds nothing). M3.3
-      // answers must NOT be embedded on this doc: rules are document-granular
-      // and an embedded partner answer would leak pre-reveal — answers land
-      // in a reveal-gated per-user subcollection (architecture.md §3).
+      // a deleted couple fails closed because get() finds nothing). Answers
+      // are NOT embedded on this doc: rules are document-granular and an
+      // embedded partner answer would leak pre-reveal — they live in the
+      // reveal-gated per-user subcollection below (M3.3, architecture.md §3).
       match /days/{dayKey} {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;
         allow write: if false; // days: function-only (admin SDK)
+
+        // M3.3 mutual reveal (architecture.md §3): one answer doc per member
+        // uid. The write surface mirrors soloAnswers (hasOnly + bounded
+        // non-empty text + answeredAt == request.time) plus a questionId pin
+        // to the parent day doc — the pin's get() also fails closed when the
+        // day doc is absent, so answers only attach to an assigned day and
+        // only for its assigned question. Reads are member-only AND
+        // reveal-gated: the partner's answer becomes readable ONLY once the
+        // requester's own answer doc exists (exists() on the sibling path —
+        // THE M3 invariant, enforced server-side, not just UI). A whole-
+        // collection list flips the same way (the exists() branch is
+        // document-independent): denied pre-answer, allowed post-reveal.
+        // Writes are full-replace by contract: the app repository set()s all
+        // three fields — a merge patching text alone fails the answeredAt
+        // stamp check by construction. Edits stay open while the partner
+        // hasn't answered (typo window, mirrors solo same-day editability)
+        // and freeze once both answers exist: rewriting after reading the
+        // partner would defeat commit-before-see, and a frozen answeredAt
+        // keeps M3.4 thread/streak ordering stable. Delete is denied — the
+        // reveal gate is one-way (no answer→read→retract); removal belongs
+        // to the M6 KVKK/PDPL cascade. There is deliberately NO pre-answer
+        // "partner has answered" signal: an existence oracle would leak
+        // through uniform denial. A nudge feature needs a Function-written
+        // flag or push, never a loosened read rule.
+        match /answers/{authorUid} {
+          function memberUids() {
+            return get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;
+          }
+          function hasAnswered(uid) {
+            return exists(/databases/$(database)/documents/couples/$(coupleId)/days/$(dayKey)/answers/$(uid));
+          }
+          function answerSurfaceOk() {
+            return request.resource.data.keys().hasOnly(['questionId', 'text', 'answeredAt'])
+              && request.resource.data.questionId is string
+              && request.resource.data.questionId == get(/databases/$(database)/documents/couples/$(coupleId)/days/$(dayKey)).data.questionId
+              && request.resource.data.text is string
+              && request.resource.data.text.size() > 0
+              && request.resource.data.text.size() <= 2000
+              && request.resource.data.answeredAt == request.time;
+          }
+          allow read: if request.auth != null
+            && request.auth.uid in memberUids()
+            && (request.auth.uid == authorUid || hasAnswered(request.auth.uid));
+          allow create: if isSelf(authorUid)
+            && request.auth.uid in memberUids()
+            && answerSurfaceOk();
+          allow update: if isSelf(authorUid)
+            && request.auth.uid in memberUids()
+            && !(hasAnswered(memberUids()[0]) && hasAnswered(memberUids()[1]))
+            && answerSurfaceOk();
+          allow delete: if false; // answers: reveal gate is one-way (M6 cascade deletes)
+        }
       }
     }
 

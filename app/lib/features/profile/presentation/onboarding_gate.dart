@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/domain/auth_user.dart';
-import '../../daily_question/presentation/paired_home_placeholder.dart';
+import '../../daily_question/presentation/paired_home_screen.dart';
 import '../../daily_question/presentation/solo_home_screen.dart';
 import '../../pairing/presentation/partner_preview_screen.dart';
 import '../../pairing/presentation/state/pending_invite.dart';
@@ -56,8 +56,9 @@ class OnboardingGate extends ConsumerWidget {
     }
     // coupleId (paired) beats a still-pending invite: once paired, the invite
     // is spent and the pending code is stale.
-    if (value.coupleId != null) {
-      return const PairedHomePlaceholder();
+    final coupleId = value.coupleId;
+    if (coupleId != null) {
+      return PairedHomeScreen(uid: user.uid, coupleId: coupleId);
     }
     if (ref.watch(pendingInviteProvider) != null) {
       return const PartnerPreviewScreen();

@@ -84,6 +84,18 @@ class QuestionPack {
   final QuestionRegister register;
   final List<Question> questions;
 
+  /// The question with [id], or null when the bundled pack does not carry
+  /// it (M3.3: the day doc's assignment can reference a newer pack version
+  /// than the installed bundle — the honest "update the app" state, never a
+  /// guessed question). Ids are unique within a pack (load-enforced), so
+  /// first match is the match.
+  Question? questionById(String id) {
+    for (final question in questions) {
+      if (question.id == id) return question;
+    }
+    return null;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

@@ -1,0 +1,24 @@
+{
+  "policy": "Cross-language dayKey parity fixture (M3.3, ADR-011): the SAME instants and zones must produce the SAME yyyymmdd key in the functions localDayKey (day-key.ts, Node ICU) and the app coupleDayKey (couple_day.dart, package:timezone). Consumed by functions/test/unit/day-key-parity.test.ts and app/test/features/daily_question/domain/couple_day_key_test.dart. Add ONLY tzdb-rule-stable zones with past-or-current-year instants (Istanbul fixed +03 since 2016, Riyadh fixed, New_York/London DST rules stable since 2007/1996, Kathmandu +05:45 since 1986, Chatham/Auckland stable) — never volatile zones (e.g. Asia/Gaza, Africa/Cairo, Asia/Tehran, America/Asuncion, Africa/Casablanca), whose rules can legitimately diverge between the Node ICU tzdata and the package:timezone bundled db. A mismatch here means tzdata skew or a broken mirror: both are release-blocking.",
+  "cases": [
+    { "instant": "2026-01-05T09:00:00Z", "zone": "Europe/Istanbul", "dayKey": "20260105" },
+    { "instant": "2026-07-09T20:59:59Z", "zone": "Europe/Istanbul", "dayKey": "20260709" },
+    { "instant": "2026-07-09T21:00:00Z", "zone": "Europe/Istanbul", "dayKey": "20260710" },
+    { "instant": "2026-07-09T20:59:59Z", "zone": "Asia/Riyadh", "dayKey": "20260709" },
+    { "instant": "2026-07-09T21:00:00Z", "zone": "Asia/Riyadh", "dayKey": "20260710" },
+    { "instant": "2026-03-08T04:59:59Z", "zone": "America/New_York", "dayKey": "20260307" },
+    { "instant": "2026-03-08T05:00:00Z", "zone": "America/New_York", "dayKey": "20260308" },
+    { "instant": "2026-03-09T03:59:59Z", "zone": "America/New_York", "dayKey": "20260308" },
+    { "instant": "2026-03-09T04:00:00Z", "zone": "America/New_York", "dayKey": "20260309" },
+    { "instant": "2026-10-24T22:59:59Z", "zone": "Europe/London", "dayKey": "20261024" },
+    { "instant": "2026-10-24T23:00:00Z", "zone": "Europe/London", "dayKey": "20261025" },
+    { "instant": "2026-10-25T23:59:59Z", "zone": "Europe/London", "dayKey": "20261025" },
+    { "instant": "2026-10-26T00:00:00Z", "zone": "Europe/London", "dayKey": "20261026" },
+    { "instant": "2026-07-09T18:14:59Z", "zone": "Asia/Kathmandu", "dayKey": "20260709" },
+    { "instant": "2026-07-09T18:15:00Z", "zone": "Asia/Kathmandu", "dayKey": "20260710" },
+    { "instant": "2026-07-09T11:14:59Z", "zone": "Pacific/Chatham", "dayKey": "20260709" },
+    { "instant": "2026-07-09T11:15:00Z", "zone": "Pacific/Chatham", "dayKey": "20260710" },
+    { "instant": "2026-07-09T11:59:59Z", "zone": "Pacific/Auckland", "dayKey": "20260709" },
+    { "instant": "2026-07-09T12:00:00Z", "zone": "Pacific/Auckland", "dayKey": "20260710" }
+  ]
+}

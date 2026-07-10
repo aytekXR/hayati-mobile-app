@@ -18,10 +18,12 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   Timestamp,
+  collection,
   deleteDoc,
   deleteField,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -357,11 +359,41 @@ describe('couples/{coupleId}', () => {
     );
   });
 
-  it('members update non-membership fields', async () => {
+  it('members update unfrozen fields (packConfig)', async () => {
     await seedCouple();
     const alice = env.authenticatedContext(ALICE).firestore();
     await assertSucceeds(
+      updateDoc(doc(alice, 'couples/couple-1'), {
+        packConfig: { packId: 'solo_tr' },
+      }),
+    );
+  });
+
+  it('timezone is frozen even for members (M3.3 — dayKey load-bearing)', async () => {
+    // Since M3.3 the app computes the couple dayKey from the STORED timezone
+    // (ADR-011); a member rewriting it to junk would brick both members'
+    // daily loop AND the rollover (per-couple skip). Zone changes move
+    // behind a Function, like memberUids.
+    await seedCouple();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, 'couples/couple-1'), { timezone: 'not-a-zone' }),
+    );
+    await assertFails(
       updateDoc(doc(alice, 'couples/couple-1'), { timezone: 'Asia/Riyadh' }),
+    );
+    await assertFails(
+      updateDoc(doc(alice, 'couples/couple-1'), { timezone: deleteField() }),
+    );
+  });
+
+  it('couple createdAt is frozen even for members', async () => {
+    await seedCouple();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, 'couples/couple-1'), {
+        createdAt: Timestamp.fromMillis(42),
+      }),
     );
   });
 
@@ -448,6 +480,236 @@ describe('couples/{coupleId}/days/{dayKey}', () => {
   });
 });
 
+describe('couples/{coupleId}/days/{dayKey}/answers/{authorUid}', () => {
+  const DAY_KEY = '20260710';
+  const DAY_PATH = `couples/couple-1/days/${DAY_KEY}`;
+  const answerPath = (uid: string) => `${DAY_PATH}/answers/${uid}`;
+
+  /** The repository's exact write shape (full replace, server stamp). */
+  const answerWrite = () => ({
+    questionId: 'solo_tr_001',
+    text: 'Bugün seninle gülümsedim.',
+    answeredAt: serverTimestamp(),
+  });
+
+  async function seedCoupleDay(): Promise<void> {
+    await seedCouple();
+    await seed(DAY_PATH, {
+      questionId: 'solo_tr_001',
+      packId: 'solo_tr',
+      packVersion: 1,
+      assignedAt: Timestamp.now(),
+    });
+  }
+
+  /** Seeds an already-committed answer (owner context, real stamp). */
+  async function seedAnswer(uid: string, text = 'Seeded.'): Promise<void> {
+    await seed(answerPath(uid), {
+      questionId: 'solo_tr_001',
+      text,
+      answeredAt: Timestamp.now(),
+    });
+  }
+
+  it('a member creates their own answer with the frozen write shape', async () => {
+    await seedCoupleDay();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(setDoc(doc(alice, answerPath(ALICE)), answerWrite()));
+  });
+
+  it('client-clock answeredAt is rejected (server stamp only)', async () => {
+    await seedCoupleDay();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, answerPath(ALICE)), {
+        ...answerWrite(),
+        answeredAt: Timestamp.fromMillis(42),
+      }),
+    );
+  });
+
+  it('junk fields are rejected (hasOnly surface)', async () => {
+    await seedCoupleDay();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, answerPath(ALICE)), {
+        ...answerWrite(),
+        mood: 'great',
+      }),
+    );
+  });
+
+  it('empty, oversized, and non-string text are rejected', async () => {
+    await seedCoupleDay();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, answerPath(ALICE)), { ...answerWrite(), text: '' }),
+    );
+    await assertFails(
+      setDoc(doc(alice, answerPath(ALICE)), {
+        ...answerWrite(),
+        text: 'x'.repeat(2001),
+      }),
+    );
+    await assertFails(
+      setDoc(doc(alice, answerPath(ALICE)), { ...answerWrite(), text: 42 }),
+    );
+  });
+
+  it('the answer questionId must match the assigned day questionId', async () => {
+    await seedCoupleDay();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, answerPath(ALICE)), {
+        ...answerWrite(),
+        questionId: 'solo_tr_007',
+      }),
+    );
+  });
+
+  it('answers to an unassigned day are rejected (day doc must exist)', async () => {
+    // No day doc seeded: the questionId pin get()s the day doc, which fails
+    // closed — no pre-answering future/garbage dayKeys.
+    await seedCouple();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(
+        doc(alice, `couples/couple-1/days/20991231/answers/${ALICE}`),
+        answerWrite(),
+      ),
+    );
+  });
+
+  it('a member may not write the PARTNER answer doc', async () => {
+    await seedCoupleDay();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(setDoc(doc(alice, answerPath(BOB)), answerWrite()));
+  });
+
+  it('a non-member may not write an answer doc under a foreign couple', async () => {
+    // isSelf(authorUid) alone would pass for Charlie writing answers/charlie;
+    // the write-membership clause is the guard that stops it.
+    await seedCoupleDay();
+    const charlie = env.authenticatedContext(CHARLIE).firestore();
+    await assertFails(setDoc(doc(charlie, answerPath(CHARLIE)), answerWrite()));
+  });
+
+  it('THE M3 invariant: the partner answer is unreadable before own answer exists', async () => {
+    await seedCoupleDay();
+    await seedAnswer(ALICE);
+    // Bob has NOT answered: Alice's answer must be unreadable to him.
+    await assertFails(
+      getDoc(doc(env.authenticatedContext(BOB).firestore(), answerPath(ALICE))),
+    );
+  });
+
+  it('own answer is readable while the partner slot stays locked', async () => {
+    await seedCoupleDay();
+    await seedAnswer(ALICE);
+    await assertSucceeds(
+      getDoc(doc(env.authenticatedContext(ALICE).firestore(), answerPath(ALICE))),
+    );
+  });
+
+  it('both answers become mutually readable once both exist (reveal)', async () => {
+    await seedCoupleDay();
+    await seedAnswer(ALICE);
+    await seedAnswer(BOB);
+    await assertSucceeds(
+      getDoc(doc(env.authenticatedContext(BOB).firestore(), answerPath(ALICE))),
+    );
+    await assertSucceeds(
+      getDoc(doc(env.authenticatedContext(ALICE).firestore(), answerPath(BOB))),
+    );
+  });
+
+  it('non-members and anonymous never read answers, even post-reveal', async () => {
+    await seedCoupleDay();
+    await seedAnswer(ALICE);
+    await seedAnswer(BOB);
+    await assertFails(
+      getDoc(
+        doc(env.authenticatedContext(CHARLIE).firestore(), answerPath(ALICE)),
+      ),
+    );
+    await assertFails(
+      getDoc(doc(env.unauthenticatedContext().firestore(), answerPath(ALICE))),
+    );
+  });
+
+  it('answers under a missing parent couple are unreadable (fails closed)', async () => {
+    await seed(DAY_PATH, {
+      questionId: 'solo_tr_001',
+      packId: 'solo_tr',
+      packVersion: 1,
+      assignedAt: Timestamp.now(),
+    });
+    await seedAnswer(ALICE);
+    await assertFails(
+      getDoc(doc(env.authenticatedContext(ALICE).firestore(), answerPath(ALICE))),
+    );
+  });
+
+  it('listing the answers collection is denied pre-answer, allowed post-reveal', async () => {
+    // The read rule's exists() disjunct is document-independent, so a
+    // whole-collection list flips with the requester's own answer: pin both
+    // sides so a rules refactor can't silently change list semantics.
+    await seedCoupleDay();
+    await seedAnswer(ALICE);
+    await assertFails(
+      getDocs(
+        collection(
+          env.authenticatedContext(BOB).firestore(),
+          `${DAY_PATH}/answers`,
+        ),
+      ),
+    );
+    await seedAnswer(BOB);
+    await assertSucceeds(
+      getDocs(
+        collection(
+          env.authenticatedContext(BOB).firestore(),
+          `${DAY_PATH}/answers`,
+        ),
+      ),
+    );
+  });
+
+  it('own answer stays editable while the partner has not answered (typo window)', async () => {
+    await seedCoupleDay();
+    await seedAnswer(ALICE);
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(
+      setDoc(doc(alice, answerPath(ALICE)), {
+        ...answerWrite(),
+        text: 'Düzeltilmiş cevap.',
+      }),
+    );
+  });
+
+  it('answers freeze once both exist — no post-reveal rewrites', async () => {
+    // Editing after reading the partner would defeat the commit-before-see
+    // premise; revealed = frozen (and answeredAt stays stable for M3.4).
+    await seedCoupleDay();
+    await seedAnswer(ALICE);
+    await seedAnswer(BOB);
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, answerPath(ALICE)), {
+        ...answerWrite(),
+        text: 'Rewritten after peeking.',
+      }),
+    );
+  });
+
+  it('clients never delete answers (reveal gate is one-way)', async () => {
+    await seedCoupleDay();
+    await seedAnswer(ALICE);
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(deleteDoc(doc(alice, answerPath(ALICE))));
+  });
+});
+
 describe('invites/{code}', () => {
   const inviteData = () => ({
     creatorUid: ALICE,
@@ -493,6 +755,46 @@ interface Mutation {
   /** Op denied under real rules that must SUCCEED under the mutant. */
   demonstrate: (mutant: RulesTestEnvironment) => Promise<unknown>;
 }
+
+// Shared seeding for the M3.3 answers mutants: couple-1 + its 20260710 day
+// doc (rollover shape), optionally pre-existing answers, all owner-context.
+const MUTANT_DAY_PATH = 'couples/couple-1/days/20260710';
+
+async function seedMutantCoupleDay(mutant: RulesTestEnvironment): Promise<void> {
+  await mutant.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+      memberUids: [ALICE, BOB],
+      timezone: 'Europe/Istanbul',
+      createdAt: Timestamp.now(),
+    });
+    await setDoc(doc(context.firestore(), MUTANT_DAY_PATH), {
+      questionId: 'solo_tr_001',
+      packId: 'solo_tr',
+      packVersion: 1,
+      assignedAt: Timestamp.now(),
+    });
+  });
+}
+
+async function seedMutantAnswer(
+  mutant: RulesTestEnvironment,
+  uid: string,
+): Promise<void> {
+  await mutant.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), `${MUTANT_DAY_PATH}/answers/${uid}`), {
+      questionId: 'solo_tr_001',
+      text: 'Seeded.',
+      answeredAt: Timestamp.now(),
+    });
+  });
+}
+
+/** The repository's exact answer write shape, for mutant demonstrations. */
+const mutantAnswerWrite = () => ({
+  questionId: 'solo_tr_001',
+  text: 'Bugün seninle gülümsedim.',
+  answeredAt: serverTimestamp(),
+});
 
 const MUTATIONS: Mutation[] = [
   {
@@ -573,14 +875,19 @@ const MUTATIONS: Mutation[] = [
     },
   },
   {
+    // No trailing ';' in the anchor: since M3.3 the update rule continues
+    // with the timezone/createdAt freeze clauses after this one.
     name: 'dropping the memberUids freeze readmits membership rewrites',
-    anchor: '&& request.resource.data.memberUids == resource.data.memberUids;',
-    replacement: ';',
+    anchor: '&& request.resource.data.memberUids == resource.data.memberUids',
+    replacement: '',
     demonstrate: async (mutant) => {
       await mutant.withSecurityRulesDisabled(async (context) => {
         await setDoc(doc(context.firestore(), 'couples/couple-1'), {
           memberUids: [ALICE, BOB],
           timezone: 'Europe/Istanbul',
+          // Real couple shape: the M3.3 timezone/createdAt freeze clauses
+          // compare these fields, and an absent one fails closed.
+          createdAt: Timestamp.now(),
         });
       });
       return updateDoc(
@@ -743,6 +1050,218 @@ const MUTATIONS: Mutation[] = [
           packVersion: 1,
           assignedAt: Timestamp.now(),
         },
+      );
+    },
+  },
+  {
+    // M3.3 THE reveal invariant: dropping the exists()-gate disjunct leaves
+    // the read member-only, so a member reads the partner PRE-answer.
+    name: 'dropping the reveal exists()-gate readmits pre-answer partner reads',
+    anchor:
+      '&& (request.auth.uid == authorUid || hasAnswered(request.auth.uid));',
+    replacement: ';',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      await seedMutantAnswer(mutant, ALICE);
+      // Bob has NOT answered.
+      return getDoc(
+        doc(
+          mutant.authenticatedContext(BOB).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${ALICE}`,
+        ),
+      );
+    },
+  },
+  {
+    // Multi-line anchor: 'request.auth.uid in memberUids()' appears in the
+    // answers read, create, AND update rules — the read context pins it.
+    name: 'dropping the answers read-membership guard readmits non-member reads',
+    anchor:
+      'allow read: if request.auth != null\n            && request.auth.uid in memberUids()',
+    replacement: 'allow read: if request.auth != null',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      await seedMutantAnswer(mutant, ALICE);
+      // Charlie owns a (seeded) answer doc under the foreign couple's day, so
+      // the exists()-gate passes; only membership stops him under real rules.
+      await seedMutantAnswer(mutant, CHARLIE);
+      return getDoc(
+        doc(
+          mutant.authenticatedContext(CHARLIE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${ALICE}`,
+        ),
+      );
+    },
+  },
+  {
+    // isSelf(charlie-uid) passes for Charlie writing answers/charlie-uid —
+    // the write-membership clause is what stops the foreign-couple write.
+    name: 'dropping the answers write-membership guard readmits non-member answer docs',
+    anchor:
+      'allow create: if isSelf(authorUid)\n            && request.auth.uid in memberUids()',
+    replacement: 'allow create: if isSelf(authorUid)',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(CHARLIE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${CHARLIE}`,
+        ),
+        mutantAnswerWrite(),
+      );
+    },
+  },
+  {
+    name: 'weakening the answers isSelf guard readmits writing the partner answer',
+    anchor: 'allow create: if isSelf(authorUid)',
+    replacement: 'allow create: if request.auth != null',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      // Alice (a member, so write-membership passes) forges BOB's answer doc.
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${BOB}`,
+        ),
+        mutantAnswerWrite(),
+      );
+    },
+  },
+  {
+    // 'return' pins the answers surface function; the solo clause is '&& ...'.
+    name: 'dropping the answers hasOnly guard readmits junk fields',
+    anchor:
+      "return request.resource.data.keys().hasOnly(['questionId', 'text', 'answeredAt'])",
+    replacement: 'return true',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${ALICE}`,
+        ),
+        { ...mutantAnswerWrite(), mood: 'great' },
+      );
+    },
+  },
+  {
+    // 14-space indent pins the answers block; the solo clause sits at 10.
+    name: 'dropping the answers server-stamp guard readmits client-clock stamps',
+    anchor:
+      '\n              && request.resource.data.answeredAt == request.time;',
+    replacement: ';',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${ALICE}`,
+        ),
+        { ...mutantAnswerWrite(), answeredAt: Timestamp.fromMillis(42) },
+      );
+    },
+  },
+  {
+    // The questionId pin carries two invariants: the answer matches the
+    // assigned question AND (via the get()) the day doc exists at all.
+    // Demonstrate both denials disappearing.
+    name: 'dropping the answers questionId-day pin readmits unassigned-day answers',
+    anchor:
+      '\n              && request.resource.data.questionId == get(/databases/$(database)/documents/couples/$(coupleId)/days/$(dayKey)).data.questionId',
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      const alice = mutant.authenticatedContext(ALICE).firestore();
+      // Half 1: an answer under a day the rollover never assigned.
+      await setDoc(
+        doc(alice, 'couples/couple-1/days/20991231/answers/' + ALICE),
+        mutantAnswerWrite(),
+      );
+      // Half 2: an answer contradicting the assigned questionId.
+      return setDoc(doc(alice, `${MUTANT_DAY_PATH}/answers/${ALICE}`), {
+        ...mutantAnswerWrite(),
+        questionId: 'solo_tr_007',
+      });
+    },
+  },
+  {
+    // 14-space indent pins the answers block; the solo clause sits at 10.
+    name: 'dropping the answers non-empty-text bound readmits empty answers',
+    anchor: '\n              && request.resource.data.text.size() > 0',
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${ALICE}`,
+        ),
+        { ...mutantAnswerWrite(), text: '' },
+      );
+    },
+  },
+  {
+    name: 'dropping the both-answered freeze readmits post-reveal rewrites',
+    anchor:
+      '&& !(hasAnswered(memberUids()[0]) && hasAnswered(memberUids()[1]))',
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      await seedMutantAnswer(mutant, ALICE);
+      await seedMutantAnswer(mutant, BOB);
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${ALICE}`,
+        ),
+        { ...mutantAnswerWrite(), text: 'Rewritten after peeking.' },
+      );
+    },
+  },
+  {
+    // The reveal gate is one-way only because delete is denied: an
+    // answer→read→retract cycle would defeat commit-before-see.
+    name: 'allowing answer deletes readmits answer retraction post-reveal',
+    anchor:
+      'allow delete: if false; // answers: reveal gate is one-way (M6 cascade deletes)',
+    replacement: 'allow delete: if isSelf(authorUid);',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      await seedMutantAnswer(mutant, ALICE);
+      await seedMutantAnswer(mutant, BOB);
+      return deleteDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${ALICE}`,
+        ),
+      );
+    },
+  },
+  {
+    // M3.3 couples hardening: the stored timezone became dayKey-load-bearing
+    // for the app, so it is frozen like memberUids.
+    name: 'dropping the couples timezone freeze readmits timezone rewrites',
+    anchor: '\n        && request.resource.data.timezone == resource.data.timezone',
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      return updateDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), 'couples/couple-1'),
+        { timezone: 'not-a-zone' },
+      );
+    },
+  },
+  {
+    // Trailing ';' pins the couples clause: the users createdAt-freeze clause
+    // is byte-identical but mid-rule (no ';').
+    name: 'dropping the couples createdAt freeze readmits createdAt rewrites',
+    anchor: '&& request.resource.data.createdAt == resource.data.createdAt;',
+    replacement: ';',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      return updateDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), 'couples/couple-1'),
+        { createdAt: Timestamp.fromMillis(42) },
       );
     },
   },

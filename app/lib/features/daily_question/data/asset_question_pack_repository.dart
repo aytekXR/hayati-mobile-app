@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
 import '../domain/question.dart';
@@ -26,7 +27,16 @@ class AssetQuestionPackRepository implements QuestionPackRepository {
   @override
   Future<QuestionPack> loadPack(String packId) async {
     final bundle = _bundle ?? rootBundle;
-    final raw = await bundle.loadString(assetPathFor(packId));
+    final String raw;
+    try {
+      raw = await bundle.loadString(assetPathFor(packId));
+    } on FlutterError {
+      // AssetBundle throws FlutterError for an absent key: that is the M3.3
+      // pack-lag state (a day doc referencing a pack this install does not
+      // bundle), typed so the paired home can render it honestly instead of
+      // as a generic packaging error.
+      throw UnknownQuestionPackException(packId);
+    }
     final decoded = jsonDecode(raw);
     if (decoded is! Map<String, dynamic>) {
       throw FormatException(

@@ -14,8 +14,17 @@ import 'features/auth/data/firebase_auth_repository.dart';
 import 'features/auth/data/google_auth_gateway.dart';
 import 'features/auth/data/phone_auth_gateway.dart';
 import 'features/auth/domain/auth_repository_provider.dart';
+import 'features/daily_question/data/asset_question_pack_repository.dart';
 import 'features/daily_question/data/asset_solo_question_pack_repository.dart';
+import 'features/daily_question/data/firestore_couple_answers_repository.dart';
+import 'features/daily_question/data/firestore_couple_day_repository.dart';
+import 'features/daily_question/data/firestore_couple_repository.dart';
 import 'features/daily_question/data/firestore_solo_answers_repository.dart';
+import 'features/daily_question/domain/couple_answers_repository_provider.dart';
+import 'features/daily_question/domain/couple_day.dart';
+import 'features/daily_question/domain/couple_day_repository_provider.dart';
+import 'features/daily_question/domain/couple_repository_provider.dart';
+import 'features/daily_question/domain/question_pack_repository_provider.dart';
 import 'features/daily_question/domain/solo_answers_repository_provider.dart';
 import 'features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
@@ -39,6 +48,10 @@ Future<void> main() async {
   // (docs/architecture.md §2). Dev keeps Crashlytics collection off.
   await activateAppCheck(config);
   final crashReporter = await initializeCrashlytics(config);
+  // Before the first frame: the paired home computes the couple dayKey from
+  // the STORED timezone (ADR-011) and needs the tz database loaded (also
+  // lazily guarded inside coupleDayKey — this just front-loads the parse).
+  ensureCoupleTimeZonesInitialized();
   final googleConfig = googleSignInConfigFor(config.flavor);
   runHayati(
     config,
@@ -77,6 +90,21 @@ Future<void> main() async {
       ),
       soloAnswersRepositoryProvider.overrideWith(
         (ref) => FirestoreSoloAnswersRepository(
+          firestore: FirebaseFirestore.instance,
+        ),
+      ),
+      questionPackRepositoryProvider.overrideWith(
+        (ref) => const AssetQuestionPackRepository(),
+      ),
+      coupleRepositoryProvider.overrideWith(
+        (ref) => FirestoreCoupleRepository(firestore: FirebaseFirestore.instance),
+      ),
+      coupleDayRepositoryProvider.overrideWith(
+        (ref) =>
+            FirestoreCoupleDayRepository(firestore: FirebaseFirestore.instance),
+      ),
+      coupleAnswersRepositoryProvider.overrideWith(
+        (ref) => FirestoreCoupleAnswersRepository(
           firestore: FirebaseFirestore.instance,
         ),
       ),

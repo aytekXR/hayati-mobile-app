@@ -90,7 +90,7 @@ final class PhoneSignInControllerProvider
 }
 
 String _$phoneSignInControllerHash() =>
-    r'6906a0c3c50ccb8ee19343952838b38de25e078f';
+    r'0f2151fea4c794fccf0d6acc51f761a7aa8776cf';
 
 /// Screen-scoped driver for the phone sign-in flow (docs/resume-prompt.md
 /// M1.3). autoDispose: it is bound to the phone screen's lifetime and reset

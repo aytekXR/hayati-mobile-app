@@ -7,9 +7,21 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-10, Session 012 (M3.2 — daily rollover Function)._
+_Last refreshed: 2026-07-11, Session 013 IN PROGRESS (M3.3 — answer → mutual
+reveal). Interim refresh on operator request; the full close-of-session
+refresh follows when M3.3 merges._
 
 ## Expected from you right now: **nothing is blocking.**
+
+**Session 013 interim status (M3.3, emulator-only):** the M3 accept-line
+invariant is landed and proven — the answers subcollection rules deny the
+partner's answer until your own exists (77 rules tests incl. 25 weakened-rules
+mutation tests), answers freeze once both exist, and `couples.timezone` is now
+rules-frozen (a member rewrite would have bricked the couple's daily loop).
+The Dart↔TS dayKey parity fixture is green on both sides. The paired-home
+UI/goldens and session-close docs are in flight. Recovery note: the prior
+session's terminal loss cost nothing — Session 012 closed verified green
+(post-merge main CI + codegraph sync).
 
 Session 012 shipped M3.2 entirely emulator-side: the daily rollover is real —
 a scheduled Function (`questionRollover`, the repo's first) sweeps hourly,
@@ -101,6 +113,20 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
   `apple-app-site-association` → a domain choice. Custom scheme shipped in
   M2.2; upgrade path documented in `architecture.md` §4.
 - First **real-device pairing test** (pairs with item 2: deploy first).
+
+## X. Cross-project: Unhooked panic-button verification (reported 2026-07-11)
+
+> Not a Hayati item — parked here because this is the checklist you read.
+> The **unhooked** iOS panic-control fix sits UNCOMMITTED on your Mac
+> (intents moved into the app target + warm-launch gate; unit 151/151,
+> snapshot 17/17, status DONE_WITH_CONCERNS). Needed from you, on the Mac /
+> iPhone: (1) cold test — app closed, tap Control Center Panic → app must
+> launch straight into the panic flow; (2) warm test — app open on the
+> dashboard, tap Panic → panic sheet over the dashboard; (3) decide whether
+> the swipe-dismissible warm sheet should become a hard cover (the
+> celebration screen has no dismiss button — a full cover would trap you);
+> (4) let an unhooked Mac session commit via its ritual + run the UI-test
+> lane. Optional: gstack 1.39 → 1.60 (`/gstack-upgrade`).
 
 ## 5. Slack webhook rotation (from Session 005, still open)
 
