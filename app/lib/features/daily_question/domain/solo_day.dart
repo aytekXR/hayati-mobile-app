@@ -1,4 +1,4 @@
-import 'solo_question.dart';
+import 'question.dart';
 
 /// Pure day arithmetic for the solo week (M2.4, docs/architecture.md §3/§4).
 ///
@@ -47,7 +47,7 @@ String soloDayKey(DateTime now) =>
 /// [soloQuestionDays] → `questions[6]`; anything outside the cycle → null
 /// (the completed state owns day 8+). Assumes the pack passed the load-time
 /// exactly-7 check.
-SoloQuestion? soloQuestionForDay(SoloQuestionPack pack, int dayNumber) {
+Question? soloQuestionForDay(QuestionPack pack, int dayNumber) {
   if (dayNumber < 1 || dayNumber > soloQuestionDays) return null;
   return pack.questions[dayNumber - 1];
 }

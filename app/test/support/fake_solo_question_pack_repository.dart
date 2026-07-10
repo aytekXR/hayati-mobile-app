@@ -1,5 +1,5 @@
+import 'package:hayati_app/features/daily_question/domain/question.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_day.dart';
-import 'package:hayati_app/features/daily_question/domain/solo_question.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 
@@ -7,15 +7,16 @@ import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 /// `"EN solo question 3"` — so behaviour tests can assert the day-N selection
 /// by literal text without depending on the shipped content (which the asset
 /// repository tests pin separately).
-SoloQuestionPack soloPackFixture(ContentLanguage language) => SoloQuestionPack(
+QuestionPack soloPackFixture(ContentLanguage language) => QuestionPack(
   packId: 'solo_${language.name}',
   version: 1,
   language: language,
+  register: QuestionRegister.neutral,
   questions: [
     for (var day = 1; day <= soloQuestionDays; day++)
-      SoloQuestion(
+      Question(
         id: 'solo_${language.name}_00$day',
-        category: SoloQuestionCategory.deep,
+        category: QuestionCategory.deep,
         depth: 1,
         text: '${language.name.toUpperCase()} solo question $day',
       ),
@@ -28,12 +29,12 @@ SoloQuestionPack soloPackFixture(ContentLanguage language) => SoloQuestionPack(
 class FakeSoloQuestionPackRepository implements SoloQuestionPackRepository {
   /// Behaviour override for the next [loadPack] calls; default resolves the
   /// fixture pack for the requested language.
-  Future<SoloQuestionPack> Function(ContentLanguage language)? onLoadPack;
+  Future<QuestionPack> Function(ContentLanguage language)? onLoadPack;
 
   int loadCalls = 0;
 
   @override
-  Future<SoloQuestionPack> loadPack(ContentLanguage language) {
+  Future<QuestionPack> loadPack(ContentLanguage language) {
     loadCalls++;
     final handler = onLoadPack;
     if (handler != null) return handler(language);

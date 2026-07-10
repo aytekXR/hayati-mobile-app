@@ -12,11 +12,11 @@ import '../../auth/presentation/state/auth_controller.dart';
 import '../../pairing/presentation/invite_share_screen.dart';
 import '../../profile/domain/relationship_profile.dart';
 import '../../profile/presentation/state/profile_providers.dart';
+import '../domain/question.dart';
 import '../domain/solo_answer.dart';
 import '../domain/solo_answer_exception.dart';
 import '../domain/solo_clock.dart';
 import '../domain/solo_day.dart';
-import '../domain/solo_question.dart';
 import 'state/solo_answer_controller.dart';
 import 'state/solo_providers.dart';
 
@@ -88,7 +88,7 @@ class SoloHomeScreen extends ConsumerWidget {
     // The pack passed the load-time exactly-7 check and the day is in-cycle,
     // so a question always exists here.
     final question = soloQuestionForDay(pack.value!, day)!;
-    return _SoloQuestionView(
+    return _QuestionView(
       uid: uid,
       dayKey: dayKey,
       day: day,
@@ -99,8 +99,8 @@ class SoloHomeScreen extends ConsumerWidget {
 }
 
 /// Days 1-7: nudge banner, day progress, the question, and the answer entry.
-class _SoloQuestionView extends ConsumerStatefulWidget {
-  const _SoloQuestionView({
+class _QuestionView extends ConsumerStatefulWidget {
+  const _QuestionView({
     required this.uid,
     required this.dayKey,
     required this.day,
@@ -111,7 +111,7 @@ class _SoloQuestionView extends ConsumerStatefulWidget {
   final String uid;
   final String dayKey;
   final int day;
-  final SoloQuestion question;
+  final Question question;
 
   /// The day's persisted answer (live from `soloAnswerProvider`), or null
   /// while unanswered. Seeds the entry field ONCE — after a save the stream
@@ -121,10 +121,10 @@ class _SoloQuestionView extends ConsumerStatefulWidget {
   final SoloAnswer? persisted;
 
   @override
-  ConsumerState<_SoloQuestionView> createState() => _SoloQuestionViewState();
+  ConsumerState<_QuestionView> createState() => _QuestionViewState();
 }
 
-class _SoloQuestionViewState extends ConsumerState<_SoloQuestionView> {
+class _QuestionViewState extends ConsumerState<_QuestionView> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.persisted?.text ?? '',
   );

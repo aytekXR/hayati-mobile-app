@@ -79,6 +79,15 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      # M3.1 content pipeline enforcement (test-suite.md §1-2): validator
+      # self-tests, then the validator itself over content/packs/ AND the
+      # bundled app/assets/content/ copies — a schema violation, a cross-pack
+      # duplicate id, or authoring↔bundle drift turns this job red. Plain
+      # dart:-only scripts (no pubspec), so they run before pub get.
+      - name: validator self-tests
+        run: dart content/validator/validate_test.dart
+      - name: validate question packs
+        run: dart content/validator/validate.dart
       - name: pub get
         working-directory: app
         run: flutter pub get

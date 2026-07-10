@@ -4,11 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/daily_question/data/asset_solo_question_pack_repository.dart';
+import 'package:hayati_app/features/daily_question/domain/question.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_answer.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_answers_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_clock.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_day.dart';
-import 'package:hayati_app/features/daily_question/domain/solo_question.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
@@ -182,8 +182,7 @@ void main() {
       // A single zero-duration pump captures the spinner at t=0
       // (deterministic), never pumpAndSettle (it would hang).
       final fakes = arrange(cell, fixturePacks: true);
-      fakes.packs.onLoadPack = (language) =>
-          Completer<SoloQuestionPack>().future;
+      fakes.packs.onLoadPack = (language) => Completer<QuestionPack>().future;
 
       await pumpGolden(
         tester,

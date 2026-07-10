@@ -1,0 +1,51 @@
+{
+  "packId": "solo_en",
+  "version": 1,
+  "locale": "en",
+  "register": "neutral",
+  "reviewedBy": "PENDING native review (drafted Session 010; W9 register-owner review required before public launch — docs/operator-expected.md)",
+  "questions": [
+    {
+      "id": "solo_en_001",
+      "category": "gratitude",
+      "depth": 1,
+      "text": "What's one small thing your partner did recently that you never got around to thanking them for?"
+    },
+    {
+      "id": "solo_en_002",
+      "category": "memories",
+      "depth": 2,
+      "text": "Which moment together do you replay the most — and what makes it stick?"
+    },
+    {
+      "id": "solo_en_003",
+      "category": "fun",
+      "depth": 1,
+      "text": "If the two of you had a completely free day tomorrow, how would you spend it?"
+    },
+    {
+      "id": "solo_en_004",
+      "category": "deep",
+      "depth": 3,
+      "text": "When do you feel closest to your partner? What usually makes that happen?"
+    },
+    {
+      "id": "solo_en_005",
+      "category": "future",
+      "depth": 3,
+      "text": "What's something you hope the two of you will do together within a year?"
+    },
+    {
+      "id": "solo_en_006",
+      "category": "deep",
+      "depth": 4,
+      "text": "What's one thing you find hard to say out loud to your partner — and what makes it hard?"
+    },
+    {
+      "id": "solo_en_007",
+      "category": "gratitude",
+      "depth": 2,
+      "text": "What has your partner taught you about yourself?"
+    }
+  ]
+}

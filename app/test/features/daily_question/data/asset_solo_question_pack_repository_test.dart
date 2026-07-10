@@ -81,10 +81,12 @@ void main() {
 
   group('load contracts', () {
     test('rejects a pack whose locale does not match the request', () {
+      // packId matches the request so the generic packId↔asset-name check
+      // passes; the solo wrapper's own locale check must still refuse it.
       final repository = AssetSoloQuestionPackRepository(
         bundle: _StaticAssetBundle({
           AssetSoloQuestionPackRepository.assetPathFor(ContentLanguage.en):
-              packJson(locale: 'tr'),
+              packJson(locale: 'tr', packId: 'solo_en'),
         }),
       );
 

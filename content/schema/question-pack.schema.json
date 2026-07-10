@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hayati.app/schemas/question-pack.schema.json",
   "title": "Hayati Question Pack",
-  "description": "STUB (M0.1). Field set mirrors the question model in docs/architecture.md §3 and docs/prd.md §7. The enforcing validator ships in M3 (docs/implementation-plan.md); until then this file is the contract, not the enforcement.",
+  "description": "The question-pack contract (docs/architecture.md §3, docs/prd.md §7). Enforced since M3.1 by content/validator/validate.dart, which also cross-checks its own vocabulary against this file on every run — change enums/bounds/required fields here and in validator_core.dart together, or CI fails loudly.",
   "type": "object",
   "required": ["packId", "version", "locale", "register", "questions"],
   "additionalProperties": false,

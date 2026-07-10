@@ -1,9 +1,9 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../profile/domain/relationship_profile.dart';
+import '../../domain/question.dart';
 import '../../domain/solo_answer.dart';
 import '../../domain/solo_answers_repository_provider.dart';
-import '../../domain/solo_question.dart';
 import '../../domain/solo_question_pack_repository_provider.dart';
 
 part 'solo_providers.g.dart';
@@ -17,7 +17,7 @@ Duration? _noRetry(int retryCount, Object error) => null;
 /// keyed by [ContentLanguage] — same idiom as `invitePreviewProvider`.
 /// AutoDispose: released when the solo home leaves the tree.
 @Riverpod(retry: _noRetry)
-Future<SoloQuestionPack> soloQuestionPack(Ref ref, ContentLanguage language) =>
+Future<QuestionPack> soloQuestionPack(Ref ref, ContentLanguage language) =>
     ref.watch(soloQuestionPackRepositoryProvider).loadPack(language);
 
 /// Live `users/{uid}/soloAnswers/{dayKey}` answer (null while unanswered).

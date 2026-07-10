@@ -33,3 +33,4 @@ ADR-001–005 were backfilled at M0.2 (Session 002) from the `architecture.md` �
 | [007](007-de-gate-build-from-content-validation.md) | Build de-gated from content validation — gates become spend/launch instruments; personal-use-first | Accepted |
 | [008](008-apple-signin-via-credential-seam.md) | Sign in with Apple via a credential seam, not `signInWithProvider` — keeps the flow fakeable and emulator-testable | Accepted |
 | [009](009-solo-mode-content-and-persistence.md) | Solo mode — bundled schema-shaped packs, `createdAt`-anchored local day rotation, Firestore `soloAnswers` | Accepted |
+| [010](010-content-authoring-home-and-sync.md) | `content/packs/` as the single pack authoring home; validator-owned one-way byte-sync into the app bundle | Accepted |
