@@ -10,13 +10,18 @@ import 'package:hayati_app/features/daily_question/domain/solo_day.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_question.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
+import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
+import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
 import 'package:hayati_app/features/pairing/domain/invite_share_launcher.dart';
 import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
+import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_deep_link_source.dart';
+import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_invite_share_launcher.dart';
 import '../../../support/fake_profile_repository.dart';
@@ -78,11 +83,18 @@ void main() {
     final auth = FakeAuthRepository(initialUser: user);
     final invites = FakeInviteRepository();
     final launcher = FakeInviteShareLauncher();
+    // The share screen's "Have a code?" pushes the partner preview, which
+    // watches pendingInviteProvider → deepLinkSourceProvider (throws
+    // unoverridden) and the preview repository.
+    final deepLinks = FakeDeepLinkSource();
+    final previews = FakeInvitePreviewRepository();
     addTearDown(answers.dispose);
     addTearDown(profiles.dispose);
     addTearDown(auth.dispose);
     addTearDown(invites.dispose);
     addTearDown(launcher.dispose);
+    addTearDown(deepLinks.dispose);
+    addTearDown(previews.dispose);
     await tester.pumpWidget(
       localizedApp(
         SoloHomeScreen(uid: user.uid, profile: profile),
@@ -100,6 +112,8 @@ void main() {
           authRepositoryProvider.overrideWith((ref) => auth),
           inviteRepositoryProvider.overrideWith((ref) => invites),
           inviteShareLauncherProvider.overrideWith((ref) => launcher),
+          deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+          invitePreviewRepositoryProvider.overrideWith((ref) => previews),
         ],
       ),
     );
@@ -240,6 +254,26 @@ void main() {
       expect(find.text(en.soloAnswerSavedCaption), findsOneWidget);
     });
 
+    testWidgets('the entry field hard-caps at the rules ceiling, so an '
+        'over-length save is unrepresentable (review finding, Session 010)', (
+      tester,
+    ) async {
+      await pumpSolo(
+        tester,
+        profile: profileWith(createdAt: DateTime(2026, 7, 10, 9)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(TextField),
+        'x' * (soloAnswerMaxLength + 1),
+      );
+      await tester.pump();
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text.length, soloAnswerMaxLength);
+    });
+
     testWidgets('a save failure surfaces honest inline copy and keeps the '
         'entry editable', (tester) async {
       await pumpSolo(
@@ -331,6 +365,37 @@ void main() {
 
       // Popped: in production the gate underneath has already re-routed to
       // the paired home (proven at the gate level); here the home resurfaces.
+      expect(find.byType(InviteShareScreen), findsNothing);
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
+    });
+
+    testWidgets('pairing collapses the WHOLE pushed stack — even a partner '
+        'preview stacked via "Have a code?" (review finding, Session 010)', (
+      tester,
+    ) async {
+      final fakes = await pumpSolo(
+        tester,
+        profile: profileWith(createdAt: DateTime(2026, 7, 10, 9)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.soloNudgeAction));
+      await tester.pumpAndSettle();
+      // The inviter drills into the invitee-side entry on top of the pushed
+      // share screen: gate → share → partner preview.
+      await tester.tap(find.text(en.joinHaveCodeAction));
+      await tester.pumpAndSettle();
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+
+      // Partner redeems the invite meanwhile: a bare pop() here would remove
+      // only the preview and strand the paired user on the stale share
+      // screen; popUntil must land back on the (re-routed) gate.
+      fakes.profiles.emitProfile(
+        user.uid,
+        profileWith(createdAt: DateTime(2026, 7, 10, 9), coupleId: 'couple-42'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PartnerPreviewScreen), findsNothing);
       expect(find.byType(InviteShareScreen), findsNothing);
       expect(find.byType(SoloHomeScreen), findsOneWidget);
     });

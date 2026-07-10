@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design_system/radius_tokens.dart';
@@ -193,6 +194,12 @@ class _SoloQuestionViewState extends ConsumerState<_SoloQuestionView> {
                   maxLines: 6,
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.newline,
+                  // Hard cap at the rules ceiling (review finding, Session
+                  // 010): without it an over-length entry reaches Firestore,
+                  // is rules-denied and dead-ends in the generic error copy.
+                  inputFormatters: [
+                    LengthLimitingTextInputFormatter(soloAnswerMaxLength),
+                  ],
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(hintText: l10n.soloAnswerHint),
                 ),
@@ -392,22 +399,28 @@ class _PushedInviteShare extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    void popSelf() {
-      final navigator = Navigator.of(context);
-      if (navigator.canPop()) navigator.pop();
+    // Collapse the WHOLE pushed stack back onto the gate, never a bare
+    // pop(): the share screen's "Have a code?" pushes a partner preview on
+    // top of this route, and pop() removes the TOPMOST route — so a
+    // coupleId arriving while the user sat on that preview would pop the
+    // preview and strand the now-paired user on a stale share screen
+    // (adversarial-review finding, Session 010). popUntil(isFirst) lands on
+    // the gate, which has already re-routed (paired home / auth shell).
+    void popToGate() {
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
 
     ref.listen(profileStreamProvider(uid), (previous, next) {
       // A settled profile with a coupleId is the pairing terminal; fires on
-      // the change only, and canPop guards a race with a manual pop.
-      if (!next.isLoading && next.value?.coupleId != null) popSelf();
+      // the change only.
+      if (!next.isLoading && next.value?.coupleId != null) popToGate();
     });
     // The share screen's sign-out is reachable on this pushed route. The
     // gate-mounted share screen used to be swapped out by the auth shell
     // automatically; a pushed route must pop itself to uncover it, or the
     // signed-out user is stranded on a dead share screen.
     ref.listen(authControllerProvider, (previous, next) {
-      if (next is! AuthSignedIn) popSelf();
+      if (next is! AuthSignedIn) popToGate();
     });
     return const InviteShareScreen();
   }

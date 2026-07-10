@@ -1,3 +1,9 @@
+/// The rules-enforced ceiling on answer text (`firestore.rules`:
+/// `text.size() <= 2000`). The entry field hard-caps at the same number so an
+/// over-length save is unrepresentable client-side — the server rule stays
+/// defense-in-depth, never a user-facing dead end.
+const int soloAnswerMaxLength = 2000;
+
 /// One persisted solo reflection answer (M2.4):
 /// `users/{uid}/soloAnswers/{yyyymmdd}`, docs/architecture.md §3. Pure Dart,
 /// keyed externally by uid + day key.

@@ -42,9 +42,11 @@ service cloud.firestore {
       // shape: hasOnly guards junk fields, answeredAt must be the server
       // stamp (== request.time, same discipline as createdAt above) so a
       // client clock can never forge the answer time, and text is bounded
-      // non-empty. Same-day overwrites are deliberate (the answer stays
-      // editable all day); client delete is denied — removal belongs to the
-      // M6 KVKK/PDPL cascade.
+      // non-empty (2000 mirrors soloAnswerMaxLength in solo_answer.dart —
+      // the entry field hard-caps there, so this bound is defense-in-depth).
+      // Same-day overwrites are deliberate (the answer stays editable all
+      // day); client delete is denied — removal belongs to the M6 KVKK/PDPL
+      // cascade.
       match /soloAnswers/{dayKey} {
         allow read: if isSelf(uid);
         allow create, update: if isSelf(uid)
