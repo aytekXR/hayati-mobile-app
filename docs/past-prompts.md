@@ -357,7 +357,7 @@
 - **Numbers:** functions suite 207 tests / 18 files, coverage 98.91% stmts / 97.22% branches / 98.24% funcs / 99.16% lines (gate 85 target / 80 hard); app suite untouched; the `onSchedule` export loads cleanly in the shared CI emulator run (eventarc/tasks auto-start, callable e2e unaffected).
 
 **Commits:** PR #30 (feature + session docs, single squash).
-**CI:** PR checks green; post-merge main run green (`gh run watch`).
+**CI:** PR #30 checks green (quality, functions-rules, ios-build-smoke); post-merge main run red on the main-only `integration-emulator` leg — the pre-existing profile round-trip test raced a one-shot `get()` against an awaited transaction commit (Expected 'playful'/Actual 'respectful'; zero app code in the M3.2 diff — a latent test flake, same class the file already documents for listeners). Quick-fixed same-session per session-rules §3.5 (PR #31): the post-rewrite assertions use the watch + `emitsThrough` settled-state pattern instead of one-shot reads; main green after the fix (`gh run watch`).
 **Docs touched:** **ADR-011 (new)** + adr/README index, architecture.md (§3 couples/packConfig + days shapes and rules-invariants paragraph, M3.2 rollover prose block, §4 rollover flow status, §10 cost shape), test-suite.md (§1 M3.2 functions/rules layers), implementation-plan.md (M3 progress line), operator-expected.md (refreshed), resume-prompt.md (regenerated → M3.3), past-prompts.md (this entry), root .gitignore (stray vitest cache guard).
 **Notes / debt logged (none silent):**
 - Seasonal window→date mapping (Hijri) deferred with the documented evergreen-only policy → **issue #29** (due with first seasonal content, W9).
