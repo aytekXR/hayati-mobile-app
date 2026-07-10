@@ -396,6 +396,58 @@ describe('couples/{coupleId}', () => {
   });
 });
 
+describe('couples/{coupleId}/days/{dayKey}', () => {
+  const DAY_PATH = 'couples/couple-1/days/20260710';
+  const dayData = () => ({
+    questionId: 'solo_tr_001',
+    packId: 'solo_tr',
+    packVersion: 1,
+    assignedAt: Timestamp.now(),
+  });
+
+  async function seedDay(): Promise<void> {
+    await seedCouple();
+    await seed(DAY_PATH, dayData());
+  }
+
+  it('members read the day doc; non-members and anonymous cannot', async () => {
+    await seedDay();
+    await assertSucceeds(
+      getDoc(doc(env.authenticatedContext(ALICE).firestore(), DAY_PATH)),
+    );
+    await assertSucceeds(
+      getDoc(doc(env.authenticatedContext(BOB).firestore(), DAY_PATH)),
+    );
+    await assertFails(
+      getDoc(doc(env.authenticatedContext(CHARLIE).firestore(), DAY_PATH)),
+    );
+    await assertFails(
+      getDoc(doc(env.unauthenticatedContext().firestore(), DAY_PATH)),
+    );
+  });
+
+  it('a day doc under a missing parent couple is unreadable (fails closed)', async () => {
+    // Orphaned day doc: parent couple never seeded. The membership get()
+    // finds no couple, so the read must deny — corrupt state stays dark.
+    await seed(DAY_PATH, dayData());
+    await assertFails(
+      getDoc(doc(env.authenticatedContext(ALICE).firestore(), DAY_PATH)),
+    );
+  });
+
+  it('no client writes at all — not even members (function-only via admin SDK)', async () => {
+    await seedCouple();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(setDoc(doc(alice, DAY_PATH), dayData()));
+
+    await seed(DAY_PATH, dayData());
+    await assertFails(
+      updateDoc(doc(alice, DAY_PATH), { questionId: 'solo_tr_007' }),
+    );
+    await assertFails(deleteDoc(doc(alice, DAY_PATH)));
+  });
+});
+
 describe('invites/{code}', () => {
   const inviteData = () => ({
     creatorUid: ALICE,
@@ -634,6 +686,65 @@ const MUTATIONS: Mutation[] = [
           mood: 'great',
         },
       ),
+  },
+  {
+    // M3.2 days: weakening membership on the day-doc read must readmit
+    // non-member reads. Distinct anchor from the couples-read mutant above
+    // (get() on the parent vs resource.data on the doc itself).
+    name: 'dropping the days membership guard readmits non-member day reads',
+    anchor:
+      '&& request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;',
+    replacement: ';',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+        await setDoc(doc(context.firestore(), 'couples/couple-1/days/20260710'), {
+          questionId: 'solo_tr_001',
+          packId: 'solo_tr',
+          packVersion: 1,
+          assignedAt: Timestamp.now(),
+        });
+      });
+      return getDoc(
+        doc(
+          mutant.authenticatedContext(CHARLIE).firestore(),
+          'couples/couple-1/days/20260710',
+        ),
+      );
+    },
+  },
+  {
+    // M3.2 days: writes are denied by the explicit `allow write: if false`
+    // (plus the catch-all). Swapping it for an authed-allow must readmit a
+    // client day write — proving the deny clause is the net, not an accident.
+    name: 'allowing authed day writes readmits client-written day docs',
+    anchor: 'allow write: if false; // days: function-only (admin SDK)',
+    replacement: 'allow write: if request.auth != null;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+      });
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          'couples/couple-1/days/20260710',
+        ),
+        {
+          questionId: 'client-forged',
+          packId: 'solo_tr',
+          packVersion: 1,
+          assignedAt: Timestamp.now(),
+        },
+      );
+    },
   },
 ];
 

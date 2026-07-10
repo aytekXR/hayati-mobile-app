@@ -8,3 +8,4 @@ initializeApp();
 export { createInvite } from './invites/create-invite';
 export { invitePreview } from './invites/invite-preview';
 export { joinInvite } from './invites/join-invite';
+export { questionRollover } from './rollover/question-rollover';
