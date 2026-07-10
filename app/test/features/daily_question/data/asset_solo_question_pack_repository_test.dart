@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/daily_question/data/asset_solo_question_pack_repository.dart';
+import 'package:hayati_app/features/daily_question/domain/question_pack_repository.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_day.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 
@@ -128,9 +129,13 @@ void main() {
         bundle: _StaticAssetBundle(const {}),
       );
 
+      // Since M3.3 the generic loader types the absent-asset path as
+      // UnknownQuestionPackException (pack-lag semantics for day-doc ids);
+      // for the solo derivation it is still what it always was — a loud
+      // packaging failure, never a silent empty cycle.
       expect(
         repository.loadPack(ContentLanguage.en),
-        throwsA(isA<FlutterError>()),
+        throwsA(isA<UnknownQuestionPackException>()),
       );
     });
   });
