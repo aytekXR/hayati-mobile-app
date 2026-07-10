@@ -1,14 +1,15 @@
 import '../../profile/domain/relationship_profile.dart';
-import 'solo_question.dart';
+import 'question.dart';
 
-/// Loads the bundled solo question pack for a content language (M2.4). The
-/// only implementation reads the schema-shaped JSON assets under
-/// `app/assets/content/`; M3's pack pipeline (validator + remote sync)
-/// replaces the loading strategy behind this same seam.
+/// Loads the bundled solo question pack for a content language (M2.4;
+/// generalized M3.1 — the solo pack is a [QuestionPack] like any other, this
+/// seam just resolves it by language and holds the solo-only guarantees).
+/// The only implementation wraps the generic asset repository over the
+/// validator-synced assets under `app/assets/content/`.
 abstract interface class SoloQuestionPackRepository {
-  /// Loads and validates the pack for [language]. Throws [FormatException]
-  /// on a malformed or non-7-question pack — a packaging bug, surfaced loudly
-  /// through the provider's error state rather than silently truncating the
-  /// cycle.
-  Future<SoloQuestionPack> loadPack(ContentLanguage language);
+  /// Loads and validates the solo pack for [language]. Throws
+  /// [FormatException] on a malformed or non-7-question pack — a packaging
+  /// bug, surfaced loudly through the provider's error state rather than
+  /// silently truncating the cycle.
+  Future<QuestionPack> loadPack(ContentLanguage language);
 }

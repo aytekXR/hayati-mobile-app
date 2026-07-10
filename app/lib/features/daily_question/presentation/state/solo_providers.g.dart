@@ -22,11 +22,11 @@ const soloQuestionPackProvider = SoloQuestionPackFamily._();
 final class SoloQuestionPackProvider
     extends
         $FunctionalProvider<
-          AsyncValue<SoloQuestionPack>,
-          SoloQuestionPack,
-          FutureOr<SoloQuestionPack>
+          AsyncValue<QuestionPack>,
+          QuestionPack,
+          FutureOr<QuestionPack>
         >
-    with $FutureModifier<SoloQuestionPack>, $FutureProvider<SoloQuestionPack> {
+    with $FutureModifier<QuestionPack>, $FutureProvider<QuestionPack> {
   /// The bundled solo pack for the profile's content language (M2.4). A family
   /// keyed by [ContentLanguage] — same idiom as `invitePreviewProvider`.
   /// AutoDispose: released when the solo home leaves the tree.
@@ -53,12 +53,12 @@ final class SoloQuestionPackProvider
 
   @$internal
   @override
-  $FutureProviderElement<SoloQuestionPack> $createElement(
+  $FutureProviderElement<QuestionPack> $createElement(
     $ProviderPointer pointer,
   ) => $FutureProviderElement(pointer);
 
   @override
-  FutureOr<SoloQuestionPack> create(Ref ref) {
+  FutureOr<QuestionPack> create(Ref ref) {
     final argument = this.argument as ContentLanguage;
     return soloQuestionPack(ref, argument);
   }
@@ -74,15 +74,14 @@ final class SoloQuestionPackProvider
   }
 }
 
-String _$soloQuestionPackHash() => r'6f93bd47f7ac994ed62d8a4533cfc18701896caa';
+String _$soloQuestionPackHash() => r'3395044db0c44edc9871fe8efbfe84be14325eba';
 
 /// The bundled solo pack for the profile's content language (M2.4). A family
 /// keyed by [ContentLanguage] — same idiom as `invitePreviewProvider`.
 /// AutoDispose: released when the solo home leaves the tree.
 
 final class SoloQuestionPackFamily extends $Family
-    with
-        $FunctionalFamilyOverride<FutureOr<SoloQuestionPack>, ContentLanguage> {
+    with $FunctionalFamilyOverride<FutureOr<QuestionPack>, ContentLanguage> {
   const SoloQuestionPackFamily._()
     : super(
         retry: _noRetry,

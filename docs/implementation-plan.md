@@ -33,6 +33,8 @@ Question packs pipeline (`content/` JSON → validator → bundled + remote sync
 
 **Accept:** rollover unit tests across timezones incl. DST; **server-side reveal rule test: partner answer unreadable pre-answer**; streak property tests (grace, gaps, timezone edges); goldens: question card TR/AR/EN × LTR/RTL.
 
+**Progress:** M3.1 ✅ *(Session 011, 2026-07-10)* — question-packs pipeline: enforcing validator (pure core + thin IO shell + 60 self-checks, plain-dart under `content/validator/`; schema fields/patterns/enums/depth bounds, cross-pack id uniqueness, `packId`↔filename↔`locale` consistency, reviewedBy warning tier per ADR-007 with `--strict-review` launch posture, validator↔schema-file agreement check) wired into the ubuntu `quality` job (self-tests + check mode pre-`pub get`; a red pack blocks merge); authoring home unified under `content/packs/` with validator-owned one-way byte-sync into `app/assets/content/` (`--sync`; check mode red on drift; `en.example.json` deleted — ADR-010); pack model generalized (`QuestionPack`/`Question`/`QuestionCategory` + `QuestionRegister` carried, per-question `seasonalWindow` surfaced, generic `AssetQuestionPackRepository` by packId) with the solo path as a thin specialization (`solo_<locale>`, exactly-7 + locale checks) behind the unchanged `SoloQuestionPackRepository` seam — solo goldens byte-identical, 602 app tests, coverage 87.8% (gate 64).
+
 ## M4 — Paywall & entitlements (3 sessions)
 
 RevenueCat products (TR/SAR/USD tiers, trial, annual-first paywall, gift flow); webhook Function → couple entitlement mirror; free-tier gating.

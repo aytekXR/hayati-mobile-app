@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/features/daily_question/domain/question.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_day.dart';
-import 'package:hayati_app/features/daily_question/domain/solo_question.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 
 void main() {
@@ -161,15 +161,16 @@ void main() {
   });
 
   group('soloQuestionForDay', () {
-    final pack = SoloQuestionPack(
+    final pack = QuestionPack(
       packId: 'solo_en',
       version: 1,
       language: ContentLanguage.en,
+      register: QuestionRegister.neutral,
       questions: [
         for (var day = 1; day <= soloQuestionDays; day++)
-          SoloQuestion(
+          Question(
             id: 'solo_en_00$day',
-            category: SoloQuestionCategory.deep,
+            category: QuestionCategory.deep,
             depth: 1,
             text: 'Question $day',
           ),
