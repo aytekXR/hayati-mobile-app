@@ -75,7 +75,28 @@ void main() {
     // server snapshot lands. The app never sees that window — OnboardingGate
     // holds one long-lived subscription — but a listener opened per assertion
     // does, and `.first` would race it (observed red on the CI emulator leg).
-    await expectLater(repository.watchProfile(uid), emitsThrough(_profile));
+    //
+    // Field matcher, NOT value equality: since M2.4 the settled server
+    // snapshot surfaces the create-once `createdAt` stamp (the solo day-N
+    // anchor), whose server-assigned value can't be predicted — a whole-value
+    // equality wait never matches and hangs to the job timeout (observed on
+    // the first post-M2.4 main run). Asserting isNotNull here IS the
+    // round-trip proof of the new read path.
+    await expectLater(
+      repository.watchProfile(uid),
+      emitsThrough(
+        isA<RelationshipProfile>()
+            .having((p) => p.status, 'status', _profile.status)
+            .having(
+              (p) => p.contentLanguage,
+              'contentLanguage',
+              _profile.contentLanguage,
+            )
+            .having((p) => p.register, 'register', _profile.register)
+            .having((p) => p.coupleId, 'coupleId', isNull)
+            .having((p) => p.createdAt, 'createdAt', isNotNull),
+      ),
+    );
 
     // createdAt is server-stamped exactly once (create-once transaction).
     final doc = await FirebaseFirestore.instance
