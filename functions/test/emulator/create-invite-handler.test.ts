@@ -10,6 +10,7 @@ import {
   makeCreateInviteHandler,
 } from '../../src/invites/create-invite';
 import {
+  CreatorAlreadyPairedError,
   InviteCodeSpaceExhaustedError,
 } from '../../src/invites/invite-service';
 import { adminFirestore, clearFirestoreData } from '../support/admin';
@@ -67,6 +68,20 @@ describe('createInvite handler', () => {
       handler(authedRequest('handler-uid')),
       'resource-exhausted',
     );
+  });
+
+  it("maps an already-paired creator to failed-precondition / 'already-paired'", async () => {
+    const handler = makeCreateInviteHandler(async () => {
+      throw new CreatorAlreadyPairedError();
+    });
+    const error = await handler(authedRequest('handler-uid')).then(
+      () => {
+        throw new Error('expected the handler to reject');
+      },
+      (thrown) => thrown as HttpsError,
+    );
+    expect(error.code).toBe('failed-precondition');
+    expect(error.details).toEqual({ reason: 'already-paired' });
   });
 
   it('maps unexpected failures to internal without leaking them', async () => {

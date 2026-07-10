@@ -160,5 +160,103 @@
   "errorSessionExpired": "That took too long. Start again.",
   "@errorSessionExpired": {
     "description": "Error when the verification session expired; the flow restarts from phone entry"
+  },
+  "joinHaveCodeAction": "Have a code?",
+  "@joinHaveCodeAction": {
+    "description": "Modest affordance on the invite share screen for the invitee who got a WhatsApp code (no deep link) — opens the partner preview / manual-entry screen (M2.3)"
+  },
+  "joinHaveCodeTitle": "Have an invite code?",
+  "@joinHaveCodeTitle": {
+    "description": "Title of the partner-preview empty state, inviting the user to enter the code their partner shared (M2.3)"
+  },
+  "joinHaveCodeBody": "Enter the 8-character code your partner shared to see their invitation.",
+  "@joinHaveCodeBody": {
+    "description": "Body under joinHaveCodeTitle explaining what the code is and where it came from"
+  },
+  "inviteCodeFieldLabel": "Invite code",
+  "@inviteCodeFieldLabel": {
+    "description": "Label for the manual invite-code text field on the partner-preview empty state"
+  },
+  "inviteCodeInvalid": "That doesn't look like a valid code. Check the 8 characters and try again.",
+  "@inviteCodeInvalid": {
+    "description": "Inline validation copy when the manually entered code fails normalizeInviteCode (wrong length or an out-of-alphabet character)"
+  },
+  "joinCheckCode": "See invitation",
+  "@joinCheckCode": {
+    "description": "Button that submits the manually entered code to fetch the preview"
+  },
+  "invitePreviewInvitedBy": "{name} invited you",
+  "@invitePreviewInvitedBy": {
+    "description": "Hero line on a valid invite preview naming the creator (M2.3)",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Aylin"
+      }
+    }
+  },
+  "invitePreviewInvitedBySomeone": "Someone invited you",
+  "@invitePreviewInvitedBySomeone": {
+    "description": "Graceful no-name fallback for the valid-preview hero line when the server resolved no creator display name"
+  },
+  "invitePreviewValidBody": "This invitation is ready. Pair up to start answering a question together every day.",
+  "@invitePreviewValidBody": {
+    "description": "Validity framing under the invited-by line on a valid invite preview"
+  },
+  "joinAcceptButton": "Accept invitation",
+  "@joinAcceptButton": {
+    "description": "Primary CTA on a valid invite preview that redeems the code for the signed-in user (M2.3)"
+  },
+  "invitePreviewUnavailableTitle": "This invitation isn't available",
+  "@invitePreviewUnavailableTitle": {
+    "description": "Title of the single honest expired-or-unknown preview state (the server collapses expired/used/malformed into one, so the copy does too)"
+  },
+  "invitePreviewUnavailableBody": "It may have expired or already been used. Ask your partner for a fresh code.",
+  "@invitePreviewUnavailableBody": {
+    "description": "Body of the expired-or-unknown preview state"
+  },
+  "joinEnterAnotherCode": "Enter a different code",
+  "@joinEnterAnotherCode": {
+    "description": "Affordance that clears the current code and returns to manual entry (from the unavailable state or a terminal join failure)"
+  },
+  "invitePreviewFailedBody": "We couldn't load this invitation. Please try again.",
+  "@invitePreviewFailedBody": {
+    "description": "Error copy when the invitePreview fetch itself fails (network/off-contract); retryable"
+  },
+  "joinErrorUnknownCode": "We couldn't find that code. Check it and try again.",
+  "@joinErrorUnknownCode": {
+    "description": "Join failure copy for a code that resolves to no invite (a typo); user-recoverable by re-entering"
+  },
+  "joinErrorExpired": "This invitation has expired. Ask your partner for a fresh code.",
+  "@joinErrorExpired": {
+    "description": "Join failure copy for an expired invite; terminal for this code"
+  },
+  "joinErrorConsumed": "Someone already used this code.",
+  "@joinErrorConsumed": {
+    "description": "Join failure copy for a code that was already redeemed (a reused code or the losing side of a join race)"
+  },
+  "joinErrorSelfJoin": "This is your own invite — share it with your partner instead.",
+  "@joinErrorSelfJoin": {
+    "description": "Join failure copy when the user tries to redeem their own invite code"
+  },
+  "joinErrorAlreadyPaired": "This account is already paired.",
+  "@joinErrorAlreadyPaired": {
+    "description": "Join failure copy when either the joiner or the creator already belongs to a couple"
+  },
+  "joinErrorProfileMissing": "Finish setting up your profile first.",
+  "@joinErrorProfileMissing": {
+    "description": "Join failure copy when a users/{uid} profile is missing; recoverable by completing onboarding"
+  },
+  "joinSkipForNow": "Not now",
+  "@joinSkipForNow": {
+    "description": "Post-auth dismiss affordance on the partner preview that clears the pending invite so the gate falls back to the share screen (M2.3)"
+  },
+  "pairedTitle": "You're paired",
+  "@pairedTitle": {
+    "description": "Title of the paired-home placeholder shown once a coupleId lands (the M3 daily-question screen's slot)"
+  },
+  "pairedBody": "Your daily questions begin here soon.",
+  "@pairedBody": {
+    "description": "Body of the paired-home placeholder, marking it the M3 daily-question slot"
   }
 }

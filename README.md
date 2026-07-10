@@ -54,3 +54,4 @@ This project runs on an agentic development loop. The rules are absolute:
 | `test-suite.md` | TDD strategy, coverage goals, CI validation |
 | `resume-prompt.md` | The ONE objective for the next session |
 | `past-prompts.md` | Append-only session history |
+| `operator-expected.md` | What the project needs from the founder, refreshed at every session close |

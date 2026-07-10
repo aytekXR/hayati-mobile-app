@@ -186,6 +186,46 @@ void main() {
       expect((captured.last as SetOptions?)?.merge, isTrue);
     });
 
+    test(
+      'a profile edit never writes coupleId, preserving the server value',
+      () async {
+        stubTransaction();
+        when(() => transaction.get<Map<String, dynamic>>(doc)).thenAnswer(
+          (_) async => snapshotWith({
+            'status': 'dating',
+            'contentLanguage': 'tr',
+            'register': 'playful',
+            'createdAt': Timestamp.fromMillisecondsSinceEpoch(1751980000000),
+            'coupleId': 'couple-1',
+          }),
+        );
+
+        // The domain object carries the server-owned coupleId (read via
+        // profileFromMap, preserved through copyWith, M2.3). Saving an edit must
+        // NOT emit it, and MUST merge — so the server's pairing survives even if
+        // the join landed between the read and this write.
+        const edited = RelationshipProfile(
+          status: RelationshipStatus.married,
+          contentLanguage: ContentLanguage.ar,
+          register: ContentRegister.respectful,
+          coupleId: 'couple-1',
+        );
+        await repository.saveProfile('uid-1', edited);
+
+        final captured = verify(
+          () => transaction.set<Map<String, dynamic>>(
+            doc,
+            captureAny(),
+            captureAny(),
+          ),
+        ).captured;
+        final data = captured.first as Map<String, Object?>;
+        expect(data.containsKey('coupleId'), isFalse);
+        // Omitting coupleId only preserves it because the write merges.
+        expect((captured.last as SetOptions?)?.merge, isTrue);
+      },
+    );
+
     test('maps rules denials to ProfilePermissionException', () {
       when(
         () => firestore.runTransaction<void>(

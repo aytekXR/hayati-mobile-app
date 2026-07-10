@@ -39,15 +39,69 @@ void main() {
         InviteNetworkException(),
         InvitePermissionException(),
         InviteUnknownException(),
+        InviteJoinUnknownCodeException(),
+        InviteJoinExpiredException(),
+        InviteJoinConsumedException(),
+        InviteJoinSelfJoinException(),
+        InviteJoinAlreadyPairedException(),
+        InviteJoinProfileMissingException(),
       ];
       for (final failure in failures) {
         final label = switch (failure) {
           InviteNetworkException() => 'network',
           InvitePermissionException() => 'permission',
           InviteUnknownException() => 'unknown',
+          InviteJoinUnknownCodeException() => 'join-unknown-code',
+          InviteJoinExpiredException() => 'join-expired',
+          InviteJoinConsumedException() => 'join-consumed',
+          InviteJoinSelfJoinException() => 'join-self',
+          InviteJoinAlreadyPairedException() => 'join-already-paired',
+          InviteJoinProfileMissingException() => 'join-profile-missing',
         };
         expect(label, isNotEmpty);
       }
+    });
+  });
+
+  group('join failure members', () {
+    test('each member is value-equal on its message', () {
+      expect(
+        const InviteJoinExpiredException(message: 'gone'),
+        const InviteJoinExpiredException(message: 'gone'),
+      );
+      expect(
+        const InviteJoinExpiredException(message: 'gone'),
+        isNot(const InviteJoinExpiredException(message: 'other')),
+      );
+      expect(
+        const InviteJoinConsumedException(message: 'used'),
+        const InviteJoinConsumedException(message: 'used'),
+      );
+    });
+
+    test(
+      'distinct members never compare equal, even with the same message',
+      () {
+        expect(
+          const InviteJoinExpiredException(message: 'x'),
+          isNot(const InviteJoinConsumedException(message: 'x')),
+        );
+        expect(
+          const InviteJoinSelfJoinException(message: 'x'),
+          isNot(const InviteJoinAlreadyPairedException(message: 'x')),
+        );
+      },
+    );
+
+    test('toString names the member for diagnostics', () {
+      expect(
+        const InviteJoinUnknownCodeException(message: 'nope').toString(),
+        contains('InviteJoinUnknownCodeException'),
+      );
+      expect(
+        const InviteJoinProfileMissingException().toString(),
+        contains('InviteJoinProfileMissingException'),
+      );
     });
   });
 }

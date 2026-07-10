@@ -74,10 +74,21 @@ async function seedAliceProfile(): Promise<void> {
   });
 }
 
+/** A real-shaped couple: exactly what the M2.3 join Function writes. */
 async function seedCouple(): Promise<void> {
   await seed('couples/couple-1', {
     memberUids: [ALICE, BOB],
     timezone: 'Europe/Istanbul',
+    createdAt: Timestamp.now(),
+  });
+}
+
+/** Seeds Alice already paired (users doc carries a coupleId), createdAt intact. */
+async function seedPairedAliceProfile(): Promise<void> {
+  await seed(`users/${ALICE}`, {
+    ...profileData,
+    coupleId: 'couple-1',
+    createdAt: Timestamp.now(),
   });
 }
 
@@ -162,6 +173,64 @@ describe('users/{uid}', () => {
     await seedAliceProfile();
     const alice = env.authenticatedContext(ALICE).firestore();
     await assertFails(deleteDoc(doc(alice, `users/${ALICE}`)));
+  });
+
+  // coupleId is authorization-meaningful (it keys couples/{coupleId} membership)
+  // and is written ONLY by the M2.3 join Function — a client may never
+  // introduce, change, or delete it (M2.3 freeze).
+  it('create is denied when the client includes coupleId', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, `users/${ALICE}`), {
+        ...profileData,
+        createdAt: serverTimestamp(),
+        coupleId: 'couple-x',
+      }),
+    );
+  });
+
+  it('a merge update that sets coupleId is denied (the app-write shape)', async () => {
+    await seedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    // The app persists profile edits via setDoc(..., {merge:true}); a client
+    // must not smuggle coupleId in through that same path.
+    await assertFails(
+      setDoc(
+        doc(alice, `users/${ALICE}`),
+        { register: 'playful', coupleId: 'couple-x' },
+        { merge: true },
+      ),
+    );
+  });
+
+  it('an update changing an existing coupleId is denied', async () => {
+    await seedPairedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { coupleId: 'couple-2' }),
+    );
+  });
+
+  it('an update deleting coupleId is denied', async () => {
+    await seedPairedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { coupleId: deleteField() }),
+    );
+  });
+
+  it('a merge update that omits coupleId still passes when the doc has one', async () => {
+    await seedPairedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    // Post-merge equality: get('coupleId', null) is unchanged on both sides, so
+    // an ordinary profile edit by an already-paired owner is allowed.
+    await assertSucceeds(
+      setDoc(
+        doc(alice, `users/${ALICE}`),
+        { register: 'playful' },
+        { merge: true },
+      ),
+    );
   });
 });
 
@@ -294,6 +363,39 @@ const MUTATIONS: Mutation[] = [
       return updateDoc(
         doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
         { createdAt: Timestamp.fromMillis(42) },
+      );
+    },
+  },
+  {
+    name: 'dropping the coupleId-at-create guard readmits client-set coupleId',
+    anchor: "&& !('coupleId' in request.resource.data)",
+    replacement: '',
+    demonstrate: (mutant) =>
+      setDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        {
+          ...profileData,
+          createdAt: serverTimestamp(),
+          coupleId: 'couple-x',
+        },
+      ),
+  },
+  {
+    name: 'dropping the coupleId-frozen guard readmits coupleId rewrites',
+    anchor:
+      "&& request.resource.data.get('coupleId', null) == resource.data.get('coupleId', null)",
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          coupleId: 'couple-1',
+          createdAt: Timestamp.now(),
+        });
+      });
+      return updateDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        { coupleId: 'couple-2' },
       );
     },
   },

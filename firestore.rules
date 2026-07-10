@@ -17,14 +17,21 @@ service cloud.firestore {
       // createdAt is create-once and server-stamped: the client transaction
       // sends FieldValue.serverTimestamp() on first write (M1.2,
       // FirestoreProfileRepository.saveProfile), which rules see as
-      // request.time.
+      // request.time. coupleId is authorization-meaningful — it is the key that
+      // grants access to couples/{coupleId} via memberUids — and is written
+      // ONLY by the M2.3 join Function (admin SDK), so a client may never
+      // introduce it at create.
       allow create: if isSelf(uid)
-        && request.resource.data.createdAt == request.time;
-      // Updates may never move createdAt. merge:true writes that omit it pass
-      // (request.resource.data is the post-merge document); a write that
-      // changes or deletes it is denied.
+        && request.resource.data.createdAt == request.time
+        && !('coupleId' in request.resource.data);
+      // Updates may never move createdAt, nor set/change/delete coupleId: a
+      // client must not pair (or re-pair) itself by writing the field the join
+      // Function owns. merge:true writes that omit these fields pass
+      // (request.resource.data is the post-merge document); get(...,null)
+      // compares the field or its absence on both sides symmetrically.
       allow update: if isSelf(uid)
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.get('coupleId', null) == resource.data.get('coupleId', null);
       // Hard delete is the M6 KVKK/PDPL cascade Function's job (admin SDK,
       // bypasses rules); clients never delete profile documents.
       allow delete: if false;

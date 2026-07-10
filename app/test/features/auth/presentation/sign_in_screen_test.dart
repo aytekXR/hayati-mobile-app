@@ -9,13 +9,18 @@ import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/presentation/phone_sign_in_screen.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
+import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
 import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
+import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_deep_link_source.dart';
+import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/localized_app.dart';
@@ -32,6 +37,7 @@ void main() {
     WidgetTester tester, {
     AuthUser? initialUser,
     RelationshipProfile? profile,
+    Uri? initialLink,
     Locale locale = const Locale('en'),
   }) async {
     final fake = FakeAuthRepository(initialUser: initialUser);
@@ -39,9 +45,18 @@ void main() {
       initialProfiles: {testUser.uid: ?profile},
     );
     final fakeInvites = FakeInviteRepository();
+    final fakePreviews = FakeInvitePreviewRepository();
+    // No pending deep-link code by default (the not-signed-in branch now watches
+    // pendingInviteProvider → deepLinkSourceProvider, which throws unoverridden):
+    // an empty source keeps the pending invite null so these tests see the plain
+    // auth shell. A non-null [initialLink] seeds a pending code so the pre-auth
+    // partner-preview branch renders instead.
+    final fakeDeepLinks = FakeDeepLinkSource(initialUri: initialLink);
     addTearDown(fake.dispose);
     addTearDown(fakeProfiles.dispose);
     addTearDown(fakeInvites.dispose);
+    addTearDown(fakePreviews.dispose);
+    addTearDown(fakeDeepLinks.dispose);
     await tester.pumpWidget(
       localizedApp(
         const SignInScreen(),
@@ -53,6 +68,8 @@ void main() {
           authRepositoryProvider.overrideWith((ref) => fake),
           profileRepositoryProvider.overrideWith((ref) => fakeProfiles),
           inviteRepositoryProvider.overrideWith((ref) => fakeInvites),
+          invitePreviewRepositoryProvider.overrideWith((ref) => fakePreviews),
+          deepLinkSourceProvider.overrideWith((ref) => fakeDeepLinks),
         ],
       ),
     );
@@ -199,6 +216,61 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.errorGeneric), findsOneWidget);
+    });
+  });
+
+  group('pre-auth partner preview', () {
+    testWidgets('a pending invite shows the preview BEFORE sign-in (the '
+        'activation moment)', (tester) async {
+      await pumpScreen(
+        tester,
+        initialLink: Uri.parse('hayati://invite/ABCD2345'),
+      );
+      await tester.pumpAndSettle();
+
+      // Who invited them, then the sign-in choice — not the plain auth shell.
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+      expect(find.text(en.invitePreviewInvitedBy('Aylin')), findsOneWidget);
+      expect(find.text(en.continueWithApple), findsOneWidget);
+    });
+
+    testWidgets('no pending invite keeps the plain auth shell', (tester) async {
+      await pumpScreen(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PartnerPreviewScreen), findsNothing);
+      expect(find.text(kBrandName), findsOneWidget);
+    });
+
+    testWidgets('a failed sign-in from the preview surfaces the error rather '
+        'than being swallowed by the pending invite', (tester) async {
+      final fake = await pumpScreen(
+        tester,
+        initialLink: Uri.parse('hayati://invite/ABCD2345'),
+      );
+      await tester.pumpAndSettle();
+      // The preview offers the sign-in providers (the activation moment).
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+
+      fake.onSignInWithGoogle = () async {
+        throw const AuthNetworkException(message: 'offline');
+      };
+      await tester.tap(find.text(en.continueWithGoogle));
+      await tester.pumpAndSettle();
+
+      // An AuthError falls through to the error view; it is NOT hidden behind
+      // the still-pending invite (finding 2).
+      expect(find.byType(PartnerPreviewScreen), findsNothing);
+      expect(find.text(en.signInFailedTitle), findsOneWidget);
+      expect(find.text(en.errorNetworkRetry), findsOneWidget);
+
+      // The invite is keepAlive, so a successful retry resumes the flow.
+      fake.onSignInWithGoogle = () async => testUser;
+      await tester.tap(find.text(en.continueWithGoogle));
+      await tester.pumpAndSettle();
+
+      // Fresh signup → onboarding; the pending invite waits behind capture.
+      expect(find.byType(ProfileCaptureScreen), findsOneWidget);
     });
   });
 

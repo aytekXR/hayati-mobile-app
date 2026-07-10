@@ -3,6 +3,7 @@
 // into the firestore emulator. Requires all three emulators:
 //   firebase emulators:exec --only auth,firestore,functions \
 //     --project demo-hayati 'cd functions && npm run test:ci'
+import { Timestamp } from 'firebase-admin/firestore';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { FUNCTIONS_REGION } from '../../src/invites/create-invite';
@@ -135,5 +136,28 @@ describe('createInvite callable (functions emulator)', () => {
     ).result;
     expect(c.code).toBe(a.code);
     expect(c.reused).toBe(true);
+  });
+
+  it("refuses to issue for an already-paired creator (FAILED_PRECONDITION / 'already-paired')", async () => {
+    // M2.3: once the caller is half of a couple, createInvite rejects with the
+    // same already-paired surface as joinInvite (one reason across both
+    // callables). The join Function is the only writer of coupleId; here we
+    // seed a paired profile with the admin SDK to stand in for a prior join.
+    const { idToken, localId } = await signUpUser();
+    await db.collection('users').doc(localId).set({
+      status: 'married',
+      contentLanguage: 'tr',
+      register: 'respectful',
+      coupleId: 'some-existing-couple',
+      createdAt: Timestamp.now(),
+    });
+
+    const response = await callCreateInvite(idToken);
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as {
+      error: { status: string; details?: { reason?: string } };
+    };
+    expect(body.error.status).toBe('FAILED_PRECONDITION');
+    expect(body.error.details?.reason).toBe('already-paired');
   });
 });

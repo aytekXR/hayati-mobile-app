@@ -55,6 +55,35 @@ void main() {
       expect(profile.copyWith(), profile);
     });
 
+    test('coupleId participates in equality and toString', () {
+      const paired = RelationshipProfile(
+        status: RelationshipStatus.married,
+        contentLanguage: ContentLanguage.tr,
+        register: ContentRegister.playful,
+        coupleId: 'couple-1',
+      );
+      expect(paired, isNot(profile)); // profile has coupleId null
+      expect(paired.hashCode, isNot(profile.hashCode));
+      expect(paired.toString(), contains('couple-1'));
+    });
+
+    test(
+      'copyWith preserves the server-owned coupleId (no param to clear it)',
+      () {
+        const paired = RelationshipProfile(
+          status: RelationshipStatus.married,
+          contentLanguage: ContentLanguage.tr,
+          register: ContentRegister.playful,
+          coupleId: 'couple-1',
+        );
+
+        // A client edit of a captured field must carry the pairing through.
+        final edited = paired.copyWith(status: RelationshipStatus.engaged);
+        expect(edited.coupleId, 'couple-1');
+        expect(edited.status, RelationshipStatus.engaged);
+      },
+    );
+
     test('captures the PRD F1 option sets exactly', () {
       // docs/prd.md F1: status dating/engaged/married; language tr/ar/en;
       // register playful/respectful. A new enum value must be a deliberate

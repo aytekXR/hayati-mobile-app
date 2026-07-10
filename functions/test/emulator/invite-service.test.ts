@@ -10,6 +10,7 @@ import {
   INVITE_CODE_LENGTH,
 } from '../../src/invites/invite-code';
 import {
+  CreatorAlreadyPairedError,
   INVITE_TTL_MS,
   InviteCodeSpaceExhaustedError,
   MAX_CODE_ATTEMPTS,
@@ -19,6 +20,7 @@ import { adminFirestore, clearFirestoreData } from '../support/admin';
 
 const db = adminFirestore();
 const invites = db.collection('invites');
+const users = db.collection('users');
 
 const CREATOR = 'creator-uid';
 /** Valid-charset codes used to seed collisions. */
@@ -143,5 +145,31 @@ describe('issueInvite', () => {
       .where('status', '==', 'pending')
       .get();
     expect(pending.size).toBe(1);
+  });
+
+  // M2.3 already-paired guard: coupleId on the creator's users doc blocks any
+  // new (or re-used) invite. A profile without coupleId, or no profile at all,
+  // keeps the M2.1 behavior (issue proceeds).
+  it('refuses to issue for an already-paired creator', async () => {
+    await users.doc(CREATOR).set({ coupleId: 'existing-couple' });
+    await expect(issueInvite(db, CREATOR)).rejects.toBeInstanceOf(
+      CreatorAlreadyPairedError,
+    );
+    const any = await invites.where('creatorUid', '==', CREATOR).get();
+    expect(any.empty).toBe(true);
+  });
+
+  it('still issues when the creator has a profile without a coupleId', async () => {
+    await users.doc(CREATOR).set({
+      status: 'married',
+      contentLanguage: 'tr',
+      register: 'respectful',
+      createdAt: Timestamp.now(),
+    });
+    const issued = await issueInvite(db, CREATOR);
+    expect(issued.reused).toBe(false);
+    expect((await invites.doc(issued.code).get()).data()!.creatorUid).toBe(
+      CREATOR,
+    );
   });
 });
