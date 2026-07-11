@@ -297,6 +297,17 @@ void main() {
     // rules-checked listeners that would otherwise error mid-switch.
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
+    // The pump above only SCHEDULES the listen cancels — they must reach the
+    // emulator before the auth switch below re-auths the session. With the
+    // M3.4 answerReveal trigger live on the same emulator pair the cancel
+    // round-trip got slow enough to race the switch (first post-merge main
+    // run, Session 014): the still-attached joiner-answer listen re-authed
+    // as the creator — not yet answered, so the reveal rule denies — and
+    // died as an unhandled permission error. Same wall-clock poll idiom as
+    // the render loop above; one second is far past the observed window.
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
 
     // --- A answers too: the reveal streams in for A immediately (A's own
     // answer exists, so A may watch B's doc).
