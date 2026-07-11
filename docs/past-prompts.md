@@ -435,8 +435,8 @@
 - **Adversarially-verified code review** (6 dimensions → 2-skeptic verify): **zero confirmed findings** — 5/6 finders returned empty; the single minor doc-phrasing finding was refuted 2/2. The pre-implementation design review is where the defects were caught this session; worth keeping that ordering.
 - **No operator action was required this session** (as the resume prompt stated); nothing new became blocking. The M4.2 dependency (RC account + ASC app record + a ≥256-bit webhook token) is flagged in operator-expected.
 
-**Commits:** `62e4e91` (ADR-013), `9523b60` (implementation checkpoint), `44cbdc6` (docs sync), close-sequence commit — PR (squash-merge) recorded on merge.
-**CI:** recorded at close after `gh pr checks` / `gh run watch`.
+**Commits:** `62e4e91` (ADR-013), `9523b60` (implementation checkpoint), `44cbdc6` (docs sync), `d0cac40` (session close) — **PR #38**, squash-merged.
+**CI:** PR #38 checks green; post-merge main run green (`gh run watch`).
 **Docs touched:** ADR-013 (+README index), architecture §3/§4/§8/§10, test-suite §1, implementation-plan (M4.1 progress), resume-prompt (regenerated → M4.2), operator-expected (close refresh), this file.
 **Notes / debt logged:**
 - Accepted gaps recorded in ADR-013 (none silent): purchase-before-pairing events skip loudly (M4.2's pairing-gated flow closes it); missed-RENEWAL asymmetry — the app's expiry check protects against a missed revocation but a webhook dropped past RC's ~155-min retry budget silently downgrades a payer until the M4.2+ RC-API reconciliation lands; `TRANSFER` no-op until the M4.3 gift flow.
