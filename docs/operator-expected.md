@@ -67,6 +67,16 @@ review confirmed five small findings, all fixed the same session.
   `Authorization` token must be a **long random string (≥256-bit)** — it is
   the only thing authenticating RevenueCat to our server. The session will
   generate one with you; don't reuse a human password.
+- **⚠️ NEW, and IRREVERSIBLE — when you create the subscription products,
+  leave "Family Sharing" OFF** (Session 017 / ADR-015). Apple's own
+  documentation is explicit: *once you turn on Family Sharing for an in-app
+  purchase, you can't turn it off.* We do not want it: it would require both
+  of you to be in the same Apple Family group (shared organizer + payment
+  method), and it would create a **second source of entitlement that our
+  server does not control** — while our own model already gives both partners
+  Premium from one purchase. This is a one-way door, so it is written down
+  **before** the products exist. If a session ever helps you create them, it
+  will re-check this with you.
 
 ## 1. Native review of the solo question content (before public launch)
 
