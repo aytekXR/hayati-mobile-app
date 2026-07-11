@@ -298,16 +298,19 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     // The pump above only SCHEDULES the listen cancels — they must reach the
-    // emulator before the auth switch below re-auths the session. With the
-    // M3.4 answerReveal trigger live on the same emulator pair the cancel
-    // round-trip got slow enough to race the switch (first post-merge main
-    // run, Session 014): the still-attached joiner-answer listen re-authed
-    // as the creator — not yet answered, so the reveal rule denies — and
-    // died as an unhandled permission error. Same wall-clock poll idiom as
-    // the render loop above; one second is far past the observed window.
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-    }
+    // emulator before switchTo's signOut re-auths every still-open listen as
+    // unauthenticated (denied → the async* rethrow in watchAnswer has no
+    // consumer left → unhandled). With the M3.4 answerReveal trigger live on
+    // the same emulator pair, the trigger invocation right after the save
+    // occupies the emulator exactly when these cancels arrive, and the race
+    // turned deterministic-red (post-merge main runs, Session 014). NOTE the
+    // settle must be a REAL delay: under the integration (live) binding,
+    // tester.pump(duration) does NOT sleep wall-clock — it just schedules the
+    // next frame — which is why a pump-loop "settle" changed nothing. This
+    // file runs real async (it awaits real HTTP/Firestore futures), so
+    // Future.delayed genuinely waits here.
+    await Future<void>.delayed(const Duration(seconds: 2));
+    await tester.pump();
 
     // --- A answers too: the reveal streams in for A immediately (A's own
     // answer exists, so A may watch B's doc).
