@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
+import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/daily_question/domain/couple.dart';
 import 'package:hayati_app/features/daily_question/domain/couple_answer.dart';
 import 'package:hayati_app/features/daily_question/domain/couple_answers_repository_provider.dart';
@@ -11,11 +13,17 @@ import 'package:hayati_app/features/daily_question/domain/question.dart';
 import 'package:hayati_app/features/daily_question/domain/question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_clock.dart';
 import 'package:hayati_app/features/daily_question/presentation/paired_home_screen.dart';
+import 'package:hayati_app/features/entitlements/domain/couple_entitlement.dart';
+import 'package:hayati_app/features/entitlements/domain/entitlement_repository_provider.dart';
+import 'package:hayati_app/features/entitlements/presentation/pack_selection_screen.dart';
+import 'package:hayati_app/features/entitlements/presentation/paywall_screen.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 
+import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_couple_answers_repository.dart';
 import '../../../support/fake_couple_day_repository.dart';
 import '../../../support/fake_couple_repository.dart';
+import '../../../support/fake_entitlement_repository.dart';
 import '../../../support/fake_question_pack_repository.dart';
 import '../../../support/localized_app.dart';
 
@@ -76,6 +84,17 @@ CoupleAnswer ackedAnswer(String text, {String questionId = 'paired_en_001'}) =>
       answeredAt: FakeCoupleAnswersRepository.answeredAtStamp,
     );
 
+/// An entitled, unexpired mirror for [coupleId] against [fixedNow] (the clock
+/// isPremium's expiry check reads).
+FakeEntitlementRepository premiumMirror() => FakeEntitlementRepository(
+  initialMirrors: {
+    coupleId: CoupleEntitlement(
+      entitled: true,
+      expiresAt: fixedNow.add(const Duration(days: 30)),
+    ),
+  },
+);
+
 void main() {
   final en = l10nFor(const Locale('en'));
 
@@ -85,6 +104,7 @@ void main() {
       FakeCoupleDayRepository days,
       FakeCoupleAnswersRepository answers,
       FakeQuestionPackRepository packs,
+      FakeEntitlementRepository entitlements,
     })
   >
   pumpPaired(
@@ -98,6 +118,10 @@ void main() {
     bool seedDefaultPack = true,
     DateTime? now,
     DateTime Function()? clock,
+    // The couple's entitlement mirror — an empty (free) mirror is the explicit
+    // default (ADR-014: explicit > incidental) so the packs tile reads a real
+    // `isPremium` false rather than the un-overridden throw→AsyncError path.
+    FakeEntitlementRepository? entitlements,
     Future<void> Function(
       String coupleId,
       String dayKey,
@@ -128,11 +152,18 @@ void main() {
       ..onSaveAnswer = onSaveAnswer;
     final packs = FakeQuestionPackRepository()..onLoadPack = onLoadPack;
     if (seedDefaultPack) packs.seedPack(pairedPack);
+    final mirrors = entitlements ?? FakeEntitlementRepository();
+    // Signed-in auth so the pushed PackSelectionScreen's auth listen resolves;
+    // inert for tests that never push it (PairedHomeScreen ignores auth).
+    final auth = FakeAuthRepository(initialUser: const AuthUser(uid: ownUid));
     addTearDown(couples.dispose);
     addTearDown(days.dispose);
     addTearDown(answers.dispose);
+    addTearDown(mirrors.dispose);
+    addTearDown(auth.dispose);
     // The clock seam: a mutable holder (`clock`) drives the app-resume re-key;
-    // everything else pins a fixed instant.
+    // everything else pins a fixed instant. The same clock backs isPremium's
+    // expiry check, so a premium mirror needs a future expiry against it.
     final clockFn = clock ?? (() => now ?? fixedNow);
     await tester.pumpWidget(
       localizedApp(
@@ -143,11 +174,19 @@ void main() {
           coupleDayRepositoryProvider.overrideWith((ref) => days),
           coupleAnswersRepositoryProvider.overrideWith((ref) => answers),
           questionPackRepositoryProvider.overrideWith((ref) => packs),
+          entitlementRepositoryProvider.overrideWith((ref) => mirrors),
+          authRepositoryProvider.overrideWith((ref) => auth),
           soloClockProvider.overrideWith((ref) => clockFn),
         ],
       ),
     );
-    return (couples: couples, days: days, answers: answers, packs: packs);
+    return (
+      couples: couples,
+      days: days,
+      answers: answers,
+      packs: packs,
+      entitlements: mirrors,
+    );
   }
 
   group('loading', () {
@@ -541,6 +580,115 @@ void main() {
         TextDirection.rtl,
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('packs tile (M4.2)', () {
+    Map<String, CoupleAnswer> bothAnswered() => {
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, ownUid):
+          ackedAnswer('My own thoughts.'),
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, partnerUid):
+          ackedAnswer('Partner reply here.'),
+    };
+
+    testWidgets('renders on the question view with the free subtitle + lock '
+        'when free', (tester) async {
+      // Revealed: the partner slot is an answer card (no lock of its own), so
+      // the only lock icon on screen is the tile's free-tier badge.
+      await pumpPaired(tester, initialAnswers: bothAnswered());
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.packsTileTitle), findsOneWidget);
+      expect(find.text(en.packsTileSubtitleFree), findsOneWidget);
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    });
+
+    testWidgets('drops the lock and shows the premium subtitle when premium', (
+      tester,
+    ) async {
+      await pumpPaired(
+        tester,
+        entitlements: premiumMirror(),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.packsTileSubtitlePremium), findsOneWidget);
+      expect(find.text(en.packsTileSubtitleFree), findsNothing);
+      expect(find.byIcon(Icons.lock_outline), findsNothing);
+    });
+
+    testWidgets('is ABSENT in the no-day-yet state', (tester) async {
+      await pumpPaired(tester, seedDay: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.pairedNoDayTitle), findsOneWidget);
+      expect(find.text(en.packsTileTitle), findsNothing);
+    });
+
+    testWidgets('tapping the tile pushes the pack selection screen', (
+      tester,
+    ) async {
+      await pumpPaired(tester, initialAnswers: bothAnswered());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(en.packsTileTitle));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PackSelectionScreen), findsOneWidget);
+    });
+  });
+
+  group('free tier untouched (M4.2 probes)', () {
+    testWidgets('the question card, entry, and slot render identically free vs '
+        'premium', (tester) async {
+      // Free.
+      await pumpPaired(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('EN paired question 1'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text(en.pairedPartnerLocked), findsOneWidget);
+
+      // Premium — the same finders hold (only the tile subtitle/lock differ).
+      await pumpPaired(tester, entitlements: premiumMirror());
+      await tester.pumpAndSettle();
+      expect(find.text('EN paired question 1'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text(en.pairedPartnerLocked), findsOneWidget);
+    });
+
+    testWidgets('the answer save flow completes with isPremium false', (
+      tester,
+    ) async {
+      final fakes = await pumpPaired(tester); // free mirror
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'A shared sunrise.  ');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, en.pairedAnswerSave));
+      await tester.pumpAndSettle();
+
+      expect(fakes.answers.saveCalls, 1);
+      expect(fakes.answers.savedTexts, ['A shared sunrise.']);
+      expect(find.text(en.pairedAnswerSavedCaption), findsOneWidget);
+      expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
+      // No paywall interstitial appeared in the loop.
+      expect(find.byType(PaywallScreen), findsNothing);
+    });
+
+    testWidgets('NO PaywallScreen is ever pushed while driving the full answer '
+        'flow (the interstitial probe)', (tester) async {
+      await pumpPaired(tester); // free
+      await tester.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'A shared sunrise.');
+      await tester.pump();
+      expect(find.byType(PaywallScreen), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, en.pairedAnswerSave));
+      await tester.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsNothing);
     });
   });
 }
