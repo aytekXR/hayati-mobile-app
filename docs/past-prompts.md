@@ -392,3 +392,29 @@
 - Founder items unchanged (operator-expected.md): native pack review, Blaze last-call, Apple+Phone providers, Mac slice, Slack rotation; plus the cross-project unhooked panic-button verification parked there by the interrupted session.
 
 **Next objective written to resume-prompt.md:** Session 014 — M3.4: streak engine + reveal-driven Functions (mutual-day record/revealedAt, streak with grace via the repo's first Firestore trigger, notification triggers emulator-side), closing M3 with the 64→66 ratchet.
+
+---
+
+## Session 014 — 2026-07-11 — M3.4: streak engine + reveal-driven Functions — mutual-day record, streak with grace, notification triggers, closing M3
+
+**Objective (from resume-prompt.md):** M3.4 — reveal trigger Function (the repo's first Firestore trigger) stamping `revealedAt` + updating `couples.streak` transactionally; streak semantics as property tests (THE M3 accept line); notification triggers' emulator-provable half behind a mocked send seam; streak display on the paired home; docs + M3 CLOSE with the 64→66 coverage ratchet.
+
+**Outcome:** done — M3 closed (4/4).
+- **ADR-012 decided + committed FIRST** (pre-workflow checkpoint discipline): trigger = `onDocumentCreated` + transactional `revealedAt` latch (amends ADR-011's metadata-only day-doc posture); streak = pure calendar math over couple-local dayKeys with weekly ISO grace refill (PRD F3 anchor); push policy = quiet hours 22–08 suppress, discreet default AR-ON (PRD F6), no question/answer text in ANY payload; `fcmTokens` read-side only.
+- **`answerReveal`** shipped with `retry: true`: exactly-once proven three ways in-process (duplicate re-drive, `Promise.all` two-answers race, forced read-write interleave via an awaited `beforeWrite` hook) on a trigger-isolated second emulator project (`demo-hayati-notrigger` — the live trigger races in-process drives otherwise; recorded in the toolchain note), plus a thin e2e proving the real emulator-delivered wire. Corrupt/absent state = typed loud skips, never a throw.
+- **Streak engine**: 38 fast-check property/unit tests (consecutive chains, same-day idempotence, gap resets, grace bridge, weekly refill incl. ISO week-numbering-year boundaries, older-day no-op, monotonicity, DST walks over all 7 parity zones), 100% branch coverage; `couples.streak` rules-frozen (symmetric absence) + mutation test.
+- **Notification layer**: pure payload policy (35 tests; privacy invariant holds by construction — `composePush` has no content parameter), `MessagingPort` seam + coverage-excluded FCM adapter, at-risk pass piggybacked on the hourly sweep at couple-local hour 20 with the couples read still done ONCE per sweep (bucketing extracted + shared).
+- **App**: `CoupleStreak` (zero-state parity with `INITIAL_STREAK`), revealed-state streak row (zero renders nothing), ARB plural `pairedStreak` TR/AR/EN, 6 `revealed_streak` golden cells, existing goldens byte-identical.
+- **Gates**: functions 379 tests / 97.91% stmts / 95.06% branches (gate 80); app 748 tests / 86.75% vs the **new 66 ratchet**; analyze clean.
+- **Adversarially-verified review** (5 dimensions → verify pass): 2 confirmed findings, both fixed — MAJOR: missing `retry: true` on the trigger registration (a systemic failure would silently lose the mutual day forever and poison the next streak fold; redelivery is latch-safe by construction); MINOR: ADR/docs overstated the reveal-push recipient (now: latch-winner's partner, best-effort under reordering). Rules-security and payload-privacy dimensions: zero findings. One streak-math finding refuted in verification.
+- **No operator action was required this session** (emulator-only, as the resume prompt stated); nothing new became blocking.
+
+**Commits:** `b3f363d` (ADR-012), `3e4040f` (implementation), `ede97aa` (ratchet 64→66), `502e5f8` (review fixes + M3-close docs) — PR #33, squash-merged.
+**CI:** green (PR checks + post-merge main run watched, incl. the M3.3 `daily_question_emulator_test` first post-merge run).
+**Docs touched:** ADR-012 (+README index), architecture §3/§4/§10, test-suite §1, implementation-plan (M3.4 + M3 ✅), resume-prompt (regenerated → M4.1), operator-expected (mid-session + close refresh), this file.
+**Notes / debt logged:**
+- **Working-tree incident (recovered, zero loss):** an external `git pull --autostash` from a concurrent process swept the entire uncommitted tree into `stash@{0}` mid-implementation — the exact Session 013 two-sessions hazard in a new costume. The trigger-lane agent recovered everything via `git restore` (no forbidden verbs), the full suite was re-verified green, the stash was diff-verified subsumed and dropped, and a hygiene addendum (checkpoint-commit the moment workflows return; never blind-`pop` a `gitPull auto-stash`) is now a standing note in resume-prompt.
+- Deferred loudly: `users.fcmTokens` app-side capture (on-device slice, operator item 4); APNs delivery (item 4); private thread → M5 scope selection; `invitePreview.questionText` → W9 couple packs (no couple question exists pre-join); partner display-name in push copy (needs an Auth lookup — name-free copy ships, degrades gracefully).
+- The at-risk push is best-effort with no dedup state (hourly cadence makes double-sends structurally absent; a manual re-drive of the same instant would double-send — documented, accepted).
+
+**Next objective written to resume-prompt.md:** Session 015 — M4.1: entitlements foundation — RevenueCat webhook Function → couple entitlement mirror (`subscriptions/{coupleId}`), subscriptions rules, app entitlement read seam; emulator-only (mocked RC events), no founder dependency; RC account + ASC app record flagged as becoming blocking at M4.2.
