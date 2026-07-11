@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/purchases_failure_mapper.dart';
 import '../../domain/purchase_exception.dart';
 import '../../domain/purchases_repository_provider.dart';
+import 'entitlement_providers.dart';
 import 'pending_purchase.dart';
 
 part 'paywall_purchase_controller.g.dart';
@@ -40,9 +41,13 @@ final class PaywallPurchaseFailure extends PaywallPurchaseState {
 /// dropped while one is in flight, and every await is followed by a
 /// `ref.mounted` guard (Riverpod 3). autoDispose + family by coupleId.
 ///
-/// On success the durable [PendingPurchase] flag is marked and the state returns
-/// to idle — a cancelled sheet returns to idle silently (not an error), a typed
-/// failure surfaces it, and a foreign error is mapped through the taxonomy.
+/// On success the durable [PendingPurchase] flag is marked — but only while the
+/// couple is still free: the flag bridges the not-yet-premium window and
+/// [PendingPurchase] clears it on the transition TO premium, so marking when
+/// already entitled would strand it set with nothing left to clear it. Then the
+/// state returns to idle — a cancelled sheet returns to idle silently (not an
+/// error), a typed failure surfaces it, and a foreign error is mapped through
+/// the taxonomy.
 @riverpod
 class PaywallPurchaseController extends _$PaywallPurchaseController {
   @override
@@ -55,7 +60,9 @@ class PaywallPurchaseController extends _$PaywallPurchaseController {
     try {
       await ref.read(purchasesRepositoryProvider).purchase(package);
       if (!ref.mounted) return;
-      ref.read(pendingPurchaseProvider(coupleId: coupleId).notifier).mark();
+      if (!ref.read(isPremiumProvider(coupleId: coupleId))) {
+        ref.read(pendingPurchaseProvider(coupleId: coupleId).notifier).mark();
+      }
       state = const PaywallPurchaseIdle();
     } on PurchaseCancelledException {
       if (!ref.mounted) return;
@@ -75,7 +82,9 @@ class PaywallPurchaseController extends _$PaywallPurchaseController {
     try {
       await ref.read(purchasesRepositoryProvider).restore();
       if (!ref.mounted) return;
-      ref.read(pendingPurchaseProvider(coupleId: coupleId).notifier).mark();
+      if (!ref.read(isPremiumProvider(coupleId: coupleId))) {
+        ref.read(pendingPurchaseProvider(coupleId: coupleId).notifier).mark();
+      }
       state = const PaywallPurchaseIdle();
     } on PurchaseCancelledException {
       if (!ref.mounted) return;

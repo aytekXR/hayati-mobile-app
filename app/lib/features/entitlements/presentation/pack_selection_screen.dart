@@ -32,7 +32,11 @@ class PackSelectionScreen extends ConsumerWidget {
 
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    // An empty app bar carries the back affordance for this always-pushed route
+    // (the packs tile pushes it over the paired home); the leading button
+    // appears because there is a route to pop.
     return Scaffold(
+      appBar: AppBar(),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

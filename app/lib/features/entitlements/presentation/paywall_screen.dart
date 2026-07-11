@@ -54,7 +54,13 @@ class PaywallScreen extends ConsumerWidget {
     // subtype; Riverpod 3 carries a previous error/value across states).
     final offering = ref.watch(paywallOfferingProvider);
     if (offering.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      // An empty app bar carries the back affordance for every state of this
+      // always-pushed route (showPaywall pushes it over the current screen);
+      // the leading button appears because there is a route to pop.
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
     final error = offering.error;
     if (error != null) {
@@ -85,6 +91,7 @@ class _EntitledView extends ConsumerWidget {
     );
     final inFlight = purchaseState is PaywallPurchaseInFlight;
     return Scaffold(
+      appBar: AppBar(),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -114,6 +121,19 @@ class _EntitledView extends ConsumerWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: SpacingTokens.x6),
+                if (purchaseState is PaywallPurchaseFailure) ...[
+                  _PurchaseFailureCard(
+                    text: _purchaseExceptionCopy(l10n, purchaseState.exception),
+                    onDismiss: () => ref
+                        .read(
+                          paywallPurchaseControllerProvider(
+                            coupleId: coupleId,
+                          ).notifier,
+                        )
+                        .dismissError(),
+                  ),
+                  const SizedBox(height: SpacingTokens.x3),
+                ],
                 TextButton(
                   onPressed: inFlight
                       ? null
@@ -199,6 +219,7 @@ class _PaywallLoadedViewState extends ConsumerState<_PaywallLoadedView> {
     );
 
     return Scaffold(
+      appBar: AppBar(),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -496,6 +517,7 @@ class _PaywallErrorView extends StatelessWidget {
         ? _purchaseExceptionCopy(l10n, error as PurchaseException)
         : l10n.errorGeneric;
     return Scaffold(
+      appBar: AppBar(),
       body: SafeArea(
         child: Center(
           child: Padding(

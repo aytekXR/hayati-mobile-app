@@ -521,6 +521,21 @@ void main() {
       expect(find.byIcon(Icons.favorite), findsOneWidget);
     });
 
+    testWidgets('revealed under a PREMIUM mirror renders the streak row '
+        'identically (never hidden for premium)', (tester) async {
+      await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4),
+        initialAnswers: bothAnswered(),
+        entitlements: premiumMirror(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      expect(find.text(en.pairedStreak(4)), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+    });
+
     testWidgets('revealed with the zero streak renders NOTHING (honest '
         'display — trigger lag must not show a zero)', (tester) async {
       // Default couple = CoupleStreak.zero (count 0).

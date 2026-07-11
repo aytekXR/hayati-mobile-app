@@ -210,6 +210,29 @@ void main() {
       // No buy buttons at all.
       expect(find.byType(FilledButton), findsNothing);
     });
+
+    testWidgets('a restore failure surfaces a dismissable error', (
+      tester,
+    ) async {
+      final env = arrange(
+        mirrors: FakeEntitlementRepository(
+          initialMirrors: {_coupleId: _entitledMirror()},
+        ),
+        purchases: FakePurchasesRepository()
+          ..onRestore = () async => throw const PurchaseNetworkException(),
+      );
+      await pumpPaywall(tester, env.overrides);
+      await tester.pumpAndSettle();
+
+      // Restore is the only action on the entitled view (no buy CTA).
+      await tester.tap(find.widgetWithText(TextButton, en.paywallRestore));
+      await tester.pumpAndSettle();
+      expect(find.text(en.errorNetworkRetry), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(find.text(en.errorNetworkRetry), findsNothing);
+    });
   });
 
   group('purchase flow', () {
@@ -357,6 +380,47 @@ void main() {
       auth.emit(null);
       await tester.pumpAndSettle();
       expect(find.byType(PaywallScreen), findsNothing);
+    });
+  });
+
+  group('pending flag durability', () {
+    testWidgets('the processing banner survives a pop and re-push — the '
+        'keepAlive flag outlives the route teardown', (tester) async {
+      final env = arrange();
+      await tester.pumpWidget(
+        localizedApp(
+          Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => showPaywall(context, coupleId: _coupleId),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+          overrides: env.overrides,
+        ),
+      );
+
+      // Push the paywall and complete a purchase; the free mirror never flips
+      // (no webhook), so the flag marks and the processing banner shows.
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, en.paywallCtaTrial));
+      await tester.pumpAndSettle();
+      expect(find.text(en.paywallProcessing), findsOneWidget);
+
+      // Pop via the pushed route's new app-bar back affordance.
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsNothing);
+
+      // Re-push through the same button: the keepAlive flag survived, so the
+      // banner is still there (the buy buttons are not resurrected on re-push).
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text(en.paywallProcessing), findsOneWidget);
     });
   });
 }
