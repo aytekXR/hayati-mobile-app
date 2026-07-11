@@ -23,6 +23,7 @@ dependencies:
   google_sign_in: ^7.2.0
   http: ^1.6.0
   intl: any
+  purchases_flutter: ^10.4.1
   riverpod_annotation: ^3.0.3
   share_plus: ^13.2.0
   sign_in_with_apple: ^8.1.0
