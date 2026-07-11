@@ -178,4 +178,8 @@ secret**, then rework/land the branch.
   with first seasonal content), the rollover schedule trigger + answerReveal
   production-retry behavior (deploy-verified at first Blaze deploy),
   `users.fcmTokens` app-side capture + APNs delivery (item 4), private
-  thread (M5 scope selection), `invitePreview.questionText` (W9).
+  thread (M5 scope selection), `invitePreview.questionText` (W9), and one
+  quarantined test (ci-debt #36): the app-side reveal round-trip integration
+  test trips a test-harness listener race since the trigger landed — skipped
+  with the invariant still fully proven by the per-PR rules + functions
+  suites; structural fix documented in the issue.
