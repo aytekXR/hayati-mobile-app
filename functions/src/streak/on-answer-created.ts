@@ -62,8 +62,9 @@ export function makeOnAnswerCreatedHandler(
     } catch (error) {
       // handleAnswerCreated returns a typed skip for every corrupt/absent state,
       // so only a genuinely systemic failure (e.g. Firestore unavailable) reaches
-      // here; log it. Delivery is at-least-once and the reveal is idempotent, so
-      // a redelivery re-drives the same latch safely.
+      // here; log it and rethrow so the retry:true registration below gets a
+      // redelivery — the idempotent latch makes the re-drive safe, and without
+      // the rethrow-plus-retry pair the mutual day would be silently lost.
       logger.error('answer_reveal: trigger failed', {
         coupleId,
         dayKey,
@@ -79,6 +80,16 @@ export const answerReveal = onDocumentCreated(
   {
     region: FUNCTIONS_REGION,
     document: 'couples/{coupleId}/days/{dayKey}/answers/{authorUid}',
+    // retry:true is LOAD-BEARING (Session 014 review finding): without it a
+    // systemic failure (Firestore transiently unavailable, transaction aborted
+    // past its internal retries) is acked-and-dropped — and since both answer
+    // docs are immutable post-reveal (M3.3 rules) no create event ever fires
+    // again for this day, so the mutual day would be lost FOREVER and poison
+    // the next applyMutualDay as a phantom missed day. Redelivery is safe by
+    // construction: data-shape problems return typed skips (never throw, so
+    // they can't loop), the revealedAt latch makes the transaction idempotent,
+    // and pushes are emitted only by the invocation whose transaction commits.
+    retry: true,
     // Explicit ceilings: one transaction over a handful of docs plus one
     // best-effort send — tiny work, but pin the wall-clock and memory so a
     // misbehaving send can never run unbounded (the transactional invariant

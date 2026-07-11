@@ -67,6 +67,14 @@ are best-effort: a benign race can nudge a partner whose own answer is
 milliseconds from committing; the transactional invariant above is what must
 never break, and delivery timing is not part of it.
 
+The registration sets **`retry: true`** (Session 014 review finding): the
+handler converts every data-shape problem into a typed non-throwing skip, so
+a throw means a genuinely systemic failure — and because post-reveal answer
+docs are immutable, no create event would ever re-fire for that day. Without
+retry, one dropped event would lose the mutual day forever and poison the
+next streak fold as a phantom missed day. The latch makes redelivery safe by
+construction, which is exactly what earns the retry flag.
+
 This **amends ADR-011's metadata-only day-doc posture**: the day doc surface
 is now `{questionId, packId, packVersion, assignedAt, revealedAt?}` — still
 assignment/lifecycle metadata only, still zero answer content, still
@@ -120,8 +128,12 @@ APNs/on-device delivery remains operator-expected item 4):
   has not answered. Fires only POST-first-answer — this deliberately reveals
   "your partner answered", which the M3.3 no-existence-oracle posture
   explicitly permits as a push (never as a loosened read rule).
-- **Reveal push** (trigger, latch winner): to the *first* answerer — the
-  second answerer is in-app at that moment.
+- **Reveal push** (trigger, latch winner): to the partner of the
+  latch-winning invocation's author — in the common sequential case that is
+  the *first* answerer (the second answerer is in-app at that moment).
+  Reordered/delayed trigger delivery can make either invocation win, so the
+  exact recipient is best-effort, consistent with the push posture above; the
+  guarantee is *one* reveal push, not *whose*.
 - **Streak-at-risk** (sweep): **piggybacked on the hourly `questionRollover`
   sweep**, not a separate schedule — the sweep already buckets every couple
   by stored timezone each hour, so a second scheduled Function would
