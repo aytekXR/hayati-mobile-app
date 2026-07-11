@@ -69,6 +69,7 @@
   "pairedNoDayBody": "سؤال اليوم في الطريق — يصل بُعيد منتصف ليلكما.",
   "pairedPackUpdateTitle": "حدِّث حياتي",
   "pairedPackUpdateBody": "سؤال اليوم يحتاج إلى إصدار أحدث من التطبيق.",
+  "pairedStreak": "{count, plural, one{سلسلة يوم واحد} two{سلسلة يومين} few{سلسلة {count} أيام} many{سلسلة {count} يومًا} other{سلسلة {count} يوم}}",
   "soloDayProgress": "اليوم {day} من 7",
   "soloAnswerHint": "اكتب إجابتك…",
   "soloAnswerSave": "حفظ الإجابة",

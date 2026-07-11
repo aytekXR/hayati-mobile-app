@@ -19,7 +19,14 @@ export default defineConfig({
       // executes inside the Functions emulator/runtime process, which v8
       // coverage cannot observe. Everything with logic lives in modules that
       // ARE covered in-process.
-      exclude: ['src/index.ts'],
+      //
+      // notifications/fcm-adapter.ts is the same class of runtime-only wiring:
+      // the production MessagingPort over firebase-admin/messaging (getMessaging
+      // has no emulator), so its send() is never observed in-process — the
+      // in-process suites inject a fake MessagingPort instead (ADR-012). All
+      // decidable notification logic lives in the covered pure modules
+      // (payload-policy, local-hour, recipients).
+      exclude: ['src/index.ts', 'src/notifications/fcm-adapter.ts'],
       reporter: ['text', 'lcov'],
       // test-suite.md §3: Functions target 85%, HARD FAIL below 80. Thresholds
       // here are the hard gate; the 85% target is reviewed per PR, not enforced.

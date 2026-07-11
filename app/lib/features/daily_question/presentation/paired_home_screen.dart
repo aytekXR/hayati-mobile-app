@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../domain/couple.dart';
 import '../domain/couple_answer.dart';
 import '../domain/couple_data_exception.dart';
 import '../domain/couple_day.dart';
@@ -206,6 +207,9 @@ class _PairedHomeScreenState extends ConsumerState<PairedHomeScreen>
       question: question,
       persisted: own.value,
       slot: slot,
+      // Live server truth off the couple doc (ADR-012); the revealed section
+      // shows it only when it is a real, positive streak.
+      streak: coupleData.streak,
     );
   }
 }
@@ -221,6 +225,7 @@ class _PairedQuestionView extends ConsumerStatefulWidget {
     required this.question,
     required this.persisted,
     required this.slot,
+    required this.streak,
   });
 
   final String uid;
@@ -233,6 +238,10 @@ class _PairedQuestionView extends ConsumerStatefulWidget {
   final CoupleAnswer? persisted;
 
   final PartnerSlot slot;
+
+  /// The couple's live streak (ADR-012). Rendered only in the revealed state,
+  /// and only when [CoupleStreak.count] > 0 (see [build]).
+  final CoupleStreak streak;
 
   @override
   ConsumerState<_PairedQuestionView> createState() =>
@@ -301,6 +310,16 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
                 ),
                 const SizedBox(height: SpacingTokens.x6),
                 if (revealed) ...[
+                  // The couple's mutual-day streak (M3.4, ADR-012): a modest
+                  // marker shown ONLY here (revealed) and ONLY when count > 0.
+                  // A zero count renders nothing — reveal-trigger lag or a
+                  // not-yet-deployed trigger must not surface as a real streak
+                  // (which is exactly why every existing revealed golden, whose
+                  // fixture couple has the zero streak, stays byte-identical).
+                  if (widget.streak.count > 0) ...[
+                    _StreakRow(count: widget.streak.count),
+                    const SizedBox(height: SpacingTokens.x3),
+                  ],
                   // Frozen by rules once both answered: read-only own card.
                   _AnswerCard(
                     label: l10n.pairedRevealedCaption,
@@ -468,6 +487,39 @@ class _AnswerCard extends StatelessWidget {
           Text(text, style: theme.textTheme.bodyMedium),
         ],
       ),
+    );
+  }
+}
+
+/// The couple's mutual-day streak as a modest, centered row (M3.4, ADR-012 /
+/// PRD F3). A display slot only — deliberately NOT a celebration screen (that
+/// is M5 polish): no animation, no gold, just the pomegranate heart (the
+/// couple's bond) and the localized "N-day streak" caption. The caller gates
+/// on [count] > 0, so this never renders a zero streak.
+class _StreakRow extends StatelessWidget {
+  const _StreakRow({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.favorite, size: 18, color: theme.colorScheme.primary),
+        const SizedBox(width: SpacingTokens.x2),
+        // Flexible so a long localized/scaled caption wraps instead of
+        // overflowing the centered row.
+        Flexible(
+          child: Text(
+            l10n.pairedStreak(count),
+            style: theme.textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
     );
   }
 }

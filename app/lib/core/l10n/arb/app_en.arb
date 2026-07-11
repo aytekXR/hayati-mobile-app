@@ -299,6 +299,16 @@
   "@pairedPackUpdateBody": {
     "description": "Body of the pack-lag state"
   },
+  "pairedStreak": "{count, plural, =1{1-day streak} other{{count}-day streak}}",
+  "@pairedStreak": {
+    "description": "Modest streak marker on the revealed paired home (M3.4, ADR-012): the couple's consecutive mutual-day count. Shown ONLY in the revealed state and ONLY when count > 0 (a zero count renders nothing).",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "4"
+      }
+    }
+  },
   "soloDayProgress": "Day {day} of 7",
   "@soloDayProgress": {
     "description": "Progress caption above the solo reflection question (M2.4 solo week, day 1-7)",

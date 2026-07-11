@@ -69,8 +69,12 @@ service cloud.firestore {
     // dayKey-load-bearing on BOTH sides (the rollover buckets by it, the app
     // computes the couple dayKey from it — ADR-011), so a member rewriting it
     // to junk would brick the couple's daily loop; createdAt keeps the same
-    // server-stamp discipline as users. Zone changes move behind a future
-    // settings Function, like membership changes.
+    // server-stamp discipline as users. Since M3.4 (ADR-012) streak is frozen
+    // too, in the symmetric-absence form: the field does not exist until the
+    // first mutual day and is written ONLY by the answerReveal trigger (admin
+    // SDK, bypasses rules), so a client may never introduce, change, or delete
+    // it — get('streak', null) compares the field or its absence on both sides.
+    // Zone changes move behind a future settings Function, like membership changes.
     match /couples/{coupleId} {
       allow read: if request.auth != null
         && request.auth.uid in resource.data.memberUids;
@@ -78,6 +82,7 @@ service cloud.firestore {
         && request.auth.uid in resource.data.memberUids
         && request.resource.data.memberUids == resource.data.memberUids
         && request.resource.data.timezone == resource.data.timezone
+        && request.resource.data.get('streak', null) == resource.data.get('streak', null)
         && request.resource.data.createdAt == resource.data.createdAt;
       allow create, delete: if false;
 

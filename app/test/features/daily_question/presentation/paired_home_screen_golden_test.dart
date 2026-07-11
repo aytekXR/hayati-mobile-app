@@ -43,6 +43,17 @@ const _couple = Couple(
   timezone: _timezone,
 );
 
+/// Same couple with a positive server streak (M3.4, ADR-012). Only the
+/// revealed-with-streak cells use it; every other cell keeps [_couple], whose
+/// default [CoupleStreak.zero] renders no streak row — so those goldens stay
+/// byte-identical to the M3.3 matrix.
+const _coupleWithStreak = Couple(
+  id: _coupleId,
+  memberUids: [_ownUid, _partnerUid],
+  timezone: _timezone,
+  streak: CoupleStreak(count: 4, lastMutualDate: '20260709', graceTokens: 1),
+);
+
 /// The couple bank is `solo_tr` until W9 (ADR-011 placeholder), so the day
 /// doc assigns from it — every cell renders the REAL shipped `solo_tr`
 /// question regardless of the profile locale (the locale only drives the UI
@@ -72,8 +83,9 @@ void main() {
     bool seedDay = false,
     CoupleAnswer? ownAnswer,
     CoupleAnswer? partnerAnswer,
+    Couple couple = _couple,
   }) {
-    final couples = FakeCoupleRepository(initialCouples: {_coupleId: _couple});
+    final couples = FakeCoupleRepository(initialCouples: {_coupleId: couple});
     final days = FakeCoupleDayRepository(
       initialDays: seedDay
           ? {FakeCoupleDayRepository.keyFor(_coupleId, _dayKey): _assignment}
@@ -212,6 +224,38 @@ void main() {
         find.byType(PairedHomeScreen),
         matchesGoldenFile(
           goldenFile('paired_home_screen', 'revealed', cell.suffix),
+        ),
+      );
+    });
+  }
+
+  // Revealed AND the couple has a positive streak: the modest N-day streak row
+  // renders above the read-only own card (M3.4, ADR-012). The `revealed` cells
+  // above use the zero-streak couple and render no row — so this is the ONLY
+  // state whose goldens carry the streak, and the existing revealed goldens
+  // stay byte-identical.
+  for (final cell in sixCells) {
+    testWidgets('revealed_streak ${cell.suffix}', (tester) async {
+      final overrides = arrange(
+        seedDay: true,
+        couple: _coupleWithStreak,
+        ownAnswer: answerOf(_ownAnswerText),
+        partnerAnswer: answerOf(_partnerAnswerText),
+      );
+
+      await pumpGolden(
+        tester,
+        const PairedHomeScreen(uid: _ownUid, coupleId: _coupleId),
+        locale: cell.locale,
+        direction: cell.direction,
+        overrides: overrides,
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(PairedHomeScreen),
+        matchesGoldenFile(
+          goldenFile('paired_home_screen', 'revealed_streak', cell.suffix),
         ),
       );
     });

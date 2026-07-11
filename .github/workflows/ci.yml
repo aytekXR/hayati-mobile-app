@@ -104,8 +104,9 @@ jobs:
         run: flutter test --coverage
       - name: coverage gate
         # Threshold ratchets +2% per milestone (test-suite.md §3); never lowered:
-        # 60 → 62 at M1 close (Session 006) → 64 at M2 close (Session 010).
-        run: dart tool/coverage_gate.dart --min 64 app/coverage/lcov.info
+        # 60 → 62 at M1 close (Session 006) → 64 at M2 close (Session 010)
+        # → 66 at M3 close (Session 014).
+        run: dart tool/coverage_gate.dart --min 66 app/coverage/lcov.info
       # Goldens are Linux-canonical (rendered/verified in this ubuntu job); on a
       # mismatch the comparator writes diffs to failures/ next to the test, so
       # upload them to make a red golden inspectable without re-running locally.

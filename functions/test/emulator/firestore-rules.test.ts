@@ -85,6 +85,16 @@ async function seedCouple(): Promise<void> {
   });
 }
 
+/** A couple that already carries a streak (post-first-mutual-day, M3.4). */
+async function seedCoupleWithStreak(): Promise<void> {
+  await seed('couples/couple-1', {
+    memberUids: [ALICE, BOB],
+    timezone: 'Europe/Istanbul',
+    createdAt: Timestamp.now(),
+    streak: { count: 3, lastMutualDate: '20260709', graceTokens: 1 },
+  });
+}
+
 /** Seeds Alice already paired (users doc carries a coupleId), createdAt intact. */
 async function seedPairedAliceProfile(): Promise<void> {
   await seed(`users/${ALICE}`, {
@@ -394,6 +404,41 @@ describe('couples/{coupleId}', () => {
       updateDoc(doc(alice, 'couples/couple-1'), {
         createdAt: Timestamp.fromMillis(42),
       }),
+    );
+  });
+
+  // M3.4 (ADR-012): streak is written ONLY by the answerReveal trigger (admin
+  // SDK), so a member may never introduce, change, or delete it — the freeze is
+  // symmetric on absence (the field does not exist until the first mutual day).
+  it('streak is frozen: a member cannot introduce it (M3.4 — admin trigger owns it)', async () => {
+    await seedCouple(); // no streak yet
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, 'couples/couple-1'), {
+        streak: { count: 5, lastMutualDate: '20260710', graceTokens: 0 },
+      }),
+    );
+  });
+
+  it('streak is frozen: a member cannot change or delete an existing streak', async () => {
+    await seedCoupleWithStreak();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, 'couples/couple-1'), {
+        streak: { count: 999, lastMutualDate: '20260709', graceTokens: 1 },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(alice, 'couples/couple-1'), { streak: deleteField() }),
+    );
+  });
+
+  it('a member update that leaves streak untouched still passes (symmetric absence)', async () => {
+    await seedCoupleWithStreak();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    // Editing an unfrozen field: get('streak', null) is unchanged on both sides.
+    await assertSucceeds(
+      updateDoc(doc(alice, 'couples/couple-1'), { packConfig: { packId: 'solo_tr' } }),
     );
   });
 
@@ -1262,6 +1307,24 @@ const MUTATIONS: Mutation[] = [
       return updateDoc(
         doc(mutant.authenticatedContext(ALICE).firestore(), 'couples/couple-1'),
         { createdAt: Timestamp.fromMillis(42) },
+      );
+    },
+  },
+  {
+    // M3.4 streak freeze (ADR-012): streak is admin-trigger-owned. Dropping the
+    // symmetric-absence freeze readmits a client introducing/forging it — the
+    // seeded couple has no streak, so a member writing one must succeed only
+    // under the mutant. Newline+8-space anchor pins the couples clause (the
+    // byte-different 'coupleId' get() freeze lives in the users block).
+    name: 'dropping the couples streak freeze readmits client streak writes',
+    anchor:
+      "\n        && request.resource.data.get('streak', null) == resource.data.get('streak', null)",
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      return updateDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), 'couples/couple-1'),
+        { streak: { count: 999, lastMutualDate: '20260710', graceTokens: 0 } },
       );
     },
   },
