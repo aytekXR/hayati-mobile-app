@@ -6,3 +6,11 @@ coverage/
 
 # Functions-emulator debris when started from this directory
 *.log
+
+# Secrets never land in git (ADR-013: the real RC_WEBHOOK_TOKEN lives in
+# Cloud Secret Manager). The ONE exception is the demo-emulator dotenv file,
+# which carries only the well-known test token and binds only when the
+# emulator runs as demo-hayati.
+.env*
+.secret.local
+!.env.demo-hayati

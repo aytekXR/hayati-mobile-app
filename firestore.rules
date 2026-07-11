@@ -4,8 +4,8 @@ rules_version = '2';
 // Every allow below is proven by the emulator rules suite in
 // functions/test/emulator/firestore-rules.test.ts, including mutation tests
 // that show the suite goes red if a guard here is weakened. Collections not
-// matched (questions, subscriptions, coach_sessions) stay denied until
-// the milestone that introduces them ships rules WITH tests.
+// matched (questions, coach_sessions) stay denied until the milestone that
+// introduces them ships rules WITH tests; subscriptions has a block since M4.1.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSelf(uid) {
@@ -153,6 +153,22 @@ service cloud.firestore {
           allow delete: if false; // answers: reveal gate is one-way (M6 cascade deletes)
         }
       }
+    }
+
+    // M4.1 (ADR-013): subscriptions/{coupleId} is the couple's entitlement
+    // mirror — RevenueCat webhook events projected onto one couple-scoped doc
+    // so a single purchase entitles both partners and expiry downgrades both
+    // (architecture.md §3, §4). The revenueCatWebhook Function is the SOLE
+    // writer via the admin SDK (which bypasses rules), so EVERY client write is
+    // denied — create/update/delete alike. Reads are member-only via the parent
+    // couple's memberUids (the doc id IS the coupleId, the M3.2 days pattern);
+    // an orphaned mirror doc under a deleted couple fails closed because the
+    // membership get() finds nothing. Delete belongs to the M6 KVKK/PDPL
+    // cascade Function, never a client.
+    match /subscriptions/{coupleId} {
+      allow read: if request.auth != null
+        && request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;
+      allow write: if false; // subscriptions: function-only (revenueCatWebhook, admin SDK)
     }
 
     // Invites are function-write-only AND function-read-only: createInvite

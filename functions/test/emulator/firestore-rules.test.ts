@@ -755,6 +755,81 @@ describe('couples/{coupleId}/days/{dayKey}/answers/{authorUid}', () => {
   });
 });
 
+describe('subscriptions/{coupleId}', () => {
+  const SUB_PATH = 'subscriptions/couple-1';
+
+  // The entitlement mirror the revenueCatWebhook admin SDK writes (ADR-013
+  // Decision 5): couple-level summary fields + per-uid lanes + a server stamp.
+  const subscriptionData = () => ({
+    entitled: true,
+    productId: 'premium_annual',
+    periodType: 'NORMAL',
+    expiresAtMs: 1_799_999_999_000,
+    willRenew: true,
+    store: 'APP_STORE',
+    environment: 'PRODUCTION',
+    lanes: {
+      [ALICE]: {
+        entitled: true,
+        productId: 'premium_annual',
+        periodType: 'NORMAL',
+        expiresAtMs: 1_799_999_999_000,
+        willRenew: true,
+        store: 'APP_STORE',
+        environment: 'PRODUCTION',
+        entitlementIds: ['premium'],
+        lastEventId: 'evt-uuid-1',
+        lastEventTimestampMs: 1_750_000_000_000,
+        updatedAtMs: 1_750_000_000_000,
+      },
+    },
+    updatedAt: Timestamp.now(),
+  });
+
+  async function seedSubscription(): Promise<void> {
+    await seedCouple();
+    await seed(SUB_PATH, subscriptionData());
+  }
+
+  it('members read the mirror; non-members and anonymous cannot', async () => {
+    await seedSubscription();
+    await assertSucceeds(
+      getDoc(doc(env.authenticatedContext(ALICE).firestore(), SUB_PATH)),
+    );
+    await assertSucceeds(
+      getDoc(doc(env.authenticatedContext(BOB).firestore(), SUB_PATH)),
+    );
+    await assertFails(
+      getDoc(doc(env.authenticatedContext(CHARLIE).firestore(), SUB_PATH)),
+    );
+    await assertFails(
+      getDoc(doc(env.unauthenticatedContext().firestore(), SUB_PATH)),
+    );
+  });
+
+  it('a mirror doc under a missing parent couple is unreadable (fails closed)', async () => {
+    // Orphaned mirror: parent couple never seeded. The membership get() finds
+    // no couple, so the read must deny — corrupt state stays dark, matching
+    // the M3.2 days/answers fail-closed discipline.
+    await seed(SUB_PATH, subscriptionData());
+    await assertFails(
+      getDoc(doc(env.authenticatedContext(ALICE).firestore(), SUB_PATH)),
+    );
+  });
+
+  it('no client writes at all — not even members (webhook admin SDK is sole writer)', async () => {
+    // The revenueCatWebhook Function owns every write; create/update/delete are
+    // all denied for a member (ADR-013 Decision 5, delete = M6 cascade).
+    await seedCouple();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(setDoc(doc(alice, SUB_PATH), subscriptionData()));
+
+    await seed(SUB_PATH, subscriptionData());
+    await assertFails(updateDoc(doc(alice, SUB_PATH), { entitled: false }));
+    await assertFails(deleteDoc(doc(alice, SUB_PATH)));
+  });
+});
+
 describe('invites/{code}', () => {
   const inviteData = () => ({
     creatorUid: ALICE,
@@ -1325,6 +1400,78 @@ const MUTATIONS: Mutation[] = [
       return updateDoc(
         doc(mutant.authenticatedContext(ALICE).firestore(), 'couples/couple-1'),
         { streak: { count: 999, lastMutualDate: '20260710', graceTokens: 0 } },
+      );
+    },
+  },
+  {
+    // M4.1 subscriptions: the entitlement mirror is admin-SDK-only. Swapping the
+    // write-deny for an authed-allow must readmit a client-written mirror doc —
+    // proving the deny clause is the net, not an accident of the catch-all.
+    name: 'allowing authed subscription writes readmits client-written mirror docs',
+    anchor:
+      'allow write: if false; // subscriptions: function-only (revenueCatWebhook, admin SDK)',
+    replacement: 'allow write: if request.auth != null;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+      });
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          'subscriptions/couple-1',
+        ),
+        {
+          entitled: true,
+          productId: 'client-forged',
+          periodType: 'NORMAL',
+          expiresAtMs: 1_799_999_999_000,
+          willRenew: true,
+          store: 'APP_STORE',
+          environment: 'PRODUCTION',
+          lanes: {},
+          updatedAt: Timestamp.now(),
+        },
+      );
+    },
+  },
+  {
+    // M4.1 subscriptions: weakening the member-only read to bare auth must
+    // readmit a non-member read. The multi-line anchor pins the subscriptions
+    // block — its membership-get() line is byte-identical to the M3.2 days read
+    // (which .replace would hit first), so the match line disambiguates.
+    name: 'dropping the subscriptions membership guard readmits non-member mirror reads',
+    anchor:
+      'match /subscriptions/{coupleId} {\n      allow read: if request.auth != null\n        && request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;',
+    replacement:
+      'match /subscriptions/{coupleId} {\n      allow read: if request.auth != null;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+        await setDoc(doc(context.firestore(), 'subscriptions/couple-1'), {
+          entitled: true,
+          productId: 'premium_annual',
+          periodType: 'NORMAL',
+          expiresAtMs: 1_799_999_999_000,
+          willRenew: true,
+          store: 'APP_STORE',
+          environment: 'PRODUCTION',
+          lanes: {},
+          updatedAt: Timestamp.now(),
+        });
+      });
+      return getDoc(
+        doc(
+          mutant.authenticatedContext(CHARLIE).firestore(),
+          'subscriptions/couple-1',
+        ),
       );
     },
   },
