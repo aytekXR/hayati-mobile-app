@@ -7,63 +7,40 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-11, Session 014 close (M3.4 — streak engine +
-reveal-driven Functions; **M3 CLOSED**)._
+_Last refreshed: 2026-07-11, Session 015 close (M4.1 — entitlements
+foundation; **M4 opened, 1/3**)._
 
-## Expected from you right now: **nothing is blocking.**
+## Expected from you right now: **nothing is blocking — but the next session can use item 0.**
 
-Session 014 closed M3: your daily loop now **produces the streak**. When you
-both answer, a server trigger (the repo's first) stamps the day revealed and
-folds the couple streak — consecutive days count up, one missed day is
-bridged by the weekly "mercy day" token (PRD F3), longer gaps reset. The
-paired home shows the streak on the revealed card. The notification logic
-(partner-answered nudge, reveal push, streak-at-risk at 20:00 your local
-evening, quiet hours 22:00–08:00, discreet mode defaulting ON for Arabic) is
-fully built and emulator-proven — but **no push reaches a phone until the
-APNs/Mac slice (item 4)**, which is unchanged and not urgent. Nothing was
-needed from you this session and nothing new became blocking.
+Session 015 built the money plumbing's server half, entirely emulator-side:
+a webhook Function now translates RevenueCat's purchase/renewal/cancellation/
+expiry events into a couple-scoped entitlement record — **one purchase will
+unlock premium for BOTH of you, and an expiry downgrades both** — proven
+against replayed, duplicated, and out-of-order events (payments infrastructure
+is where event chaos actually happens). The app can now ask "is this couple
+premium?" through one provider; nothing in the UI changes yet because there
+is no paywall to show — that's the next session. Nothing was needed from you
+this session. The design was adversarially reviewed *before* implementation
+(it caught a genuine would-have-been-costly bug: a failed credit card with no
+grace period configured would have minted permanent free premium) and the
+code review after implementation confirmed zero findings.
 
-**One heads-up, not yet due:** the next sessions start M4 (paywall/
-entitlements). Session 015 (M4.1) needs nothing from you (mocked webhook
-events). **M4.2 will need a RevenueCat account + an App Store Connect app
-record** (the latter needs your Apple Developer enrollment) — that's the
-first NEW founder dependency on the horizon; it will be called out again
-before it blocks.
+## 0. NEW and now useful: RevenueCat account + App Store Connect app record (M4.2 wants it, M4.3 needs it)
 
-Session 013 shipped M3.3 entirely emulator-side: **your daily loop now
-closes** — the paired home shows the day's server-assigned question, each of
-you answers, and the partner's answer stays server-side-unreadable until your
-own exists (the M3 accept-line invariant, proven with mutation tests: weaken
-the rule and the suite goes red), then streams in live; once both exist the
-day is revealed and both answers freeze. The app computes the couple's day
-from the couple's STORED timezone (never the device zone), byte-pinned to the
-server by a shared Dart↔TS parity fixture. `couples.timezone` is now
-rules-frozen (a member rewrite would have bricked the loop). Until the W9
-couple packs land, the questions are your 7 solo questions (`solo_tr`,
-ADR-011) — you will recognize them; that is the accepted dogfooding posture
-(and one more reason item 1 below pays off twice). One session-013 note for
-you: two Claude sessions briefly ran concurrently on this milestone (an old
-tmux window `uh` was still alive); it was detected, stopped, and cost
-nothing — all work was reconciled and verified from scratch.
-
-The next session (`docs/resume-prompt.md`: **M4.1 — entitlements
-foundation**, RevenueCat webhook → couple entitlement mirror) is emulator-only
-with mocked webhook events. Start it as usual, nothing from you required.
-
-**Plan tracking:** M0 ✅ · M1 ✅ · M2 ✅ · **M3 ✅** · M4–M6 pending →
-**13/22 session-units (59%) in 14 sessions — 9 planned session-units
-remain** (M4: 3 · M5: 3 · M6: 3; M6.5 Android follow-on sits outside the
-22-unit MVP count, timed by Gate 3). **On track — no plan or scope changes in
-Session 014** (M1's +1 session remains the only slippage ever). Readiness:
-**pre-MVP, emulator/CI-proven** — pairing loop, solo week, content pipeline,
-the FULL daily loop (server assignment + answer + mutual reveal), and now the
-streak engine + notification logic are green end-to-end; still nothing
-deployed (Spark) and nothing on-device (items 2–4 below own that path, then
-M6). One incident, no cost: a concurrent process ran `git pull --autostash`
-on the repo mid-session and swept uncommitted work into a stash — it was
-detected, fully recovered, verified green, and the session hygiene rules now
-guard against it; worth knowing if you keep an IDE or a second agent open on
-this repo.
+- **What:** (a) create a free **RevenueCat account** (revenuecat.com — takes
+  minutes, just an email; name the project Hayati and note the iOS API key);
+  (b) once your **Apple Developer enrollment** (promised 2026-07-08) lands,
+  create the **App Store Connect app record** for `com.hayati.app` and the
+  subscription products (the session will spec the TR/SAR/USD tiers with you).
+- **Why:** Session 016 (M4.2, the paywall) builds UI + purchase plumbing
+  against mocked store data and **does not block on this** — but the
+  live-sandbox proof (a real test purchase flipping premium on both phones)
+  needs both, and M4.3 (gift flow + sandbox accept lines) hard-requires them.
+- **One security note for later (ADR-013):** when the RC *webhook* is
+  eventually configured (that's a deploy-time item, see item 2), its
+  `Authorization` token must be a **long random string (≥256-bit)** — it is
+  the only thing authenticating RevenueCat to our server. The session will
+  generate one with you; don't reuse a human password.
 
 ## 1. Native review of the solo question content (before public launch)
 
@@ -84,27 +61,29 @@ this repo.
   AR pack needs your Gulf reviewer contact.
 - **Extra weight since M3.2:** these same 7 questions are the **couple**
   question bank placeholder too (`packConfig` absent → `solo_tr`, ADR-011)
-  until the W9 couple packs are authored — your own paired daily loop will
-  serve them, so edits pay off twice.
+  until the W9 couple packs are authored — your own paired daily loop serves
+  them, so edits pay off twice.
 
 ## 2. Blaze plan decision — **last call, optional bonus otherwise**
 
 - **What:** upgrading `hayatiapp-dev`/`hayatiapp-prod` from Spark (free) to
   **Blaze** (pay-as-you-go) — deploying Cloud Functions requires it.
-- **Status:** five Functions now (`createInvite`, `invitePreview`,
-  `joinInvite`, the scheduled **`questionRollover`**, and since M3.4 the
-  Firestore-triggered **`answerReveal`**), all emulator-proven; **nothing
-  deployed yet.** Deploy-verified-only pieces: the rollover's *schedule
-  trigger* (Cloud Scheduler — the emulator has none) and `answerReveal`'s
-  production retry behavior (Eventarc redelivery; the trigger *delivery*
-  itself IS emulator-proven end-to-end). All handler/service logic is fully
-  proven in-process.
+- **Status:** six Functions now (`createInvite`, `invitePreview`,
+  `joinInvite`, the scheduled `questionRollover`, the Firestore-triggered
+  `answerReveal`, and since M4.1 the **`revenueCatWebhook`**), all
+  emulator-proven; **nothing deployed yet.** Deploy-verified-only pieces: the
+  rollover's *schedule trigger* (Cloud Scheduler), `answerReveal`'s
+  production retry (Eventarc redelivery), and now the webhook's **Secret
+  Manager binding** (`RC_WEBHOOK_TOKEN`) + its public URL for the RC
+  dashboard. All handler/service logic is fully proven in-process.
 - **When needed:** the optional first deploy + real-device pairing test (which
   also needs your Mac, so on-device stays a bonus either way). Hard requirement
-  at latest before the first TestFlight build (M6).
+  at latest before the first TestFlight build (M6) — and the RC webhook can
+  only be configured against a deployed URL, so the live entitlement loop
+  (real sandbox purchase → both phones premium) waits on this too.
 - **Cost posture:** couple-scoped workload ≈ near-zero at dev scale — the
-  hourly sweep reads O(couples) docs (architecture §10); budget alerts at $
-  thresholds (`architecture.md` §10).
+  hourly sweep reads O(couples) docs and the webhook is O(1) per event
+  (`architecture.md` §10); budget alerts at $ thresholds.
 
 ## 3. Enable Apple + Phone sign-in providers (open since M1.3)
 
@@ -129,6 +108,8 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
   device half (APNs registration + the app-side `fcmTokens` capture, which
   was deliberately deferred to this slice) is what turns them into real
   pushes on your phones.
+- **App Store Connect app record** — now doubly needed: TestFlight (M6) and
+  the M4.2/M4.3 subscription products (item 0).
 - **dSYM upload** for prod Crashlytics symbolication.
 - **Issue #15**: capture the native crash log for the phone-auth emulator
   suite on the iOS simulator.
@@ -162,24 +143,28 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 014 close)
+## Progress & readiness snapshot (as of Session 015 close)
 
-- **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · **M3 ✅** · M4–M6 pending — 13/22
-  session-units (59%) in 14 sessions; 9 planned session-units left to the
-  MVP (M6 close). On track, no scope changes.
+- **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 1/3** · M5–M6
+  pending — **14/22 session-units (64%) in 15 sessions; 8 planned
+  session-units left to the MVP** (M4: 2 · M5: 3 · M6: 3; M6.5 Android
+  follow-on sits outside the 22-unit MVP count, timed by Gate 3). On track,
+  no plan or scope changes in Session 015 (M1's +1 session remains the only
+  slippage ever).
 - **Readiness:** pre-MVP, emulator/CI-proven. Auth, profile+rules, the whole
-  pairing loop, the unpaired solo week, the content pipeline, and the FULL
-  daily loop — server assignment, answer, server-gated mutual reveal, streak
-  with grace (property-tested incl. DST), and the notification logic (quiet
-  hours + discreet mode, payload-privacy-proven) — are green against
-  emulators and CI. Nothing deployed (Spark), nothing on-device
-  (Mac/enrollment pending) — items 1–4 above + M4–M6 are the path to "runs
-  on your phones". Deferred loudly: seasonal question windows (issue #29,
-  with first seasonal content), the rollover schedule trigger + answerReveal
-  production-retry behavior (deploy-verified at first Blaze deploy),
-  `users.fcmTokens` app-side capture + APNs delivery (item 4), private
-  thread (M5 scope selection), `invitePreview.questionText` (W9), and one
-  quarantined test (ci-debt #36): the app-side reveal round-trip integration
-  test trips a test-harness listener race since the trigger landed — skipped
-  with the invariant still fully proven by the per-PR rules + functions
-  suites; structural fix documented in the issue.
+  pairing loop, the unpaired solo week, the content pipeline, the FULL daily
+  loop (server assignment → answer → server-gated mutual reveal → streak
+  with grace), the notification logic, and now the **entitlement backbone**
+  (RC webhook → couple mirror → app premium decision point, replay/
+  out-of-order-proven) are green against emulators and CI. Nothing deployed
+  (Spark), nothing on-device (Mac/enrollment pending) — items 0–4 above +
+  M4.2–M6 are the path to "runs on your phones with a working paywall".
+  Deferred loudly: seasonal question windows (issue #29), the schedule
+  trigger + Eventarc retry + webhook Secret Manager binding
+  (deploy-verified at first Blaze deploy), `users.fcmTokens` capture + APNs
+  (item 4), RC-API reconciliation/backfill for webhooks dropped past RC's
+  ~155-minute retry budget (ADR-013; scheduled with the deploy era),
+  private thread (M5 scope selection), `invitePreview.questionText` (W9),
+  gift flow + `TRANSFER` events (M4.3), and two quarantined tests (ci-debt
+  #36 reveal round-trip listener race, #15 phone-auth simulator crash — at
+  the >2-forces-stabilization threshold, not over it).
