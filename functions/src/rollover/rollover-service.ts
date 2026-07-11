@@ -68,6 +68,57 @@ export function isAlreadyExists(error: unknown): boolean {
 }
 
 /**
+ * A couple that survived field validation, placed in its stored-timezone bucket.
+ * Carries the raw couple doc `data` so the at-risk push pass (notifications/at-risk)
+ * can read `streak`/`memberUids` off the SAME snapshot with no couples re-read —
+ * the ADR-012 D3 hard constraint of exactly one couples read per sweep.
+ */
+export interface BucketedCouple {
+  coupleId: string;
+  packId: string;
+  data: FirebaseFirestore.DocumentData;
+}
+
+/**
+ * THE single couples read per sweep, bucketed by stored timezone, plus the
+ * field-validation skips. The handler computes this ONCE (bucketCouplesByTimezone)
+ * and threads it into BOTH the assignment pass (runQuestionRollover) and the
+ * at-risk pass (runStreakAtRisk), so the second push check adds zero couples reads.
+ */
+export interface CoupleBuckets {
+  buckets: Map<string, BucketedCouple[]>;
+  /** Couples that failed timezone/packConfig validation — assignment-domain skips. */
+  skips: { coupleId: string; error: unknown }[];
+}
+
+/**
+ * The single `couples` collection read of a sweep (ADR-012 D3): list every couple
+ * once, validate its stored timezone + packId, and bucket by timezone. A couple
+ * whose timezone/packConfig cannot drive an assignment is returned as a SKIP (never
+ * thrown) for the assignment pass to log+count — the at-risk pass then never sees
+ * an unbucketable couple. Extracted from runQuestionRollover so the handler can
+ * compute the buckets once and share them across both passes.
+ */
+export async function bucketCouplesByTimezone(db: Firestore): Promise<CoupleBuckets> {
+  const buckets = new Map<string, BucketedCouple[]>();
+  const skips: { coupleId: string; error: unknown }[] = [];
+  const couples = await db.collection('couples').get();
+  for (const doc of couples.docs) {
+    try {
+      const data = doc.data();
+      const timezone = coupleTimezone(doc.id, data);
+      const packId = resolvePackId(doc.id, data);
+      const bucket = buckets.get(timezone) ?? [];
+      bucket.push({ coupleId: doc.id, packId, data });
+      buckets.set(timezone, bucket);
+    } catch (error) {
+      skips.push({ coupleId: doc.id, error });
+    }
+  }
+  return { buckets, skips };
+}
+
+/**
  * The couple's configured packId: absent packConfig falls back to
  * DEFAULT_PACK_ID; a PRESENT but malformed packConfig throws — presence with
  * junk must not masquerade as the default (ADR-011 decision 3).
@@ -141,15 +192,19 @@ export async function assignDayQuestion(
 }
 
 /**
- * One sweep over all couples for the instant `at` (the scheduled hour):
- * bucket by stored timezone, compute each bucket's local date once, assign
- * create-if-absent. Throws only on systemic failure (e.g. couples
- * unlistable); per-couple errors are logged skips in the summary.
+ * One sweep over all couples for the instant `at` (the scheduled hour): bucket by
+ * stored timezone, compute each bucket's local date once, assign create-if-absent.
+ * Reads the couples collection itself when called standalone (the M3.2 shape), OR
+ * consumes a `precomputed` bucketing when the handler already did the single read
+ * and shares it with the at-risk pass (ADR-012 D3). Never throws for a per-couple
+ * problem — those are logged skips in the summary; a systemic failure (couples
+ * unlistable, when reading standalone) still escapes.
  */
 export async function runQuestionRollover(
   db: Firestore,
   at: Date,
   loadPack: PackLoader = loadQuestionPack,
+  precomputed?: CoupleBuckets,
 ): Promise<RolloverSummary> {
   const summary: RolloverSummary = {
     assigned: 0,
@@ -167,18 +222,11 @@ export async function runQuestionRollover(
     });
   };
 
-  const couples = await db.collection('couples').get();
-  const buckets = new Map<string, { coupleId: string; packId: string }[]>();
-  for (const doc of couples.docs) {
-    try {
-      const timezone = coupleTimezone(doc.id, doc.data());
-      const packId = resolvePackId(doc.id, doc.data());
-      const bucket = buckets.get(timezone) ?? [];
-      bucket.push({ coupleId: doc.id, packId });
-      buckets.set(timezone, bucket);
-    } catch (error) {
-      skip(doc.id, error);
-    }
+  const { buckets, skips } = precomputed ?? (await bucketCouplesByTimezone(db));
+  // Field-validation failures (bad timezone/packConfig) are assignment-domain skips
+  // — surfaced here exactly as the inline bucketing loop did before the extraction.
+  for (const { coupleId, error } of skips) {
+    skip(coupleId, error);
   }
   summary.buckets = buckets.size;
 

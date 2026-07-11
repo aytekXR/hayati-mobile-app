@@ -444,6 +444,93 @@ void main() {
     });
   });
 
+  group('streak (M3.4)', () {
+    // A couple carrying a positive server streak (ADR-012). The revealed state
+    // shows it; every other state must not.
+    Couple coupleWithStreak(int count) => Couple(
+      id: coupleId,
+      memberUids: const [ownUid, partnerUid],
+      timezone: istanbul,
+      streak: CoupleStreak(
+        count: count,
+        lastMutualDate: '20260709',
+        graceTokens: 1,
+      ),
+    );
+
+    Map<String, CoupleAnswer> bothAnswered() => {
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, ownUid):
+          ackedAnswer('My own thoughts.'),
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, partnerUid):
+          ackedAnswer('Partner reply here.'),
+    };
+
+    testWidgets('revealed with count > 0 shows the localized N-day streak', (
+      tester,
+    ) async {
+      await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+
+      // Sanity: we are in the revealed state.
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      // The streak row: exact localized copy + its heart marker.
+      expect(find.text(en.pairedStreak(4)), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+    });
+
+    testWidgets('revealed with the zero streak renders NOTHING (honest '
+        'display — trigger lag must not show a zero)', (tester) async {
+      // Default couple = CoupleStreak.zero (count 0).
+      await pumpPaired(tester, initialAnswers: bothAnswered());
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
+      // Even the count-0 caption must never appear (guards against a `>= 0`
+      // gate regression).
+      expect(find.text(en.pairedStreak(0)), findsNothing);
+    });
+
+    testWidgets('locked (pre-answer) hides the streak even with a positive '
+        'count', (tester) async {
+      await pumpPaired(tester, couple: coupleWithStreak(4));
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.pairedPartnerLocked), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.text(en.pairedStreak(4)), findsNothing);
+    });
+
+    testWidgets('waiting (own answered, partner not) hides the streak', (
+      tester,
+    ) async {
+      await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4),
+        initialAnswers: {
+          FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, ownUid):
+              ackedAnswer('My own thoughts.'),
+        },
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
+    });
+
+    testWidgets('no-day-yet hides the streak', (tester) async {
+      await pumpPaired(tester, couple: coupleWithStreak(4), seedDay: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.pairedNoDayTitle), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
+    });
+  });
+
   group('locale', () {
     testWidgets('renders RTL under an Arabic locale', (tester) async {
       await pumpPaired(tester, locale: const Locale('ar'));

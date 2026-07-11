@@ -69,6 +69,7 @@
   "pairedNoDayBody": "Bugünün sorusu yolda — gece yarınızdan kısa süre sonra gelir.",
   "pairedPackUpdateTitle": "Hayati'yi güncelle",
   "pairedPackUpdateBody": "Bugünün sorusu uygulamanın daha yeni bir sürümünü gerektiriyor.",
+  "pairedStreak": "{count, plural, other{{count} günlük seri}}",
   "soloDayProgress": "{day}. gün / 7",
   "soloAnswerHint": "Cevabını yaz…",
   "soloAnswerSave": "Cevabı kaydet",

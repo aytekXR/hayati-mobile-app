@@ -68,6 +68,36 @@ void main() {
       );
     });
 
+    test('carries the server-owned streak submap into the aggregate '
+        '(M3.4)', () async {
+      // The wire path threads the couple doc's `streak` field through the DTO
+      // (ADR-012) — a doc with no streak already maps to the zero state above,
+      // so this pins the present-field case end to end.
+      when(coupleDoc.snapshots).thenAnswer(
+        (_) => Stream.value(
+          snapshotWith({
+            'memberUids': ['uid-1', 'uid-2'],
+            'timezone': 'Europe/Istanbul',
+            'streak': {
+              'count': 4,
+              'lastMutualDate': '20260709',
+              'graceTokens': 1,
+            },
+          }),
+        ),
+      );
+
+      final couple = await repository.watchCouple('couple-1').first;
+      expect(
+        couple!.streak,
+        const CoupleStreak(
+          count: 4,
+          lastMutualDate: '20260709',
+          graceTokens: 1,
+        ),
+      );
+    });
+
     test('emits null while the couple doc is absent', () async {
       when(
         coupleDoc.snapshots,

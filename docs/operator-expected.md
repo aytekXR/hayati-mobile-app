@@ -7,9 +7,21 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-11, Session 013 (M3.3 — answer → mutual reveal)._
+_Last refreshed: 2026-07-11, Session 014 IN PROGRESS (M3.4 — streak engine +
+reveal-driven Functions; mid-session checkpoint at founder request — the
+session-close refresh will finalize this file)._
 
 ## Expected from you right now: **nothing is blocking.**
+
+**Session 014 status (live):** design decisions committed (ADR-012: reveal
+trigger + streak/grace semantics + push payload policy); implementation
+running emulator-only as planned — streak engine property tests, notification
+payload policy (quiet hours + discreet mode), app streak display, then the
+reveal trigger + rules freeze. **Nothing is expected from you for this
+session** ("External dependencies (founder): none" per the session prompt);
+APNs/on-device push delivery stays item 4 below, exactly as before — the
+push half ships emulator-proven behind a mocked send seam, device-verifiable
+later like everything else. No plan or scope changes so far.
 
 Session 013 shipped M3.3 entirely emulator-side: **your daily loop now
 closes** — the paired home shows the day's server-assigned question, each of
