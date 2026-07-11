@@ -7,10 +7,27 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-11, Session 016 close (M4.2 — paywall UI +
-free-tier gating; **M4 2/3**)._
+_Last refreshed: 2026-07-12, Session 017 start (M4.3 — gift flow + `TRANSFER`
+handling; **M4 3/3 engineering**). Previous refresh: Session 016 close._
 
-## Expected from you right now: **nothing blocked this session — but item 0 is now the LAST thing standing between the app and a real test purchase.**
+## Session 017 operator check (2026-07-12, at session start)
+
+**No operator action is required for this session to proceed.** The session
+checked item 0 first (as its own plan mandated): there is still **no
+RevenueCat account and no App Store Connect app record** — no RC key material
+exists on the machine and nothing changed since the Session 016 close. Session
+017 therefore takes the planned fork and runs **autonomously on the
+engineering half** (`TRANSFER` event handling + the gift-flow decision + M4
+close bookkeeping).
+
+**What that costs you:** nothing today — but **M4's final accept line (a real
+sandbox purchase in the TR + SA storefronts flipping Premium on both phones)
+cannot be proven until item 0 exists.** M4 will be marked honestly as
+"engineering complete, sandbox proof pending operator item 0", not silently
+closed. Item 0 is unchanged and still the single highest-value thing you can
+do.
+
+## Expected from you right now: **nothing blocking — but item 0 is the LAST thing standing between the app and a real test purchase.**
 
 Session 016 built the surface that sells: the app now has a real **paywall**
 (annual-first, 7-day-trial messaging, "one subscription — Premium for both of
