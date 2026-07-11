@@ -460,8 +460,8 @@
 - **Gates:** app **900 tests / 86.50%** (gate 66), analyze + rtl-lint clean, goldens deterministic; functions untouched-green **486 tests / 98% stmts / 95.7% branches** (gate 80) via `emulators:exec` from repo root.
 - **No operator action was required this session**; item 0 (RC account + ASC record) is now the last thing standing before a real sandbox purchase and is re-flagged NOW DUE for M4.3.
 
-**Commits:** `1bb8dac` (ADR-014 draft + pubspec pin), `f2ccd0d` (ADR hardened by pre-code review), `1f518f2` (foundation), `b378a25` (UI + goldens), `fefae03` (verified-review fixes), + session-close docs commit — PR #39.
-**CI:** (recorded at close after `gh pr checks` / merge / `gh run watch`.)
+**Commits:** `1bb8dac` (ADR-014 draft + pubspec pin), `f2ccd0d` (ADR hardened by pre-code review), `1f518f2` (foundation), `b378a25` (UI + goldens), `fefae03` (verified-review fixes), `fd24c28` (session-close docs) — PR #40, squash-merged.
+**CI:** PR #40 checks green first try (functions-rules 1m43s, quality 2m39s, ios-build-smoke 5m14s; integration-emulator skips per-PR by design); post-merge main run green (`gh run watch`).
 **Docs touched:** ADR-014 (+README index), architecture §4 (entitlements flow M4.2 status), test-suite §1 (paywall/pack goldens + fake-SDK seam + free-tier probes), implementation-plan (M4.2 ✅), resume-prompt (regenerated → M4.3 with the item-0 fork), operator-expected (item 0 NOW DUE + paywall-copy review sub-item + snapshot 15/22 = 68%), this file.
 **Notes / debt logged (none silent):**
 - Identity-sync cursor-reset-on-failure hardening deliberately deferred to the first live-key session (dormant without a key; self-heals on relaunch) — ADR-014 Consequences + resume-prompt out-of-scope line.
