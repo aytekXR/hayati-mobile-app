@@ -91,11 +91,7 @@ void main() {
     test('maps a present streak submap into the domain', () {
       final couple = coupleFromMap('couple_1', {
         ...validCouple(),
-        'streak': {
-          'count': 4,
-          'lastMutualDate': '20260709',
-          'graceTokens': 1,
-        },
+        'streak': {'count': 4, 'lastMutualDate': '20260709', 'graceTokens': 1},
       });
 
       expect(
@@ -110,8 +106,7 @@ void main() {
 
     test('rejects a non-map streak loudly', () {
       expect(
-        () =>
-            coupleFromMap('couple_1', {...validCouple(), 'streak': 'nope'}),
+        () => coupleFromMap('couple_1', {...validCouple(), 'streak': 'nope'}),
         throwsFormatException,
       );
     });
@@ -159,11 +154,7 @@ void main() {
         expect(
           () => coupleFromMap('couple_1', {
             ...validCouple(),
-            'streak': {
-              'count': 4,
-              'lastMutualDate': bad,
-              'graceTokens': 1,
-            },
+            'streak': {'count': 4, 'lastMutualDate': bad, 'graceTokens': 1},
           }),
           throwsFormatException,
           reason: 'lastMutualDate=$bad must fail loudly',
