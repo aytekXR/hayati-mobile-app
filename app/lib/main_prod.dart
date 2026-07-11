@@ -27,6 +27,8 @@ import 'features/daily_question/domain/couple_repository_provider.dart';
 import 'features/daily_question/domain/question_pack_repository_provider.dart';
 import 'features/daily_question/domain/solo_answers_repository_provider.dart';
 import 'features/daily_question/domain/solo_question_pack_repository_provider.dart';
+import 'features/entitlements/data/firestore_entitlement_repository.dart';
+import 'features/entitlements/domain/entitlement_repository_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
 import 'features/pairing/data/functions_invite_repository.dart';
 import 'features/pairing/data/http_invite_preview_repository.dart';
@@ -106,6 +108,11 @@ Future<void> main() async {
       ),
       coupleAnswersRepositoryProvider.overrideWith(
         (ref) => FirestoreCoupleAnswersRepository(
+          firestore: FirebaseFirestore.instance,
+        ),
+      ),
+      entitlementRepositoryProvider.overrideWith(
+        (ref) => FirestoreEntitlementRepository(
           firestore: FirebaseFirestore.instance,
         ),
       ),
