@@ -7,35 +7,44 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-11, Session 015 close (M4.1 — entitlements
-foundation; **M4 opened, 1/3**)._
+_Last refreshed: 2026-07-11, Session 016 close (M4.2 — paywall UI +
+free-tier gating; **M4 2/3**)._
 
-## Expected from you right now: **nothing is blocking — but the next session can use item 0.**
+## Expected from you right now: **nothing blocked this session — but item 0 is now the LAST thing standing between the app and a real test purchase.**
 
-Session 015 built the money plumbing's server half, entirely emulator-side:
-a webhook Function now translates RevenueCat's purchase/renewal/cancellation/
-expiry events into a couple-scoped entitlement record — **one purchase will
-unlock premium for BOTH of you, and an expiry downgrades both** — proven
-against replayed, duplicated, and out-of-order events (payments infrastructure
-is where event chaos actually happens). The app can now ask "is this couple
-premium?" through one provider; nothing in the UI changes yet because there
-is no paywall to show — that's the next session. Nothing was needed from you
-this session. The design was adversarially reviewed *before* implementation
-(it caught a genuine would-have-been-costly bug: a failed credit card with no
-grace period configured would have minted permanent free premium) and the
-code review after implementation confirmed zero findings.
+Session 016 built the surface that sells: the app now has a real **paywall**
+(annual-first, 7-day-trial messaging, "one subscription — Premium for both of
+you", prices rendered exactly as the store localizes them) and the first
+**premium gate** — a "Question packs" entry on your daily screen that unlocks
+with Premium while **the daily question and streak stay free forever, proven
+by tests, with zero paywall interruptions in the daily loop**. Everything runs
+against mocked store data because there is no RevenueCat account yet (item 0):
+the paywall honestly shows "store unavailable" on a real device until the key
+exists. Nothing was needed from you this session. The design was adversarially
+reviewed *before* implementation (the blocking catch this time: a returning
+user's app-start would silently skip the RevenueCat sign-in, which would have
+blocked every purchase on the most common path) and the after-implementation
+review confirmed five small findings, all fixed the same session.
 
-## 0. NEW and now useful: RevenueCat account + App Store Connect app record (M4.2 wants it, M4.3 needs it)
+## 0. NOW DUE: RevenueCat account + App Store Connect app record (M4.3 hard-requires it)
 
 - **What:** (a) create a free **RevenueCat account** (revenuecat.com — takes
-  minutes, just an email; name the project Hayati and note the iOS API key);
-  (b) once your **Apple Developer enrollment** (promised 2026-07-08) lands,
-  create the **App Store Connect app record** for `com.hayati.app` and the
-  subscription products (the session will spec the TR/SAR/USD tiers with you).
-- **Why:** Session 016 (M4.2, the paywall) builds UI + purchase plumbing
-  against mocked store data and **does not block on this** — but the
-  live-sandbox proof (a real test purchase flipping premium on both phones)
-  needs both, and M4.3 (gift flow + sandbox accept lines) hard-requires them.
+  minutes, just an email; name the project Hayati and note the **iOS API
+  key**); (b) once your **Apple Developer enrollment** (promised 2026-07-08)
+  lands, create the **App Store Connect app record** for `com.hayati.app` and
+  the subscription products (the session will spec the TR/SAR/USD tiers with
+  you).
+- **Why NOW:** the paywall + purchase plumbing is DONE and waiting. The next
+  session (M4.3) forks on this item: with it, the session wires the live
+  store and proves a real sandbox purchase flipping Premium — **the M4
+  accept line**; without it, M4.3 ships the remaining engineering
+  (gift/transfer handling) and M4 stays honestly marked "sandbox proof
+  pending" until you create these two accounts.
+- **How the app plugs in (no commitment needed from you to understand it):**
+  the iOS API key is passed at build time (`REVENUECAT_IOS_API_KEY`
+  dart-define — it is a publishable key, but nothing is committed until you
+  decide); without it the app fails closed to the honest "store unavailable"
+  state.
 - **One security note for later (ADR-013):** when the RC *webhook* is
   eventually configured (that's a deploy-time item, see item 2), its
   `Authorization` token must be a **long random string (≥256-bit)** — it is
@@ -63,6 +72,15 @@ code review after implementation confirmed zero findings.
   question bank placeholder too (`packConfig` absent → `solo_tr`, ADR-011)
   until the W9 couple packs are authored — your own paired daily loop serves
   them, so edits pay off twice.
+- **NEW since M4.2 (same review gate, different text):** the paywall and
+  pack-screen copy (~28 strings × TR/AR/EN — "One subscription. Premium for
+  both of you.", trial lines, etc.) is AI-drafted in the brandkit voice and
+  needs the same native pass before any public launch: TR by you two, AR by
+  your Gulf reviewer. It lives in `app/lib/core/l10n/arb/app_{tr,ar}.arb`
+  (keys starting `paywall`/`packs`/`packSelection`); edits regenerate on
+  `flutter pub get`, or just send corrections to a session. One AR grammar
+  fix already landed via review (`تجري المزامنة`); the rest read well but are
+  unreviewed by a native.
 
 ## 2. Blaze plan decision — **last call, optional bonus otherwise**
 
@@ -143,28 +161,35 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 015 close)
+## Progress & readiness snapshot (as of Session 016 close)
 
-- **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 1/3** · M5–M6
-  pending — **14/22 session-units (64%) in 15 sessions; 8 planned
-  session-units left to the MVP** (M4: 2 · M5: 3 · M6: 3; M6.5 Android
+- **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 2/3** · M5–M6
+  pending — **15/22 session-units (68%) in 16 sessions; 7 planned
+  session-units left to the MVP** (M4: 1 · M5: 3 · M6: 3; M6.5 Android
   follow-on sits outside the 22-unit MVP count, timed by Gate 3). On track,
-  no plan or scope changes in Session 015 (M1's +1 session remains the only
-  slippage ever).
+  no plan or scope changes in Session 016 (M1's +1 session remains the only
+  slippage ever). Note: M4's final accept line (a sandbox purchase in TR +
+  SA storefronts) is founder-gated on item 0 — the engineering can finish
+  next session either way, but the proof waits for your two accounts.
 - **Readiness:** pre-MVP, emulator/CI-proven. Auth, profile+rules, the whole
   pairing loop, the unpaired solo week, the content pipeline, the FULL daily
   loop (server assignment → answer → server-gated mutual reveal → streak
-  with grace), the notification logic, and now the **entitlement backbone**
+  with grace), the notification logic, the **entitlement backbone**
   (RC webhook → couple mirror → app premium decision point, replay/
-  out-of-order-proven) are green against emulators and CI. Nothing deployed
+  out-of-order-proven), and now the **paywall + premium gating** (annual-first
+  paywall over a fully-faked store seam, the reusable premium gate, the
+  packs surface locked/unlocked purely on the mirror, free tier
+  assertion-protected) are green against emulators and CI. Nothing deployed
   (Spark), nothing on-device (Mac/enrollment pending) — items 0–4 above +
-  M4.2–M6 are the path to "runs on your phones with a working paywall".
+  M4.3–M6 are the path to "runs on your phones with a working paywall".
   Deferred loudly: seasonal question windows (issue #29), the schedule
   trigger + Eventarc retry + webhook Secret Manager binding
   (deploy-verified at first Blaze deploy), `users.fcmTokens` capture + APNs
   (item 4), RC-API reconciliation/backfill for webhooks dropped past RC's
   ~155-minute retry budget (ADR-013; scheduled with the deploy era),
-  private thread (M5 scope selection), `invitePreview.questionText` (W9),
-  gift flow + `TRANSFER` events (M4.3), and two quarantined tests (ci-debt
-  #36 reveal round-trip listener race, #15 phone-auth simulator crash — at
-  the >2-forces-stabilization threshold, not over it).
+  the RC identity-sync retry hardening (lands with the first live-key
+  session, ADR-014), private thread (M5 scope selection),
+  `invitePreview.questionText` (W9), gift flow + `TRANSFER` events (M4.3),
+  and two quarantined tests (ci-debt #36 reveal round-trip listener race,
+  #15 phone-auth simulator crash — at the >2-forces-stabilization
+  threshold, not over it).
