@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../entitlements/presentation/pack_selection_screen.dart';
+import '../../entitlements/presentation/state/entitlement_providers.dart';
 import '../domain/couple.dart';
 import '../domain/couple_answer.dart';
 import '../domain/couple_data_exception.dart';
@@ -384,9 +386,76 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
                 ],
                 const SizedBox(height: SpacingTokens.x6),
                 _PartnerSlotCard(slot: widget.slot),
+                // The quiet packs affordance (ADR-014 Decision 4): mounted
+                // INSIDE the question view only, so the daily loop's other
+                // states (no_day_yet, pack-update, error, loading) carry no
+                // tile and their goldens stay byte-identical.
+                const SizedBox(height: SpacingTokens.x6),
+                _PacksTile(coupleId: widget.coupleId),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The quiet packs entry point on the paired home (ADR-014 Decision 4): opens
+/// [PackSelectionScreen] where the single [PremiumGate] lives — the tile itself
+/// never re-decides. Watches the couple's `isPremium` for the free-tier lock
+/// badge (clay, never gold) and the honest subtitle.
+class _PacksTile extends ConsumerWidget {
+  const _PacksTile({required this.coupleId});
+
+  final String coupleId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final isPremium = ref.watch(isPremiumProvider(coupleId: coupleId));
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PackSelectionScreen(coupleId: coupleId),
+        ),
+      ),
+      borderRadius: RadiusTokens.cardRadius,
+      child: Container(
+        padding: const EdgeInsets.all(SpacingTokens.cardPadding),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: RadiusTokens.cardRadius,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.auto_stories, color: theme.colorScheme.primary),
+            const SizedBox(width: SpacingTokens.x3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.packsTileTitle, style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: SpacingTokens.x1),
+                  Text(
+                    isPremium
+                        ? l10n.packsTileSubtitlePremium
+                        : l10n.packsTileSubtitleFree,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            if (!isPremium) ...[
+              const SizedBox(width: SpacingTokens.x2),
+              Icon(
+                Icons.lock_outline,
+                size: 18,
+                color: theme.colorScheme.secondary,
+              ),
+            ],
+          ],
         ),
       ),
     );

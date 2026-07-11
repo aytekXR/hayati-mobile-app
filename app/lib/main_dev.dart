@@ -28,7 +28,9 @@ import 'features/daily_question/domain/question_pack_repository_provider.dart';
 import 'features/daily_question/domain/solo_answers_repository_provider.dart';
 import 'features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'features/entitlements/data/firestore_entitlement_repository.dart';
+import 'features/entitlements/data/rc_purchases_repository.dart';
 import 'features/entitlements/domain/entitlement_repository_provider.dart';
+import 'features/entitlements/domain/purchases_repository_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
 import 'features/pairing/data/functions_invite_repository.dart';
 import 'features/pairing/data/http_invite_preview_repository.dart';
@@ -50,6 +52,11 @@ Future<void> main() async {
   // (docs/architecture.md §2). Dev keeps Crashlytics collection off.
   await activateAppCheck(config);
   final crashReporter = await initializeCrashlytics(config);
+  // Configure RevenueCat when the dart-define key is present (ADR-014
+  // Decision 2). A no-op without a key — the paywall then renders the honest
+  // unavailable state — and, like App Check, kept off any test-reachable path
+  // (it drives a platform channel).
+  await RcPurchasesRepository.configureIfKeyed();
   // Before the first frame: the paired home computes the couple dayKey from
   // the STORED timezone (ADR-011) and needs the tz database loaded (also
   // lazily guarded inside coupleDayKey — this just front-loads the parse).
@@ -115,6 +122,9 @@ Future<void> main() async {
         (ref) => FirestoreEntitlementRepository(
           firestore: FirebaseFirestore.instance,
         ),
+      ),
+      purchasesRepositoryProvider.overrideWith(
+        (ref) => RcPurchasesRepository(),
       ),
     ],
   );

@@ -10,6 +10,7 @@ import 'package:hayati_app/features/daily_question/domain/couple_repository_prov
 import 'package:hayati_app/features/daily_question/domain/question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_clock.dart';
 import 'package:hayati_app/features/daily_question/presentation/paired_home_screen.dart';
+import 'package:hayati_app/features/entitlements/domain/entitlement_repository_provider.dart';
 // flutter_riverpod's curated export omits Override; riverpod_annotation
 // exposes it — same seam the other golden tests use.
 import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
@@ -17,6 +18,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
 import '../../../support/fake_couple_answers_repository.dart';
 import '../../../support/fake_couple_day_repository.dart';
 import '../../../support/fake_couple_repository.dart';
+import '../../../support/fake_entitlement_repository.dart';
 import '../../../support/golden/golden_harness.dart';
 import '../../../support/static_asset_bundle.dart';
 
@@ -101,13 +103,20 @@ void main() {
             ?partnerAnswer,
       },
     );
+    // Explicit free mirror (ADR-014: explicit > incidental) so the question
+    // view's packs tile renders the free lock badge, not the un-overridden
+    // throw→AsyncError path. Inert in the no-day-yet / error / loading states,
+    // which mount no tile — those goldens stay byte-identical.
+    final mirrors = FakeEntitlementRepository();
     addTearDown(couples.dispose);
     addTearDown(days.dispose);
     addTearDown(answers.dispose);
+    addTearDown(mirrors.dispose);
     return [
       coupleRepositoryProvider.overrideWith((ref) => couples),
       coupleDayRepositoryProvider.overrideWith((ref) => days),
       coupleAnswersRepositoryProvider.overrideWith((ref) => answers),
+      entitlementRepositoryProvider.overrideWith((ref) => mirrors),
       // Real by-id pack over the shipped bundle (fake-async-safe): the
       // generic seam mirrors the solo golden's asset wiring.
       questionPackRepositoryProvider.overrideWith(

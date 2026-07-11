@@ -346,5 +346,129 @@
   "soloCompletedBody": "Seven days of reflection, done. Hayati is built for two — pair up to keep going, and your answers will be waiting.",
   "@soloCompletedBody": {
     "description": "Body of the completed solo state; honest that the ritual continues only as a couple"
+  },
+  "paywallTitle": "Hayati Premium",
+  "@paywallTitle": {
+    "description": "Title of the paywall screen (PRD F4)"
+  },
+  "paywallPitch": "One subscription. Premium for both of you.",
+  "@paywallPitch": {
+    "description": "The heart of the paywall (F4): one purchase covers both partners"
+  },
+  "paywallFreeNote": "Your daily question and streak stay free, always.",
+  "@paywallFreeNote": {
+    "description": "Honest free-tier reassurance under the paywall cards: the core loop is never paywalled"
+  },
+  "paywallTrialDays": "{count, plural, =1{Start with a 1-day free trial} other{Start with a {count}-day free trial}}",
+  "@paywallTrialDays": {
+    "description": "Trial banner on a package carrying a free trial measured in days (count from the store's introductory offer). Non-day trial periods fall back to paywallTrialGeneric.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "7"
+      }
+    }
+  },
+  "paywallTrialGeneric": "Free trial included",
+  "@paywallTrialGeneric": {
+    "description": "Trial banner fallback when a package carries a free trial whose period is not a day count (honest count-less line)"
+  },
+  "paywallBestValue": "Best value",
+  "@paywallBestValue": {
+    "description": "Restrained badge on the annual (first) package card"
+  },
+  "paywallPerYear": "/year",
+  "@paywallPerYear": {
+    "description": "Billing-period suffix rendered next to the verbatim annual price string (never contains a price)"
+  },
+  "paywallPerMonth": "/month",
+  "@paywallPerMonth": {
+    "description": "Billing-period suffix rendered next to the verbatim monthly price string (never contains a price)"
+  },
+  "paywallApproxPerMonth": "≈ {price}/month",
+  "@paywallApproxPerMonth": {
+    "description": "Annual card sub-label: the store-computed per-month equivalent. {price} is the verbatim store price string, never re-formatted.",
+    "placeholders": {
+      "price": {
+        "type": "String",
+        "example": "₺74,99"
+      }
+    }
+  },
+  "paywallCtaTrial": "Start your free trial",
+  "@paywallCtaTrial": {
+    "description": "Primary purchase CTA when the selected package carries a free trial"
+  },
+  "paywallCta": "Continue",
+  "@paywallCta": {
+    "description": "Primary purchase CTA when the selected package has no trial"
+  },
+  "paywallRestore": "Restore purchases",
+  "@paywallRestore": {
+    "description": "Secondary action restoring prior purchases (defers to the mirror, like a purchase)"
+  },
+  "paywallEntitledTitle": "You're Premium",
+  "@paywallEntitledTitle": {
+    "description": "Title of the already-premium paywall view (no buy buttons)"
+  },
+  "paywallEntitledBody": "Premium is active for both of you.",
+  "@paywallEntitledBody": {
+    "description": "Confirmation body of the already-premium view: the entitlement covers the couple"
+  },
+  "paywallManageHint": "Manage your subscription in your App Store settings.",
+  "@paywallManageHint": {
+    "description": "Caption on the already-premium view pointing to the store for management (no in-app management this session)"
+  },
+  "paywallProcessing": "Purchase received — unlocking for both of you…",
+  "@paywallProcessing": {
+    "description": "Durable processing banner after a completed purchase, shown until the entitlement mirror flips premium (the mirror is the only unlocker)"
+  },
+  "paywallRestoreProcessing": "Restore processed — syncing…",
+  "@paywallRestoreProcessing": {
+    "description": "Processing banner after a completed restore, shown until the entitlement mirror confirms"
+  },
+  "paywallUnavailable": "The store isn't available right now. Please try again in a moment.",
+  "@paywallUnavailable": {
+    "description": "Honest error copy when offerings cannot be loaded because the store/dashboard is unavailable or unconfigured"
+  },
+  "packsTileTitle": "Question packs",
+  "@packsTileTitle": {
+    "description": "Title of the quiet packs affordance on the paired home question view"
+  },
+  "packsTileSubtitleFree": "Premium unlocks more packs for both of you.",
+  "@packsTileSubtitleFree": {
+    "description": "Packs tile subtitle for free couples (the tile carries a lock affordance)"
+  },
+  "packsTileSubtitlePremium": "The starter collection, with more on the way.",
+  "@packsTileSubtitlePremium": {
+    "description": "Packs tile subtitle for premium couples: honest that only the starter collection ships today"
+  },
+  "packSelectionTitle": "Question packs",
+  "@packSelectionTitle": {
+    "description": "Header of the pack selection screen"
+  },
+  "packSelectionCurrentTitle": "Starter collection",
+  "@packSelectionCurrentTitle": {
+    "description": "Title of the current-bank card on the unlocked pack selection view"
+  },
+  "packSelectionCurrentBody": "Your daily questions come from the starter collection.",
+  "@packSelectionCurrentBody": {
+    "description": "Body of the current-bank card: where today's questions come from"
+  },
+  "packSelectionComing": "New packs are on the way.",
+  "@packSelectionComing": {
+    "description": "Honest caption on the unlocked pack selection view: more packs arrive later (W9), none selectable yet"
+  },
+  "packSelectionGatedTitle": "Unlock every pack",
+  "@packSelectionGatedTitle": {
+    "description": "Title of the locked pack selection view (free couples)"
+  },
+  "packSelectionGatedBody": "Premium opens every question pack — for both of you.",
+  "@packSelectionGatedBody": {
+    "description": "Body of the locked pack selection view: the premium pitch, couple-scoped"
+  },
+  "packSelectionGatedCta": "See Premium",
+  "@packSelectionGatedCta": {
+    "description": "Primary CTA on the locked pack selection view opening the paywall"
   }
 }
