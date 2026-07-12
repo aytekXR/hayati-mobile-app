@@ -7,43 +7,48 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-12, Session 017 start (M4.3 — gift flow + `TRANSFER`
-handling; **M4 3/3 engineering**). Previous refresh: Session 016 close._
+_Last refreshed: 2026-07-12, Session 017 close (M4.3 — `TRANSFER` handling + the
+gift decision; **M4 engineering COMPLETE, sandbox proof pending item 0**)._
 
-## Session 017 operator check (2026-07-12, at session start)
+## Expected from you right now: **nothing was blocked this session — but item 0 is now the ONLY thing left in M4, and it is blocking.**
 
-**No operator action is required for this session to proceed.** The session
-checked item 0 first (as its own plan mandated): there is still **no
-RevenueCat account and no App Store Connect app record** — no RC key material
-exists on the machine and nothing changed since the Session 016 close. Session
-017 therefore takes the planned fork and runs **autonomously on the
-engineering half** (`TRANSFER` event handling + the gift-flow decision + M4
-close bookkeeping).
+**Session 017 needed nothing from you and asked nothing of you.** It checked
+item 0 first, found no RevenueCat account and no App Store Connect record (as
+expected), and took the planned engineering fork — autonomously, start to
+finish.
 
-**What that costs you:** nothing today — but **M4's final accept line (a real
-sandbox purchase in the TR + SA storefronts flipping Premium on both phones)
-cannot be proven until item 0 exists.** M4 will be marked honestly as
-"engineering complete, sandbox proof pending operator item 0", not silently
-closed. Item 0 is unchanged and still the single highest-value thing you can
-do.
+**Two things you should know, one of them irreversible:**
 
-## Expected from you right now: **nothing blocking — but item 0 is the LAST thing standing between the app and a real test purchase.**
+**1. The engineering of M4 (paywall & subscriptions) is now DONE.** Everything
+that can be built without a store account is built and proven. What is *not*
+done is the one thing only you can unblock: **a real sandbox purchase in the TR
+and Saudi storefronts, flipping Premium on both your phones.** That is M4's
+final acceptance line, and it is written down as **open**, not quietly dropped.
+The next session cannot advance it. Only item 0 can.
 
-Session 016 built the surface that sells: the app now has a real **paywall**
-(annual-first, 7-day-trial messaging, "one subscription — Premium for both of
-you", prices rendered exactly as the store localizes them) and the first
-**premium gate** — a "Question packs" entry on your daily screen that unlocks
-with Premium while **the daily question and streak stay free forever, proven
-by tests, with zero paywall interruptions in the daily loop**. Everything runs
-against mocked store data because there is no RevenueCat account yet (item 0):
-the paywall honestly shows "store unavailable" on a real device until the key
-exists. Nothing was needed from you this session. The design was adversarially
-reviewed *before* implementation (the blocking catch this time: a returning
-user's app-start would silently skip the RevenueCat sign-in, which would have
-blocked every purchase on the most common path) and the after-implementation
-review confirmed five small findings, all fixed the same session.
+**2. "Gift your partner" turned out not to be a feature we can build — because
+it already exists.** The session researched Apple's actual rules and found that
+**gifting an auto-renewable subscription is not an App Store feature at all**:
+there is no gifting API, no "giftable" switch, and Apple's own advice is to
+send someone a gift card so they buy it themselves. But Apple's review rules
+explicitly *do* allow one person to pay and another to benefit, as long as the
+money goes through the App Store — which is exactly what Hayati already does:
+**one purchase, both of you Premium.** So the gift *is* the purchase. Rather
+than build a "Gift Premium" button that would need a product Apple won't sell
+us, the session wrote the decision down and added a test proving the promise:
+your partner's app unlocks from *your* purchase, without them ever seeing a
+paywall or a price. The product plan (PRD) was updated to say this plainly.
 
-## 0. NOW DUE: RevenueCat account + App Store Connect app record (M4.3 hard-requires it)
+**A found bug worth knowing about, because it was invisible:** a real
+RevenueCat "transfer" event (what fires when a subscription moves between
+accounts — e.g. you restore a purchase on a phone signed into a different
+account) would have been **rejected by our server with an error**, and
+RevenueCat would have retried for ~2.5 hours and then **thrown the event away
+forever**. It was invisible because every existing test built the event by
+hand, in a shape the real one never has. It is fixed, and the fix is now proven
+against RevenueCat's own documented payload.
+
+## 0. **BLOCKING — the only thing left in M4:** RevenueCat account + App Store Connect app record
 
 - **What:** (a) create a free **RevenueCat account** (revenuecat.com — takes
   minutes, just an email; name the project Hayati and note the **iOS API
@@ -51,12 +56,14 @@ review confirmed five small findings, all fixed the same session.
   lands, create the **App Store Connect app record** for `com.hayati.app` and
   the subscription products (the session will spec the TR/SAR/USD tiers with
   you).
-- **Why NOW:** the paywall + purchase plumbing is DONE and waiting. The next
-  session (M4.3) forks on this item: with it, the session wires the live
-  store and proves a real sandbox purchase flipping Premium — **the M4
-  accept line**; without it, M4.3 ships the remaining engineering
-  (gift/transfer handling) and M4 stays honestly marked "sandbox proof
-  pending" until you create these two accounts.
+- **Why it is now BLOCKING (changed at the Session 017 close):** the paywall,
+  the purchase plumbing, the entitlement server, and now the transfer handling
+  are **all done and waiting**. M4.3 shipped the last of the engineering. There
+  is **nothing left to build** toward M4's acceptance line — *a real sandbox
+  purchase in TR + SA flipping Premium on both phones* — and no session can
+  advance it without these two accounts. M4 is marked "engineering complete,
+  sandbox proof pending item 0". The next session moves on to the AI coach (M5)
+  and will keep moving on until you unblock this.
 - **How the app plugs in (no commitment needed from you to understand it):**
   the iOS API key is passed at build time (`REVENUECAT_IOS_API_KEY`
   dart-define — it is a publishable key, but nothing is committed until you
@@ -188,35 +195,38 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 016 close)
+## Progress & readiness snapshot (as of Session 017 close)
 
-- **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 2/3** · M5–M6
-  pending — **15/22 session-units (68%) in 16 sessions; 7 planned
-  session-units left to the MVP** (M4: 1 · M5: 3 · M6: 3; M6.5 Android
-  follow-on sits outside the 22-unit MVP count, timed by Gate 3). On track,
-  no plan or scope changes in Session 016 (M1's +1 session remains the only
-  slippage ever). Note: M4's final accept line (a sandbox purchase in TR +
-  SA storefronts) is founder-gated on item 0 — the engineering can finish
-  next session either way, but the proof waits for your two accounts.
-- **Readiness:** pre-MVP, emulator/CI-proven. Auth, profile+rules, the whole
-  pairing loop, the unpaired solo week, the content pipeline, the FULL daily
-  loop (server assignment → answer → server-gated mutual reveal → streak
-  with grace), the notification logic, the **entitlement backbone**
-  (RC webhook → couple mirror → app premium decision point, replay/
-  out-of-order-proven), and now the **paywall + premium gating** (annual-first
-  paywall over a fully-faked store seam, the reusable premium gate, the
-  packs surface locked/unlocked purely on the mirror, free tier
-  assertion-protected) are green against emulators and CI. Nothing deployed
-  (Spark), nothing on-device (Mac/enrollment pending) — items 0–4 above +
-  M4.3–M6 are the path to "runs on your phones with a working paywall".
-  Deferred loudly: seasonal question windows (issue #29), the schedule
-  trigger + Eventarc retry + webhook Secret Manager binding
+- **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 engineering ✅ (sandbox
+  accept line open on item 0)** · M5–M6 pending — **16/22 session-units (73%)
+  in 17 sessions; 6 planned session-units left to the MVP** (M5: 3 · M6: 3;
+  M6.5 Android sits outside the 22-unit MVP count). On track; no plan or scope
+  changes in Session 017 (M1's +1 session remains the only slippage ever). One
+  *scope reduction*, deliberate and documented: PRD F4's "gift flow" is not
+  buildable as a payments feature and is already delivered by the couple-scoped
+  entitlement — so it ships as a decision + a regression test, not as UI.
+- **Readiness: pre-MVP, emulator/CI-proven, nothing deployed, nothing on a
+  phone.** Working and proven against emulators + CI: auth, profile + rules, the
+  whole pairing loop, the unpaired solo week, the content pipeline, the FULL
+  daily loop (server assignment → answer → server-gated mutual reveal → streak
+  with grace), the notification *logic*, the **entitlement backbone** (RC
+  webhook → couple mirror → app premium decision, replay/out-of-order/
+  transfer-proven), and the **paywall + premium gating** (annual-first paywall
+  over a fully-faked store, the reusable premium gate, free tier
+  assertion-protected). **What "production-ready" is still missing, honestly:**
+  no deploy has ever happened (Spark plan — item 2), the app has never run on a
+  real device (Mac/enrollment — item 4), no real purchase has ever been made
+  (item 0), push notifications have no device half (APNs — item 4), and the
+  AI coach (M5) and privacy/launch hardening (M6) are not built. Call it
+  **~73% of the MVP's engineering, 0% of its operational proof.**
+  Deferred loudly (nothing silent): seasonal question windows (issue #29), the
+  schedule trigger + Eventarc retry + webhook Secret Manager binding
   (deploy-verified at first Blaze deploy), `users.fcmTokens` capture + APNs
-  (item 4), RC-API reconciliation/backfill for webhooks dropped past RC's
-  ~155-minute retry budget (ADR-013; scheduled with the deploy era),
-  the RC identity-sync retry hardening (lands with the first live-key
-  session, ADR-014), private thread (M5 scope selection),
-  `invitePreview.questionText` (W9), gift flow + `TRANSFER` events (M4.3),
-  and two quarantined tests (ci-debt #36 reveal round-trip listener race,
-  #15 phone-auth simulator crash — at the >2-forces-stabilization
-  threshold, not over it).
+  (item 4), **RC-REST reconciliation** (the fix for three named transfer costs
+  *and* for webhooks dropped past RC's ~155-min retry budget — rides item 0 +
+  the deploy era), the RC identity-sync retry hardening (first live-key
+  session), private thread (M5 scope selection), `invitePreview.questionText`
+  (W9), Apple **Group Purchases** (WWDC26; no RevenueCat support yet — the only
+  thing that would reopen the gift decision), and two quarantined tests
+  (ci-debt #36 reveal round-trip listener race, #15 phone-auth simulator
+  crash — at the >2-forces-stabilization threshold, not over it).
