@@ -48,10 +48,18 @@ function tokenMatches(provided: string | undefined, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-/** The ONE success-body constructor: 200 for applied AND every decided skip. */
+/**
+ * The ONE success-body constructor: 200 for every decided outcome. `processed`
+ * means the mirror was written — a lifecycle `applied`, or an ADR-015
+ * `transfer-revoked` (which tombstones ≥1 loser lane). Everything else, including
+ * every transfer `hold`, is a decided `skipped`: a hold writes nothing BY DESIGN
+ * (never a failure to report, and never a non-200 that would burn RC's retry
+ * budget).
+ */
 function webhookResult(outcome: ProcessOutcome): { status: 'processed' | 'skipped'; decision: string } {
+  const wrote = outcome.decision === 'applied' || outcome.decision === 'transfer-revoked';
   return {
-    status: outcome.decision === 'applied' ? 'processed' : 'skipped',
+    status: wrote ? 'processed' : 'skipped',
     decision: outcome.decision,
   };
 }

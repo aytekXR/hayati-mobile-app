@@ -17,7 +17,15 @@ export interface RcEvent {
   type: string;
   id: string;
   eventTimestampMs: number;
-  appUserId: string;
+  /**
+   * NULL ON `TRANSFER` ONLY (ADR-015 Finding 0). RC's subscriber-identity field
+   * group (app_user_id/original_app_user_id/aliases) does NOT apply to TRANSFER —
+   * a real transfer body carries `transferred_from`/`transferred_to` instead. The
+   * envelope contract is therefore PER-TYPE: `parseRcEvent` still rejects a
+   * lifecycle event without an app_user_id (400), but a TRANSFER without one is
+   * the documented shape, not malformed.
+   */
+  appUserId: string | null;
   originalAppUserId: string | null;
   aliases: string[];
   environment: string | null;
@@ -30,6 +38,10 @@ export interface RcEvent {
   /** BILLING_ISSUE only; same validation. Always present there, but can be null. */
   gracePeriodExpirationAtMs: unknown;
   entitlementIds: string[] | null;
+  /** TRANSFER only: the ids the entitlements are TAKEN FROM (the losers). */
+  transferredFrom: string[] | null;
+  /** TRANSFER only: the ids RECEIVING them (the gainers). Never written to. */
+  transferredTo: string[] | null;
 }
 
 /** parseRcEvent's three-way result: the body contract (ADR-013 Decision 2). */
@@ -88,6 +100,16 @@ export const FREE_SUMMARY: EntitlementSummary = {
 /** RC anonymous ids (`$RCAnonymousID:<hex>`) are never a Firebase uid. */
 export const RC_ANONYMOUS_PREFIX = '$RCAnonymousID:';
 
+/** The RC event type that moves a subscription between subscribers (ADR-015). */
+export const TRANSFER_TYPE = 'TRANSFER';
+
+/**
+ * Max ids we will RESOLVE per transfer array (ADR-015 Decision 3). Applied at a
+ * PRE-READ gate — after the pure anon-filter/dedupe, before any Firestore read —
+ * so a hostile payload costs ZERO reads and an accepted transfer costs ≤20.
+ */
+export const MAX_TRANSFER_IDS = 10;
+
 // --- envelope parsing -------------------------------------------------------
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -108,11 +130,22 @@ function asStringArray(value: unknown): string[] | null {
 }
 
 /**
- * Validates the RC webhook ENVELOPE only (Decision 2 body contract): the fields
- * that must exist on EVERY event — `event` object, string `type`/`id`, numeric
- * `event_timestamp_ms`, string `app_user_id`. A shape surprise here is a typed
- * `malformed` result (the shell answers 400), never a thrown 500. Per-type
- * fields are passed through untouched for the projection to judge.
+ * Validates the RC webhook ENVELOPE only (ADR-013 Decision 2 body contract, as
+ * amended by ADR-015): the fields that must exist on EVERY event — `event`
+ * object, string `type`/`id`, numeric `event_timestamp_ms` — plus a non-empty
+ * `app_user_id` on every type EXCEPT `TRANSFER`.
+ *
+ * The identity contract is PER-TYPE because RC's own field tables are: the
+ * subscriber-identity group does not apply to `TRANSFER`, whose real body
+ * carries `transferred_from`/`transferred_to` and NO `app_user_id`. Before
+ * ADR-015 this function classified every genuine transfer as `malformed` — a
+ * 400 that burned RC's 5-retry budget and dropped the event (Finding 0). A
+ * LIFECYCLE event without an `app_user_id` is still malformed: the exception is
+ * exactly one type wide, never a blanket relaxation.
+ *
+ * A shape surprise here is a typed `malformed` result (the shell answers 400),
+ * never a thrown 500. Per-type fields are passed through untouched for the
+ * projection (or, for TRANSFER, the transfer path) to judge.
  */
 export function parseRcEvent(body: unknown): RcParseResult {
   if (!isRecord(body)) {
@@ -122,7 +155,7 @@ export function parseRcEvent(body: unknown): RcParseResult {
   if (!isRecord(event)) {
     return { status: 'malformed' };
   }
-  const { type, id, event_timestamp_ms: ts, app_user_id: appUserId } = event;
+  const { type, id, event_timestamp_ms: ts, app_user_id: rawAppUserId } = event;
   if (typeof type !== 'string' || type.length === 0) {
     return { status: 'malformed' };
   }
@@ -132,7 +165,8 @@ export function parseRcEvent(body: unknown): RcParseResult {
   if (typeof ts !== 'number' || !Number.isFinite(ts)) {
     return { status: 'malformed' };
   }
-  if (typeof appUserId !== 'string' || appUserId.length === 0) {
+  const appUserId = asString(rawAppUserId);
+  if (appUserId === null && type !== TRANSFER_TYPE) {
     return { status: 'malformed' };
   }
   return {
@@ -152,6 +186,8 @@ export function parseRcEvent(body: unknown): RcParseResult {
       expirationAtMs: event.expiration_at_ms,
       gracePeriodExpirationAtMs: event.grace_period_expiration_at_ms,
       entitlementIds: asStringArray(event.entitlement_ids),
+      transferredFrom: asStringArray(event.transferred_from),
+      transferredTo: asStringArray(event.transferred_to),
     },
   };
 }
@@ -338,6 +374,187 @@ export function applyLane(
       updatedAtMs,
     },
   };
+}
+
+// --- TRANSFER (ADR-015) ------------------------------------------------------
+
+/**
+ * The lane a TRANSFER writes for a LOSER (ADR-015 Decision 4). A PURE function
+ * of the event: it deliberately does NOT read the loser's previous lane.
+ *
+ * That restraint is load-bearing. A lane value derived from another lane value
+ * stops being the projection of the total-order-maximal event, and the mirror
+ * stops converging under reordering — which is also why the intuitive "MOVE the
+ * lane to the gainer" design is rejected: in-order [PURCHASE, TRANSFER] would
+ * hand the gainer the purchase's facts, while the reordered [TRANSFER, PURCHASE]
+ * finds nothing to move and then stale-skips the purchase. Two arrangements of
+ * one event multiset, two different mirrors — one of which silently drops a
+ * paying couple to free.
+ *
+ * `expiresAtMs` is the transfer instant: honest ("entitled until the moment it
+ * moved"), non-null, and therefore never the null=non-expiring sentinel.
+ */
+export function revokedLane(event: RcEvent): LaneProjection {
+  return {
+    entitled: false,
+    productId: null,
+    periodType: null,
+    expiresAtMs: event.eventTimestampMs,
+    willRenew: false, // renewals belong to the gainer now
+    store: event.store, // "Sometimes" present on a transfer → may be null
+    environment: event.environment,
+    entitlementIds: null,
+  };
+}
+
+/**
+ * `applyLane`'s twin for the revoke half of a TRANSFER: the SAME total-order
+ * guard on the target lane's own key, the SAME same-reference-on-skip contract.
+ * So a lane stays a last-writer-wins register over `(event_timestamp_ms, id)`
+ * whichever projection wrote it, and the convergence invariant of ADR-013
+ * Decision 4 survives the addition of transfers untouched.
+ *
+ * A tombstone is written even when the lane does NOT exist yet: otherwise a
+ * late-arriving INITIAL_PURCHASE (older ts) would resurrect an entitlement the
+ * transfer already moved away.
+ */
+export function revokeLane(
+  lanes: Record<string, Lane>,
+  uid: string,
+  event: RcEvent,
+  updatedAtMs: number,
+): Record<string, Lane> {
+  const existing = lanes[uid];
+  const key: OrderKey | null = existing
+    ? { lastEventTimestampMs: existing.lastEventTimestampMs, lastEventId: existing.lastEventId }
+    : null;
+  if (decide(key, event) !== 'apply') {
+    return lanes;
+  }
+  return {
+    ...lanes,
+    [uid]: {
+      ...revokedLane(event),
+      lastEventId: event.id,
+      lastEventTimestampMs: event.eventTimestampMs,
+      updatedAtMs,
+    },
+  };
+}
+
+/** What one `users/{id}` lookup found for a transfer id (ADR-015 Decision 3). */
+export type TransferResolution =
+  | { id: string; status: 'unknown' }
+  | { id: string; status: 'unpaired' }
+  | { id: string; status: 'couple'; coupleId: string };
+
+/** The ids a transfer will actually resolve, or the reason it stops before reading. */
+export type TransferGate =
+  | { kind: 'resolve'; fromIds: string[]; toIds: string[] }
+  | { kind: 'unprojectable' }
+  | { kind: 'hold'; reason: TransferHoldReason };
+
+export type TransferHoldReason =
+  | 'internal'
+  | 'ambiguous-destination'
+  | 'no-loser'
+  | 'oversized';
+
+/** The transfer plan: revoke named lanes on named couples, or hold (write nothing). */
+export type TransferPlan =
+  | { kind: 'revoke'; targets: Array<{ coupleId: string; uid: string }> }
+  | { kind: 'hold'; reason: TransferHoldReason };
+
+function isAnonymous(id: string): boolean {
+  return id.startsWith(RC_ANONYMOUS_PREFIX);
+}
+
+function dedupe(ids: string[]): string[] {
+  return [...new Set(ids.filter((id) => id.length > 0))];
+}
+
+/**
+ * The PRE-READ gate (ADR-015 Decision 3): everything decidable from the payload
+ * alone, so a hostile or unplaceable transfer costs ZERO Firestore reads and an
+ * accepted one costs at most 2 × MAX_TRANSFER_IDS.
+ *
+ * The two sides treat an RC anonymous id differently, deliberately:
+ *  - `from`: filtered out (never a Firebase uid ⇒ neither a lane key nor evidence
+ *    of a couple; dropping it costs nothing).
+ *  - `to`: an anon id is an UNPLACEABLE DESTINATION ⇒ hold. It may be the loser
+ *    themselves mid-reinstall (delete app → anon id → store auto-restore →
+ *    logIn(uid)). Filtering it away and calling the rest "fully known" would
+ *    revoke on `to = [anon, uidB]` — a false downgrade of a paying couple, the
+ *    one outcome this design refuses (Decision 2). RC never commits to what the
+ *    arrays contain, and that premise has to cut both ways.
+ *
+ * Filter+dedupe run BEFORE the cap because they are pure: capping the raw array
+ * would hold on routine anonymous-alias accretion (the app mints a fresh anon id
+ * on every sign-out) and leave the revoke path inert for exactly the
+ * identity-churning accounts that generate transfers.
+ */
+export function gateTransfer(event: RcEvent): TransferGate {
+  const rawFrom = event.transferredFrom;
+  const rawTo = event.transferredTo;
+  if (rawFrom === null || rawTo === null) {
+    // Per-type schema drift on a body that authenticated as RC: a counted 200
+    // skip, never a 400 (ADR-013's never-mutate-on-doubt philosophy).
+    return { kind: 'unprojectable' };
+  }
+
+  const toIds = dedupe(rawTo);
+  if (toIds.length === 0 || toIds.some(isAnonymous)) {
+    return { kind: 'hold', reason: 'ambiguous-destination' };
+  }
+
+  const fromIds = dedupe(rawFrom).filter((id) => !isAnonymous(id));
+  if (fromIds.length > MAX_TRANSFER_IDS || toIds.length > MAX_TRANSFER_IDS) {
+    return { kind: 'hold', reason: 'oversized' };
+  }
+  if (fromIds.length === 0) {
+    return { kind: 'hold', reason: 'no-loser' };
+  }
+  return { kind: 'resolve', fromIds, toIds };
+}
+
+/**
+ * The whole transfer decision, as a pure function of the resolved id lists
+ * (ADR-015 Decision 3). The standing rule: revoke the loser's lane iff the
+ * destination is FULLY KNOWN and does not include the loser's couple — every
+ * ambiguity holds, because a false revoke instantly strips a paying couple while
+ * a missed revoke only leaks the tail of a period someone actually paid for.
+ *
+ * The `to` side is used ONLY to answer "did the entitlement stay inside this
+ * couple?" and to detect ambiguity. It is NEVER written: a TRANSFER carries no
+ * product and no expiry, so a gainer's lane could only be fabricated (Decision 1).
+ */
+export function planTransfer(
+  from: TransferResolution[],
+  to: TransferResolution[],
+): TransferPlan {
+  if (to.some((resolution) => resolution.status === 'unknown')) {
+    return { kind: 'hold', reason: 'ambiguous-destination' };
+  }
+  const toCoupleIds = new Set(
+    to.flatMap((resolution) => (resolution.status === 'couple' ? [resolution.coupleId] : [])),
+  );
+
+  const losers = from.flatMap((resolution) =>
+    resolution.status === 'couple' ? [{ coupleId: resolution.coupleId, uid: resolution.id }] : [],
+  );
+  if (losers.length === 0) {
+    return { kind: 'hold', reason: 'no-loser' };
+  }
+
+  const targets = losers.filter((loser) => !toCoupleIds.has(loser.coupleId));
+  if (targets.length === 0) {
+    // Every loser's couple is also a destination: the entitlement did not leave
+    // the couple, only the RC subscriber holding it changed. The mirror is
+    // couple-scoped, so this is a no-op — revoking here would downgrade a paying
+    // couple on a shared-Apple-ID restore.
+    return { kind: 'hold', reason: 'internal' };
+  }
+  return { kind: 'revoke', targets };
 }
 
 // --- couple summary (Decision 4/5) ------------------------------------------

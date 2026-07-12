@@ -13,11 +13,17 @@ import {
   EntitlementSummary,
   RcEvent,
   RC_ANONYMOUS_PREFIX,
+  TRANSFER_TYPE,
+  TransferHoldReason,
+  TransferResolution,
   applyLane,
   decide,
   deriveSummary,
+  gateTransfer,
   logProjection,
+  planTransfer,
   projectEvent,
+  revokeLane,
 } from './entitlement-core';
 
 /** Injectable clock for the lane's updatedAtMs (defaults to Date.now). */
@@ -37,7 +43,11 @@ export type ProcessOutcome =
   | { decision: 'stale-skip'; coupleId: string; uid: string }
   | { decision: 'noop-type' }
   | { decision: 'unprojectable' }
-  | { decision: 'unresolvable' };
+  | { decision: 'unresolvable' }
+  // ADR-015: a TRANSFER revoked ≥1 loser lane (each on its own couple doc), or
+  // it held (wrote nothing — every ambiguity holds by design).
+  | { decision: 'transfer-revoked'; targets: Array<{ coupleId: string; uid: string }> }
+  | { decision: 'transfer-hold'; reason: TransferHoldReason };
 
 /** What identity resolution found: the couple + the originating (lane-key) uid. */
 interface ResolvedCouple {
@@ -83,6 +93,100 @@ async function resolveCouple(db: Firestore, event: RcEvent): Promise<ResolvedCou
   return null;
 }
 
+/**
+ * Resolves ONE transfer id independently (ADR-015 Decision 3). Unlike
+ * `resolveCouple` there is no alias CHAIN to walk and nothing to hard-stop
+ * against: RC never commits to whether a transfer array is one customer's alias
+ * set or several distinct customers, so each id is judged on its own doc.
+ */
+async function resolveTransferId(db: Firestore, id: string): Promise<TransferResolution> {
+  const snap = await db.collection('users').doc(id).get();
+  if (!snap.exists) {
+    return { id, status: 'unknown' };
+  }
+  const coupleId = snap.get('coupleId');
+  if (typeof coupleId === 'string' && coupleId.length > 0) {
+    return { id, status: 'couple', coupleId };
+  }
+  return { id, status: 'unpaired' };
+}
+
+/**
+ * The TRANSFER path (ADR-015). A transfer is a bare pointer event — it carries
+ * NO product, expiry, entitlement ids or period — so the gain half is
+ * structurally unprojectable and a transfer NEVER creates or entitles a gainer's
+ * lane (Decision 1). Only the loss half is actionable, and only on positive
+ * evidence that the entitlement left the couple (Decision 2).
+ *
+ * The pre-read gate decides everything payload-decidable first (zero reads on a
+ * hold), then ≤20 independent identity reads, then a pure plan. Each target
+ * couple gets its OWN transaction — the couple doc is the aggregate boundary and
+ * no invariant spans two couples. Partial application is safe by IDEMPOTENCE,
+ * not atomicity: every write is guarded by that lane's own order key with the
+ * same event.id, so if this dies between couples the shell 500s, RC retries, the
+ * written couple replay-skips and the rest apply.
+ */
+async function processTransferEvent(
+  db: Firestore,
+  event: RcEvent,
+  now: () => number,
+): Promise<ProcessOutcome> {
+  const gate = gateTransfer(event);
+  if (gate.kind === 'unprojectable') {
+    logger.warn('revenuecat_webhook: unprojectable transfer', logProjection(event, 'unprojectable'));
+    return { decision: 'unprojectable' };
+  }
+  if (gate.kind === 'hold') {
+    return holdTransfer(event, gate.reason);
+  }
+
+  const [from, to] = await Promise.all([
+    Promise.all(gate.fromIds.map((id) => resolveTransferId(db, id))),
+    Promise.all(gate.toIds.map((id) => resolveTransferId(db, id))),
+  ]);
+
+  const plan = planTransfer(from, to);
+  if (plan.kind === 'hold') {
+    return holdTransfer(event, plan.reason);
+  }
+
+  for (const target of plan.targets) {
+    const ref = db.collection('subscriptions').doc(target.coupleId);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const lanes = readLanes(snap);
+      // A tombstone is written even when the lane does not exist yet: otherwise a
+      // late INITIAL_PURCHASE (older ts) would resurrect the moved-away entitlement.
+      const nextLanes = revokeLane(lanes, target.uid, event, now());
+      if (nextLanes === lanes) {
+        return; // replay/stale on this lane — no write, and no other lane is touched
+      }
+      tx.set(ref, {
+        ...deriveSummary(nextLanes),
+        lanes: nextLanes,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    // One PII-safe line PER target — the projection's shape is unchanged, so the
+    // transfer arrays (user identifiers) never reach a log.
+    logger.info(
+      'revenuecat_webhook: transfer revoked',
+      logProjection(event, 'transfer-revoked', target.coupleId),
+    );
+  }
+
+  return { decision: 'transfer-revoked', targets: plan.targets };
+}
+
+/** A held transfer writes NOTHING and returns 200 — a loud, counted skip. */
+function holdTransfer(event: RcEvent, reason: TransferHoldReason): ProcessOutcome {
+  logger.info(
+    'revenuecat_webhook: transfer hold',
+    logProjection(event, `transfer-hold:${reason}`),
+  );
+  return { decision: 'transfer-hold', reason };
+}
+
 /** Reads the trusted (sole-writer) lanes map off the mirror doc, or {} if absent. */
 function readLanes(snap: FirebaseFirestore.DocumentSnapshot): Record<string, Lane> {
   const lanes = snap.get('lanes');
@@ -107,6 +211,13 @@ export async function processRevenueCatEvent(
   deps: ProcessDeps = {},
 ): Promise<ProcessOutcome> {
   const now = deps.now ?? Date.now;
+
+  // TRANSFER owns its own identity model (transferred_from/to, no app_user_id) and
+  // its own projection (revoke-only, never a grant) — ADR-015. It must branch
+  // BEFORE the lifecycle projection, which would classify it a no-op type.
+  if (event.type === TRANSFER_TYPE) {
+    return processTransferEvent(db, event, now);
+  }
 
   const projection = projectEvent(event);
   if (projection.kind === 'noop') {
