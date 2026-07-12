@@ -1,0 +1,116 @@
+{
+  "policy": "⚠️ CONTENT WARNING: this fixture necessarily contains self-harm and partner-violence vocabulary in TR/AR/EN (incl. the Arabizi/Franco-Arabic track). Entries are minimal and non-graphic. It pins the M5.1 coach crisis-detector accept line (ADR-016 Decision 2/3, test-suite.md §1): every seeded phrase AND every canonical evasion variant (TR diacritic-less/spacing/leet/repetition; AR hamza-drop/tashkeel/tatweel; Arabizi digit-letters; full-width; homoglyph; separator injection) must route to the professional-help path with the correct category, and every benign control must NOT. Consumed by functions/test/unit/coach-crisis.test.ts, which iterates all cases + a per-language spread guard (>= minPerLanguage). SHRINKING this file — dropping a language, a mutation class, or falling below the spread minimum — is RELEASE-BLOCKING: it silently narrows the proven evasion surface of a safety-critical filter. Seeds themselves live in functions/src/coach/crisis-lexicon.ts (public by design — the defense is normalization, not secrecy) and are pending BLOCKING native review before device rollout.",
+  "minPerLanguage": 3,
+  "cases": [
+    {
+      "language": "tr",
+      "phrase": "kendimi öldüreceğim",
+      "category": "selfHarm",
+      "variants": [
+        "kendimi oldurecegim",
+        "KENDİMİ ÖLDÜRECEĞİM",
+        "kendiiimi öldüreceğğim",
+        "kendimi   öldüreceğim",
+        "k3ndimi oldur3c3gim"
+      ]
+    },
+    {
+      "language": "tr",
+      "phrase": "intihar",
+      "category": "selfHarm",
+      "variants": ["İNTİHAR", "intiiihar", "1nt1har", "i n t i h a r"]
+    },
+    {
+      "language": "tr",
+      "phrase": "yaşamak istemiyorum",
+      "category": "selfHarm",
+      "variants": ["yasamak istemiyorum", "YAŞAMAK İSTEMİYORUM", "yaşamak-istemiyorum"]
+    },
+    {
+      "language": "tr",
+      "phrase": "beni dövüyor",
+      "category": "violence",
+      "variants": ["beni dovuyor", "BENİ DÖVÜYOR", "beni dööövüyor"]
+    },
+    {
+      "language": "ar",
+      "phrase": "انتحار",
+      "category": "selfHarm",
+      "variants": ["اِنْتِحَار", "انتـحار", "انتحاااار"]
+    },
+    {
+      "language": "ar",
+      "phrase": "أريد أن أموت",
+      "category": "selfHarm",
+      "variants": ["اريد ان اموت", "أُرِيدُ أَنْ أَمُوت", "اريد ان امـوت"]
+    },
+    {
+      "language": "ar",
+      "phrase": "أؤذي نفسي",
+      "category": "selfHarm",
+      "variants": ["اوذي نفسي", "أؤذي نفسي"]
+    },
+    {
+      "language": "ar",
+      "phrase": "يضربني",
+      "category": "violence",
+      "variants": ["يَضْرِبُنِي", "يضربـني"]
+    },
+    {
+      "language": "ar",
+      "phrase": "3ayez amout",
+      "category": "selfHarm",
+      "variants": ["３ayez amout", "٣ayez amout", "3ayez-amout", "3AYEZ AMOUT"]
+    },
+    {
+      "language": "ar",
+      "phrase": "bidi mout",
+      "category": "selfHarm",
+      "variants": ["bidi mout", "bidi-mout", "biidi moout"]
+    },
+    {
+      "language": "en",
+      "phrase": "kill myself",
+      "category": "selfHarm",
+      "variants": ["KILL MYSELF", "k1ll myself", "kiiill myself", "k-i-l-l-m-y-s-e-l-f", "kіll myself"]
+    },
+    {
+      "language": "en",
+      "phrase": "suicide",
+      "category": "selfHarm",
+      "variants": ["SUICIDE", "su1c1de", "suiciiide", "s u i c i d e"]
+    },
+    {
+      "language": "en",
+      "phrase": "self harm",
+      "category": "selfHarm",
+      "variants": ["self-harm", "SELF HARM", "s3lf h4rm"]
+    },
+    {
+      "language": "en",
+      "phrase": "die",
+      "category": "selfHarm",
+      "variants": ["die", "DIE", "d i e", "d-i-e", "d1e"]
+    },
+    {
+      "language": "en",
+      "phrase": "he beats me",
+      "category": "violence",
+      "variants": ["he beats me", "HE BEATS ME", "he b3ats me"]
+    }
+  ],
+  "controls": {
+    "note": "Benign sentences that MUST NOT trip the detector — the false-positive guards, incl. the TR 'göl'/'böl' words the ö→o fold collapses toward the omitted 'öl' token.",
+    "sentences": [
+      "göl kenarında güzel bir yürüyüş yaptık",
+      "bugün böl ve paylaş dedik ama şaka yaptık",
+      "seni çok seviyorum ve bugün harika hissediyorum",
+      "لنخطط لعشاء لطيف هذا المساء",
+      "أحبك كثيرا وأنا سعيد اليوم",
+      "let's plan a lovely dinner tonight",
+      "i felt a little down but i am okay now",
+      "she studied hard and aced the diet plan",
+      "the soldier told a story about the old days"
+    ]
+  }
+}

@@ -5,7 +5,8 @@ rules_version = '2';
 // functions/test/emulator/firestore-rules.test.ts, including mutation tests
 // that show the suite goes red if a guard here is weakened. Collections not
 // matched (questions, coach_sessions) stay denied until the milestone that
-// introduces them ships rules WITH tests; subscriptions has a block since M4.1.
+// introduces them ships rules WITH tests; subscriptions has a block since M4.1
+// and coachUsage since M5.1 (ADR-016).
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSelf(uid) {
@@ -169,6 +170,29 @@ service cloud.firestore {
       allow read: if request.auth != null
         && request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;
       allow write: if false; // subscriptions: function-only (revenueCatWebhook, admin SDK)
+    }
+
+    // M5.1 (ADR-016 Decision 7): coachUsage/{coupleId} carries the couple's
+    // coach cap counters — the coachProxy Function is the SOLE writer via the
+    // admin SDK, so EVERY client write is denied. The parent doc holds the
+    // couple-shared MONTHLY bucket and is member-read via the parent couple's
+    // memberUids (the M3.2 days pattern; an orphaned counter under a deleted
+    // couple fails closed because the membership get() finds nothing). The
+    // per-user DAILY lane is split into a subcollection precisely so a partner
+    // can NEVER read the other's coach-usage frequency (the violence lexicon
+    // exists because domestic violence is in scope): daily/{uid} is SELF-read
+    // only. Resets are lazy (applied by the next coachProxy transaction), so a
+    // client watching these docs at a period boundary sees the stale stored
+    // count until the next call — M5.2 prefers the response's `remaining` hint.
+    match /coachUsage/{coupleId} {
+      allow read: if request.auth != null
+        && request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;
+      allow write: if false; // coachUsage: function-only (coachProxy, admin SDK)
+
+      match /daily/{uid} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false; // coachUsage daily lanes: function-only
+      }
     }
 
     // Invites are function-write-only AND function-read-only: createInvite

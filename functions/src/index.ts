@@ -5,6 +5,7 @@ import { initializeApp } from 'firebase-admin/app';
 
 initializeApp();
 
+export { coachProxy } from './coach/coach-proxy';
 export { revenueCatWebhook } from './entitlements/revenuecat-webhook';
 export { createInvite } from './invites/create-invite';
 export { invitePreview } from './invites/invite-preview';

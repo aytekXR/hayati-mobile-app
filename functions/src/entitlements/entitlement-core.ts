@@ -617,6 +617,26 @@ export function deriveSummary(lanes: Record<string, Lane>): EntitlementSummary {
   };
 }
 
+// --- server-side premium gate (ADR-013 D5, ADR-016 D6) ----------------------
+
+/**
+ * The single server-side premium truth check (ADR-013 Decision 5, ADR-016
+ * Decision 6): entitled AND not yet expired. `entitled` alone is a projection
+ * artifact — a lane can read `entitled: true` with a PAST `expiresAtMs` during the
+ * delayed-EXPIRATION window Decision 5 exists for — so every consumer MUST pair it
+ * with the future-check. `expiresAtMs === null` is non-expiring (never a stand-in
+ * for "unknown"). The strict `>` keeps the boundary byte-consistent with the app's
+ * `isPremium` provider (ADR-014): at exactly `nowMs` the entitlement has expired.
+ * `coachProxy` (ADR-016) is the FIRST server-side consumer; extracting the helper
+ * gives every future Function this binding discipline without re-inlining.
+ */
+export function isPremiumMirror(
+  summary: { entitled: boolean; expiresAtMs: number | null },
+  nowMs: number,
+): boolean {
+  return summary.entitled && (summary.expiresAtMs === null || summary.expiresAtMs > nowMs);
+}
+
 // --- PII-safe logging (Decision 2) ------------------------------------------
 
 /** The ONLY fields any webhook log line may carry — never the body, never
