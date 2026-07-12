@@ -1,6 +1,6 @@
-# ADR-017: Coach chat UI — one premium surface, retained-crisis windows, ephemeral threads, server-side persona scaffolds
+# ADR-017: Coach chat UI — one premium surface, help-latched conversations, ephemeral threads, server-side persona scaffolds
 
-- **Status:** Accepted
+- **Status:** Accepted (rev 2 — post-review)
 - **Date:** 2026-07-12 (Session 019, M5.2)
 - **Deciders:** Session 019 (autonomous, per resume-prompt objective); founder
   directives inherited: ADR-007 (personal-use-first), ADR-013 Decision 5
@@ -14,9 +14,20 @@
   design principles); ADR-009 (clock seam), ADR-011 (dayKey discipline —
   deliberately NOT consumed here, see Decision 6), ADR-015 (couple-scoped
   premium).
-- **Review note:** to be adversarially design-reviewed BEFORE implementation
-  (the S015–S018 four-for-four discipline). Findings folded in below are
-  marked; refuted findings recorded in Consequences.
+- **Review note:** adversarially design-reviewed BEFORE code (the S015–S018
+  discipline, now FIVE-for-five): a four-lens workflow (safety-ux,
+  privacy/DV, wire-contract, Flutter-architecture), every finding verified by
+  two independent passes (skeptic + governing-docs adjudicator), all
+  hand-adjudicated. **1 BLOCKING** (rev 1's help-stickiness had no durable
+  latch — window trimming evicted the crisis turn after ~20 turns, and
+  post-filter crises never stuck at all because their windows are
+  pre-scan-negative by construction; all four lenses converged on it
+  independently) **+ 6 SERIOUS + ~10 MINOR** findings are folded in below.
+  One verifier-lens disagreement (document-the-bounded-stickiness vs
+  client-latch) was settled by the governing docs per the S018 rule:
+  ADR-016's asymmetry mandate ("conservative everywhere") plus rev 1's own
+  rejected-alternative rationale decide for the protective latch. Findings
+  refuted or accepted-as-designed are recorded in Consequences.
 
 ## Context
 
@@ -30,8 +41,9 @@ remaining?}`; errors separable by CODE first — `failed-precondition`/
 provider/infra. M5.2 mounts the couple-facing chat experience on that spine
 and claims three parked decisions: the chat surface shape, the
 crisis-turn window decision (ADR-016 pinned the obligation: a crisis turn
-retained in the window re-routes EVERY subsequent call to the help path),
-and the private-thread persistence scope.
+retained in the window re-routes every subsequent call to the help path —
+and required the M5.2 behavior to be "documented, not discovered"), and the
+private-thread persistence scope.
 
 Forces:
 
@@ -44,6 +56,14 @@ Forces:
   The client owns the window, so the client's construction rules are part
   of the safety posture — and the help path must never be mistakable for
   the persona (the `kind` discriminator exists for exactly this).
+- **Stickiness cannot live in the window alone.** The server scans only
+  the client-carried window and persists nothing (ADR-016 D8), the window
+  is capped at 20 messages by the frozen contract, and a post-filter help
+  response fires precisely when the window was pre-scan-NEGATIVE (the
+  crisis text was in the discarded model reply, not in any retained turn).
+  So "retain the crisis turn" alone cannot deliver a durable help-sticky
+  conversation — the review's blocking finding, resolved by Decision 2's
+  client-side latch.
 - **This is a DV-aware product on shared devices.** M5.1's strongest review
   finding split the cap counters so a partner cannot monitor the other's
   coach usage. The same threat model applies to CONTENT at rest: a
@@ -59,6 +79,13 @@ Forces:
   placeholder; the app has no shared_preferences/hive/sqflite dependency.
   Every persisted thing today lives in Firestore behind rules with a
   deliberately narrow write surface.
+- **Crashlytics is ON in prod and the global error hooks forward
+  `error.toString()`** (`error_hooks.dart` routes every uncaught error to
+  the reporter). The server closed this exact leak class in ADR-016 D8
+  (static-message `HttpsError`s because the callable framework auto-logs);
+  the app side now hosts the same data class (message + reply text,
+  potentially crisis disclosures) and needs the same structural rule
+  (Decision 5).
 - **Three register vocabularies exist and none matches the wire.** The
   profile stores `ContentRegister {playful, respectful}` +
   `ContentLanguage {tr, ar, en}`; the wire wants the brandkit union
@@ -101,13 +128,19 @@ message:* mixes personas inside one window; the provider port takes ONE
 
 **Mount (two layers, both on the ADR-014 seam):**
 
-1. **Paired-home coach tile** — rendered inside
-   `PremiumGate(coupleId:, unlocked: _CoachTile(...), locked:
-   SizedBox.shrink())`. The locked branch renders NOTHING: the free tier
-   sees zero coach surface (stricter than the packs tile by explicit PRD F5
-   scope). The tile follows the packs-tile placement and navigates via the
-   exported `showCoach(context, {required uid, required coupleId})` helper
-   (the `showPaywall` mold).
+1. **Paired-home coach tile** — the tile AND its inter-sibling spacer live
+   INSIDE the gate's unlocked subtree:
+   `PremiumGate(coupleId:, unlocked: Column[SizedBox(height: x6),
+   _CoachTile(...)], locked: SizedBox.shrink())`. The locked branch renders
+   NOTHING — no tile, no spacer, no pixel shift: the free tier sees zero
+   coach surface AND every existing free-tier paired-home golden stays
+   **byte-identical** (review finding: the `_PacksTile` precedent places
+   its spacer unconditionally outside the gate, which would have
+   re-baselined every free golden for an invisible feature). The tile
+   follows the packs-tile placement (inside the question view only) and
+   navigates via the exported `showCoach(context, {required uid, required
+   coupleId})` helper (the `showPaywall` mold). Premium-tile presence is
+   pinned by widget tests, not by new golden cells.
 2. **The screen itself** — `CoachScreen` is a pushed route
    (`Scaffold(appBar: AppBar())` back affordance; auth-loss self-pop via
    the `authControllerProvider` listen idiom) whose body mounts
@@ -120,8 +153,17 @@ message:* mixes personas inside one window; the provider port takes ONE
    discovery surface.
 
 The screen takes `{required String uid, required String coupleId}` (the
-`PairedHomeScreen` construction mold). Language and register derive from the
-caller's live profile (`profileStreamProvider(uid)`):
+`PairedHomeScreen` construction mold).
+
+**Language/register derivation — and its settling precondition** (review
+finding: `language`/`register` are REQUIRED closed-enum wire fields; a send
+fired before the profile resolves has no valid source). The chat body
+layers on `profileStreamProvider(uid)` with the repo's AsyncValue-flag
+idiom (the `PairedHomeScreen` layered-settling mold): loading → spinner;
+error or null profile → the honest error state with retry; **the composer
+is only constructible from a settled non-null profile**, so every send has
+a derivable `language`/`register` by construction. From the settled
+profile:
 
 ```dart
 CoachRegister coachRegisterFor(ContentLanguage language, ContentRegister register) =>
@@ -140,7 +182,7 @@ strings (`'tr-playful'` …) — enum `.name` is NOT the wire value here (the
 hyphens make that impossible), so the DTO carries an explicit `wire` field,
 the `QuestionRegister.msaGulf`/`'msa_gulf'` precedent.
 
-## Decision 2 — Window construction: transcript-derived, help-excluded, crisis-RETAINED
+## Decision 2 — Window construction + the help-sticky LATCH: transcript-derived, help-excluded, crisis-retained, client-latched
 
 The client-owned window sent to `coachProxy` derives from the selected
 persona's transcript by fixed rules:
@@ -152,66 +194,129 @@ persona's transcript by fixed rules:
    never produced, and its crisis-adjacent vocabulary could trip the
    post-filter's lexicons on legitimate later turns… or worse, teach the
    persona to imitate the help voice).
-2. **Crisis turns are RETAINED** — the ADR-016-pinned decision, resolved on
-   the conservative side. The window builder applies NO crisis-aware
-   filtering: every confirmed user turn stays, including one that drew a
-   help response. Consequence (documented in ADR-016, deliberate here): a
-   conversation containing a crisis turn routes EVERY subsequent call to
-   the help path — the conversation is **help-sticky by design**. The
-   asymmetry rule decides: dropping the crisis turn would silently resume
-   persona coaching *in the same conversation where a crisis was just
-   disclosed*, which is exactly what "we are not therapy" forbids; keeping
-   it costs persona replies, never safety. Retention is also strictly
-   simpler: the client needs no knowledge of WHICH turn was the crisis
-   (pre-scan hits and post-filter hits are indistinguishable client-side by
-   design — the response carries no per-turn attribution).
-3. **The exit is explicit, not silent: a "new conversation" affordance**
-   (per persona) clears that persona's transcript — visible whenever the
-   transcript is non-empty. A user whose crisis mention was
-   conversational (a news story, a film) can deliberately start fresh;
-   the reset is not an evasion vector because detection is per-call and
-   normalization-based — a NEW conversation's messages are scanned exactly
-   the same; only the stickiness of the OLD conversation ends. The help
-   entry itself explains this state honestly (help copy + a caption that
-   this conversation stays paused; ARB, native-review flagged).
-4. **Bounds mirror the wire:** the window is the LAST
-   `kCoachWindowMaxMessages = 20` eligible turns (including the new user
-   message, which is always last and always role `'user'`); input is
-   hard-capped at `kCoachMessageMaxLength = 2000` chars by
-   `LengthLimitingTextInputFormatter` (the answer-entry mold) so
-   `message-too-long`/`too-many-messages` are unreachable from a
-   well-behaved client; the send button disables on empty/whitespace-only
-   input (trimmed, the `_entry` mold).
+2. **Crisis turns are RETAINED.** The window builder applies NO
+   crisis-aware filtering: every confirmed user turn stays, including one
+   that drew a help response. The client needs no knowledge of WHICH turn
+   was a crisis (pre-scan and post-filter hits are indistinguishable
+   client-side by design — the response carries no per-turn attribution),
+   and retention keeps the server's pre-scan as a second net for
+   pre-scan-detectable turns while they remain in the window. **Retention
+   alone is NOT the stickiness mechanism** — the review's blocking
+   finding: oldest-first trimming evicts the crisis turn after ~20
+   subsequent turns, and a post-filter hit's window is pre-scan-negative
+   by construction (the crisis text was in the DISCARDED model reply), so
+   window contents cannot carry the guarantee. Stickiness is the latch's
+   job (rule 3). Retention stays as defense in depth and transcript
+   honesty, not as the safety guarantee.
+3. **The help-sticky LATCH — the actual guarantee.** The persona's
+   conversation state carries a `helpSticky` flag, **set whenever ANY
+   response arrives with `kind:'help'`** (pre-scan, post-filter, or the
+   fail-closed detector path — the client cannot and need not distinguish)
+   and **cleared ONLY by the explicit "new conversation" affordance**.
+   While latched:
+   - the composer is replaced by a **paused panel**: the help state stays
+     visible, honest copy explains that this conversation is paused for
+     safety, and "start a new conversation" is the only forward action
+     (ARB copy, native-review flagged);
+   - **no further `coachProxy` calls can be issued from that
+     conversation** — the guarantee is enforced client-side and does not
+     depend on window contents, pre-scan re-detection, trimming order, or
+     the provider's language. This closes BOTH blocking failure modes
+     (trim-eviction and the post-filter class), makes the paused caption
+     true by construction, and — a privacy bonus — stops re-transmitting
+     the crisis text on subsequent calls entirely;
+   - the quota caption is suppressed (Decision 6 — usage economics do not
+     belong next to a crisis help card).
+   The latch involves NO client-side crisis detection or lexicon
+   knowledge: it reacts to the server's explicit `kind` discriminator.
+   The safety policy stays server-owned; the client only honors the
+   server's verdict durably. **Latch scope is per persona conversation**
+   (the conversation is the safety unit ADR-016 pins): a fresh persona's
+   thread is structurally identical to a post-reset thread, which this
+   design already blesses, and per-message detection covers all new
+   content anywhere — the cross-persona consequence is documented in
+   Consequences, not discovered.
+4. **The exit is explicit, not silent: the "new conversation" affordance**
+   (per persona) clears that persona's transcript, its latch, and its
+   quota hint — visible whenever the transcript is non-empty. A user whose
+   crisis mention was conversational (a news story, a film) can
+   deliberately start fresh; the reset is not an evasion vector because
+   detection is per-call and normalization-based — a NEW conversation's
+   messages are scanned exactly the same; only the latch of the OLD
+   conversation ends.
+5. **Bounds mirror the wire — enforced in wire units.** The window is the
+   LAST `kCoachWindowMaxMessages = 20` eligible turns (including the new
+   user message, which is always last and always role `'user'`),
+   oldest-first trimming. Message length is validated server-side in
+   UTF-16 code units (`raw.text.length` in JS), and Dart's
+   `String.length` counts the same units — so the client gates in the
+   SAME unit: the send action disables when `entry.length > 2000` (with
+   an honest "too long" caption), and `LengthLimitingTextInputFormatter`
+   remains only a UX convenience (review finding: the formatter counts
+   grapheme clusters, so emoji/ZWJ-heavy text can pass it while exceeding
+   the server bound — the formatter alone was an over-claim). Persona
+   turns re-entering the window are server-generated and carry no length
+   contract, so the window builder **truncates assistant-turn text to
+   2,000 code units** defensively (context loss on a pathological reply is
+   benign; user turns are never truncated — they already conform by the
+   send gate). Empty/whitespace-only sends are disabled (trimmed, the
+   `_entry` mold).
 
 *Alternative rejected — drop crisis turns from subsequent windows:* resumes
 persona coaching mid-crisis-conversation; requires client-side crisis
-attribution that the wire deliberately does not provide; and turns the
-client into a safety-policy decision point when ADR-016 put that policy
-server-side. *Alternative rejected — auto-clear the transcript after a help
+attribution that the wire deliberately does not provide. *Alternative
+rejected — document the window-bounded stickiness instead of latching (one
+verifier lens preferred this):* overruled by the governing docs — ADR-016's
+asymmetry rule ("conservative everywhere") and rev 1's own rationale (a
+silent persona resume mid-crisis-thread is "exactly what 'we are not
+therapy' forbids") make the protective mechanism the only coherent
+resolution, and the latch is cheap, attribution-free, and strictly
+safer. *Alternative rejected — auto-clear the transcript after a help
 response:* destroys the user's own words moments after a crisis disclosure
-(hostile UX at the worst moment) and silently un-sticks the safety state;
-the explicit affordance keeps agency with the user.
+(hostile UX at the worst moment); the explicit affordance keeps agency
+with the user.
 
 ## Decision 3 — Persistence: ephemeral in-memory this slice (the private-thread scope decision)
 
-**No conversation content is persisted anywhere — no `coach_sessions`, no
-local database, nothing.** Transcripts live in a `keepAlive` Riverpod
-family keyed by `(uid, coupleId, personaId)` and die with the process.
-Backgrounding survives (the family is keepAlive); app restart clears; the
-route can be popped and re-pushed without loss (the durable
-`PendingPurchase` precedent). Keying by `uid` means a second account signing
-in on the same device gets fresh families — no cross-user bleed through the
-UI; sign-out additionally pops the route (Decision 1's self-pop).
+**No conversation content is persisted to any app-controlled storage — no
+`coach_sessions`, no local database, nothing.** Transcripts (entries +
+latch + quota hint) live in a `keepAlive` Riverpod family keyed by
+`(uid, coupleId, personaId)`. Backgrounding survives (the family is
+keepAlive); app restart clears; the route can be popped and re-pushed
+without loss (the durable `PendingPurchase` precedent). Keying by `uid`
+means a second account signing in on the same device gets fresh families —
+no cross-user bleed through the UI.
+
+**Teardown is explicit, not incidental** (review finding: keepAlive
+providers survive route pops BY DESIGN — rev 1's "sign-out pops the route"
+was not a teardown, so a sign-out→sign-in cycle within one process would
+have resurrected the prior conversation and crisis text would linger
+reachable): on any auth transition away from a signed-in user, the app
+root **invalidates the coach transcript family wholesale**
+(`ref.invalidate` of the family from the `HayatiApp` root listener idiom —
+the `purchasesIdentitySyncProvider` mount precedent), in addition to the
+route's self-pop. A test pins that a signed-out session's transcript is
+GONE (fresh family state), not merely off-screen.
+
+Scope of the claim, stated honestly: this is **zero retention in
+app-controlled storage** and in-memory state torn down on sign-out.
+Process-memory residue until GC/process death is not preventable in Dart
+and is accepted; the OS app-switcher snapshot (the system images the
+on-screen conversation to disk on backgrounding) is a real, documented
+exposure that is NOT app-controlled storage — its mitigation
+(snapshot-obscuring/secure-screen) is platform-channel work that belongs
+to M6's device-privacy layer (PIN/biometric, discreet icon) and is
+recorded there, not silently (Consequences + architecture §8).
 
 Why ephemeral is the RIGHT scope now, not a deferral of convenience:
 
 - **It is the most conservative KVKK/PDPL posture** — PRD §8's "never
-  retained beyond session context window" is satisfied at retention zero,
-  server-side (M5.1) AND client-side (this decision).
+  retained beyond session context window" is satisfied server-side (M5.1)
+  AND in app-controlled storage client-side (this decision).
 - **The DV threat model:** a persisted private thread on a shared/observed
   device is readable by whoever holds the phone; the app's device-privacy
-  layer (PIN/biometric, discreet icon) is M6 and unbuilt. Shipping
-  persistence BEFORE the lock exists would be backwards.
+  layer is M6 and unbuilt. Shipping persistence BEFORE the lock exists
+  would be backwards.
 - **Retention posture is the founder's privacy stance to set** (the resume
   prompt's stopping condition names it): TTL length, whether threads
   survive un-pairing, whether export/delete cascades cover them (M6 KVKK
@@ -236,9 +341,14 @@ question exactly when the founder answers the retention question.
 content); its `disclaimer()` export and `DISCLAIMER` table are REMOVED in
 the same commit that lands the ARB keys (single home, ADR-010 spirit; two
 AI-drafted homes for one safety string WILL drift through the native
-review). The functions unit suite drops the disclaimer cases; the ★
-operator item's pointer moves accordingly (help response + lexicon in
-`functions/src/coach/`, disclaimer in the ARB set).
+review; verified: `disclaimer()` has no non-test consumer). The functions
+unit suite drops the disclaimer cases; the ★ operator item's pointer moves
+accordingly (help response + lexicon in `functions/src/coach/`, disclaimer
+in the ARB set). **The ADR-016 Decision 4 no-phone-number hard rule
+survives the move** (review finding: the functions suite's `\d{3,}` guard
+covered the disclaimer — an app-side test now asserts every `coach*` ARB
+value in all three locales contains no phone-number-shaped digit run, so
+the defense-in-depth check outlives the home change).
 
 **Show semantics:** on first open of the coach surface (per user, per
 device), the chat is replaced by a full **disclaimer view** — brandkit-warm
@@ -254,8 +364,24 @@ note is a feature, not a bug.
 `SharedPreferencesLocalFlagStore` implementation (`shared_preferences` is
 added as the app's first local-persistence dependency), exposed through a
 throw-until-overridden `@Riverpod(keepAlive: true)` provider bound in the
-flavor entrypoints (the repository-seam discipline everywhere else), faked
-in tests (`FakeLocalFlagStore`). Key shape: `coachDisclaimerAck.<uid>`.
+flavor entrypoints (the repository-seam discipline everywhere else; the
+entrypoints are already async, so `SharedPreferences.getInstance()` is
+awaited before `runHayati` and the store is bound by value), faked in
+tests (`FakeLocalFlagStore` — platform-channel-free by construction). Key
+shape: `coachDisclaimerAck.<uid>`.
+
+**The uid-keyed flag's DV exposure, analyzed explicitly** (review finding,
+verified then downgraded to a consistency note by the skeptic pass): the
+flag is a uid-namespaced boolean inside the app's OS sandbox. A partner
+signed in as themselves can neither reach the other's key through any UI
+nor read the store without filesystem/backup/jailbreak access — access
+that already exposes strictly more than this boolean. It records only
+"opened at least once" — never frequency, timing, or content (the
+signal ADR-016 D7's cap-lane split actually protects). The alternatives
+are worse in the safety direction: a device-level key would SKIP the
+disclaimer for the second partner on a shared device (under-showing a
+safety note), and no persistence would re-prompt every launch against PRD
+F5's "dismissal persisted". Accepted, with this analysis recorded.
 
 *Alternative rejected — a `users/{uid}.coachDisclaimerAckAt` Firestore
 field:* passes today's rules (no `hasOnly` on the profile block) but widens
@@ -268,7 +394,7 @@ auto-syncs the ack across devices, silently skipping the safety note on
 every new device. *Alternative rejected — in-memory only:* re-shows the
 disclaimer every launch; PRD F5 says "dismissal persisted".
 
-## Decision 5 — App-side wire taxonomy: coach-owned, code-first, total
+## Decision 5 — App-side wire taxonomy: coach-owned, code-first, total — and content-free by construction
 
 `app/lib/features/coach/domain/coach_exception.dart` — a sealed
 `CoachException` family, mapped in ONE data-layer choke point
@@ -295,26 +421,73 @@ dropped `details` (ADR-016 rev-2 finding, discharged here).
 The RESPONSE mapper (`coachReplyFromCallable`) is the pure/loud mold:
 `kind` must be `'reply'|'help'`, `text` a non-empty string; `category` and
 `remaining` optional with type-checked shapes; anything else throws
-`FormatException` → surfaces as `CoachUnknownException` (never renders
-bogus data as a persona reply).
+`FormatException`. **The conversion site is the repository** (review
+finding: the controller catches ONLY `CoachException`, so a raw
+`FormatException` must never escape the data layer): the repository wraps
+the parse and converts `FormatException` →
+`CoachUnknownException(code: 'malformed-response')` — the send path is
+total over `CoachException` by construction, and a malformed body never
+renders as a persona reply.
 
-## Decision 6 — Quota surface: response-hint only, display-only
+**The app-side no-content rule (ADR-016 Decision 8's client twin;
+review finding).** Crashlytics collection is ON in prod and the global
+error hooks forward every uncaught error's `toString()` — so the coach
+path adopts the server's structural rule on the client: **no coach message
+text, reply text, or window content may ever appear in an exception
+message, a `CrashReporter.log` breadcrumb, or any `toString()` of coach
+state that could escape.** Concretely: `FormatException`s in
+`coachReplyFromCallable` interpolate ONLY `.runtimeType`/field names
+(the `issuedInviteFromCallable` mold — verified it never interpolates
+values); `mapCoachFailure`'s terminal fallback carries
+`code: 'unexpected'` + the failure's `runtimeType` — NEVER the pairing
+mold's `message: '$failure'` stringification (the one place that mold is
+deliberately NOT copied); `CoachUnknownException.message` carries only
+server-originated `FirebaseFunctionsException.message` strings (static by
+ADR-016 D8) or null. A sentinel test (the server suite's analogue) seeds
+marker text through every failure path and asserts no thrown exception's
+`toString()` contains it.
 
-The UI renders remaining quota ONLY from the last response's `remaining`
-hint (an ARB plural caption, full AR CLDR set): no live watch on
-`coachUsage` this slice. ADR-016 documents the watcher's staleness trap
-(lazy resets mean a boundary-crossing client must re-derive period keys via
-`coupleDayKey` to avoid rendering yesterday's exhausted count) and
-explicitly blesses "prefer the response's `remaining` hint" — the hint
-needs no dayKey math, no timezone read, and no new Firestore read path.
+## Decision 6 — Quota surface: response-hint only, display-only, DAILY-only
 
-**The hint never gates sending.** `remaining.daily == 0` renders the
-exhausted caption but the input stays enabled: the hint is point-in-time
-(a partner's concurrent turn stales it instantly; a day boundary un-caps
-without the client knowing), and the server is the only authority — a send
-after exhaustion gets the typed `cap-daily`/`cap-monthly` answer and its
-honest state. Before the first response there is no hint and no caption
-(never fabricate a count).
+The UI renders remaining quota ONLY from the response `remaining` hint: no
+live watch on `coachUsage` this slice. ADR-016 documents the watcher's
+staleness trap (lazy resets mean a boundary-crossing client must re-derive
+period keys via `coupleDayKey` to avoid rendering yesterday's exhausted
+count) and explicitly blesses "prefer the response's `remaining` hint" —
+the hint needs no dayKey math, no timezone read, and no new Firestore read
+path.
+
+**State home and transitions, pinned** (review finding: rev 1's transcript
+entries carried no `remaining`, so the caption had no implementable home):
+the transcript notifier's state carries a nullable `lastRemaining` record
+alongside `entries` and `helpSticky`. It updates whenever a response
+CARRIES `remaining` (persona reply, post-filter help — coach-proxy returns
+it on every capped path) and is left unchanged by responses without it
+(pre-scan help carries none); it resets to null on "new conversation".
+The caption renders only when `lastRemaining` is non-null AND the
+conversation is not latched (Decision 2: no usage economics next to a
+crisis help card — pinned by a widget test). Before the first response
+there is no hint and no caption (never fabricate a count).
+
+**The caption renders `remaining.daily` ONLY.** The monthly figure derives
+from the couple-shared bucket; a running monthly readout would let one
+partner infer the other's usage by subtraction (skeptic-pass finding).
+ADR-016 D7 deliberately made the monthly bucket member-readable ("genuinely
+joint state"), so this is not a new *data* channel — but the UI need not
+make the inference ambient, so monthly surfaces only in the
+`cap-monthly` error state's copy (server-declared, no arithmetic shown).
+At `remaining.daily == 0` the caption uses a dedicated non-plural
+`coachQuotaExhausted` string (review finding: EN/TR have no CLDR `zero`
+category — an ICU `zero{}` branch would never fire there; the repo's
+special-count idiom is the language-independent `=N{}`/dedicated-string
+form); positive counts use the plural `coachQuotaRemaining` with the full
+AR CLDR set.
+
+**The hint never gates sending.** An exhausted caption renders but the
+input stays enabled: the hint is point-in-time (a partner's concurrent
+turn stales it instantly; a day boundary un-caps without the client
+knowing), and the server is the only authority — a send after exhaustion
+gets the typed `cap-daily`/`cap-monthly` answer and its honest state.
 
 *Deferred loudly:* a live `coachUsage` watch (with the client-side key
 comparison obligation) becomes worth building only if the founder wants a
@@ -354,17 +527,26 @@ sanitize because there is no interpolation site):
 The builder is TOTAL over the full 3×3×4 enum product — including
 mismatched pairs the wire permits (`language:'en'` + `register:'tr-playful'`
 passes validation by design; the scaffold must produce something coherent:
-the language directive wins, the register tone note stays). Marked
-`nativeReview: PENDING` (TR/AR blocks join the founder copy gate — same
-tier as the paywall copy, NOT the ★ crisis gate: prompts shape tone, not
-safety; safety lives in the detector + preamble and the ★ item's help
-content). Consumed by no production code this slice (the default provider
+the language directive wins, the register tone note stays).
+
+**Review tiers, corrected** (review finding: rev 1 put the whole prompt on
+the tone tier while simultaneously claiming safety "lives in the
+preamble" — self-contradictory, and PRD F5 designates "not therapy" and
+"no medical/legal advice" as HARD guardrails, not tone): the preamble's
+**safety-bearing lines** (not-therapy / no-medical-legal-psychological /
+never-claim-human, per language) join the **★ BLOCKING native-review
+gate** alongside the lexicon and help response — they are hard guardrails
+with NO detector backstop (the crisis post-filter runs the
+selfHarm/violence lexicons only and cannot catch a persona giving medical
+advice or claiming humanity; stated here so no one assumes otherwise).
+The persona and register TONE blocks stay on the standard copy tier (the
+paywall-copy gate). Marked `nativeReview: PENDING` accordingly, per
+section. Consumed by no production code this slice (the default provider
 stays `UnconfiguredCoachProvider`); the M5.3 live adapter picks it up —
 shipping it now fixes the contract while the copy goes through review.
 Unit tests pin totality, non-emptiness, per-enum content markers, the
 not-therapy line in every language, and zero interpolation surface (the
-function's only inputs are enums — asserted by type, like
-`composePush`).
+function's only inputs are enums — asserted by type, like `composePush`).
 
 *Alternative rejected — scaffolds in the app, sent over the wire:* the
 wire's `register` union was closed specifically so no free client text
@@ -376,27 +558,40 @@ at full width.
 - **Transcript model** (pure Dart): sealed `CoachTranscriptEntry` —
   `CoachUserTurn(text)`, `CoachPersonaTurn(text)`,
   `CoachHelpTurn(text, category?)`. The transcript notifier
-  (`CoachTranscript`, the keepAlive family of Decision 3) appends
-  **confirmed turns only**: on a successful send, the user turn + the
-  response entry land together; nothing is appended while in flight, and a
-  failed send leaves the transcript untouched with the draft still in the
-  input (the M3.3 server-ack discipline — this codebase has no optimistic
-  UI anywhere, and a chat bubble that later "un-sends" is worse than a
-  spinner).
-- **Send controller** (`CoachSendController`, autoDispose family): sealed
-  state `CoachSendIdle | CoachSendSending | CoachSendFailure(CoachException)`;
-  re-entrant sends dropped while one is in flight; every await followed by
-  `ref.mounted`; catches ONLY `CoachException` (the manual-op contract,
-  `SoloAnswerController` mold). Success clears the input; failure keeps it
-  (retry = tap send again; no auto-retry — the repo's `_noRetry`
-  philosophy).
+  (`CoachTranscript`, the keepAlive family of Decision 3) holds
+  `{entries, helpSticky, lastRemaining}` and appends **confirmed turns
+  only**: on a successful send, the user turn + the response entry land
+  together (plus the latch/hint updates of Decisions 2/6); nothing is
+  appended while in flight, and a failed send leaves the transcript
+  untouched with the draft still in the input (the M3.3 server-ack
+  discipline — this codebase has no optimistic UI anywhere, and a chat
+  bubble that later "un-sends" is worse than a spinner).
+- **Send controller** (`CoachSendController`) is an **autoDispose family
+  keyed `(uid, coupleId, personaId)`** — the same key as the transcript
+  (review finding: rev 1 left the key unspecified; a global controller
+  would let persona A's in-flight send block persona B, and a per-persona
+  controller without the append rule below would LOSE a paid-for reply if
+  the user switched personas mid-send and autoDispose tore the controller
+  down before the await returned). Sealed state
+  `CoachSendIdle | CoachSendSending | CoachSendFailure(CoachException)`;
+  re-entrant sends dropped per persona while one is in flight; catches
+  ONLY `CoachException`. **The transcript append survives controller
+  disposal:** the controller captures its persona's keepAlive
+  `CoachTranscript` notifier BEFORE the await and applies the exchange
+  through that captured reference after the call returns — the keepAlive
+  notifier outlives the route and the controller, so a mid-send persona
+  switch or route pop still lands the reply (and its latch/hint effects)
+  in the right conversation; `ref.mounted` guards only the controller's
+  OWN state writes (the manual-op contract, `SoloAnswerController` mold).
+  Success clears the input; failure keeps it (retry = tap send again; no
+  auto-retry — the repo's `_noRetry` philosophy).
 - **Help rendering is structurally distinct:** `CoachHelpTurn` renders as
   its own widget type (full-width card: alert-family styling per brandkit
-  `alert`/`sand` tokens, safety icon, no persona chip/avatar, the
-  help-sticky caption of Decision 2) — never a chat bubble. Widget tests
-  pin the TYPE distinction (`find.byType`), not just styling, so a
-  refactor cannot quietly re-bubble the help path (the resume prompt's
-  accept line).
+  `alert`/`sand` tokens, safety icon, no persona chip/avatar) — never a
+  chat bubble. Widget tests pin the TYPE distinction (`find.byType`), not
+  just styling, so a refactor cannot quietly re-bubble the help path (the
+  resume prompt's accept line). While latched, the paused panel (Decision
+  2) replaces the composer beneath the transcript.
 - **Persona reply bubbles** are visually attributed (persona label chip)
   and aligned with logical `start`/`end` only (RTL lint). Dynamic type to
   130% covered by the golden scale variants.
@@ -411,47 +606,75 @@ at full width.
 2. Window builder: ≤20 turns including the new last-user turn; help
    entries never enter; crisis turns never filtered (a transcript with a
    help entry still re-sends its user turns verbatim); oldest-first
-   trimming; empty/whitespace sends impossible.
-3. `mapCoachFailure`: the full matrix of Decision 5 — every code × reason
+   trimming; assistant turns truncated to 2,000 UTF-16 code units; user
+   sends blocked above 2,000 code units (emoji/surrogate boundary case
+   pinned); empty/whitespace sends impossible.
+3. **The latch:** ANY `kind:'help'` response sets `helpSticky` (pre-scan
+   shape without `remaining` AND post-filter shape with it); while
+   latched the composer is replaced by the paused panel and **zero
+   repository calls can be issued** (fake call log asserted empty across
+   attempted interaction); the latch survives route pop/re-push (keepAlive)
+   and persona switches away/back; "new conversation" clears exactly
+   {entries, latch, hint} for the active persona and re-enables the
+   composer; other personas' conversations are untouched.
+4. `mapCoachFailure`: the full matrix of Decision 5 — every code × reason
    (present/absent/junk `details`) lands in exactly the documented member;
-   non-Functions throws → `CoachUnknownException`.
-4. `coachReplyFromCallable`: valid reply/help shapes (with/without
-   `category`/`remaining`), every malformed shape throws `FormatException`.
-5. Controller: re-entrant drop (Completer-gated double-tap → one repo
-   call), `ref.mounted` teardown safety, failure keeps state/draft,
-   success appends exactly [user, response] to the transcript family.
-6. Widget: disclaimer gates the chat until CTA (and persists — re-pump
-   with the fake flag set skips it); send flow renders persona bubble from
-   fixture reply; help turn renders the distinct TYPE (never the bubble
-   type) incl. post-filter help (help + remaining hint); each error state
-   renders its copy (cap-daily ≠ cap-monthly asserted as distinct
-   strings); `not-premium` failure pushes `PaywallScreen`; auth-loss
-   self-pops; persona switch swaps transcripts and windows; "new
-   conversation" clears only the active persona's transcript; quota
-   caption renders from hint and never disables input.
-7. Free-tier probes (the M4.2 suite extended): free couple → NO coach
-   tile, NO `CoachScreen` push anywhere in the daily answer flow; premium
-   couple → tile present; the live-mirror flip flips tile visibility BOTH
-   directions (incl. past-expiry downgrade); the gift probe untouched.
-8. Goldens: `coach_screen` × {`disclaimer`, `conversation`, `help_path`}
+   non-Functions throws → `CoachUnknownException` with runtimeType-only
+   content; `FormatException` from the parser converts to
+   `CoachUnknownException(code: 'malformed-response')` inside the
+   repository (nothing but `CoachException` escapes the data layer).
+5. `coachReplyFromCallable`: valid reply/help shapes (with/without
+   `category`/`remaining`), every malformed shape throws `FormatException`
+   whose message interpolates only runtime types — plus the **no-content
+   sentinel suite**: marker text seeded through every failure path never
+   appears in any thrown exception's `toString()`.
+6. Controller: re-entrant drop per persona (Completer-gated double-tap →
+   one repo call), a persona-B send proceeds while persona A is in
+   flight, mid-send persona switch still lands the reply in persona A's
+   transcript (captured-notifier rule), `ref.mounted` teardown safety,
+   failure keeps state/draft, success appends exactly [user, response].
+7. Widget: disclaimer gates the chat until CTA (and persists — re-pump
+   with the fake flag set skips it); profile loading → no composer;
+   profile error/null → honest error state; send flow renders persona
+   bubble from fixture reply; help turn renders the distinct TYPE (never
+   the bubble type); each error state renders its copy (cap-daily ≠
+   cap-monthly asserted as distinct strings); `not-premium` failure pushes
+   `PaywallScreen`; auth-loss self-pops AND the transcript family is
+   invalidated (fresh state on next build); persona switch swaps
+   transcripts and windows; quota caption renders daily-only from the
+   hint, uses `coachQuotaExhausted` at 0, is absent before the first
+   response, is suppressed while latched, and never disables input.
+8. Free-tier probes (the M4.2 suite extended): free couple → NO coach
+   tile and NO spacer (the free paired-home goldens stay BYTE-IDENTICAL —
+   no re-baseline in this slice), NO `CoachScreen` push anywhere in the
+   daily answer flow; premium couple → tile present (widget-pinned);
+   the live-mirror flip flips tile visibility BOTH directions (incl.
+   past-expiry downgrade); the gift probe untouched.
+9. Goldens: `coach_screen` × {`disclaimer`, `conversation`, `help_path`}
    × six cells + scale-130 naturals (27 PNGs), deterministic fixture
-   transcript through the fake repo; paired-home cells re-baselined ONLY
-   if the tile lands inside existing golden frames (W4 flag, intentional).
-9. Functions (touched surface only): `persona-prompts` totality/content
-   suite; `help-content` suite updated for the disclaimer removal; full
-   functions gate re-run green (80 hard).
+   transcript through the fake repo (the help_path cell shows the latched
+   paused panel — the state a real crisis leaves behind).
+10. ARB: every `coach*` key present in all three locales; no `coach*`
+    value in any locale contains a phone-number-shaped digit run
+    (`\d{3,}` — the ADR-016 D4 guard, ported app-side).
+11. Functions (touched surface only): `persona-prompts` totality/content
+    suite (36 enum combos; not-therapy line per language; static-literal
+    construction); `help-content` suite updated for the disclaimer
+    removal; full functions gate re-run green (80 hard).
 
 ## Docs-with-code checklist (this session's pass)
 
 `architecture.md` §2 (coach feature dir goes live app-side), §4 (coach
-flow: chat UI status, window rules, ephemeral scope, disclaimer home), §8
-(client-side zero retention + disclaimer ARB home + local-flag seam);
+flow: chat UI status, window rules + latch, ephemeral scope, disclaimer
+home), §8 (client-side retention posture incl. the OS-snapshot note +
+disclaimer ARB home + local-flag seam + the app-side no-content rule);
 `test-suite.md` §1 (coach app rows: unit/widget/golden; functions row for
 persona-prompts); `implementation-plan.md` (M5.2 entry);
-`resume-prompt.md` (M5.3 next); `operator-expected.md` (persona-prompt +
-coach ARB copy join the native-review scope; the private-thread founder
-decision recorded with options; ★ item pointer updated for the disclaimer
-move); `past-prompts.md` (Session 019 entry).
+`resume-prompt.md` (M5.3 next); `operator-expected.md` (persona-prompt
+safety lines join the ★ gate; tone blocks + coach ARB copy join the
+standard native-review scope; the private-thread founder decision recorded
+with options; ★ item pointer updated for the disclaimer move);
+`past-prompts.md` (Session 019 entry).
 
 ## Consequences
 
@@ -461,36 +684,51 @@ move); `past-prompts.md` (Session 019 entry).
   live calls, zero new server surface (persona scaffolds are pure,
   unconsumed), zero persistence — the smallest honest slice that makes the
   frozen contract renderable.
+- **The help-sticky guarantee is now real**: latched client-side on the
+  server's explicit `kind` signal, independent of window contents,
+  trimming, or which filter fired — and once latched, crisis text is
+  never re-transmitted because no further calls leave the conversation.
 - Every frozen wire outcome has exactly one typed exception and one
   surface; a dropped `details.reason` degrades to honest-generic copy,
-  never to a wrong claim.
-- The crisis-turn decision lands on the conservative side with an explicit,
-  user-agency exit; the client stays safety-policy-free (no crisis
-  attribution logic app-side).
+  never to a wrong claim; nothing but `CoachException` escapes the data
+  layer, and no exception can carry conversation content into Crashlytics.
 - The free tier's zero-coach-surface guarantee is structural (locked =
-  nothing) AND assertion-pinned (probes extended).
-- The disclaimer gains one home, one review surface, and a per-device
-  re-show property that favors safety.
+  nothing, spacer included) AND assertion-pinned, with free goldens
+  byte-identical.
+- The disclaimer gains one home, one review surface, a ported
+  no-phone-number guard, and a per-device re-show property that favors
+  safety.
 
 **Negative / accepted trade-offs**
 
 - **Transcripts die on restart** (ephemeral scope). Deliberate; the
   founder owns the retention decision (operator-expected).
-- **Help-sticky conversations** cost persona replies until the user starts
-  fresh — the over-trigger direction, accepted per the asymmetry rule.
-  Crisis text is re-sent (TLS, never persisted/logged server-side) on
-  every subsequent call in that conversation; bounded by the user's own
-  exit affordance.
+- **Latched conversations cost persona replies until the user starts
+  fresh** — the over-trigger direction, accepted per the asymmetry rule.
+  A benign mention (a news story) latches the conversation; the explicit
+  reset is one tap away.
+- **The latch is per persona conversation.** A user who latched Coach can
+  chat with Date Genie — structurally identical to starting a new
+  conversation, which the design blesses; per-message detection covers
+  all new content. Documented, not discovered (review finding accepted
+  as designed).
+- **Process-memory residue and the OS app-switcher snapshot** are outside
+  app-controlled storage: RAM is cleared on sign-out invalidation but not
+  scrubable; the snapshot mitigation (secure-screen/obscuring) rides M6's
+  device-privacy layer. Recorded loudly here and in architecture §8.
 - **A new dependency** (`shared_preferences`) enters for one flag. The
   seam keeps it swappable; the empty `core/storage/` dir existed for this.
+  The uid-keyed ack flag's on-device metadata exposure is analyzed and
+  accepted in Decision 4.
 - **The server loses its disclaimer export** — a consumer that never
   existed; if a future surface needs server-delivered disclaimers (e.g.
   web), the ARB→server move reverses with the same single-home rule.
 - **Quota visibility starts at the first response** (no meter before the
-  day's first message). Deferred loudly, not silently.
-- **Persona scaffold copy ships unreviewed** (nativeReview: PENDING) and
-  unconsumed; it cannot affect any user until the live adapter lands, by
-  which time the review gate applies.
+  day's first message), renders daily-only, and goes quiet in help
+  states. Deferred/shaped loudly, not silently.
+- **Persona scaffold copy ships unreviewed** (nativeReview: PENDING per
+  tier) and unconsumed; it cannot affect any user until the live adapter
+  lands, by which time both review gates apply.
 
 **Neutral**
 
@@ -499,3 +737,11 @@ move); `past-prompts.md` (Session 019 entry).
   analytics event remain out of scope, unchanged from ADR-016's deferrals.
 - `coach_msg` analytics, when built (M6), inherits `logCoachEvent`'s
   typed-fields shape (ADR-016 binding) — nothing in this slice loosens it.
+- Review findings adjudicated but NOT taken as-is (recorded per the S017
+  discipline): the monthly-remaining "new inference channel" claim was
+  scoped by ADR-016 D7 (the bucket is deliberately member-readable — the
+  UI change is minimization, not leak-closure); the device-level
+  disclaimer key proposal was rejected because it under-shows a safety
+  note to the second partner (Decision 4's analysis); "document bounded
+  stickiness instead of latching" was overruled by the governing docs
+  (Decision 2).
