@@ -8,7 +8,9 @@
 > after every merge to `main`.
 
 _Last refreshed: 2026-07-12, Session 017 close (M4.3 — `TRANSFER` handling + the
-gift decision; **M4 engineering COMPLETE, sandbox proof pending item 0**)._
+gift decision; **M4 engineering COMPLETE, sandbox proof pending item 0**).
+Mid-session update, Session 018 (2026-07-12): founder hardware landed — see the
+TestFlight runbook below._
 
 ## Expected from you right now: **nothing was blocked this session — but item 0 is now the ONLY thing left in M4, and it is blocking.**
 
@@ -48,6 +50,137 @@ forever**. It was invisible because every existing test built the event by
 hand, in a shape the real one never has. It is fixed, and the fix is now proven
 against RevenueCat's own documented payload.
 
+## ★ NEW (2026-07-12, Session 018): you have the iPhone 17 + Mac — the TestFlight runbook
+
+You told Session 018 you now have an **iPhone 17 and a Mac**, and that you will
+**register the app on TestFlight and physically test it on your iPhone**. That
+changes the posture of item 4 (the Mac was the missing hardware; now the only
+gate is your Apple Developer enrollment, promised 2026-07-08) — and it means
+you can personally close **half of item 0** (the App Store Connect app record
+is Phase B below). Here is the complete runbook, verified against this repo's
+actual configuration (bundle id `com.hayati.app`, Sign in with Apple
+entitlement already declared, flavor entrypoints `lib/main_dev.dart` /
+`lib/main_prod.dart`, fastlane's TestFlight lane deliberately not implemented
+until M6 — so your first upload goes through Xcode/Transporter by hand).
+
+### Phase 0 — prerequisites (once)
+
+1. **Verify the enrollment is ACTIVE:** developer.apple.com → Account → your
+   membership must say **Apple Developer Program** (paid, $99/yr), not just
+   "Apple Developer" (free). Nothing below works on the free tier — TestFlight
+   requires the paid program.
+2. **Mac:** install **Xcode** from the Mac App Store (latest stable — you need
+   a version new enough for the iPhone 17 / current iOS SDK). Launch it once,
+   accept the license, let components install. Then Xcode → Settings →
+   Accounts → **+** → sign in with your enrolled Apple ID; your team should
+   appear.
+3. **Mac:** install **Flutter** (stable channel), clone this repo, run
+   `flutter doctor` and clear any iOS-section complaints. Then
+   `cd app && flutter pub get`. (No CocoaPods needed — this project is
+   SwiftPM-first, there is no Podfile.)
+4. **iPhone 17:** install the **TestFlight** app from the App Store, signed in
+   with the Apple ID you'll invite (using your own enrolled Apple ID is
+   simplest).
+
+### Phase A — register the bundle ID (once)
+
+1. developer.apple.com → Certificates, Identifiers & Profiles →
+   **Identifiers** → **+** → App IDs → type **App**.
+2. Description: `Hayati`. Bundle ID: **Explicit**, exactly **`com.hayati.app`**
+   (it is pinned in the Xcode project and `fastlane/Appfile` — a different
+   string will not build).
+3. Capabilities: tick **Sign in with Apple** (the app's entitlements file
+   already declares it — a build without this capability fails validation).
+   Push Notifications and App Attest can be added later by editing the App ID
+   (that's allowed; Xcode regenerates profiles automatically).
+   - Shortcut: if you skip this phase, Xcode's automatic signing (Phase C)
+     can register the App ID for you — but doing it in the portal makes the
+     capability state explicit, and you need the identifier to exist for
+     Phase B anyway.
+
+### Phase B — create the App Store Connect app record (once — this IS half of item 0)
+
+1. appstoreconnect.apple.com → **My Apps** → **+** → **New App**.
+2. Platform **iOS** · Name **Hayati** (this is the public/TestFlight display
+   name; if Apple says it's taken, pick a variant — it can be changed before
+   launch) · Primary language **Turkish** (or English — your call) · Bundle ID
+   **com.hayati.app** (appears in the dropdown after Phase A) · SKU
+   `hayati-ios` (internal only, never shown) · Full Access.
+3. **Do NOT create subscription products yet** unless a session specs them
+   with you — and when you do, remember the **irreversible** rule from item 0:
+   **leave "Family Sharing" OFF** (ADR-015, one-way door).
+
+### Phase C — build the signed app on the Mac
+
+1. Open `app/ios/Runner.xcworkspace` in Xcode → select the **Runner** target →
+   **Signing & Capabilities** → tick **Automatically manage signing** → Team:
+   your team. Xcode mints the certificate + provisioning profile itself.
+2. Build the **prod** flavor for TestFlight (dev points at `hayatiapp-dev`;
+   TestFlight builds should carry prod config):
+
+   ```sh
+   cd app
+   flutter build ipa --release -t lib/main_prod.dart
+   ```
+
+   Leave `REVENUECAT_IOS_API_KEY` out until item 0's RevenueCat account
+   exists — without it the paywall shows the honest "store unavailable" state
+   **by design** (fail-closed), everything else works.
+3. Output lands at `app/build/ios/ipa/*.ipa`. Version is pubspec's
+   `version: 0.1.0+1` — every later upload needs the build number after the
+   `+` bumped (`+2`, `+3`, …).
+
+### Phase D — upload to TestFlight
+
+1. Easiest: install Apple's **Transporter** app (free, Mac App Store) → sign
+   in → drag the `.ipa` in → **Deliver**. Alternative: `flutter build ipa`
+   also produced `app/build/ios/archive/Runner.xcarchive` — open it in Xcode
+   (Window → Organizer) → **Distribute App** → App Store Connect → Upload.
+2. First upload asks the **export compliance** question: Hayati uses only
+   standard TLS/HTTPS — answer that it uses **only exempt/standard
+   encryption**. (Ask a session to add `ITSAppUsesNonExemptEncryption=false`
+   to Info.plist so the question never comes back.)
+3. Processing takes ~5–30 minutes; the build then appears in App Store
+   Connect → Hayati → **TestFlight** tab (answer the "Missing Compliance"
+   prompt there if it asks again).
+
+### Phase E — install on your iPhone 17
+
+1. TestFlight tab → **Internal Testing** → **+** → create a group (e.g.
+   `Founders`) → add yourself as tester. Internal groups get builds
+   **instantly, no Beta App Review**, up to 100 testers.
+2. Your partner: App Store Connect → Users and Access → invite her Apple ID
+   with any modest role, then add her to the internal group. (External
+   groups exist too, but they require a Beta App Review pass — internal is
+   the right lane for the founder couple.)
+3. On the iPhone: open **TestFlight** → the build appears (or accept the
+   email invite) → **Install**. Done — Hayati is on your phone.
+
+### What that physical test can honestly prove today — and what it can't yet
+
+- **Works immediately:** app launch, onboarding/brand UI, localization
+  (TR/AR/EN, RTL), the solo question flow UI, deep-link delivery
+  (`hayati://invite/<code>` — an item-4 checkbox), Sign in with Apple's
+  full-name capture (another item-4 checkbox) — **after** you enable the
+  Apple sign-in provider in the Firebase console (**item 3, ~5 minutes —
+  do it before the first launch or sign-in will fail**).
+- **Needs item 2 (Blaze + first deploy) first:** pairing, the daily loop,
+  reveal, streaks, entitlements — all six Cloud Functions have **never been
+  deployed** (Spark plan). A session scripts the first deploy the moment you
+  flip Blaze; without it the app on your phone is a beautiful shell around a
+  missing backend.
+- **Needs item 0:** any real paywall content and the sandbox purchase (M4's
+  accept line). TestFlight builds hit the sandbox store automatically once
+  RevenueCat + the subscription products exist.
+- **Won't fire yet regardless:** push notifications (APNs + the app-side
+  token capture are the item-4 device slice, not built into this binary).
+
+**Recommended order:** Phases 0–B now (registration needs only the
+enrollment); flip Blaze (item 2) + enable providers (item 3) next; then let a
+session run the first deploy; then Phases C–E for the physical test. If you
+want, the next session can be re-pointed at the deploy + TestFlight slice
+instead of M5.2 — say so and it will be re-scoped.
+
 ## 0. **BLOCKING — the only thing left in M4:** RevenueCat account + App Store Connect app record
 
 - **What:** (a) create a free **RevenueCat account** (revenuecat.com — takes
@@ -55,7 +188,8 @@ against RevenueCat's own documented payload.
   key**); (b) once your **Apple Developer enrollment** (promised 2026-07-08)
   lands, create the **App Store Connect app record** for `com.hayati.app` and
   the subscription products (the session will spec the TR/SAR/USD tiers with
-  you).
+  you). **The app-record half is now step-by-step Phase A+B of the TestFlight
+  runbook above** — you can do it yourself the day the enrollment lands.
 - **Why it is now BLOCKING (changed at the Session 017 close):** the paywall,
   the purchase plumbing, the entitlement server, and now the transfer handling
   are **all done and waiting**. M4.3 shipped the last of the engineering. There
@@ -148,6 +282,11 @@ against RevenueCat's own documented payload.
   without it. ~5 minutes.
 
 ## 4. The Mac / Apple Developer slice (enrollment promised 2026-07-08)
+
+**Update 2026-07-12 (Session 018): the Mac and the iPhone 17 are now in hand —
+the only remaining gate on this whole slice is the enrollment itself. The
+TestFlight runbook above covers the registration + first-install path; the
+checkboxes below remain the on-device verification backlog.**
 
 Everything here needs your Mac and/or the Apple Developer enrollment:
 
