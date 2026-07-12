@@ -44,13 +44,24 @@ while the phone is locked. Face ID works too, but only as a shortcut (see 3).
   product decision about what we publish to the App Store — tell a session
   and it becomes part of the store-metadata work (M6.3).
 
-**3. Face ID is a shortcut, and we made it revoke itself.** On a shared
-phone, whoever's face or fingerprint is enrolled can pass Face ID — the
-phone cannot tell us *whose* face it was. So: Face ID is off by default,
-turning it on shows you an explicit warning saying exactly that, and — the
-part that matters — **if the phone's Face ID enrollment ever changes after
-you turn it on, Hayati automatically switches it off and demands the PIN.**
-Someone adding their face to your phone later gains nothing.
+**3. Face ID is a shortcut, and we made it revoke itself — and turning it on
+costs you your PIN.** On a shared phone, whoever's face or fingerprint is
+enrolled can pass Face ID — the phone cannot tell us *whose* face it was. So:
+Face ID is off by default; turning it on shows an explicit warning saying
+exactly that, **and then asks for your PIN**; and if the phone's Face ID
+enrollment ever changes afterwards, Hayati automatically switches it off and
+demands the PIN again. Someone adding their face to your phone later gains
+nothing.
+
+*Why the PIN to turn it ON — this one is worth understanding, because it is
+counter-intuitive:* attaching Face ID attaches a **second key** to your lock.
+Without the PIN check, someone who caught your phone unlocked for thirty
+seconds could add *their own face* as that second key and keep permanent
+access — never knowing your PIN, and with our automatic revocation powerless
+to help (nothing "changed" afterwards; they were inside the enrollment from
+the start). Removing the lock already needed the PIN; adding a second key to
+it now does too. Turning Face ID **off** needs no PIN — that only ever makes
+things safer.
 
 **4. What the lock honestly does and does not protect against.** It blocks
 casual and silent access: someone picking up your phone cannot read your
@@ -65,6 +76,19 @@ give the app away).
 
 **5. Nothing changed for the daily loop.** If you never set a PIN, the app
 behaves exactly as it did — proven by tests that would fail if it didn't.
+
+**6. Your Turkish copy caught a real safety bug — and it argues for doing the
+native review sooner.** The lock's Turkish strings said *"Kilit hâlâ kapalı"*.
+Read naturally, that means "the lock is **closed**" — i.e. engaged, you are
+protected. It was supposed to mean the opposite ("the lock is still **off**"),
+and it appeared on exactly the screen you'd see if saving your PIN had
+*failed*. A Turkish user would have been told they were protected at the one
+moment they were not. It is fixed (`etkin` / `etkin değil`), and the Arabic was
+correct throughout — but note what caught it: **a human reading the sentence.**
+No test can see a sentence that is grammatically perfect and semantically
+inverted. That is the whole argument for item 1's native review, and it is why
+the two safety-bearing strings (the Face ID warning, the "Forgot PIN?" copy)
+are worth your eyes before the beta, not after.
 
 ## ★ NEW (Session 018): native review of the CRISIS content — the one gate before the coach runs on your phones
 
@@ -488,7 +512,7 @@ secret**, then rework/land the branch.
   delete-and-reinstall cannot shed the lock while the sign-in session it
   guards survives; attempt-bounding with escalating cooldowns that survive a
   force-quit; Face ID as a self-revoking shortcut; the app-switcher card
-  blanked; the discreet iOS icon — 1,206 app tests / 773 server tests green).
+  blanked; the discreet iOS icon — 1,223 app tests / 773 server tests green).
   **What "production-ready" is still missing, honestly:** no deploy has ever
   happened (Spark plan — item 2), the app has never run on a real device
   (Mac/enrollment — item 4), no real purchase has ever been made (item 0),
