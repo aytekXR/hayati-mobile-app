@@ -11,6 +11,7 @@ import '../../coach/presentation/coach_screen.dart';
 import '../../entitlements/presentation/pack_selection_screen.dart';
 import '../../entitlements/presentation/premium_gate.dart';
 import '../../entitlements/presentation/state/entitlement_providers.dart';
+import '../../settings/presentation/widgets/settings_gear_overlay.dart';
 import '../domain/couple.dart';
 import '../domain/couple_answer.dart';
 import '../domain/couple_data_exception.dart';
@@ -88,6 +89,15 @@ class _PairedHomeScreenState extends ConsumerState<PairedHomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    // ONE wrap over the whole build (ADR-018 Decision 7; review finding
+    // DVUX-7): this screen returns a different Scaffold per state, so the
+    // settings gear cannot live "in the SafeArea" of any one of them. Wrapping
+    // the return puts it in EVERY state — including the error state, where a
+    // user whose couple stream is broken must still be able to reach the lock.
+    return SettingsGearOverlay(uid: widget.uid, child: _buildBody(context));
+  }
+
+  Widget _buildBody(BuildContext context) {
     // Same layered AsyncValue settling idiom as SoloHomeScreen: each layer
     // is data the next one keys on, so precedence is structural.
     final couple = ref.watch(coupleProvider(widget.coupleId));

@@ -1,0 +1,333 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/storage/pin_lock_store.dart';
+import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
+import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/daily_question/domain/solo_clock.dart';
+import 'package:hayati_app/features/privacy_lock/domain/biometric_authenticator.dart';
+import 'package:hayati_app/features/settings/domain/app_icon_switcher.dart';
+import 'package:hayati_app/features/settings/presentation/pin_setup_screen.dart';
+import 'package:hayati_app/features/settings/presentation/settings_screen.dart';
+// flutter_riverpod's curated export omits Override; riverpod_annotation exposes it.
+import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
+
+import '../../../support/fake_app_icon_switcher.dart';
+import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_biometric_authenticator.dart';
+import '../../../support/fake_pin_lock_store.dart';
+import '../../../support/localized_app.dart';
+import '../../../support/pin_lock_fixtures.dart';
+
+/// The settings surface (ADR-018 Decision 7). Every row is tested through its
+/// HONEST FAILURE path as well as its happy one: this screen's job is to never
+/// claim a protection the platform refused.
+const _uid = 'uid-1';
+final _now = DateTime.utc(2026, 7, 10, 9);
+
+void main() {
+  final en = l10nFor(const Locale('en'));
+
+  ({
+    FakePinLockStore store,
+    FakeAppIconSwitcher icons,
+    FakeBiometricAuthenticator biometrics,
+    FakeAuthRepository auth,
+    List<Override> overrides,
+  })
+  arrange({
+    PinLockRecord? record,
+    FakeAppIconSwitcher? icons,
+    FakeBiometricAuthenticator? biometrics,
+  }) {
+    final store = FakePinLockStore(initial: record);
+    final iconSwitcher = icons ?? FakeAppIconSwitcher(supported: false);
+    final biometricAuth =
+        biometrics ?? FakeBiometricAuthenticator(available: false);
+    final auth = FakeAuthRepository(
+      initialUser: const AuthUser(uid: _uid, displayName: 'Aytek'),
+    );
+    addTearDown(auth.dispose);
+    return (
+      store: store,
+      icons: iconSwitcher,
+      biometrics: biometricAuth,
+      auth: auth,
+      overrides: [
+        pinLockStoreProvider.overrideWithValue(store),
+        initialLockSnapshotProvider.overrideWithValue(
+          PinLockSnapshot(record: record),
+        ),
+        biometricAuthenticatorProvider.overrideWithValue(biometricAuth),
+        appIconSwitcherProvider.overrideWithValue(iconSwitcher),
+        authRepositoryProvider.overrideWith((ref) => auth),
+        soloClockProvider.overrideWith(
+          (ref) =>
+              () => _now,
+        ),
+      ],
+    );
+  }
+
+  Future<void> pumpSettings(
+    WidgetTester tester,
+    List<Override> overrides, {
+    Locale locale = const Locale('en'),
+  }) async {
+    await tester.pumpWidget(
+      localizedApp(
+        const SettingsScreen(uid: _uid),
+        locale: locale,
+        overrides: overrides,
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  group('row 1 — the app lock', () {
+    testWidgets('lock OFF offers set-up; the PIN setup flow enables it', (
+      tester,
+    ) async {
+      final env = arrange();
+      await pumpSettings(tester, env.overrides);
+
+      expect(find.text(en.settingsLockSubtitleOff), findsOneWidget);
+      expect(find.text(en.settingsLockSetUp), findsOneWidget);
+
+      await tester.tap(find.text(en.settingsLockSetUp));
+      await tester.pumpAndSettle();
+      expect(find.byType(PinSetupScreen), findsOneWidget);
+
+      await enterPin(tester, kTestPin); // enter
+      await enterPin(tester, kTestPin); // confirm
+      await tester.pumpAndSettle();
+
+      // Back on settings, and the record actually persisted (never claim a lock
+      // that did not reach the store — Decision 8).
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.text(en.settingsLockSubtitleOn), findsOneWidget);
+      expect(env.store.record?.isSet, isTrue);
+    });
+
+    testWidgets('lock ON: turning it off requires the PIN', (tester) async {
+      final env = arrange(record: lockRecord());
+      await pumpSettings(tester, env.overrides);
+
+      expect(find.text(en.settingsLockSubtitleOn), findsOneWidget);
+      await tester.tap(find.text(en.settingsLockTurnOff));
+      await tester.pumpAndSettle();
+
+      // A real dialog — legitimate HERE (this route is inside the Navigator),
+      // unlike anywhere on the lock screen (Decision 3).
+      expect(find.text(en.settingsLockVerifyTitle), findsOneWidget);
+      await enterPin(tester, kTestPin);
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.settingsLockSubtitleOff), findsOneWidget);
+      expect(env.store.record, isNull);
+    });
+
+    testWidgets('a WRONG PIN leaves the lock on and says so', (tester) async {
+      final env = arrange(record: lockRecord());
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.text(en.settingsLockTurnOff));
+      await tester.pumpAndSettle();
+      await enterPin(tester, kWrongPin);
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.settingsLockDisableFailed), findsOneWidget);
+      expect(find.text(en.settingsLockSubtitleOn), findsOneWidget);
+      // The record survives — and the attempt was BOUNDED like any other
+      // (disable would otherwise be an unbounded PIN oracle, Decision 4).
+      expect(env.store.record?.isSet, isTrue);
+      expect(env.store.record?.wrongCount, 1);
+    });
+  });
+
+  group('row 2 — the biometric accelerator', () {
+    testWidgets('hidden when the lock is off, even if biometrics are available', (
+      tester,
+    ) async {
+      final env = arrange(biometrics: FakeBiometricAuthenticator());
+      await pumpSettings(tester, env.overrides);
+      // Biometric is only ever an accelerator FOR the PIN. With no PIN there is
+      // nothing to accelerate — offering it would be the credential confusion
+      // Decision 1 forbids.
+      expect(find.text(en.settingsBiometricTitle), findsNothing);
+    });
+
+    testWidgets('enabling shows the DV WARNING and then demands the PIN', (
+      tester,
+    ) async {
+      final env = arrange(
+        record: lockRecord(),
+        biometrics: FakeBiometricAuthenticator(),
+      );
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+
+      // The warning is the whole DVUX-1 mitigation: the app cannot know whose
+      // face is enrolled on a shared phone, and the user must weigh that.
+      expect(find.text(en.settingsBiometricWarningTitle), findsOneWidget);
+      expect(find.text(en.settingsBiometricWarningBody), findsOneWidget);
+      // Nothing has been written yet.
+      expect(env.store.callLog, isNot(contains('write:set')));
+
+      await tester.tap(find.text(en.settingsBiometricWarningConfirm));
+      await tester.pumpAndSettle();
+
+      // Acknowledging the warning is NOT authorisation (review finding
+      // LOCKBYPASS-2). Attaching a second credential to the lock demands the PIN,
+      // exactly as removing the lock does — otherwise a partner holding a
+      // momentarily-unlocked phone attaches their own enrolled face and keeps
+      // permanent access without ever knowing the PIN.
+      expect(
+        env.store.record?.biometricEnabled,
+        isFalse,
+        reason: 'the warning alone must not enable it',
+      );
+      await enterPin(tester, kTestPin);
+      await tester.pumpAndSettle();
+
+      expect(env.store.record?.biometricEnabled, isTrue);
+      expect(env.store.record?.biometricEnrollmentState, 'enrollment-v1');
+    });
+
+    testWidgets('a WRONG PIN leaves the accelerator off', (tester) async {
+      final env = arrange(
+        record: lockRecord(),
+        biometrics: FakeBiometricAuthenticator(),
+      );
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.settingsBiometricWarningConfirm));
+      await tester.pumpAndSettle();
+      await enterPin(tester, kWrongPin);
+      await tester.pumpAndSettle();
+
+      expect(env.store.record?.biometricEnabled, isFalse);
+      expect(env.store.record?.biometricEnrollmentState, isNull);
+      expect(find.text(en.settingsBiometricFailed), findsOneWidget);
+    });
+
+    testWidgets('declining the warning writes nothing and leaves it off', (
+      tester,
+    ) async {
+      final env = arrange(
+        record: lockRecord(),
+        biometrics: FakeBiometricAuthenticator(),
+      );
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.settingsCancel));
+      await tester.pumpAndSettle();
+
+      expect(env.store.record?.biometricEnabled, isFalse);
+      expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
+    });
+
+    testWidgets(
+      'a platform with NO enrollment state to capture fails honestly',
+      (tester) async {
+        final env = arrange(
+          record: lockRecord(),
+          // Available, but the platform will not hand over an enrollment state —
+          // so the revocation check could never run later. Refuse rather than
+          // ship an accelerator we cannot invalidate (Decision 1).
+          biometrics: FakeBiometricAuthenticator(enrollment: null),
+        );
+        await pumpSettings(tester, env.overrides);
+
+        await tester.tap(find.byType(Switch).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(en.settingsBiometricWarningConfirm));
+        await tester.pumpAndSettle();
+        await enterPin(tester, kTestPin);
+        await tester.pumpAndSettle();
+
+        expect(find.text(en.settingsBiometricFailed), findsOneWidget);
+        expect(env.store.record?.biometricEnabled, isFalse);
+        expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
+      },
+    );
+  });
+
+  group('row 3 — the discreet icon', () {
+    testWidgets('hidden when the platform has no alternate icons', (
+      tester,
+    ) async {
+      final env = arrange(icons: FakeAppIconSwitcher(supported: false));
+      await pumpSettings(tester, env.overrides);
+      expect(find.text(en.settingsDiscreetTitle), findsNothing);
+    });
+
+    testWidgets('the subtitle carries the honest NAME-LABEL bound (DVUX-2)', (
+      tester,
+    ) async {
+      final env = arrange(icons: FakeAppIconSwitcher());
+      await pumpSettings(tester, env.overrides);
+      // setAlternateIconName changes the IMAGE only; CFBundleDisplayName has no
+      // runtime API. The copy must not imply the app disappears.
+      expect(find.text(en.settingsDiscreetSubtitle), findsOneWidget);
+    });
+
+    testWidgets('toggling on applies the discreet icon', (tester) async {
+      final env = arrange(icons: FakeAppIconSwitcher());
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+
+      expect(env.icons.callLog, contains('setDiscreet:true'));
+      expect(env.icons.discreet, isTrue);
+      expect(tester.widget<Switch>(find.byType(Switch).first).value, isTrue);
+    });
+
+    testWidgets(
+      'when the OS REFUSES, the switch REVERTS with honest copy — never a '
+      'state the platform did not accept',
+      (tester) async {
+        final icons = FakeAppIconSwitcher()
+          ..onSetDiscreet = (_) async =>
+              throw const AppIconException('channel-error');
+        final env = arrange(icons: icons);
+        await pumpSettings(tester, env.overrides);
+
+        await tester.tap(find.byType(Switch).first);
+        await tester.pumpAndSettle();
+
+        expect(find.text(en.settingsDiscreetFailed), findsOneWidget);
+        expect(tester.widget<Switch>(find.byType(Switch).first).value, isFalse);
+        // A user who believes a discreet icon is applied, and it is not, is the
+        // worst lie this screen could tell (Decision 7's fail-direction row).
+        expect(icons.discreet, isFalse);
+      },
+    );
+  });
+
+  group('row 4 — sign out', () {
+    testWidgets('signs out through the auth controller', (tester) async {
+      final env = arrange(record: lockRecord());
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.text(en.settingsSignOut));
+      await tester.pumpAndSettle();
+
+      expect(env.auth.signOutCalls, 1);
+    });
+
+    testWidgets('the subtitle says the PIN goes with it', (tester) async {
+      final env = arrange(record: lockRecord());
+      await pumpSettings(tester, env.overrides);
+      // The lock is device-scoped and dies with the session (Decision 1) — a
+      // surprise worth spending a line of copy on.
+      expect(find.text(en.settingsSignOutSubtitle), findsOneWidget);
+    });
+  });
+}
