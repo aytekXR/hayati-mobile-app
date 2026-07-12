@@ -628,6 +628,40 @@ describe('gateTransfer — the pre-read gate (ADR-015 Decision 3)', () => {
     expect(gateTransfer(transferEvent({ transferredFrom: many }))).toMatchObject({ kind: 'resolve' });
   });
 
+  // The `to` side of the gate is what bounds the DESTINATION read fan-out. Both
+  // halves are pinned here: without these, deleting `|| toIds.length > MAX` (or
+  // the `dedupe(rawTo)` call) leaves the whole suite green while a 5,000-id
+  // destination array costs 5,000 reads.
+  it('an oversized DESTINATION array holds too (the to-side cap is real)', () => {
+    const many = Array.from({ length: MAX_TRANSFER_IDS + 1 }, (_unused, i) => `to-${i}`);
+    expect(gateTransfer(transferEvent({ transferredTo: many }))).toEqual({
+      kind: 'hold',
+      reason: 'oversized',
+    });
+  });
+
+  it('a DESTINATION array exactly at the cap resolves (inclusive boundary)', () => {
+    const many = Array.from({ length: MAX_TRANSFER_IDS }, (_unused, i) => `to-${i}`);
+    expect(gateTransfer(transferEvent({ transferredTo: many }))).toMatchObject({
+      kind: 'resolve',
+      toIds: many,
+    });
+  });
+
+  it('the DESTINATION array is deduped (a repeated id is read once, not twice)', () => {
+    const gate = gateTransfer(transferEvent({ transferredTo: ['uid-b', 'uid-b'] }));
+    expect(gate).toEqual({ kind: 'resolve', fromIds: ['uid-a'], toIds: ['uid-b'] });
+  });
+
+  it('duplicates do not push a legitimate DESTINATION over the cap', () => {
+    const dupes = Array.from({ length: MAX_TRANSFER_IDS + 4 }, () => 'uid-b');
+    expect(gateTransfer(transferEvent({ transferredTo: dupes }))).toEqual({
+      kind: 'resolve',
+      fromIds: ['uid-a'],
+      toIds: ['uid-b'],
+    });
+  });
+
   // The filter/dedupe-BEFORE-cap ordering, pinned. Capping the RAW array would
   // hold on routine anonymous-alias accretion (the app mints a fresh anon id on
   // every sign-out), leaving the revoke path inert for exactly the churning
