@@ -150,7 +150,10 @@ void main() {
   /// Drives one send so the transcript carries the canned reply/help turn.
   Future<void> send(WidgetTester tester, Locale locale) async {
     final l10n = l10nFor(locale);
-    await tester.enterText(find.byType(TextField), _userText[_langFor(locale)]!);
+    await tester.enterText(
+      find.byType(TextField),
+      _userText[_langFor(locale)]!,
+    );
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, l10n.coachSend));
     await tester.pumpAndSettle();
@@ -186,9 +189,7 @@ void main() {
         await pump(tester, cell, state.value);
         await expectLater(
           find.byType(CoachScreen),
-          matchesGoldenFile(
-            goldenFile('coach_screen', state.key, cell.suffix),
-          ),
+          matchesGoldenFile(goldenFile('coach_screen', state.key, cell.suffix)),
         );
       });
     }

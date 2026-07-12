@@ -18,11 +18,7 @@ void main() {
   // Under `flutter test` the CWD is app/ (the test-suite.md §1 convention the
   // static-asset harness relies on too).
   const arbDir = 'lib/core/l10n/arb';
-  final locales = {
-    'en': 'app_en.arb',
-    'tr': 'app_tr.arb',
-    'ar': 'app_ar.arb',
-  };
+  final locales = {'en': 'app_en.arb', 'tr': 'app_tr.arb', 'ar': 'app_ar.arb'};
 
   Map<String, String> coachValues(String fileName) {
     final raw =

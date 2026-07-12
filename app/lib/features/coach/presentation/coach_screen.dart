@@ -159,7 +159,9 @@ class _CoachChatBody extends ConsumerWidget {
     if (!flags.isSet(coachDisclaimerAckKey(uid))) {
       return _CoachDisclaimerView(
         onAcknowledge: () async {
-          await ref.read(localFlagStoreProvider).set(coachDisclaimerAckKey(uid));
+          await ref
+              .read(localFlagStoreProvider)
+              .set(coachDisclaimerAckKey(uid));
           onDisclaimerAck();
         },
       );
@@ -267,7 +269,9 @@ class _CoachChatState extends ConsumerState<_CoachChat> {
     final entries = transcript.entries;
     final remaining = transcript.lastRemaining;
     final failure = sendState is CoachSendFailure ? sendState.failure : null;
-    final failureCopy = failure == null ? null : _coachFailureCopy(l10n, failure);
+    final failureCopy = failure == null
+        ? null
+        : _coachFailureCopy(l10n, failure);
 
     return SafeArea(
       top: false,
@@ -440,7 +444,11 @@ class CoachUserBubble extends StatelessWidget {
 /// A persona reply turn: a start-aligned bubble with a small persona-label chip
 /// above it (visual attribution, Decision 8).
 class CoachPersonaBubble extends StatelessWidget {
-  const CoachPersonaBubble({super.key, required this.text, required this.persona});
+  const CoachPersonaBubble({
+    super.key,
+    required this.text,
+    required this.persona,
+  });
 
   final String text;
   final CoachPersonaId persona;

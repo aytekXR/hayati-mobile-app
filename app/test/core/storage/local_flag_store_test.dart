@@ -25,19 +25,24 @@ void main() {
   });
 
   group('SharedPreferencesLocalFlagStore', () {
-    test('reads false when unset, true after set (through the prefs cache)', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final store = SharedPreferencesLocalFlagStore(prefs);
-      final key = coachDisclaimerAckKey('u1');
+    test(
+      'reads false when unset, true after set (through the prefs cache)',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final store = SharedPreferencesLocalFlagStore(prefs);
+        final key = coachDisclaimerAckKey('u1');
 
-      expect(store.isSet(key), isFalse);
-      await store.set(key);
-      expect(store.isSet(key), isTrue);
-    });
+        expect(store.isSet(key), isFalse);
+        await store.set(key);
+        expect(store.isSet(key), isTrue);
+      },
+    );
 
     test('reads a pre-seeded true synchronously off the cache', () async {
-      SharedPreferences.setMockInitialValues({coachDisclaimerAckKey('u2'): true});
+      SharedPreferences.setMockInitialValues({
+        coachDisclaimerAckKey('u2'): true,
+      });
       final prefs = await SharedPreferences.getInstance();
       final store = SharedPreferencesLocalFlagStore(prefs);
 

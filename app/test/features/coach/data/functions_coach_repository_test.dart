@@ -8,7 +8,11 @@ import 'package:hayati_app/features/coach/domain/coach_reply.dart';
 // may still invoke it via super, which fabricates the real exception TYPE the
 // boundary switches on without touching a live callable (the pairing mold).
 class _FunctionsException extends FirebaseFunctionsException {
-  _FunctionsException({required super.code, super.message = 'boom', super.details});
+  _FunctionsException({
+    required super.code,
+    super.message = 'boom',
+    super.details,
+  });
 }
 
 /// Marker seeded through every failure path — no thrown exception's toString()
@@ -168,38 +172,50 @@ void main() {
     });
   });
 
-  group('decodeOrThrowCoachException — parse failure converts in the data layer', () {
-    test('a valid payload decodes to the reply', () {
-      final reply = decodeOrThrowCoachException({'kind': 'reply', 'text': 'ok'});
-      expect(reply.kind, CoachReplyKind.reply);
-    });
+  group(
+    'decodeOrThrowCoachException — parse failure converts in the data layer',
+    () {
+      test('a valid payload decodes to the reply', () {
+        final reply = decodeOrThrowCoachException({
+          'kind': 'reply',
+          'text': 'ok',
+        });
+        expect(reply.kind, CoachReplyKind.reply);
+      });
 
-    test('a malformed payload converts to CoachUnknownException(malformed-response)', () {
-      Object? thrown;
-      try {
-        decodeOrThrowCoachException({'kind': 'nope', 'text': 'x'});
-      } catch (error) {
-        thrown = error;
-      }
+      test(
+        'a malformed payload converts to CoachUnknownException(malformed-response)',
+        () {
+          Object? thrown;
+          try {
+            decodeOrThrowCoachException({'kind': 'nope', 'text': 'x'});
+          } catch (error) {
+            thrown = error;
+          }
 
-      expect(thrown, isA<CoachUnknownException>());
-      final unknown = thrown! as CoachUnknownException;
-      expect(unknown.code, 'malformed-response');
-      expect(unknown.message, isNull);
-    });
+          expect(thrown, isA<CoachUnknownException>());
+          final unknown = thrown! as CoachUnknownException;
+          expect(unknown.code, 'malformed-response');
+          expect(unknown.message, isNull);
+        },
+      );
 
-    test('the converted exception never carries the malformed content (sentinel)', () {
-      Object? thrown;
-      try {
-        decodeOrThrowCoachException({'kind': _sentinel, 'text': 'ok'});
-      } catch (error) {
-        thrown = error;
-      }
+      test(
+        'the converted exception never carries the malformed content (sentinel)',
+        () {
+          Object? thrown;
+          try {
+            decodeOrThrowCoachException({'kind': _sentinel, 'text': 'ok'});
+          } catch (error) {
+            thrown = error;
+          }
 
-      expect(thrown, isA<CoachUnknownException>());
-      expect(thrown.toString(), isNot(contains(_sentinel)));
-    });
-  });
+          expect(thrown, isA<CoachUnknownException>());
+          expect(thrown.toString(), isNot(contains(_sentinel)));
+        },
+      );
+    },
+  );
 
   group('mapCoachFailure — code-first, reason-refined matrix', () {
     CoachException map(String code, [String? reason]) => mapCoachFailure(
@@ -226,7 +242,10 @@ void main() {
     });
 
     test('resource-exhausted refines on the reason', () {
-      expect(map('resource-exhausted', 'cap-daily'), isA<CoachDailyCapException>());
+      expect(
+        map('resource-exhausted', 'cap-daily'),
+        isA<CoachDailyCapException>(),
+      );
       expect(
         map('resource-exhausted', 'cap-monthly'),
         isA<CoachMonthlyCapException>(),
@@ -245,23 +264,26 @@ void main() {
       );
     });
 
-    test('resource-exhausted with a non-map / non-string reason → neutral limit', () {
-      expect(
-        mapCoachFailure(
-          _FunctionsException(code: 'resource-exhausted', details: 'oops'),
-        ),
-        isA<CoachLimitReachedException>(),
-      );
-      expect(
-        mapCoachFailure(
-          _FunctionsException(
-            code: 'resource-exhausted',
-            details: {'reason': 123},
+    test(
+      'resource-exhausted with a non-map / non-string reason → neutral limit',
+      () {
+        expect(
+          mapCoachFailure(
+            _FunctionsException(code: 'resource-exhausted', details: 'oops'),
           ),
-        ),
-        isA<CoachLimitReachedException>(),
-      );
-    });
+          isA<CoachLimitReachedException>(),
+        );
+        expect(
+          mapCoachFailure(
+            _FunctionsException(
+              code: 'resource-exhausted',
+              details: {'reason': 123},
+            ),
+          ),
+          isA<CoachLimitReachedException>(),
+        );
+      },
+    );
 
     test('unavailable / deadline-exceeded → unavailable', () {
       expect(map('unavailable'), isA<CoachUnavailableException>());
@@ -279,17 +301,20 @@ void main() {
   });
 
   group('mapCoachFailure — non-Functions throws (runtimeType only)', () {
-    test('wraps as unexpected with the runtimeType as message, never the value', () {
-      final error = StateError(_sentinel);
+    test(
+      'wraps as unexpected with the runtimeType as message, never the value',
+      () {
+        final error = StateError(_sentinel);
 
-      final mapped = mapCoachFailure(error);
+        final mapped = mapCoachFailure(error);
 
-      expect(mapped, isA<CoachUnknownException>());
-      final unknown = mapped as CoachUnknownException;
-      expect(unknown.code, 'unexpected');
-      expect(unknown.message, error.runtimeType.toString());
-      expect(unknown.toString(), isNot(contains(_sentinel)));
-    });
+        expect(mapped, isA<CoachUnknownException>());
+        final unknown = mapped as CoachUnknownException;
+        expect(unknown.code, 'unexpected');
+        expect(unknown.message, error.runtimeType.toString());
+        expect(unknown.toString(), isNot(contains(_sentinel)));
+      },
+    );
 
     test('a FormatException throwable also degrades to runtimeType only', () {
       final mapped = mapCoachFailure(const FormatException(_sentinel));

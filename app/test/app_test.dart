@@ -92,7 +92,13 @@ void main() {
 
       // Seed a conversation for the signed-in user.
       container
-          .read(coachTranscriptProvider(uid, coupleId, CoachPersonaId.coach).notifier)
+          .read(
+            coachTranscriptProvider(
+              uid,
+              coupleId,
+              CoachPersonaId.coach,
+            ).notifier,
+          )
           .applyExchange(
             userText: 'A message.',
             reply: const CoachReply(

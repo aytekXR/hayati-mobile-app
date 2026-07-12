@@ -99,7 +99,10 @@ class CoachTranscript extends _$CoachTranscript {
     if (auth is! AuthSignedIn || auth.user.uid != uid) return;
     final responseEntry = switch (reply.kind) {
       CoachReplyKind.reply => CoachPersonaTurn(reply.text),
-      CoachReplyKind.help => CoachHelpTurn(reply.text, category: reply.category),
+      CoachReplyKind.help => CoachHelpTurn(
+        reply.text,
+        category: reply.category,
+      ),
     };
     state = CoachTranscriptState(
       entries: [...state.entries, CoachUserTurn(userText), responseEntry],

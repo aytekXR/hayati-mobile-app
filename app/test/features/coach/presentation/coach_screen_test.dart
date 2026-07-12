@@ -44,8 +44,10 @@ const _profile = RelationshipProfile(
   coupleId: _coupleId,
 );
 
-CoupleEntitlement _entitled() =>
-    CoupleEntitlement(entitled: true, expiresAt: _now.add(const Duration(days: 30)));
+CoupleEntitlement _entitled() => CoupleEntitlement(
+  entitled: true,
+  expiresAt: _now.add(const Duration(days: 30)),
+);
 
 FakeEntitlementRepository _premiumMirror() =>
     FakeEntitlementRepository(initialMirrors: {_coupleId: _entitled()});
@@ -105,7 +107,9 @@ void main() {
         entitlementRepositoryProvider.overrideWith((ref) => m),
         authRepositoryProvider.overrideWith((ref) => a),
         profileRepositoryProvider.overrideWith((ref) => p),
-        purchasesRepositoryProvider.overrideWith((ref) => FakePurchasesRepository()),
+        purchasesRepositoryProvider.overrideWith(
+          (ref) => FakePurchasesRepository(),
+        ),
         localFlagStoreProvider.overrideWithValue(f),
         soloClockProvider.overrideWith(
           (ref) =>
@@ -150,7 +154,9 @@ void main() {
       expect(find.byType(TextField), findsNothing);
       expect(find.text(en.coachEmptyState), findsNothing);
 
-      await tester.tap(find.widgetWithText(FilledButton, en.coachDisclaimerCta));
+      await tester.tap(
+        find.widgetWithText(FilledButton, en.coachDisclaimerCta),
+      );
       await tester.pumpAndSettle();
 
       // The chat now renders and the ack is persisted.
@@ -189,38 +195,40 @@ void main() {
       expect(find.byType(TextField), findsNothing);
     });
 
-    testWidgets('a null/error profile shows the honest error state with retry', (
-      tester,
-    ) async {
-      // No seeded profile → the stream yields null → settled error state.
-      final env = arrange(profile: null);
-      await pumpCoach(tester, env.overrides);
-      await tester.pumpAndSettle();
+    testWidgets(
+      'a null/error profile shows the honest error state with retry',
+      (tester) async {
+        // No seeded profile → the stream yields null → settled error state.
+        final env = arrange(profile: null);
+        await pumpCoach(tester, env.overrides);
+        await tester.pumpAndSettle();
 
-      expect(find.text(en.errorGeneric), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, en.tryAgain), findsOneWidget);
-      expect(find.byType(TextField), findsNothing);
-    });
+        expect(find.text(en.errorGeneric), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, en.tryAgain), findsOneWidget);
+        expect(find.byType(TextField), findsNothing);
+      },
+    );
   });
 
   group('send flow', () {
-    testWidgets('renders the user bubble and the persona bubble from the reply', (
-      tester,
-    ) async {
-      final env = arrange();
-      await pumpCoach(tester, env.overrides);
-      await tester.pumpAndSettle();
+    testWidgets(
+      'renders the user bubble and the persona bubble from the reply',
+      (tester) async {
+        final env = arrange();
+        await pumpCoach(tester, env.overrides);
+        await tester.pumpAndSettle();
 
-      await sendMessage(tester, 'How do we plan a date?');
+        await sendMessage(tester, 'How do we plan a date?');
 
-      expect(find.text('How do we plan a date?'), findsOneWidget);
-      expect(find.byType(CoachUserBubble), findsOneWidget);
-      expect(find.text(FakeCoachRepository.cannedReply.text), findsOneWidget);
-      expect(find.byType(CoachPersonaBubble), findsOneWidget);
-      // A reply is not the help path.
-      expect(find.byType(CoachHelpCard), findsNothing);
-      expect(env.coach.callLog, hasLength(1));
-    });
+        expect(find.text('How do we plan a date?'), findsOneWidget);
+        expect(find.byType(CoachUserBubble), findsOneWidget);
+        expect(find.text(FakeCoachRepository.cannedReply.text), findsOneWidget);
+        expect(find.byType(CoachPersonaBubble), findsOneWidget);
+        // A reply is not the help path.
+        expect(find.byType(CoachHelpCard), findsNothing);
+        expect(env.coach.callLog, hasLength(1));
+      },
+    );
 
     testWidgets('a help reply renders the help card TYPE, never a persona '
         'bubble, latches the paused panel, blocks further sends, and hides the '
@@ -241,7 +249,10 @@ void main() {
 
       // Structurally distinct: the help card TYPE, never a persona bubble.
       expect(find.byType(CoachHelpCard), findsOneWidget);
-      expect(find.text('Please reach out to someone you trust.'), findsOneWidget);
+      expect(
+        find.text('Please reach out to someone you trust.'),
+        findsOneWidget,
+      );
       expect(find.byType(CoachPersonaBubble), findsNothing);
       // Latched: the composer is gone, the paused panel is present.
       expect(find.byType(CoachPausedPanel), findsOneWidget);
@@ -279,40 +290,43 @@ void main() {
   });
 
   group('app-bar reset + persona isolation', () {
-    testWidgets('the reset button appears only with entries and clears only the '
-        'active persona; persona chips swap transcripts', (tester) async {
-      final env = arrange();
-      await pumpCoach(tester, env.overrides);
-      await tester.pumpAndSettle();
+    testWidgets(
+      'the reset button appears only with entries and clears only the '
+      'active persona; persona chips swap transcripts',
+      (tester) async {
+        final env = arrange();
+        await pumpCoach(tester, env.overrides);
+        await tester.pumpAndSettle();
 
-      // Empty: no reset affordance.
-      expect(find.byIcon(Icons.refresh), findsNothing);
+        // Empty: no reset affordance.
+        expect(find.byIcon(Icons.refresh), findsNothing);
 
-      // Send as Coach (the default persona).
-      await sendMessage(tester, 'Coach message.');
-      expect(find.text('Coach message.'), findsOneWidget);
-      expect(find.byIcon(Icons.refresh), findsOneWidget);
+        // Send as Coach (the default persona).
+        await sendMessage(tester, 'Coach message.');
+        expect(find.text('Coach message.'), findsOneWidget);
+        expect(find.byIcon(Icons.refresh), findsOneWidget);
 
-      // Switch to Date Genie → its transcript is empty (independent family).
-      await tester.tap(
-        find.widgetWithText(ChoiceChip, en.coachPersonaDateGenie),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Coach message.'), findsNothing);
-      expect(find.text(en.coachEmptyState), findsOneWidget);
-      expect(find.byIcon(Icons.refresh), findsNothing);
+        // Switch to Date Genie → its transcript is empty (independent family).
+        await tester.tap(
+          find.widgetWithText(ChoiceChip, en.coachPersonaDateGenie),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Coach message.'), findsNothing);
+        expect(find.text(en.coachEmptyState), findsOneWidget);
+        expect(find.byIcon(Icons.refresh), findsNothing);
 
-      // Switch back to Coach → its history is intact.
-      await tester.tap(find.widgetWithText(ChoiceChip, en.coachPersonaCoach));
-      await tester.pumpAndSettle();
-      expect(find.text('Coach message.'), findsOneWidget);
+        // Switch back to Coach → its history is intact.
+        await tester.tap(find.widgetWithText(ChoiceChip, en.coachPersonaCoach));
+        await tester.pumpAndSettle();
+        expect(find.text('Coach message.'), findsOneWidget);
 
-      // The reset clears ONLY the active (Coach) persona.
-      await tester.tap(find.byIcon(Icons.refresh));
-      await tester.pumpAndSettle();
-      expect(find.text('Coach message.'), findsNothing);
-      expect(find.text(en.coachEmptyState), findsOneWidget);
-    });
+        // The reset clears ONLY the active (Coach) persona.
+        await tester.tap(find.byIcon(Icons.refresh));
+        await tester.pumpAndSettle();
+        expect(find.text('Coach message.'), findsNothing);
+        expect(find.text(en.coachEmptyState), findsOneWidget);
+      },
+    );
   });
 
   group('error copy', () {
@@ -375,8 +389,8 @@ void main() {
 
     testWidgets('a not-premium failure pushes the paywall', (tester) async {
       final env = arrange();
-      env.coach.onSendMessage =
-          (call) async => throw const CoachNotPremiumException();
+      env.coach.onSendMessage = (call) async =>
+          throw const CoachNotPremiumException();
       await pumpCoach(tester, env.overrides);
       await tester.pumpAndSettle();
 
@@ -404,25 +418,29 @@ void main() {
       expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
     });
 
-    testWidgets('renders coachQuotaExhausted at daily 0 without disabling input', (
-      tester,
-    ) async {
-      final env = arrange();
-      env.coach.onSendMessage = (call) async => const CoachReply(
-        kind: CoachReplyKind.reply,
-        text: 'A reply.',
-        remaining: CoachRemaining(daily: 0, monthly: 40),
-      );
-      await pumpCoach(tester, env.overrides);
-      await tester.pumpAndSettle();
+    testWidgets(
+      'renders coachQuotaExhausted at daily 0 without disabling input',
+      (tester) async {
+        final env = arrange();
+        env.coach.onSendMessage = (call) async => const CoachReply(
+          kind: CoachReplyKind.reply,
+          text: 'A reply.',
+          remaining: CoachRemaining(daily: 0, monthly: 40),
+        );
+        await pumpCoach(tester, env.overrides);
+        await tester.pumpAndSettle();
 
-      await sendMessage(tester, 'A message.');
+        await sendMessage(tester, 'A message.');
 
-      expect(find.text(en.coachQuotaExhausted), findsOneWidget);
-      // Never renders the monthly figure.
-      expect(find.textContaining('40'), findsNothing);
-      expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
-    });
+        expect(find.text(en.coachQuotaExhausted), findsOneWidget);
+        // Never renders the monthly figure.
+        expect(find.textContaining('40'), findsNothing);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).enabled,
+          isTrue,
+        );
+      },
+    );
   });
 
   group('guards', () {

@@ -52,11 +52,17 @@ void main() {
       expect(a, isNot(equals(c)));
     });
 
-    test('toString exposes only the (static, server-originated) code + message', () {
-      const failure = CoachUnknownException(code: 'internal', message: 'boom');
-      expect(failure.toString(), contains('code: internal'));
-      expect(failure.toString(), contains('message: boom'));
-    });
+    test(
+      'toString exposes only the (static, server-originated) code + message',
+      () {
+        const failure = CoachUnknownException(
+          code: 'internal',
+          message: 'boom',
+        );
+        expect(failure.toString(), contains('code: internal'));
+        expect(failure.toString(), contains('message: boom'));
+      },
+    );
 
     test('message may be null (a dropped/absent server message)', () {
       const failure = CoachUnknownException(code: 'malformed-response');

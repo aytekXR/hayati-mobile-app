@@ -5,14 +5,20 @@ import 'package:hayati_app/features/coach/domain/coach_window.dart';
 
 void main() {
   group('buildCoachWindow — bounds + trimming', () {
-    test('caps at kCoachWindowMaxMessages including the new last-user turn', () {
-      final entries = [for (var i = 0; i < 30; i++) CoachUserTurn('u$i')];
+    test(
+      'caps at kCoachWindowMaxMessages including the new last-user turn',
+      () {
+        final entries = [for (var i = 0; i < 30; i++) CoachUserTurn('u$i')];
 
-      final window = buildCoachWindow(entries: entries, newUserText: 'newest');
+        final window = buildCoachWindow(
+          entries: entries,
+          newUserText: 'newest',
+        );
 
-      expect(window, hasLength(kCoachWindowMaxMessages));
-      expect(window.last, const CoachMessage(role: 'user', text: 'newest'));
-    });
+        expect(window, hasLength(kCoachWindowMaxMessages));
+        expect(window.last, const CoachMessage(role: 'user', text: 'newest'));
+      },
+    );
 
     test('trims oldest-first', () {
       final entries = [for (var i = 0; i < 30; i++) CoachUserTurn('u$i')];
@@ -48,25 +54,25 @@ void main() {
       expect(window.every((m) => m.role == 'user'), isTrue);
     });
 
-    test('user turns are re-sent verbatim — even one that drew a help entry', () {
-      // Crisis retention semantics (Decision 2 rule 2): NO crisis-aware
-      // filtering; the user turn that tripped the detector stays verbatim.
-      final window = buildCoachWindow(
-        entries: const [
-          CoachUserTurn('i feel like hurting myself'),
-          CoachHelpTurn('help', category: CoachCrisisCategory.selfHarm),
-        ],
-        newUserText: 'later, calmer message',
-      );
+    test(
+      'user turns are re-sent verbatim — even one that drew a help entry',
+      () {
+        // Crisis retention semantics (Decision 2 rule 2): NO crisis-aware
+        // filtering; the user turn that tripped the detector stays verbatim.
+        final window = buildCoachWindow(
+          entries: const [
+            CoachUserTurn('i feel like hurting myself'),
+            CoachHelpTurn('help', category: CoachCrisisCategory.selfHarm),
+          ],
+          newUserText: 'later, calmer message',
+        );
 
-      expect(
-        window,
-        const [
+        expect(window, const [
           CoachMessage(role: 'user', text: 'i feel like hurting myself'),
           CoachMessage(role: 'user', text: 'later, calmer message'),
-        ],
-      );
-    });
+        ]);
+      },
+    );
   });
 
   group('buildCoachWindow — roles + assistant truncation', () {
@@ -92,17 +98,20 @@ void main() {
       expect(window[1].text, under);
     });
 
-    test('a persona turn over the bound truncates to exactly the char limit', () {
-      final long = 'x' * (kCoachMessageMaxChars + 500);
+    test(
+      'a persona turn over the bound truncates to exactly the char limit',
+      () {
+        final long = 'x' * (kCoachMessageMaxChars + 500);
 
-      final window = buildCoachWindow(
-        entries: [CoachPersonaTurn(long)],
-        newUserText: 'hi',
-      );
+        final window = buildCoachWindow(
+          entries: [CoachPersonaTurn(long)],
+          newUserText: 'hi',
+        );
 
-      expect(window.first.role, 'assistant');
-      expect(window.first.text.length, kCoachMessageMaxChars);
-    });
+        expect(window.first.role, 'assistant');
+        expect(window.first.text.length, kCoachMessageMaxChars);
+      },
+    );
 
     test('truncation counts UTF-16 code units (surrogate-pair boundary)', () {
       // 1999 'a' + emojis (each a 2-code-unit surrogate pair). Truncating to
@@ -123,15 +132,18 @@ void main() {
       expect(lastUnit, lessThanOrEqualTo(0xDBFF));
     });
 
-    test('user turns are never truncated (send gate already conformed them)', () {
-      final long = 'u' * (kCoachMessageMaxChars + 500);
+    test(
+      'user turns are never truncated (send gate already conformed them)',
+      () {
+        final long = 'u' * (kCoachMessageMaxChars + 500);
 
-      final window = buildCoachWindow(
-        entries: [CoachUserTurn(long)],
-        newUserText: 'hi',
-      );
+        final window = buildCoachWindow(
+          entries: [CoachUserTurn(long)],
+          newUserText: 'hi',
+        );
 
-      expect(window.first.text.length, kCoachMessageMaxChars + 500);
-    });
+        expect(window.first.text.length, kCoachMessageMaxChars + 500);
+      },
+    );
   });
 }

@@ -37,16 +37,18 @@ class FunctionsCoachRepository implements CoachRepository {
     required List<CoachMessage> messages,
   }) async {
     try {
-      final result = await _functions.httpsCallable('coachProxy').call<Object?>({
-        'coupleId': coupleId,
-        'personaId': personaId.name,
-        'language': language.name,
-        'register': register.wire,
-        'messages': [
-          for (final message in messages)
-            {'role': message.role, 'text': message.text},
-        ],
-      });
+      final result = await _functions.httpsCallable('coachProxy').call<Object?>(
+        {
+          'coupleId': coupleId,
+          'personaId': personaId.name,
+          'language': language.name,
+          'register': register.wire,
+          'messages': [
+            for (final message in messages)
+              {'role': message.role, 'text': message.text},
+          ],
+        },
+      );
       return decodeOrThrowCoachException(result.data);
     } on CoachException {
       // A malformed-body conversion (decodeOrThrowCoachException) is already in
@@ -86,7 +88,9 @@ CoachReply decodeOrThrowCoachException(Object? data) {
 /// `{daily:num, monthly:num}` shape (a malformed shape throws).
 CoachReply coachReplyFromCallable(Object? data) {
   if (data is! Map) {
-    throw FormatException('coachProxy: expected a map, got ${data.runtimeType}');
+    throw FormatException(
+      'coachProxy: expected a map, got ${data.runtimeType}',
+    );
   }
   final kind = data['kind'];
   final kindEnum = switch (kind) {
@@ -130,7 +134,9 @@ CoachRemaining? _remainingFromCallable(Object? raw) {
   final daily = raw['daily'];
   final monthly = raw['monthly'];
   if (daily is! num) {
-    throw FormatException('coachProxy: "remaining.daily" is ${daily.runtimeType}');
+    throw FormatException(
+      'coachProxy: "remaining.daily" is ${daily.runtimeType}',
+    );
   }
   if (monthly is! num) {
     throw FormatException(

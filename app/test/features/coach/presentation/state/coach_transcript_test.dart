@@ -62,47 +62,53 @@ void main() {
     expect(state.helpSticky, isFalse);
   });
 
-  test('applyExchange on a help (pre-scan shape) appends [user, help] + latches', () {
-    final container = arrange();
+  test(
+    'applyExchange on a help (pre-scan shape) appends [user, help] + latches',
+    () {
+      final container = arrange();
 
-    notifierOf(container).applyExchange(
-      userText: 'dark thought',
-      reply: const CoachReply(
-        kind: CoachReplyKind.help,
-        text: 'please reach out',
-        category: CoachCrisisCategory.selfHarm,
-      ),
-    );
+      notifierOf(container).applyExchange(
+        userText: 'dark thought',
+        reply: const CoachReply(
+          kind: CoachReplyKind.help,
+          text: 'please reach out',
+          category: CoachCrisisCategory.selfHarm,
+        ),
+      );
 
-    final state = stateOf(container);
-    expect(
-      state.entries,
-      const [
+      final state = stateOf(container);
+      expect(state.entries, const [
         CoachUserTurn('dark thought'),
-        CoachHelpTurn('please reach out', category: CoachCrisisCategory.selfHarm),
-      ],
-    );
-    expect(state.helpSticky, isTrue);
-    expect(state.lastRemaining, isNull);
-  });
+        CoachHelpTurn(
+          'please reach out',
+          category: CoachCrisisCategory.selfHarm,
+        ),
+      ]);
+      expect(state.helpSticky, isTrue);
+      expect(state.lastRemaining, isNull);
+    },
+  );
 
-  test('applyExchange on a help (post-filter shape) latches AND takes the hint', () {
-    final container = arrange();
+  test(
+    'applyExchange on a help (post-filter shape) latches AND takes the hint',
+    () {
+      final container = arrange();
 
-    notifierOf(container).applyExchange(
-      userText: 'x',
-      reply: const CoachReply(
-        kind: CoachReplyKind.help,
-        text: 'please reach out',
-        category: CoachCrisisCategory.violence,
-        remaining: CoachRemaining(daily: 5, monthly: 100),
-      ),
-    );
+      notifierOf(container).applyExchange(
+        userText: 'x',
+        reply: const CoachReply(
+          kind: CoachReplyKind.help,
+          text: 'please reach out',
+          category: CoachCrisisCategory.violence,
+          remaining: CoachRemaining(daily: 5, monthly: 100),
+        ),
+      );
 
-    final state = stateOf(container);
-    expect(state.helpSticky, isTrue);
-    expect(state.lastRemaining, const CoachRemaining(daily: 5, monthly: 100));
-  });
+      final state = stateOf(container);
+      expect(state.helpSticky, isTrue);
+      expect(state.lastRemaining, const CoachRemaining(daily: 5, monthly: 100));
+    },
+  );
 
   test('the latch never un-sets on a later reply (defensive)', () {
     final container = arrange();
@@ -132,14 +138,20 @@ void main() {
         remaining: CoachRemaining(daily: 10, monthly: 500),
       ),
     );
-    expect(stateOf(container).lastRemaining, const CoachRemaining(daily: 10, monthly: 500));
+    expect(
+      stateOf(container).lastRemaining,
+      const CoachRemaining(daily: 10, monthly: 500),
+    );
 
     // A hint-less response (e.g. pre-scan help) leaves the prior value intact.
     notifier.applyExchange(
       userText: 'b',
       reply: const CoachReply(kind: CoachReplyKind.help, text: 'help'),
     );
-    expect(stateOf(container).lastRemaining, const CoachRemaining(daily: 10, monthly: 500));
+    expect(
+      stateOf(container).lastRemaining,
+      const CoachRemaining(daily: 10, monthly: 500),
+    );
   });
 
   test('reset clears entries, latch, and hint', () {
@@ -170,10 +182,12 @@ void main() {
       reply: const CoachReply(kind: CoachReplyKind.reply, text: 'hey'),
     );
 
-    final otherPersona =
-        container.read(coachTranscriptProvider(uid, coupleId, CoachPersonaId.dateGenie));
-    final otherUid =
-        container.read(coachTranscriptProvider('user-2', coupleId, persona));
+    final otherPersona = container.read(
+      coachTranscriptProvider(uid, coupleId, CoachPersonaId.dateGenie),
+    );
+    final otherUid = container.read(
+      coachTranscriptProvider('user-2', coupleId, persona),
+    );
 
     expect(otherPersona.entries, isEmpty);
     expect(otherUid.entries, isEmpty);

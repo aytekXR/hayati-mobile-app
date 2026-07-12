@@ -58,7 +58,9 @@ final class CoachHelpTurn extends CoachTranscriptEntry {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is CoachHelpTurn && other.text == text && other.category == category;
+      other is CoachHelpTurn &&
+          other.text == text &&
+          other.category == category;
 
   @override
   int get hashCode => Object.hash(CoachHelpTurn, text, category);

@@ -29,9 +29,10 @@ CoachRegister coachRegisterFor(
   ContentLanguage language,
   ContentRegister register,
 ) => switch (language) {
-  ContentLanguage.tr => register == ContentRegister.playful
-      ? CoachRegister.trPlayful
-      : CoachRegister.trRespectful,
+  ContentLanguage.tr =>
+    register == ContentRegister.playful
+        ? CoachRegister.trPlayful
+        : CoachRegister.trRespectful,
   ContentLanguage.ar => CoachRegister.arGulfRespectful,
   ContentLanguage.en => CoachRegister.enNeutral,
 };

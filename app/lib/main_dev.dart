@@ -139,9 +139,7 @@ Future<void> main() async {
       localFlagStoreProvider.overrideWithValue(
         SharedPreferencesLocalFlagStore(prefs),
       ),
-      coachRepositoryProvider.overrideWith(
-        (ref) => FunctionsCoachRepository(),
-      ),
+      coachRepositoryProvider.overrideWith((ref) => FunctionsCoachRepository()),
     ],
   );
 }
