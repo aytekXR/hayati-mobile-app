@@ -7,48 +7,77 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-12, Session 017 close (M4.3 — `TRANSFER` handling + the
-gift decision; **M4 engineering COMPLETE, sandbox proof pending item 0**).
-Mid-session update, Session 018 (2026-07-12): founder hardware landed — see the
-TestFlight runbook below._
+_Last refreshed: 2026-07-12, Session 018 close (M5.1 — the AI coach's crisis
+safety spine + `coachProxy` server seam; **on plan, 17/22 units, 77%**). The
+TestFlight runbook you asked for mid-session is merged and lives below._
 
-## Expected from you right now: **nothing was blocked this session — but item 0 is now the ONLY thing left in M4, and it is blocking.**
+## Expected from you right now: **nothing was blocked this session. Two NEW items exist (★ and 6 below); neither blocks the next session.**
 
-**Session 017 needed nothing from you and asked nothing of you.** It checked
-item 0 first, found no RevenueCat account and no App Store Connect record (as
-expected), and took the planned engineering fork — autonomously, start to
-finish.
+**Session 018 needed nothing from you mid-flight.** Per plan it built the
+first slice of the AI coach — the part that keeps a couple in crisis SAFE —
+entirely on recorded fixtures: no AI provider account, no API key, no cost.
+It also delivered your TestFlight runbook request the same hour you asked
+(merged separately as PR #43 so it reached `main` immediately).
 
-**Two things you should know, one of them irreversible:**
+**What you should know from this session:**
 
-**1. The engineering of M4 (paywall & subscriptions) is now DONE.** Everything
-that can be built without a store account is built and proven. What is *not*
-done is the one thing only you can unblock: **a real sandbox purchase in the TR
-and Saudi storefronts, flipping Premium on both your phones.** That is M4's
-final acceptance line, and it is written down as **open**, not quietly dropped.
-The next session cannot advance it. Only item 0 can.
+**1. The coach's safety net is built and aggressively proven.** If either of
+you ever types something that signals a crisis — self-harm, violence — in
+Turkish, Gulf Arabic, Arabizi (Arabic typed in Latin letters), or English,
+the coach will NEVER answer with its AI persona: it returns a warm, human
+help message urging real-world support, and the AI is never even called —
+regardless of paywall or usage limits. This was tested against every evasion
+we could engineer (missing Turkish accents, Arabic spelling variants,
+l33t-speak, spaced-out letters, lookalike characters, phrases split across
+messages) — the server suite is now 772 tests, built so that WEAKENING any
+protection turns CI red.
 
-**2. "Gift your partner" turned out not to be a feature we can build — because
-it already exists.** The session researched Apple's actual rules and found that
-**gifting an auto-renewable subscription is not an App Store feature at all**:
-there is no gifting API, no "giftable" switch, and Apple's own advice is to
-send someone a gift card so they buy it themselves. But Apple's review rules
-explicitly *do* allow one person to pay and another to benefit, as long as the
-money goes through the App Store — which is exactly what Hayati already does:
-**one purchase, both of you Premium.** So the gift *is* the purchase. Rather
-than build a "Gift Premium" button that would need a product Apple won't sell
-us, the session wrote the decision down and added a test proving the promise:
-your partner's app unlocks from *your* purchase, without them ever seeing a
-paywall or a price. The product plan (PRD) was updated to say this plainly.
+**2. Privacy went a step further than planned.** The pre-code adversarial
+review (4th session in a row it caught real design flaws before code) found
+that the usage counters would have let each partner see how often the OTHER
+uses the coach — surveillance fuel in a product that explicitly serves
+people in difficult relationships. Per-person counters are now readable only
+by that person. Also by construction and tested: no message text, no user
+id, and no "this couple hit the crisis filter" record ever appears in any
+log.
 
-**A found bug worth knowing about, because it was invisible:** a real
-RevenueCat "transfer" event (what fires when a subscription moves between
-accounts — e.g. you restore a purchase on a phone signed into a different
-account) would have been **rejected by our server with an error**, and
-RevenueCat would have retried for ~2.5 hours and then **thrown the event away
-forever**. It was invisible because every existing test built the event by
-hand, in a shape the real one never has. It is fixed, and the fix is now proven
-against RevenueCat's own documented payload.
+**3. Until you pick an AI provider (new item 6), the coach honestly says
+it's unavailable.** Crisis protection works even in that state. The
+engineering never waits on your account decision — that's deliberate.
+
+## ★ NEW (Session 018): native review of the CRISIS content — the one gate before the coach runs on your phones
+
+- **What:** the crisis word-lists (TR / AR incl. Arabizi / EN), the
+  professional-help response, and the "not therapy" disclaimer are
+  AI-drafted and marked `nativeReview: PENDING`. **This review BLOCKS the
+  coach's first run on a real device** — an under-reading crisis filter is a
+  safety failure, and only native speakers can judge the lists. TR: you two
+  (~15 minutes of reading). AR incl. Arabizi: your Gulf reviewer.
+- **Also in this gate:** crisis-hotline phone numbers are deliberately NOT
+  in the app — a wrong number is dangerous. When you review, choose the
+  TR/SA numbers you trust and a session wires them in.
+- **Where:** `functions/src/coach/crisis-lexicon.ts` +
+  `functions/src/coach/help-content.ts` — or just send corrections to a
+  session and it does the mechanics.
+- **When:** NOT blocking M5.2 (chat UI, still fixture-driven). Blocking the
+  first on-device coach use — which rides item 4's timeline anyway.
+
+## 6. NEW (Session 018): LLM provider decision + API key — becomes due at M5.2/M5.3
+
+- **What:** pick the AI provider for the coach and create an API key. The
+  server seam is provider-agnostic; nothing in the code commits to anyone,
+  and the choice is reversible.
+- **The numbers (published prices per million tokens in/out; ≈ cost per
+  coach message at realistic sizes):** Anthropic Claude — Haiku 4.5 $1/$5
+  (≈$0.005/msg); Sonnet $3/$15 (≈$0.014/msg; Sonnet 5 intro $2/$10 through
+  2026-08-31); Opus 4.8 $5/$25 (≈$0.023/msg). The shipped caps (30/day per
+  person, 1,000/month per couple) bound worst-case spend to ≈$14/mo/couple
+  at Sonnet pricing. Quality in Gulf Arabic + Turkish is the differentiator;
+  OpenAI/Gemini are viable behind the same seam (their prices get pulled
+  fresh when you decide — not quoted from memory).
+- **When:** the first LIVE coach call (M5.2 or M5.3). Until then everything
+  runs on recorded fixtures. The key goes into Secret Manager at deploy
+  (like the RC webhook token) — never into the repo.
 
 ## ★ NEW (2026-07-12, Session 018): you have the iPhone 17 + Mac — the TestFlight runbook
 
@@ -249,6 +278,10 @@ instead of M5.2 — say so and it will be re-scoped.
   `flutter pub get`, or just send corrections to a session. One AR grammar
   fix already landed via review (`تجري المزامنة`); the rest read well but are
   unreviewed by a native.
+- **NEW since M5.1 — the CRISIS-content review is tracked separately (the ★
+  item near the top) because it is a SAFETY gate, not a polish gate:** the
+  crisis word-lists, help response, and disclaimer block the coach's first
+  on-device run, while everything in this item blocks only public launch.
 
 ## 2. Blaze plan decision — **last call, optional bonus otherwise**
 
@@ -334,37 +367,44 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 017 close)
+## Progress & readiness snapshot (as of Session 018 close)
 
 - **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 engineering ✅ (sandbox
-  accept line open on item 0)** · M5–M6 pending — **16/22 session-units (73%)
-  in 17 sessions; 6 planned session-units left to the MVP** (M5: 3 · M6: 3;
-  M6.5 Android sits outside the 22-unit MVP count). On track; no plan or scope
-  changes in Session 017 (M1's +1 session remains the only slippage ever). One
-  *scope reduction*, deliberate and documented: PRD F4's "gift flow" is not
-  buildable as a payments feature and is already delivered by the couple-scoped
-  entitlement — so it ships as a decision + a regression test, not as UI.
+  accept line open on item 0)** · **M5: 1/3 (the safety spine)** · M6 pending —
+  **17/22 session-units (77%) in 18 sessions; 5 planned session-units left to
+  the MVP** (M5: 2 · M6: 3; M6.5 Android sits outside the 22-unit MVP count).
+  On track; no plan or scope changes in Session 018 (M1's +1 session remains
+  the only slippage ever).
 - **Readiness: pre-MVP, emulator/CI-proven, nothing deployed, nothing on a
   phone.** Working and proven against emulators + CI: auth, profile + rules, the
   whole pairing loop, the unpaired solo week, the content pipeline, the FULL
   daily loop (server assignment → answer → server-gated mutual reveal → streak
   with grace), the notification *logic*, the **entitlement backbone** (RC
   webhook → couple mirror → app premium decision, replay/out-of-order/
-  transfer-proven), and the **paywall + premium gating** (annual-first paywall
+  transfer-proven), the **paywall + premium gating** (annual-first paywall
   over a fully-faked store, the reusable premium gate, free tier
-  assertion-protected). **What "production-ready" is still missing, honestly:**
-  no deploy has ever happened (Spark plan — item 2), the app has never run on a
-  real device (Mac/enrollment — item 4), no real purchase has ever been made
-  (item 0), push notifications have no device half (APNs — item 4), and the
-  AI coach (M5) and privacy/launch hardening (M6) are not built. Call it
-  **~73% of the MVP's engineering, 0% of its operational proof.**
+  assertion-protected), and now the **coach safety spine** (crisis detector
+  TR/AR/Arabizi/EN proven against engineered evasions; `coachProxy` with
+  server-side premium gate, transactional caps, and a fail-closed provider
+  seam — zero live AI calls by design). **What "production-ready" is still
+  missing, honestly:** no deploy has ever happened (Spark plan — item 2), the
+  app has never run on a real device (Mac/enrollment — item 4), no real
+  purchase has ever been made (item 0), push notifications have no device
+  half (APNs — item 4), the coach has no chat UI and no live AI provider yet
+  (M5.2/M5.3 + item 6), and privacy/launch hardening (M6) is not built. Call
+  it **~77% of the MVP's engineering, 0% of its operational proof.**
   Deferred loudly (nothing silent): seasonal question windows (issue #29), the
   schedule trigger + Eventarc retry + webhook Secret Manager binding
   (deploy-verified at first Blaze deploy), `users.fcmTokens` capture + APNs
   (item 4), **RC-REST reconciliation** (the fix for three named transfer costs
   *and* for webhooks dropped past RC's ~155-min retry budget — rides item 0 +
   the deploy era), the RC identity-sync retry hardening (first live-key
-  session), private thread (M5 scope selection), `invitePreview.questionText`
+  session), private thread (M5.2 scope decision, with `coach_sessions`
+  persistence), the coach's live provider adapter + `LLM_API_KEY` (item 6),
+  the crisis-content native review + hotline numbers (★ item — blocks
+  coach-on-device only), Remote Config cap binding (deploy era; constants +
+  injectable seam today), the coach rate limiter's per-instance scope
+  (revisit at deploy hardening), `invitePreview.questionText`
   (W9), Apple **Group Purchases** (WWDC26; no RevenueCat support yet — the only
   thing that would reopen the gift decision), and two quarantined tests
   (ci-debt #36 reveal round-trip listener race, #15 phone-auth simulator
