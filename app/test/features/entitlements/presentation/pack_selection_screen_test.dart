@@ -133,6 +133,48 @@ void main() {
     expect(find.text(en.packSelectionCurrentTitle), findsNothing);
   });
 
+  // PRD F4 "gift-your-partner purchase flow", pinned (ADR-015 Decision 6).
+  // There is no store gifting mechanism for auto-renewable subscriptions — the
+  // GIFT IS THE PURCHASE: one partner pays, the webhook mirrors the entitlement
+  // onto the COUPLE, and the OTHER partner's app unlocks without them ever
+  // seeing a paywall, a price, or a purchase. This test is the F4 promise as a
+  // regression: it goes red the day premium stops being couple-scoped.
+  testWidgets('the gift IS the purchase: the NON-purchasing partner unlocks off '
+      'their partner’s purchase, never touching the paywall', (tester) async {
+    // Partner B's device. B never purchases: the purchases seam's call log must
+    // stay empty, and the paywall must never mount.
+    final purchases = FakePurchasesRepository();
+    final mirrors = FakeEntitlementRepository();
+    final auth = FakeAuthRepository(
+      initialUser: const AuthUser(uid: 'uid-partner-b', displayName: 'Partner'),
+    );
+    addTearDown(mirrors.dispose);
+    addTearDown(auth.dispose);
+
+    await pumpPack(tester, [
+      entitlementRepositoryProvider.overrideWith((ref) => mirrors),
+      authRepositoryProvider.overrideWith((ref) => auth),
+      purchasesRepositoryProvider.overrideWith((ref) => purchases),
+      soloClockProvider.overrideWith(
+        (ref) =>
+            () => _now,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text(en.packSelectionGatedTitle), findsOneWidget);
+
+    // Partner A buys on their OWN device: the only thing that reaches B is the
+    // couple's entitlement mirror.
+    mirrors.emit(_coupleId, _entitled());
+    await tester.pumpAndSettle();
+
+    // B is premium — with no paywall, and no purchase call on B's device.
+    expect(find.text(en.packSelectionCurrentTitle), findsOneWidget);
+    expect(find.text(en.packSelectionGatedTitle), findsNothing);
+    expect(find.byType(PaywallScreen), findsNothing);
+    expect(purchases.callLog, isEmpty);
+  });
+
   testWidgets('a remote sign-out pops the pushed pack selection', (
     tester,
   ) async {
