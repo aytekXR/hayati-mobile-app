@@ -29,9 +29,7 @@ import 'export_screen.dart';
 /// listener wipes the lock and the host self-pop handles navigation; this screen
 /// adds none of its own.
 class DeleteAccountScreen extends ConsumerStatefulWidget {
-  const DeleteAccountScreen({super.key, required this.uid});
-
-  final String uid;
+  const DeleteAccountScreen({super.key});
 
   @override
   ConsumerState<DeleteAccountScreen> createState() =>
@@ -45,9 +43,9 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   /// says "could not be confirmed", never "failed" (ADR-019 D7 / AUTH-3).
   bool _couldNotConfirm = false;
 
-  Future<void> _openExport() => Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => ExportScreen(uid: widget.uid)),
-  );
+  Future<void> _openExport() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const ExportScreen()));
 
   Future<void> _confirm() async {
     final lockOn =

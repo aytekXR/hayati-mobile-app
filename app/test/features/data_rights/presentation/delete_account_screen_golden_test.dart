@@ -14,7 +14,7 @@ void main() {
   }) async {
     await pumpGolden(
       tester,
-      const DeleteAccountScreen(uid: 'uid-1'),
+      const DeleteAccountScreen(),
       locale: cell.locale,
       direction: cell.direction,
       textScale: textScale,

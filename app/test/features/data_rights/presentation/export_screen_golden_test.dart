@@ -13,7 +13,7 @@ void main() {
   testWidgets('loaded en.ltr', (tester) async {
     await pumpGolden(
       tester,
-      const ExportScreen(uid: 'uid-1'),
+      const ExportScreen(),
       locale: const Locale('en'),
       direction: TextDirection.ltr,
       overrides: [

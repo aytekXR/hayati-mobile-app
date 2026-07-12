@@ -201,6 +201,43 @@ describe('users/{uid}', () => {
     );
   });
 
+  // ADR-019 D3/D6: coupleEnded and notificationPrivacy are server-owned. The
+  // update rule freezes them, but the freeze is only real if a client also
+  // cannot MINT them on a fresh self-create (the exact shape of the coupleId
+  // create block) — otherwise a fresh signup or a post-deletion token-window
+  // re-create could plant them. Both create paths are denied.
+  it('create is denied when the client includes coupleEnded (server-owned tombstone)', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, `users/${ALICE}`), {
+        ...profileData,
+        createdAt: serverTimestamp(),
+        coupleEnded: { at: Timestamp.now() },
+      }),
+    );
+  });
+
+  it('create is denied when the client includes notificationPrivacy (server-owned override)', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, `users/${ALICE}`), {
+        ...profileData,
+        createdAt: serverTimestamp(),
+        notificationPrivacy: 'discreet',
+      }),
+    );
+  });
+
+  it('a normal create carrying none of the server-owned fields still succeeds (positive control)', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(
+      setDoc(doc(alice, `users/${ALICE}`), {
+        ...profileData,
+        createdAt: serverTimestamp(),
+      }),
+    );
+  });
+
   it('a merge update that sets coupleId is denied (the app-write shape)', async () => {
     await seedAliceProfile();
     const alice = env.authenticatedContext(ALICE).firestore();
@@ -1763,6 +1800,41 @@ const MUTATIONS: Mutation[] = [
         { coupleEnded: { at: Timestamp.now() } },
       );
     },
+  },
+  {
+    // M6.2 (ADR-019 D3): coupleEnded is server-owned on the CREATE path too, not
+    // just update. Dropping the create block readmits a client minting the
+    // tombstone on a fresh self-create (the rules-create-mint-gap fix). The
+    // '&& !(...)' anchor is unique to the create clause.
+    name: 'dropping the users coupleEnded create block readmits client-minted tombstone at create',
+    anchor: "\n        && !('coupleEnded' in request.resource.data)",
+    replacement: '',
+    demonstrate: (mutant) =>
+      setDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        {
+          ...profileData,
+          createdAt: serverTimestamp(),
+          coupleEnded: { at: Timestamp.now() },
+        },
+      ),
+  },
+  {
+    // M6.2 (ADR-019 D6): notificationPrivacy is server-owned on the CREATE path
+    // too. Dropping the create block readmits a client minting the discreet
+    // override on a fresh self-create (the rules-create-mint-gap fix).
+    name: 'dropping the users notificationPrivacy create block readmits client-minted override at create',
+    anchor: "\n        && !('notificationPrivacy' in request.resource.data)",
+    replacement: '',
+    demonstrate: (mutant) =>
+      setDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        {
+          ...profileData,
+          createdAt: serverTimestamp(),
+          notificationPrivacy: 'discreet',
+        },
+      ),
   },
   {
     // M6.2 (ADR-019 D2): soloAnswer writes require the owner's profile to exist —

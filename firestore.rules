@@ -25,10 +25,17 @@ service cloud.firestore {
       // request.time. coupleId is authorization-meaningful — it is the key that
       // grants access to couples/{coupleId} via memberUids — and is written
       // ONLY by the M2.3 join Function (admin SDK), so a client may never
-      // introduce it at create.
+      // introduce it at create. Since M6.2 (ADR-019) coupleEnded (the partner-
+      // notification tombstone) and notificationPrivacy (the discreet override)
+      // are server-owned too, and — like coupleId — the freeze must span BOTH
+      // create AND update: the update freeze below is worthless if a client can
+      // simply mint the field on a fresh (or post-deletion re-created) self-doc.
+      // So a client may never introduce EITHER at create.
       allow create: if isSelf(uid)
         && request.resource.data.createdAt == request.time
-        && !('coupleId' in request.resource.data);
+        && !('coupleId' in request.resource.data)
+        && !('coupleEnded' in request.resource.data)
+        && !('notificationPrivacy' in request.resource.data);
       // Updates may never move createdAt, nor set/change/delete coupleId: a
       // client must not pair (or re-pair) itself by writing the field the join
       // Function owns. Since M6.2 (ADR-019) notificationPrivacy (the discreet

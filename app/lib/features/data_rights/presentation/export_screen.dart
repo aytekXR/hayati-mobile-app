@@ -15,10 +15,12 @@ import 'state/data_export_provider.dart';
 /// completeness over-claim. The document is rendered AS-IS: answers carry
 /// `questionId` only (the export's own `note` says so), so the screen never
 /// resolves question wording.
+///
+/// Token-scoped, not uid-parameterised: `dataExportProvider` takes no argument and
+/// the server derives the subject uid from the auth token, so this screen needs no
+/// uid (a threaded uid would falsely imply the export is uid-scoped).
 class ExportScreen extends ConsumerWidget {
-  const ExportScreen({super.key, required this.uid});
-
-  final String uid;
+  const ExportScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

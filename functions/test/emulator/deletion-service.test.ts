@@ -131,6 +131,10 @@ async function assertConverged(): Promise<void> {
   expect(await exists(userRef(A).collection('soloAnswers').doc('20260701'))).toBe(false);
   expect(await exists(db.collection('deletions').doc(A))).toBe(false);
   expect(await authExists(A)).toBe(false);
+  // The cursor A SEEDED for B during its detach (the cascade-concurrency fix) is
+  // cleaned up by A's seed-cleanup step once the couple sweep confirmed — B (not a
+  // deleter here) never adopted it, so no transient deletions/{B} residue survives.
+  expect(await exists(db.collection('deletions').doc(B))).toBe(false);
 
   // B's own space is intact; the notification tombstone is present, coupleId gone.
   const bSnap = await userRef(B).get();
@@ -173,8 +177,9 @@ const STEPS: CascadeStep[] = [
   'resolve',
   'detach',
   'couple-sweep',
-  'invites-sweep',
+  'seed-cleanup',
   'own-sweep',
+  'invites-sweep',
   'remove-cursor',
   'auth-delete',
 ];
@@ -193,10 +198,19 @@ describe('deleteAccountCascade — resumability (kill after each step, re-drive 
       };
       await expect(deleteAccountCascade(db, A, killing)).rejects.toThrow();
 
-      // The CASCADE-1 windows: after the detach / couple-sweep kill the cursor is
-      // AUTHORITATIVE (holds coupleId), so the re-drive sweeps the couple subtree
-      // via the cursor rather than re-deriving unpaired from a half-detached A.
+      // The CASCADE-1 windows: after the detach / couple-sweep kill the live
+      // users/{A} is HALF-DETACHED — still present (own-sweep hasn't run) but its
+      // coupleId already CLEARED by the detach txn — while the AUTHORITATIVE cursor
+      // still holds coupleId=CID. A re-drive that re-derived from the live doc would
+      // misread A as unpaired and skip the couple sweep; adopting the cursor is what
+      // sweeps the subtree. Asserting the half-detached state makes the re-drive
+      // below bite the CASCADE-1 class (subtree still present at 'detach'; and at
+      // 'couple-sweep' the seeded deletions/{B} is only cleaned if the re-drive
+      // resolves PAIRED off the cursor — assertConverged pins that too).
       if (killStep === 'detach' || killStep === 'couple-sweep') {
+        const aSnap = await userRef(A).get();
+        expect(aSnap.exists).toBe(true);
+        expect(aSnap.get('coupleId')).toBeUndefined();
         const cursor = await db.collection('deletions').doc(A).get();
         expect(cursor.exists).toBe(true);
         expect(cursor.get('coupleId')).toBe(CID);
@@ -243,31 +257,41 @@ describe('deleteAccountCascade — sweep confirm-or-throw (SWEEP-2)', () => {
 });
 
 describe('deleteAccountCascade — re-pair guard, unpaired, concurrent', () => {
-  it('a stale re-drive after B re-paired never dents B\'s new couple', async () => {
+  it("the detach re-pair guard spares B's new couple — B.coupleId != cid is evaluated LIVE", async () => {
     await seedFull();
-    // Kill right after the detach (couple gone, B detached + tombstoned, cursor present).
-    const killAfterDetach: DeletionDeps = {
+    // Kill at 'resolve': the cursor is recorded {coupleId:CID, partnerUid:B} but
+    // the detach has NOT run, so couple CID and B's coupleId are still untouched.
+    // This is the ONLY placement that leaves the couple doc present on the re-drive
+    // so the detach txn does not early-return at "already gone" but instead REACHES
+    // and evaluates the guard clause `partnerSnap.coupleId === coupleId` (line 143).
+    const killAtResolve: DeletionDeps = {
       ...authDeps,
       checkpoint: async (step) => {
-        if (step === 'detach') {
-          throw new Error('kill after detach');
+        if (step === 'resolve') {
+          throw new Error('kill after resolve');
         }
       },
     };
-    await expect(deleteAccountCascade(db, A, killAfterDetach)).rejects.toThrow();
+    await expect(deleteAccountCascade(db, A, killAtResolve)).rejects.toThrow();
 
-    // B re-pairs into a brand-new couple.
+    // Construct the guard's exact defense state: B re-pairs into a NEW couple while
+    // the OLD couple CID STILL EXISTS.
     await coupleRef(CID2).set({ memberUids: [B, C], timezone: 'Europe/Istanbul', createdAt: Timestamp.now() });
     await userRef(B).update({ coupleId: CID2 });
 
-    // Re-drive A's deletion: the cursor names the OLD couple (gone) → detach skips.
+    // Re-drive: cursor names partner B + old couple CID (present) → detach runs the
+    // guard; B.coupleId (CID2) !== CID → B is spared (no coupleId clear, no tombstone)
+    // BECAUSE of the guard. Weaken `=== coupleId` and B's CID2 is clobbered → red.
     await deleteAccountCascade(db, A, authDeps);
 
     const bSnap = await userRef(B).get();
-    expect(bSnap.get('coupleId')).toBe(CID2);
+    expect(bSnap.get('coupleId')).toBe(CID2); // survived because the guard was false
+    expect(bSnap.get('coupleEnded')).toBeUndefined(); // guard skipped the tombstone write
     const newCouple = await coupleRef(CID2).get();
     expect(newCouple.exists).toBe(true);
     expect(newCouple.get('memberUids')).toEqual([B, C]);
+    // A itself is fully gone; the OLD couple CID is swept.
+    expect(await exists(coupleRef())).toBe(false);
     expect(await exists(userRef(A))).toBe(false);
     expect(await authExists(A)).toBe(false);
   });
@@ -287,9 +311,12 @@ describe('deleteAccountCascade — re-pair guard, unpaired, concurrent', () => {
     expect(await authExists(A)).toBe(false);
   });
 
-  it('concurrent double-delete converges by idempotency', async () => {
+  it('same-uid double invocation is resumable — two concurrent A-cascades converge (shared cursor)', async () => {
     await seedFull();
-    // Both partners (well, both invocations of A) fire at once.
+    // Two concurrent invocations of the SAME uid A share deletions/{A}. This proves
+    // same-uid resumability under concurrency; it is NOT the both-partners case (the
+    // per-uid cursor always protects a uid against ITS OWN interleaving). The genuine
+    // A-vs-B partner-detach convergence is carried by the "partner concurrency" suite.
     await Promise.allSettled([
       deleteAccountCascade(db, A, authDeps),
       deleteAccountCascade(db, A, authDeps),
@@ -297,5 +324,83 @@ describe('deleteAccountCascade — re-pair guard, unpaired, concurrent', () => {
     // A final idempotent re-drive settles any interleaving; convergence holds.
     await deleteAccountCascade(db, A, authDeps);
     await assertConverged();
+  });
+});
+
+describe('deleteAccountCascade — partner concurrency (A and B, distinct uids)', () => {
+  /** Kills B right AFTER its detach commits (couple gone, both coupleIds cleared,
+   *  deletions/{A} SEEDED by B's detach), the exact cascade-concurrency window. */
+  const killBAfterDetach: DeletionDeps = {
+    ...authDeps,
+    checkpoint: async (step) => {
+      if (step === 'detach') {
+        throw new Error('kill B after detach');
+      }
+    },
+  };
+
+  it('B seeds A\'s cursor at detach then dies; A ADOPTS it and sweeps the WHOLE couple subtree; B re-drives to full mutual convergence', async () => {
+    await seedFull();
+
+    // B deletes first but is killed just after its detach: the detach deleted couple
+    // CID, cleared both coupleIds, and SEEDED deletions/{A} (A had not resolved yet).
+    await expect(deleteAccountCascade(db, B, killBAfterDetach)).rejects.toThrow();
+
+    // A's cursor was seeded by B's detach: authoritative coupleId, no partnerUid.
+    const seeded = await db.collection('deletions').doc(A).get();
+    expect(seeded.exists).toBe(true);
+    expect(seeded.get('coupleId')).toBe(CID);
+    expect(seeded.get('seededByPartner')).toBe(true);
+    // A's live users doc is HALF-DETACHED: coupleId already cleared by B's detach.
+    expect((await userRef(A).get()).get('coupleId')).toBeUndefined();
+
+    // A now deletes to completion. It ADOPTS the seeded cursor (rather than re-
+    // reading the cleared live coupleId and misresolving unpaired) and therefore
+    // sweeps the ENTIRE couple subtree ALONE — both authors' answers, both daily
+    // lanes, subscriptions — plus A's own subtree + auth.
+    await deleteAccountCascade(db, A, authDeps);
+    for (const day of [DAY1, DAY2]) {
+      expect(await exists(answerRef(CID, day, A))).toBe(false);
+      expect(await exists(answerRef(CID, day, B))).toBe(false);
+      expect(await exists(dayRef(CID, day))).toBe(false);
+    }
+    expect(await exists(coupleRef())).toBe(false);
+    expect(await exists(db.collection('subscriptions').doc(CID))).toBe(false);
+    expect(await exists(db.collection('coachUsage').doc(CID))).toBe(false);
+    expect(await exists(db.collection('coachUsage').doc(CID).collection('daily').doc(A))).toBe(false);
+    expect(await exists(db.collection('coachUsage').doc(CID).collection('daily').doc(B))).toBe(false);
+    expect(await exists(userRef(A))).toBe(false);
+    expect(await exists(userRef(A).collection('soloAnswers').doc('20260701'))).toBe(false);
+    expect(await exists(db.collection('deletions').doc(A))).toBe(false);
+    expect(await authExists(A)).toBe(false);
+
+    // B re-drives its own interrupted cascade → converges (its remaining steps
+    // no-op the already-swept subtree and finish B's own erasure).
+    await deleteAccountCascade(db, B, authDeps);
+    expect(await exists(userRef(B))).toBe(false);
+    expect(await exists(userRef(B).collection('soloAnswers').doc('20260701'))).toBe(false);
+    expect(await exists(db.collection('invites').doc(INVITE_B_CREATED))).toBe(false);
+    expect(await exists(db.collection('deletions').doc(B))).toBe(false);
+    expect(await authExists(B)).toBe(false);
+  });
+
+  it('abandonment: B detaches then NEVER re-drives; A alone fully sweeps the couple subtree (incl. B-authored answers)', async () => {
+    await seedFull();
+
+    // B detaches (seeding A's cursor) and abandons — it never comes back.
+    await expect(deleteAccountCascade(db, B, killBAfterDetach)).rejects.toThrow();
+
+    // A runs alone. Because A adopted the seeded cursor, the couple subtree — B's
+    // authored answers included — is fully swept by A even though B never returns.
+    await deleteAccountCascade(db, A, authDeps);
+    for (const day of [DAY1, DAY2]) {
+      expect(await exists(answerRef(CID, day, A))).toBe(false);
+      expect(await exists(answerRef(CID, day, B))).toBe(false);
+    }
+    expect(await exists(coupleRef())).toBe(false);
+    expect(await exists(db.collection('subscriptions').doc(CID))).toBe(false);
+    expect(await exists(userRef(A))).toBe(false);
+    expect(await exists(db.collection('deletions').doc(A))).toBe(false);
+    expect(await authExists(A)).toBe(false);
   });
 });

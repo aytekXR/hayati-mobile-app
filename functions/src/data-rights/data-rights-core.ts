@@ -104,8 +104,9 @@ export type CascadeStep =
   | 'resolve'
   | 'detach'
   | 'couple-sweep'
-  | 'invites-sweep'
+  | 'seed-cleanup'
   | 'own-sweep'
+  | 'invites-sweep'
   | 'remove-cursor'
   | 'auth-delete';
 

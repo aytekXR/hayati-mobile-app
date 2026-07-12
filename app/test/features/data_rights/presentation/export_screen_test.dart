@@ -9,8 +9,6 @@ import 'package:hayati_app/features/data_rights/presentation/export_screen.dart'
 import '../../../support/fake_data_rights_repository.dart';
 import '../../../support/localized_app.dart';
 
-const _uid = 'uid-1';
-
 void main() {
   final en = l10nFor(const Locale('en'));
 
@@ -20,7 +18,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       localizedApp(
-        const ExportScreen(uid: _uid),
+        const ExportScreen(),
         overrides: [
           dataRightsRepositoryProvider.overrideWith((ref) => dataRights),
         ],

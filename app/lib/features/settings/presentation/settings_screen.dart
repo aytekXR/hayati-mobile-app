@@ -246,15 +246,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // ── The two data-rights rows (ADR-019 D5/D7) ─────────────────────────────
 
-  Future<void> _openExport() => Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => ExportScreen(uid: widget.uid)),
-  );
+  Future<void> _openExport() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const ExportScreen()));
 
-  Future<void> _openDelete() => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => DeleteAccountScreen(uid: widget.uid),
-    ),
-  );
+  Future<void> _openDelete() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const DeleteAccountScreen()));
 
   @override
   Widget build(BuildContext context) {

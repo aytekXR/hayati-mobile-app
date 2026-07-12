@@ -23,6 +23,12 @@ const DAY_PREREVEAL = '20260710';
 const B_REVEALED_TEXT = 'BBBB_SECRET_REVEALED_ANSWER';
 const B_PREREVEAL_TEXT = 'BBBB_SECRET_PREREVEAL_ANSWER';
 const B_DAILY_COUNT = 4242;
+// A long distinctive string sentinel for B's daily lane, carried in its dayKey.
+// It replaces the old 4-digit `String(B_DAILY_COUNT)` negative-sweep sentinel,
+// which could appear by chance as a substring of a real-clock 13-digit epoch-ms
+// value elsewhere in the doc and fail the sweep spuriously. This marker cannot
+// collide with any timestamp/number the projection emits.
+const B_DAILY_MARKER = 'BBBB_SECRET_B_DAILY_LANE_MARKER';
 const A_DAILY_COUNT = 7;
 
 const FIXED_NOW = 1_700_000_000_000;
@@ -56,7 +62,7 @@ async function seedPaired(): Promise<void> {
   });
   await db.collection('coachUsage').doc(CID).set({ monthly: { monthKey: '202607', count: 11 }, updatedAt: Timestamp.now() });
   await db.collection('coachUsage').doc(CID).collection('daily').doc(A).set({ dayKey: DAY_PREREVEAL, count: A_DAILY_COUNT, updatedAt: Timestamp.now() });
-  await db.collection('coachUsage').doc(CID).collection('daily').doc(B).set({ dayKey: DAY_PREREVEAL, count: B_DAILY_COUNT, updatedAt: Timestamp.now() });
+  await db.collection('coachUsage').doc(CID).collection('daily').doc(B).set({ dayKey: B_DAILY_MARKER, count: B_DAILY_COUNT, updatedAt: Timestamp.now() });
 
   await db.collection('invites').doc('AAAA2222').set({ creatorUid: A, status: 'pending', expiresAt: Timestamp.fromMillis(Date.now() + 60_000), createdAt: Timestamp.now() });
   await db.collection('invites').doc('BBBB3333').set({ creatorUid: B, joinerUid: A, status: 'joined', coupleId: CID, joinedAt: Timestamp.now(), createdAt: Timestamp.now() });
@@ -116,7 +122,7 @@ describe('buildExportDocument — envelope + positive per section', () => {
     expect(serialized).not.toContain(B); // B's uid, incl. as a lane key / member / counterpart
     expect(serialized).not.toContain(B_REVEALED_TEXT); // revealed-day B-absence
     expect(serialized).not.toContain(B_PREREVEAL_TEXT); // pre-reveal-day B-absence
-    expect(serialized).not.toContain(String(B_DAILY_COUNT)); // B's daily-lane count
+    expect(serialized).not.toContain(B_DAILY_MARKER); // B's daily-lane (collision-proof marker, replaces the 4-digit count sentinel)
     expect(serialized).not.toContain('evt-b'); // B's subscription lane
     expect(serialized).not.toContain('memberUids');
   });
