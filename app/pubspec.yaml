@@ -20,9 +20,11 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^3.0.3
+  flutter_secure_storage: ^10.3.1
   google_sign_in: ^7.2.0
   http: ^1.6.0
   intl: any
+  local_auth: ^3.0.2
   purchases_flutter: ^10.4.1
   riverpod_annotation: ^3.0.3
   share_plus: ^13.2.0
