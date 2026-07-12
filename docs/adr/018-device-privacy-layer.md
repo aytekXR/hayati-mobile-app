@@ -1,7 +1,8 @@
 # ADR-018: Device-privacy layer — root lock gate (PIN + biometric), always-on snapshot shield, discreet alternate icon, first settings surface
 
-- **Status:** Accepted (rev 2 — pre-code adversarial review folded in; see the
-  review record at the end)
+- **Status:** Accepted (rev 3 — implemented; rev 2 folded in the pre-code
+  adversarial review, rev 3 records what the implementation proved. See the two
+  review records at the end.)
 - **Date:** 2026-07-12 (Session 020)
 - **Deciders:** engineering session, per PRD F6 + implementation-plan M6
 - **Related:** ADR-016 (coach safety spine — DV posture precedent), ADR-017
@@ -299,10 +300,15 @@ where they arise.
   is a stateless `ConsumerWidget` and cannot host an observer; the
   builder-mounted **`PrivacyGuard` (ConsumerStatefulWidget) owns the
   `WidgetsBindingObserver`** — always mounted, disposed with the app,
-  drivable in tests via `tester.binding.handleAppLifecycleStateChanged`
-  (which imposes no transition-validity assertions, so test sequences like
-  hidden→paused→resumed are fine). It forwards lifecycle events to the lock
-  controller and owns the shield visibility as local widget state.
+  drivable in tests via `tester.binding.handleAppLifecycleStateChanged`. It
+  forwards lifecycle events to the lock controller and owns the shield
+  visibility as local widget state. **Correction (rev 3):** rev 2 claimed
+  `handleAppLifecycleStateChanged` imposes no transition-validity assertions.
+  It does — an invalid transition (e.g. `paused` → `resumed`, skipping
+  `hidden`/`inactive`) asserts. The tests therefore drive the REAL iOS chains
+  (`resumed→inactive→hidden→paused` and back). No design impact; the
+  correction exists so the next reader does not write a test against the wrong
+  contract.
 - **Lock-screen UI hard constraint** (review findings SEC-7/FLUTTER-1): the
   `LockScreen` (and the shield) sit ABOVE the app's only Navigator — they
   have **no Navigator or Overlay ancestor**. Therefore NO
@@ -313,9 +319,25 @@ where they arise.
   scrim + card drawn by the LockScreen itself). This is distinct from the
   settings screen's PIN-verify dialog, which is pushed INSIDE the Navigator
   and may use `showDialog` normally (Decision 7).
+- **Offstage + TickerMode is STRONGER than this ADR first claimed (rev 3, found
+  in implementation and verified in `flutter_riverpod-3.0.3/lib/src/core/
+  consumer.dart:383,402`):** `Consumer`/`ConsumerStatefulElement` reads
+  `TickerMode.of(context)` on build and calls `ProviderSubscription.pause()` on
+  every subscription when it is false — resuming them when it flips back. So
+  while locked, the gated subtree does not merely stop *painting* couple
+  content: it stops *fetching* it (the Firestore watches pause), and resumes on
+  unlock. Rev 1/2 described the subtree as "rendered but offstage"; it is closer
+  to "suspended". Two consequences, both good and both now pinned by tests: the
+  security claim is stronger than promised, and the bypass negatives MUST be
+  paired with unlock→reveal positive controls (they are — a `findsNothing` here
+  could otherwise pass because content never loaded rather than because the gate
+  hid it, which is exactly the vacuity review finding TEST-3 warned about).
+  Providers ABOVE the gate stay live, which is why the cold-start deep link still
+  lands in `pendingInviteProvider` while locked (asserted).
 - **Offstage, not just paint-over:** while locked the app subtree is
-  `Offstage` — it keeps ALL state (Navigator stack, form fields, providers)
-  but does not paint and cannot be hit-tested. Not painting matters twice:
+  `Offstage` — it keeps its Navigator stack and form state (see the TickerMode
+  note above for what it does NOT keep running) but does not paint and cannot be
+  hit-tested. Not painting matters twice:
   the locked screen itself can be snapshotted by the OS, and an opaque
   overlay above a painted subtree still rasterizes the content beneath it.
   (Offstage also drops the subtree from the semantics tree, closing
