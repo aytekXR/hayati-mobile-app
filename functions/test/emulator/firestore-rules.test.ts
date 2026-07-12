@@ -830,6 +830,74 @@ describe('subscriptions/{coupleId}', () => {
   });
 });
 
+describe('coachUsage/{coupleId}', () => {
+  // M5.1 (ADR-016 Decision 7): the coachProxy admin SDK is the sole writer. The
+  // parent doc is the couple-shared MONTHLY bucket (member-read); the per-user
+  // DAILY lane is split into a subcollection so a partner can NEVER read the
+  // other's coach-usage frequency (the domestic-violence-aware split).
+  const USAGE_PATH = 'coachUsage/couple-1';
+  const DAILY_ALICE = 'coachUsage/couple-1/daily/alice-uid';
+  const DAILY_BOB = 'coachUsage/couple-1/daily/bob-uid';
+
+  const parentData = () => ({ monthly: { monthKey: '202607', count: 5 }, updatedAt: Timestamp.now() });
+  const dailyData = () => ({ dayKey: '20260712', count: 3, updatedAt: Timestamp.now() });
+
+  async function seedUsage(): Promise<void> {
+    await seedCouple();
+    await seed(USAGE_PATH, parentData());
+    await seed(DAILY_ALICE, dailyData());
+    await seed(DAILY_BOB, dailyData());
+  }
+
+  // --- parent doc (couple-shared monthly bucket) ---
+  it('members read the parent monthly bucket; non-members and anonymous cannot', async () => {
+    await seedUsage();
+    await assertSucceeds(getDoc(doc(env.authenticatedContext(ALICE).firestore(), USAGE_PATH)));
+    await assertSucceeds(getDoc(doc(env.authenticatedContext(BOB).firestore(), USAGE_PATH)));
+    await assertFails(getDoc(doc(env.authenticatedContext(CHARLIE).firestore(), USAGE_PATH)));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), USAGE_PATH)));
+  });
+
+  it('a parent doc under a missing couple is unreadable (fails closed)', async () => {
+    // Orphaned counter: parent couple never seeded → the membership get() finds
+    // nothing → deny, matching the subscriptions/days fail-closed discipline.
+    await seed(USAGE_PATH, parentData());
+    await assertFails(getDoc(doc(env.authenticatedContext(ALICE).firestore(), USAGE_PATH)));
+  });
+
+  it('no client writes to the parent — not even members (coachProxy admin SDK is sole writer)', async () => {
+    await seedCouple();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(setDoc(doc(alice, USAGE_PATH), parentData()));
+
+    await seed(USAGE_PATH, parentData());
+    await assertFails(updateDoc(doc(alice, USAGE_PATH), { monthly: { monthKey: '202607', count: 0 } }));
+    await assertFails(deleteDoc(doc(alice, USAGE_PATH)));
+  });
+
+  // --- daily lane (per-user, self-read only) ---
+  it('a member reads their OWN daily lane; the partner cannot (the domestic-violence pin)', async () => {
+    await seedUsage();
+    await assertSucceeds(getDoc(doc(env.authenticatedContext(ALICE).firestore(), DAILY_ALICE)));
+    // BOB is a member of the couple, yet must NOT be able to read ALICE's lane.
+    await assertFails(getDoc(doc(env.authenticatedContext(BOB).firestore(), DAILY_ALICE)));
+    await assertFails(getDoc(doc(env.authenticatedContext(CHARLIE).firestore(), DAILY_ALICE)));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), DAILY_ALICE)));
+    // Symmetry: BOB reads his own lane fine.
+    await assertSucceeds(getDoc(doc(env.authenticatedContext(BOB).firestore(), DAILY_BOB)));
+  });
+
+  it('no client writes to a daily lane — not even the owner', async () => {
+    await seedCouple();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(setDoc(doc(alice, DAILY_ALICE), dailyData()));
+
+    await seed(DAILY_ALICE, dailyData());
+    await assertFails(updateDoc(doc(alice, DAILY_ALICE), { count: 0 }));
+    await assertFails(deleteDoc(doc(alice, DAILY_ALICE)));
+  });
+});
+
 describe('invites/{code}', () => {
   const inviteData = () => ({
     creatorUid: ALICE,
@@ -1472,6 +1540,100 @@ const MUTATIONS: Mutation[] = [
           mutant.authenticatedContext(CHARLIE).firestore(),
           'subscriptions/couple-1',
         ),
+      );
+    },
+  },
+  {
+    // M5.1 coachUsage PARENT: swapping the write-deny for an authed-allow must
+    // readmit a client-written counter — proving the deny is the net, not the
+    // catch-all. The comment disambiguates it from the daily-lane write-deny.
+    name: 'allowing authed coachUsage parent writes readmits client-written counters',
+    anchor: 'allow write: if false; // coachUsage: function-only (coachProxy, admin SDK)',
+    replacement: 'allow write: if request.auth != null;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+      });
+      return setDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), 'coachUsage/couple-1'),
+        { monthly: { monthKey: '202607', count: 0 }, updatedAt: Timestamp.now() },
+      );
+    },
+  },
+  {
+    // M5.1 coachUsage PARENT read: weakening the member-only read to bare auth
+    // must readmit a non-member read. The membership-get() line is byte-identical
+    // to the subscriptions/days reads, so the match line disambiguates the anchor.
+    name: 'dropping the coachUsage parent membership guard readmits non-member reads',
+    anchor:
+      'match /coachUsage/{coupleId} {\n      allow read: if request.auth != null\n        && request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;',
+    replacement: 'match /coachUsage/{coupleId} {\n      allow read: if request.auth != null;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+        await setDoc(doc(context.firestore(), 'coachUsage/couple-1'), {
+          monthly: { monthKey: '202607', count: 5 },
+          updatedAt: Timestamp.now(),
+        });
+      });
+      return getDoc(
+        doc(mutant.authenticatedContext(CHARLIE).firestore(), 'coachUsage/couple-1'),
+      );
+    },
+  },
+  {
+    // M5.1 coachUsage DAILY lane: the write-deny is the net. The comment
+    // disambiguates it from the parent write-deny above.
+    name: 'allowing authed coachUsage daily writes readmits client-written lanes',
+    anchor: 'allow write: if false; // coachUsage daily lanes: function-only',
+    replacement: 'allow write: if request.auth != null;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+      });
+      return setDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), 'coachUsage/couple-1/daily/alice-uid'),
+        { dayKey: '20260712', count: 0, updatedAt: Timestamp.now() },
+      );
+    },
+  },
+  {
+    // M5.1 coachUsage DAILY lane read: the self-read guard is the domestic-violence
+    // pin. Weakening it to bare auth must readmit the PARTNER (a member!) reading
+    // the other's lane. The match line disambiguates the anchor.
+    name: 'dropping the coachUsage daily self-read guard readmits partner reads',
+    anchor:
+      'match /daily/{uid} {\n        allow read: if request.auth != null && request.auth.uid == uid;',
+    replacement: 'match /daily/{uid} {\n        allow read: if request.auth != null;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+        await setDoc(doc(context.firestore(), 'coachUsage/couple-1/daily/alice-uid'), {
+          dayKey: '20260712',
+          count: 3,
+          updatedAt: Timestamp.now(),
+        });
+      });
+      // BOB (the partner) reads ALICE's lane — denied under real rules, allowed
+      // under the mutant.
+      return getDoc(
+        doc(mutant.authenticatedContext(BOB).firestore(), 'coachUsage/couple-1/daily/alice-uid'),
       );
     },
   },
