@@ -108,18 +108,49 @@ customer's alias set or several distinct customers. So each element is resolved
 **independently**, three-valued:
 
 ```
-anon     — starts with $RCAnonymousID:  → filtered out BEFORE any read (never a Firebase uid)
 unknown  — no users/{id} doc            → an identifier we cannot place
 unpaired — users/{id} exists, no coupleId
 couple   — users/{id}.coupleId = C      → lane key = id, mirror = subscriptions/C
 ```
 
-Each array is capped at **`MAX_TRANSFER_IDS = 10`** ids; over the cap the event
-holds (`oversized`). A hostile or pathological payload can therefore never fan
-out unbounded Firestore reads; a legitimate 11-alias customer holds, which by
-Decision 2 is the safe direction.
+**The two sides treat an RC anonymous id (`$RCAnonymousID:…`) differently, and
+the asymmetry is deliberate:**
 
-The planner is a **pure function** of the two resolved id lists:
+- On the **`from`** side an anon id is **filtered out**: it is never a Firebase
+  uid, so it can be neither a lane key nor evidence of a couple. Dropping it
+  costs nothing.
+- On the **`to`** side an anon id is **an unplaceable destination ⇒ hold**. It
+  may be *the loser themselves* mid-reinstall. Filtering it away and then
+  declaring the remaining destination "fully known" would revoke on
+  `to = [$RCAnonymousID:…, uidB]` — contradicting Decision 2's standing rule
+  ("revoke iff the destination is **FULLY KNOWN**") and landing on the
+  false-downgrade side, which is the one thing this design refuses to do. The
+  ADR does **not** get to assume an anon element is merely an alias of a listed
+  known id: Decision 3's founding premise is that RC never commits to what the
+  arrays contain, and that premise must cut both ways.
+
+**Pipeline (the cap is a PRE-READ gate — this is what actually bounds the read
+fan-out; every step below happens before any Firestore read):**
+
+0. `transferred_from`/`transferred_to` absent or not arrays → `unprojectable`
+   (200 counted skip — per-type schema drift, never a 400).
+1. Dedupe both arrays.
+2. `to` empty, **or containing any anon id** → `hold('ambiguous-destination')`.
+3. `from` ← deduped `from` minus anon ids.
+4. Either surviving array longer than **`MAX_TRANSFER_IDS = 10`** →
+   `hold('oversized')`, **zero reads**.
+5. `from` empty → `hold('no-loser')`, zero reads.
+
+Anon-filtering and deduping are pure in-memory operations, so running them
+*before* the cap is free — and it matters: capping the **raw** array would hold
+on routine anonymous-alias accretion (this app mints a fresh RC anonymous id on
+every sign-out, via `PurchasesIdentitySync`'s `logOut`), making the revoke path
+inert for exactly the identity-churning accounts that generate transfers. This
+ordering bounds reads at **≤20** without that cost.
+
+Only then are the surviving ids resolved (one `users/{id}` read each,
+independently), and the planner is a **pure function** of the two resolved
+lists:
 
 ```ts
 type TransferPlan =
@@ -127,14 +158,21 @@ type TransferPlan =
   | { kind: 'hold'; reason: 'internal' | 'ambiguous-destination' | 'no-loser' | 'oversized' };
 ```
 
-1. Any non-anon `to`-id `unknown`, or the `to` array empty after the anon
-   filter → `hold('ambiguous-destination')`.
+1. Any `to`-id `unknown` → `hold('ambiguous-destination')`.
 2. `toCoupleIds` = the coupleIds among the `to` results (may be empty — an
    all-`unpaired` destination is *known*, just couple-less).
 3. `targets` = every `from`-id resolving to a couple **not in `toCoupleIds`**.
-4. No `from`-id resolved → `hold('no-loser')`; every loser's couple is in
-   `toCoupleIds` → `hold('internal')`.
+4. No `from`-id resolved to a couple → `hold('no-loser')`; every loser's couple
+   is in `toCoupleIds` → `hold('internal')`.
 5. Else `revoke(targets)`.
+
+**Named cost of the `to`-side anon rule:** if RC populates `transferred_to`
+with the destination's *anonymous* original id (plausible — see Open question
+1), then **every** transfer holds and the revoke path is inert in production.
+That is the "safe but inert" outcome, and it is the correct place to sit until a
+real payload settles Open question 1. We do not trade a possible false
+downgrade of a paying couple for a revoke path we cannot yet prove fires
+correctly.
 
 ### The case table
 
@@ -146,11 +184,11 @@ not even created.
 | (a) | **Within one couple** — the shared-Apple-ID restore: A buys, B restores on the same device | `hold('internal')` | X byte-unchanged | The couple's entitlement did not move — only *which RC subscriber holds it*. The mirror is **couple-scoped, not subscriber-scoped**: which lane carries the fact is bookkeeping, and the summary is `OR` over lanes. Revoking A's lane while being unable (Fact 2) to project B's would **downgrade a paying couple instantly**. |
 | (b) | **Cross-couple** — A re-paired / signed into a new account, restores on the same Apple ID | `revoke([{X, uidA}])` | X: tombstone → summary re-derived. **Y untouched, not created** | The only case with positive evidence the entitlement left the couple (`transferred_from` = "entitlements are *taken from*"), and it is the sole notification. Y gains nothing (Decision 1). |
 | (b′) | (b) where X has a **second entitled lane** (both partners bought) | `revoke([{X, uidA}])` | X stays entitled off the sibling lane | Lane isolation — exactly what lanes exist for. |
-| (c) | **Loser resolves, destination unplaceable** (a non-anon `to`-id with no user doc, or an anon-only `to` array) | `hold('ambiguous-destination')` | nothing | **The false-downgrade trap.** The reinstall flow (app deleted → RC mints `$RCAnonymousID:…` → store auto-restores → *then* `Purchases.logIn(uid)`) can plausibly emit a transfer whose destination is **the same human's anonymous id**. Revoking there strips premium from a paying couple on a reinstall. RC's restore-behavior page says anonymous ids are *aliased* rather than transferred — but it never mentions the TRANSFER webhook at all, so we take the conservative reading. |
+| (c) | **Loser resolves, destination unplaceable** — a `to`-id with no user doc, **or any anon id anywhere in `to`**, or an empty `to` | `hold('ambiguous-destination')` | nothing | **The false-downgrade trap.** The reinstall flow (app deleted → RC mints `$RCAnonymousID:…` → store auto-restores → *then* `Purchases.logIn(uid)`) can plausibly emit a transfer whose destination is **the same human's anonymous id**. Revoking there strips premium from a paying couple on a reinstall. RC's restore-behavior page says anonymous ids are *aliased* rather than transferred — but it never mentions the TRANSFER webhook at all, so we take the conservative reading. |
 | (c′) | Loser → X; destination is a **known-but-unpaired** user | `revoke([{X, uidL}])` | X tombstoned | The destination *is* known (a real Hayati user in no couple). No ambiguity, and the entitlement demonstrably left X. |
 | (d) | **Gainer resolves, loser does not** | `hold('no-loser')` | nothing | Nothing to revoke and nothing honest to grant (Decision 1). |
 | (e) | Neither resolves | `hold('no-loser')` | nothing | Loud counted skip, 200. |
-| (f) | **Multiple / anonymous ids** | per the rules above | anon filtered from **both** arrays, ids deduped, each capped at 10; multiple resolving `from`-ids ⇒ multiple targets, possibly on different couple docs | Under **both** readings of the array (one customer's alias set *or* several customers) every listed `from` id lost the entitlement, so revoking all resolving from-ids is correct either way. The `to` side is used ONLY to answer "did it stay in the couple?" and to detect ambiguity — it is never written. |
+| (f) | **Multiple / anonymous ids** | per the pipeline above | anon **filtered from `from`**, anon **in `to` ⇒ hold**; ids deduped; each surviving array capped at 10 (pre-read); multiple resolving `from`-ids ⇒ multiple targets, possibly on different couple docs | Under **both** readings of the array (one customer's alias set *or* several customers) every listed `from` id lost the entitlement, so revoking all resolving from-ids is correct either way. The `to` side is used ONLY to answer "did it stay in the couple?" and to detect ambiguity — it is never written. |
 
 ## Decision 4 — The tombstone is a pure projection of the event alone
 
@@ -219,7 +257,7 @@ Hazards, and how the model answers each:
 | Duplicate delivery (RC guarantees at-least-once) | `replay-skip` on every target lane; zero writes |
 | A stale `TRANSFER` replayed **after** a newer `RENEWAL` on the loser's lane | `stale-skip` — the lane stays entitled, no re-revocation |
 | A `TRANSFER` arriving **before** the purchase it moves | tombstone written at the transfer's key; the late (older-`ts`) purchase **stale-skips** — the loser never becomes entitled. *This is what the tombstone-when-no-lane-exists rule buys.* |
-| Hostile/oversized arrays | `hold('oversized')`, ≤20 reads total |
+| Hostile/oversized arrays | `hold('oversized')` at the pre-read gate — **zero** reads (an accepted transfer costs ≤20) |
 
 New typed outcomes (the shell maps `transfer-revoked` → 200 `processed`,
 `transfer-hold` → 200 `skipped`):
@@ -229,12 +267,15 @@ New typed outcomes (the shell maps `transfer-revoked` → 200 `processed`,
 | { decision: 'transfer-hold'; reason: 'internal' | 'ambiguous-destination' | 'no-loser' | 'oversized' }
 ```
 
-**PII:** `logProjection` stays the only log surface. `transferred_from` /
-`transferred_to` contents are user identifiers and are **never logged**; the
-lines carry `{type, id, environment, decision}` + the resolved `coupleId` per
-target (+ a `targetCount` integer). RC also ships `subscriber_attributes` on
-transfers ("for the destination subscriber") — the ADR-013 rule that the raw
-body is never logged is what already contains that.
+**PII:** `logProjection` stays the only log surface, **with no shape change** —
+`LogFields` remains exactly `{type, id, environment, decision, coupleId?}`. A
+revoke emits **one `logProjection(event, 'transfer-revoked', coupleId)` line per
+target**, which needs no new field; a hold emits one line whose `decision`
+carries the reason (`transfer-hold:internal`, …). `transferred_from` /
+`transferred_to` contents are user identifiers and are **never logged** — not
+as a list, not as a count that could be joined against one. RC also ships
+`subscriber_attributes` on transfers ("for the destination subscriber"), which
+the ADR-013 rule that the raw body is never logged already contains.
 
 **Envelope contract (the Finding-0 fix):** the identity contract becomes
 **per-type**, because RC's own field tables are per-type — `app_user_id` stays
