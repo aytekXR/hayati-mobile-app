@@ -116,7 +116,13 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
           persona: _persona,
           controller: _controller,
           onPersonaSelected: (persona) => setState(() => _persona = persona),
-          onDisclaimerAck: () => setState(() {}),
+          // The ack callback runs after a genuine platform-channel await (the
+          // shared-preferences write); this screen's auth-loss listener can
+          // self-pop and dispose this State during that gap, so the rebuild is
+          // gated on `mounted` (S019 review find).
+          onDisclaimerAck: () {
+            if (mounted) setState(() {});
+          },
         ),
         locked: _CoachGatedView(coupleId: widget.coupleId),
       ),

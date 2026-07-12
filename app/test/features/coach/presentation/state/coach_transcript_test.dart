@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
+import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/coach/domain/coach_persona.dart';
 import 'package:hayati_app/features/coach/domain/coach_reply.dart';
 import 'package:hayati_app/features/coach/domain/coach_transcript_entry.dart';
 import 'package:hayati_app/features/coach/presentation/state/coach_transcript.dart';
+
+import '../../../../support/fake_auth_repository.dart';
 
 void main() {
   const uid = 'user-1';
@@ -12,8 +16,19 @@ void main() {
 
   final provider = coachTranscriptProvider(uid, coupleId, persona);
 
-  ProviderContainer arrange() {
-    final container = ProviderContainer();
+  /// The transcript's owner guard (ADR-017 D3, the S019 review's mid-send
+  /// sign-out find) reads the live auth state, so every container composes the
+  /// auth seam — signed in as the transcript's owner by default.
+  ProviderContainer arrange({FakeAuthRepository? auth}) {
+    final fakeAuth =
+        auth ??
+        FakeAuthRepository(
+          initialUser: const AuthUser(uid: uid, displayName: 'Test'),
+        );
+    if (auth == null) addTearDown(fakeAuth.dispose);
+    final container = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWith((ref) => fakeAuth)],
+    );
     addTearDown(container.dispose);
     container.listen(provider, (_, _) {});
     return container;

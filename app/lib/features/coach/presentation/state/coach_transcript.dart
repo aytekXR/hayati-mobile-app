@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../auth/domain/auth_state.dart';
+import '../../../auth/presentation/state/auth_controller.dart';
 import '../../domain/coach_persona.dart';
 import '../../domain/coach_reply.dart';
 import '../../domain/coach_transcript_entry.dart';
@@ -83,6 +85,18 @@ class CoachTranscript extends _$CoachTranscript {
   /// carries `remaining` (Decision 6 — a hint-less response leaves the prior
   /// value untouched).
   void applyExchange({required String userText, required CoachReply reply}) {
+    // The OWNER guard (ADR-017 Decision 3; S019 post-implementation review's
+    // confirmed find): a sign-out landing MID-SEND races the captured-notifier
+    // append. The root listener's family invalidation is LAZY on a keepAlive
+    // element (no dispose, recompute-on-next-read) — and this very append would
+    // BE that next read, silently re-populating the wiped conversation with the
+    // in-flight turn (crisis text included) and serving it to the next same-uid
+    // sign-in in this process. So a late exchange lands ONLY while its owner is
+    // still the signed-in user; otherwise it is dropped — the conversation is
+    // being torn down anyway. A mid-send PERSONA SWITCH leaves auth untouched,
+    // so Decision 8's paid-for reply still lands in that case.
+    final auth = ref.read(authControllerProvider);
+    if (auth is! AuthSignedIn || auth.user.uid != uid) return;
     final responseEntry = switch (reply.kind) {
       CoachReplyKind.reply => CoachPersonaTurn(reply.text),
       CoachReplyKind.help => CoachHelpTurn(reply.text, category: reply.category),

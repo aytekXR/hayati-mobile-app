@@ -477,6 +477,24 @@ void main() {
       expect(tester.widget<FilledButton>(sendButton).onPressed, isNull);
     });
 
+    testWidgets('an empty or whitespace-only entry disables send (ADR test '
+        'commitment 2)', (tester) async {
+      final env = arrange();
+      await pumpCoach(tester, env.overrides);
+      await tester.pumpAndSettle();
+
+      // Empty field: disabled.
+      final sendButton = find.widgetWithText(FilledButton, en.coachSend);
+      expect(tester.widget<FilledButton>(sendButton).onPressed, isNull);
+
+      // Whitespace-only: the trimmed entry is empty — still disabled, and no
+      // repository call can be issued.
+      await tester.enterText(find.byType(TextField), '   ');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(sendButton).onPressed, isNull);
+      expect(env.coach.callLog, isEmpty);
+    });
+
     testWidgets('a re-entrant double-tap send issues exactly one repository '
         'call', (tester) async {
       final env = arrange();

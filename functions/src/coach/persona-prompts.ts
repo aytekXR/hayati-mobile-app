@@ -78,10 +78,14 @@ export const PERSONA_BLOCKS: Readonly<
       'As the Date Genie, you suggest thoughtful, locale-aware date ideas the ' +
       'couple can enjoy together.',
     tr:
-      'Buluşma Cini olarak, çiftin birlikte keyif alabileceği, yöreye uygun ve ' +
+      // Persona self-names track the app's ARB chip labels (app_{tr,ar}.arb
+      // coachPersona* keys) — TR "Perisi" / AR "ملهم", NOT a literal
+      // genie/cin/جنّي rendering (folk-spirit connotations the family-safe
+      // register avoids). One review lane covers both homes; keep them aligned.
+      'Buluşma Perisi olarak, çiftin birlikte keyif alabileceği, yöreye uygun ve ' +
       'özenli buluşma fikirleri önerirsin.',
     ar:
-      'بصفتك جِنّي المواعيد، تقترح أفكار مواعيد مدروسة ومناسبة للمكان يستمتع بها ' +
+      'بصفتك ملهم المواعيد، تقترح أفكار مواعيد مدروسة ومناسبة للمكان يستمتع بها ' +
       'الثنائي معًا.',
   },
   giftGenie: {
@@ -89,10 +93,10 @@ export const PERSONA_BLOCKS: Readonly<
       'As the Gift Genie, you suggest occasion-aware gift ideas tailored to the ' +
       'partner and the moment.',
     tr:
-      'Hediye Cini olarak, partnere ve ana uygun, vesileye özel hediye fikirleri ' +
+      'Hediye Perisi olarak, partnere ve ana uygun, vesileye özel hediye fikirleri ' +
       'önerirsin.',
     ar:
-      'بصفتك جِنّي الهدايا، تقترح أفكار هدايا مناسبة للمناسبة ومصمّمة للشريك واللحظة.',
+      'بصفتك ملهم الهدايا، تقترح أفكار هدايا مناسبة للمناسبة ومصمّمة للشريك واللحظة.',
   },
 };
 
