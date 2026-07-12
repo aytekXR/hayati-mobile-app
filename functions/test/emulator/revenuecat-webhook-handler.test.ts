@@ -7,7 +7,7 @@ import type { Request } from 'firebase-functions/v2/https';
 import type { Response } from 'express';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { FREE_SUMMARY, RcEvent } from '../../src/entitlements/entitlement-core';
+import { FREE_SUMMARY, RC_ANONYMOUS_PREFIX, RcEvent } from '../../src/entitlements/entitlement-core';
 import { ProcessOutcome, processRevenueCatEvent } from '../../src/entitlements/entitlement-service';
 import { makeRevenueCatWebhookHandler } from '../../src/entitlements/revenuecat-webhook';
 import { clearNoTriggerFirestore, noTriggerFirestore } from '../support/admin';
@@ -93,8 +93,27 @@ function rcEvent(overrides: Partial<RcEvent> = {}): RcEvent {
     expirationAtMs: 9_000,
     gracePeriodExpirationAtMs: null,
     entitlementIds: ['premium'],
+    transferredFrom: null,
+    transferredTo: null,
     ...overrides,
   };
+}
+
+/** A parsed TRANSFER event (ADR-015): no appUserId, transfer arrays instead. */
+function transferEvent(overrides: Partial<RcEvent> = {}): RcEvent {
+  return rcEvent({
+    type: 'TRANSFER',
+    id: 'evt-t1',
+    eventTimestampMs: 5_000,
+    appUserId: null,
+    productId: null,
+    periodType: null,
+    expirationAtMs: undefined,
+    entitlementIds: null,
+    transferredFrom: ['uid-a'],
+    transferredTo: ['uid-b'],
+    ...overrides,
+  });
 }
 
 function readSubscription(coupleId: string): Promise<FirebaseFirestore.DocumentData | undefined> {
@@ -194,6 +213,33 @@ describe('revenueCatWebhook handler — method, auth, body, errors', () => {
       expect(res.body).toEqual({ status: 'skipped', decision });
     },
   );
+
+  // ADR-015: a revoke WROTE the mirror (processed); a hold deliberately wrote
+  // nothing (skipped) — and neither is ever a non-200 that would burn RC's budget.
+  it('maps a transfer-revoked outcome to 200 processed', async () => {
+    const handler = makeRevenueCatWebhookHandler({
+      expectedToken: () => TOKEN,
+      db: () => db,
+      process: async () => ({
+        decision: 'transfer-revoked',
+        targets: [{ coupleId: 'couple-1', uid: 'uid-a' }],
+      }),
+    });
+    const res = await invoke(handler, fakeReq({ headers: { authorization: TOKEN }, body: envelope() }));
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ status: 'processed', decision: 'transfer-revoked' });
+  });
+
+  it('maps a transfer-hold outcome to 200 skipped', async () => {
+    const handler = makeRevenueCatWebhookHandler({
+      expectedToken: () => TOKEN,
+      db: () => db,
+      process: async () => ({ decision: 'transfer-hold', reason: 'internal' }),
+    });
+    const res = await invoke(handler, fakeReq({ headers: { authorization: TOKEN }, body: envelope() }));
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ status: 'skipped', decision: 'transfer-hold' });
+  });
 
   it('maps a systemic service throw to 500 internal without leaking the message', async () => {
     const handler = makeRevenueCatWebhookHandler({
@@ -367,5 +413,244 @@ describe('processRevenueCatEvent service (firestore emulator)', () => {
     const outcome = await processRevenueCatEvent(db, rcEvent({ appUserId: 'uid-a', expirationAtMs: 'soon' }));
     expect(outcome).toEqual({ decision: 'unprojectable' });
     expect(await readSubscription('couple-1')).toBeUndefined();
+  });
+
+  // --- TRANSFER (M4.3, ADR-015) ---------------------------------------------
+
+  /** Seeds a member and gives their couple an entitled lane (a real purchase). */
+  async function seedEntitled(uid: string, coupleId: string): Promise<void> {
+    await seedMember(uid, coupleId);
+    const applied = await processRevenueCatEvent(
+      db,
+      rcEvent({ id: `evt-buy-${uid}`, eventTimestampMs: 1_000, appUserId: uid }),
+    );
+    expect(applied).toMatchObject({ decision: 'applied' });
+  }
+
+  // (a) THE false-downgrade regression: a shared-Apple-ID restore INSIDE one
+  // couple. The mirror is couple-scoped — the entitlement did not move, only the
+  // RC subscriber holding it. Revoking here would strip premium from a paying
+  // couple. The doc must be BYTE-unchanged.
+  it('(a) a within-couple transfer holds: the mirror is untouched, byte for byte', async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    await seedMember('uid-b', 'couple-1');
+    const before = await readSubscription('couple-1');
+
+    const outcome = await processRevenueCatEvent(
+      db,
+      transferEvent({ transferredFrom: ['uid-a'], transferredTo: ['uid-b'] }),
+    );
+
+    expect(outcome).toEqual({ decision: 'transfer-hold', reason: 'internal' });
+    expect(await readSubscription('couple-1')).toEqual(before);
+  });
+
+  // (b) The only case with positive evidence the entitlement LEFT the couple.
+  it('(b) a cross-couple transfer revokes the loser lane and NEVER entitles the gainer', async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    await seedMember('uid-b', 'couple-2');
+
+    const outcome = await processRevenueCatEvent(
+      db,
+      transferEvent({ transferredFrom: ['uid-a'], transferredTo: ['uid-b'] }),
+    );
+
+    expect(outcome).toEqual({
+      decision: 'transfer-revoked',
+      targets: [{ coupleId: 'couple-1', uid: 'uid-a' }],
+    });
+    const loser = await readSubscription('couple-1');
+    expect(loser).toMatchObject({ entitled: false });
+    expect(loser!.lanes['uid-a']).toMatchObject({ entitled: false, expiresAtMs: 5_000 });
+    // The gainer's mirror is not even CREATED — a transfer carries no product and
+    // no expiry, so there is nothing honest to grant (Decision 1).
+    expect(await readSubscription('couple-2')).toBeUndefined();
+  });
+
+  it("(b') a sibling lane keeps the loser's couple entitled (lane isolation)", async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    await seedEntitled('uid-b2', 'couple-1'); // the other partner also bought
+    await seedMember('uid-far', 'couple-2');
+
+    await processRevenueCatEvent(
+      db,
+      transferEvent({ transferredFrom: ['uid-a'], transferredTo: ['uid-far'] }),
+    );
+
+    const doc = await readSubscription('couple-1');
+    expect(doc).toMatchObject({ entitled: true });
+    expect(doc!.lanes['uid-a'].entitled).toBe(false);
+    expect(doc!.lanes['uid-b2'].entitled).toBe(true);
+  });
+
+  it('(c) an unplaceable destination (no user doc) holds — the mirror is untouched', async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    const before = await readSubscription('couple-1');
+
+    const outcome = await processRevenueCatEvent(
+      db,
+      transferEvent({ transferredFrom: ['uid-a'], transferredTo: ['nobody'] }),
+    );
+
+    expect(outcome).toEqual({ decision: 'transfer-hold', reason: 'ambiguous-destination' });
+    expect(await readSubscription('couple-1')).toEqual(before);
+  });
+
+  // THE reinstall trap: delete app → RC mints an anonymous id → the store
+  // auto-restores → only THEN does the app call Purchases.logIn(uid). The
+  // destination may be the SAME human. Revoking here strips premium from a
+  // paying couple on a reinstall.
+  it('(c) an anonymous destination holds — the reinstall false-downgrade trap', async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    const before = await readSubscription('couple-1');
+
+    const outcome = await processRevenueCatEvent(
+      db,
+      transferEvent({
+        transferredFrom: ['uid-a'],
+        transferredTo: [`${RC_ANONYMOUS_PREFIX}cafe`],
+      }),
+    );
+
+    expect(outcome).toEqual({ decision: 'transfer-hold', reason: 'ambiguous-destination' });
+    expect(await readSubscription('couple-1')).toEqual(before);
+  });
+
+  it("(c') a known-but-unpaired destination is not ambiguous → the revoke fires", async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    await db.collection('users').doc('uid-solo').set({ displayName: 'no couple' });
+
+    const outcome = await processRevenueCatEvent(
+      db,
+      transferEvent({ transferredFrom: ['uid-a'], transferredTo: ['uid-solo'] }),
+    );
+
+    expect(outcome).toMatchObject({ decision: 'transfer-revoked' });
+    expect(await readSubscription('couple-1')).toMatchObject({ entitled: false });
+  });
+
+  it('(d) a transfer whose loser resolves to nothing holds and grants nobody', async () => {
+    await seedMember('uid-b', 'couple-2');
+
+    const outcome = await processRevenueCatEvent(
+      db,
+      transferEvent({ transferredFrom: ['ghost'], transferredTo: ['uid-b'] }),
+    );
+
+    expect(outcome).toEqual({ decision: 'transfer-hold', reason: 'no-loser' });
+    expect(await readSubscription('couple-2')).toBeUndefined();
+  });
+
+  // The transfer-arrives-BEFORE-the-purchase-it-moves hazard. The tombstone is
+  // written even with no lane present, so the late (older-ts) purchase
+  // stale-skips and the moved-away entitlement is never resurrected.
+  it('a TRANSFER before the purchase it moves: the late purchase cannot resurrect it', async () => {
+    await seedMember('uid-a', 'couple-1');
+    await seedMember('uid-b', 'couple-2');
+
+    // The transfer lands first (ts 5_000) — no lane exists yet.
+    await processRevenueCatEvent(
+      db,
+      transferEvent({ eventTimestampMs: 5_000, transferredFrom: ['uid-a'], transferredTo: ['uid-b'] }),
+    );
+    expect(await readSubscription('couple-1')).toMatchObject({ entitled: false });
+
+    // The purchase it moved arrives late, with an OLDER timestamp.
+    const late = await processRevenueCatEvent(
+      db,
+      rcEvent({ id: 'evt-late', eventTimestampMs: 1_000, appUserId: 'uid-a' }),
+    );
+
+    expect(late).toMatchObject({ decision: 'stale-skip' });
+    expect(await readSubscription('couple-1')).toMatchObject({ entitled: false });
+  });
+
+  it('a duplicate TRANSFER is a replay: no second write', async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    await seedMember('uid-b', 'couple-2');
+    const event = transferEvent({ transferredFrom: ['uid-a'], transferredTo: ['uid-b'] });
+
+    await processRevenueCatEvent(db, event, { now: () => 111 });
+    const first = await readSubscription('couple-1');
+    // Re-delivery (RC retries reuse the same id + timestamp) with a DIFFERENT
+    // clock: a second write would show up as a changed updatedAtMs.
+    await processRevenueCatEvent(db, event, { now: () => 222 });
+
+    expect(await readSubscription('couple-1')).toEqual(first);
+    expect(first!.lanes['uid-a'].updatedAtMs).toBe(111);
+  });
+
+  it('a STALE transfer cannot re-revoke a lane a newer renewal already advanced', async () => {
+    await seedMember('uid-a', 'couple-1');
+    await seedMember('uid-b', 'couple-2');
+    // A renewal at ts 9_000 (the subscription came back to this couple).
+    await processRevenueCatEvent(
+      db,
+      rcEvent({ id: 'evt-renew', type: 'RENEWAL', eventTimestampMs: 9_000, appUserId: 'uid-a' }),
+    );
+
+    // An older transfer (ts 5_000) is finally delivered.
+    await processRevenueCatEvent(
+      db,
+      transferEvent({ eventTimestampMs: 5_000, transferredFrom: ['uid-a'], transferredTo: ['uid-b'] }),
+    );
+
+    expect(await readSubscription('couple-1')).toMatchObject({ entitled: true });
+  });
+
+  it('a multi-target transfer tombstones every losing couple, and re-delivery is a no-op', async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    await seedEntitled('uid-c', 'couple-3');
+    await seedMember('uid-b', 'couple-2');
+    const event = transferEvent({
+      transferredFrom: ['uid-a', 'uid-c'],
+      transferredTo: ['uid-b'],
+    });
+
+    const outcome = await processRevenueCatEvent(db, event, { now: () => 111 });
+    expect(outcome).toEqual({
+      decision: 'transfer-revoked',
+      targets: [
+        { coupleId: 'couple-1', uid: 'uid-a' },
+        { coupleId: 'couple-3', uid: 'uid-c' },
+      ],
+    });
+    expect(await readSubscription('couple-1')).toMatchObject({ entitled: false });
+    expect(await readSubscription('couple-3')).toMatchObject({ entitled: false });
+
+    // Partial-application safety is IDEMPOTENCE, not atomicity: a retry re-runs
+    // every target and every one of them replay-skips.
+    const before1 = await readSubscription('couple-1');
+    const before3 = await readSubscription('couple-3');
+    await processRevenueCatEvent(db, event, { now: () => 222 });
+    expect(await readSubscription('couple-1')).toEqual(before1);
+    expect(await readSubscription('couple-3')).toEqual(before3);
+  });
+
+  it('a TRANSFER with no transfer arrays is unprojectable — no doc is created', async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    const before = await readSubscription('couple-1');
+
+    const outcome = await processRevenueCatEvent(
+      db,
+      transferEvent({ transferredFrom: null, transferredTo: null }),
+    );
+
+    expect(outcome).toEqual({ decision: 'unprojectable' });
+    expect(await readSubscription('couple-1')).toEqual(before);
+  });
+
+  it('an oversized transfer holds at the gate — zero reads, no writes', async () => {
+    await seedEntitled('uid-a', 'couple-1');
+    const before = await readSubscription('couple-1');
+    const many = Array.from({ length: 11 }, (_unused, i) => `uid-${i}`);
+
+    const outcome = await processRevenueCatEvent(
+      db,
+      transferEvent({ transferredFrom: ['uid-a', ...many], transferredTo: ['uid-b'] }),
+    );
+
+    expect(outcome).toEqual({ decision: 'transfer-hold', reason: 'oversized' });
+    expect(await readSubscription('couple-1')).toEqual(before);
   });
 });

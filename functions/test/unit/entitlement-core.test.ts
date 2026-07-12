@@ -7,13 +7,20 @@ import { describe, expect, it } from 'vitest';
 import {
   FREE_SUMMARY,
   Lane,
+  MAX_TRANSFER_IDS,
+  RC_ANONYMOUS_PREFIX,
   RcEvent,
+  TransferResolution,
   applyLane,
   decide,
   deriveSummary,
+  gateTransfer,
   logProjection,
   parseRcEvent,
+  planTransfer,
   projectEvent,
+  revokeLane,
+  revokedLane,
 } from '../../src/entitlements/entitlement-core';
 
 // A valid parsed event; overrides replace individual fields per case.
@@ -33,9 +40,35 @@ function rcEvent(overrides: Partial<RcEvent> = {}): RcEvent {
     expirationAtMs: 9_000,
     gracePeriodExpirationAtMs: null,
     entitlementIds: ['premium'],
+    transferredFrom: null,
+    transferredTo: null,
     ...overrides,
   };
 }
+
+/** A parsed TRANSFER event (ADR-015): NO appUserId, transfer arrays instead. */
+function transferEvent(overrides: Partial<RcEvent> = {}): RcEvent {
+  return rcEvent({
+    type: 'TRANSFER',
+    id: 'evt-t1',
+    eventTimestampMs: 5_000,
+    appUserId: null,
+    productId: null,
+    periodType: null,
+    expirationAtMs: undefined,
+    entitlementIds: null,
+    transferredFrom: ['uid-a'],
+    transferredTo: ['uid-b'],
+    ...overrides,
+  });
+}
+
+const ANON = `${RC_ANONYMOUS_PREFIX}deadbeef`;
+
+/** Resolution shorthands for the planTransfer table. */
+const inCouple = (id: string, coupleId: string): TransferResolution => ({ id, status: 'couple', coupleId });
+const unpaired = (id: string): TransferResolution => ({ id, status: 'unpaired' });
+const unknown = (id: string): TransferResolution => ({ id, status: 'unknown' });
 
 // A full stored lane; overrides replace fields for the summary/guard tests.
 function lane(overrides: Partial<Lane> = {}): Lane {
@@ -108,6 +141,8 @@ describe('parseRcEvent — envelope contract', () => {
         expirationAtMs: 99,
         gracePeriodExpirationAtMs: 55,
         entitlementIds: ['premium'],
+        transferredFrom: null,
+        transferredTo: null,
       },
     });
   });
@@ -124,6 +159,9 @@ describe('parseRcEvent — envelope contract', () => {
     expect(result.event.newProductId).toBeNull();
     expect(result.event.periodType).toBeNull();
     expect(result.event.entitlementIds).toBeNull();
+    // TRANSFER-only fields, absent on a lifecycle event.
+    expect(result.event.transferredFrom).toBeNull();
+    expect(result.event.transferredTo).toBeNull();
     // The two entitled-until candidates are passed through untouched (absent).
     expect(result.event.expirationAtMs).toBeUndefined();
     expect(result.event.gracePeriodExpirationAtMs).toBeUndefined();
@@ -285,12 +323,20 @@ describe('projectEvent — Decision 2 table, every type', () => {
     expect(projectEvent(rcEvent({ type: 'TEST' }))).toEqual({ kind: 'noop' });
   });
 
-  it.each(['TRANSFER', 'INVOICE_ISSUED', 'SOME_FUTURE_TYPE'])(
+  it.each(['INVOICE_ISSUED', 'SOME_FUTURE_TYPE'])(
     'unknown type %s: logged no-op (never a retry loop)',
     (type) => {
       expect(projectEvent(rcEvent({ type }))).toEqual({ kind: 'noop' });
     },
   );
+
+  // ADR-015: TRANSFER is NOT a lifecycle projection — the transfer path owns it.
+  // Keeping it out of PROJECTING_WILL_RENEW is what guarantees the LIFECYCLE
+  // projection can never mint an entitled lane from an event that carries no
+  // product and no expiry (Decision 1).
+  it('TRANSFER never projects a lifecycle lane (the transfer path owns it)', () => {
+    expect(projectEvent(transferEvent())).toEqual({ kind: 'noop' });
+  });
 
   it('carries entitlementIds through to the lane verbatim', () => {
     const projection = projectEvent(rcEvent({ entitlementIds: ['premium', 'coach'] }));
@@ -466,5 +512,293 @@ describe('logProjection — PII-safe surface', () => {
     const serialized = JSON.stringify(fields);
     expect(serialized).not.toContain('secret-alias');
     expect(serialized).not.toContain('subscriber_attributes');
+  });
+});
+
+// --- TRANSFER (ADR-015) ------------------------------------------------------
+
+describe('parseRcEvent — the TRANSFER envelope (ADR-015 Finding 0)', () => {
+  // THE regression: RC's real transfer body carries NO app_user_id. Before
+  // ADR-015 this parsed as `malformed` → 400 → RC burned its 5-retry budget and
+  // dropped the event. Body shape verbatim from RC's documented sample.
+  it('accepts a real TRANSFER body with NO app_user_id', () => {
+    const result = parseRcEvent({
+      api_version: '1.0',
+      event: {
+        type: 'TRANSFER',
+        id: 'CD489E0E-5D52-4E03-966B-A7F17788E432',
+        event_timestamp_ms: 78_789_789_798_798,
+        store: 'APP_STORE',
+        environment: 'PRODUCTION',
+        transferred_from: ['00005A1C-6091-4F81-BE77-F0A83A271AB6'],
+        transferred_to: ['4BEDB450-8EF2-11E9-B475-0800200C9A66'],
+      },
+    });
+
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') return;
+    expect(result.event.appUserId).toBeNull();
+    expect(result.event.transferredFrom).toEqual(['00005A1C-6091-4F81-BE77-F0A83A271AB6']);
+    expect(result.event.transferredTo).toEqual(['4BEDB450-8EF2-11E9-B475-0800200C9A66']);
+  });
+
+  // The exception is exactly ONE type wide. Goes red if someone "fixes" the
+  // above by making app_user_id optional for every type.
+  it('a LIFECYCLE event without app_user_id is STILL malformed (per-type contract)', () => {
+    const result = parseRcEvent({
+      api_version: '1.0',
+      event: { type: 'INITIAL_PURCHASE', id: 'evt-1', event_timestamp_ms: 1_000 },
+    });
+    expect(result).toEqual({ status: 'malformed' });
+  });
+
+  it('a TRANSFER whose transfer arrays are absent or non-arrays maps them to null', () => {
+    const result = parseRcEvent(
+      rawBody({ type: 'TRANSFER', app_user_id: undefined, transferred_from: 'not-an-array' }),
+    );
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') return;
+    expect(result.event.transferredFrom).toBeNull();
+    expect(result.event.transferredTo).toBeNull();
+  });
+});
+
+describe('gateTransfer — the pre-read gate (ADR-015 Decision 3)', () => {
+  it('resolves a clean transfer: the surviving ids, deduped', () => {
+    const gate = gateTransfer(
+      transferEvent({ transferredFrom: ['uid-a', 'uid-a'], transferredTo: ['uid-b'] }),
+    );
+    expect(gate).toEqual({ kind: 'resolve', fromIds: ['uid-a'], toIds: ['uid-b'] });
+  });
+
+  it.each([
+    ['transferred_from absent', { transferredFrom: null }],
+    ['transferred_to absent', { transferredTo: null }],
+  ])('%s → unprojectable (per-type schema drift, a 200 skip — never a 400)', (_label, overrides) => {
+    expect(gateTransfer(transferEvent(overrides))).toEqual({ kind: 'unprojectable' });
+  });
+
+  // THE reinstall false-downgrade regression. An anon id in `to` may be the
+  // LOSER THEMSELVES mid-reinstall; filtering it away and calling the rest
+  // "fully known" would strip premium from a paying couple. Goes red if someone
+  // "symmetrizes" the anon filter across both arrays.
+  it('an anon id ANYWHERE in transferred_to holds (never revokes)', () => {
+    expect(gateTransfer(transferEvent({ transferredTo: [ANON, 'uid-b'] }))).toEqual({
+      kind: 'hold',
+      reason: 'ambiguous-destination',
+    });
+  });
+
+  it('an anon-ONLY destination holds', () => {
+    expect(gateTransfer(transferEvent({ transferredTo: [ANON] }))).toEqual({
+      kind: 'hold',
+      reason: 'ambiguous-destination',
+    });
+  });
+
+  it('an empty destination holds', () => {
+    expect(gateTransfer(transferEvent({ transferredTo: [] }))).toEqual({
+      kind: 'hold',
+      reason: 'ambiguous-destination',
+    });
+  });
+
+  it('anon ids in transferred_from are FILTERED (they are never a Firebase uid)', () => {
+    const gate = gateTransfer(transferEvent({ transferredFrom: [ANON, 'uid-a'] }));
+    expect(gate).toEqual({ kind: 'resolve', fromIds: ['uid-a'], toIds: ['uid-b'] });
+  });
+
+  it('a from-side left empty by the anon filter holds as no-loser (zero reads)', () => {
+    expect(gateTransfer(transferEvent({ transferredFrom: [ANON] }))).toEqual({
+      kind: 'hold',
+      reason: 'no-loser',
+    });
+  });
+
+  it('over the cap holds as oversized — at the gate, so it costs ZERO reads', () => {
+    const many = Array.from({ length: MAX_TRANSFER_IDS + 1 }, (_unused, i) => `uid-${i}`);
+    expect(gateTransfer(transferEvent({ transferredFrom: many }))).toEqual({
+      kind: 'hold',
+      reason: 'oversized',
+    });
+  });
+
+  it('exactly at the cap resolves (the boundary is inclusive)', () => {
+    const many = Array.from({ length: MAX_TRANSFER_IDS }, (_unused, i) => `uid-${i}`);
+    expect(gateTransfer(transferEvent({ transferredFrom: many }))).toMatchObject({ kind: 'resolve' });
+  });
+
+  // The filter/dedupe-BEFORE-cap ordering, pinned. Capping the RAW array would
+  // hold on routine anonymous-alias accretion (the app mints a fresh anon id on
+  // every sign-out), leaving the revoke path inert for exactly the churning
+  // accounts that generate transfers.
+  it('anon ids and duplicates do NOT count toward the cap (filter+dedupe run first)', () => {
+    const anons = Array.from({ length: 12 }, (_unused, i) => `${RC_ANONYMOUS_PREFIX}${i}`);
+    const gate = gateTransfer(
+      transferEvent({ transferredFrom: [...anons, 'uid-a', 'uid-a'], transferredTo: ['uid-b'] }),
+    );
+    expect(gate).toEqual({ kind: 'resolve', fromIds: ['uid-a'], toIds: ['uid-b'] });
+  });
+});
+
+describe('planTransfer — the case table (ADR-015 Decision 3)', () => {
+  // (a) THE false-downgrade regression: a shared-Apple-ID restore inside one
+  // couple. The mirror is COUPLE-scoped, so the entitlement did not move — only
+  // which RC subscriber holds it. Revoking here downgrades a paying couple.
+  it('(a) within one couple → hold(internal), nothing written', () => {
+    expect(planTransfer([inCouple('uid-a', 'X')], [inCouple('uid-b', 'X')])).toEqual({
+      kind: 'hold',
+      reason: 'internal',
+    });
+  });
+
+  it('(b) cross-couple → revoke exactly the loser lane (the gainer gets nothing)', () => {
+    expect(planTransfer([inCouple('uid-a', 'X')], [inCouple('uid-b', 'Y')])).toEqual({
+      kind: 'revoke',
+      targets: [{ coupleId: 'X', uid: 'uid-a' }],
+    });
+  });
+
+  it('(c) an unknown destination holds (it might be the loser under an id we cannot place)', () => {
+    expect(planTransfer([inCouple('uid-a', 'X')], [unknown('uid-b')])).toEqual({
+      kind: 'hold',
+      reason: 'ambiguous-destination',
+    });
+  });
+
+  it('(c) one unknown among known destinations still holds (FULLY known, or hold)', () => {
+    expect(
+      planTransfer([inCouple('uid-a', 'X')], [inCouple('uid-b', 'Y'), unknown('uid-z')]),
+    ).toEqual({ kind: 'hold', reason: 'ambiguous-destination' });
+  });
+
+  it("(c') a known-but-unpaired destination is NOT ambiguous → revoke", () => {
+    expect(planTransfer([inCouple('uid-a', 'X')], [unpaired('uid-b')])).toEqual({
+      kind: 'revoke',
+      targets: [{ coupleId: 'X', uid: 'uid-a' }],
+    });
+  });
+
+  it('(d) no loser resolves to a couple → hold(no-loser); a TRANSFER never grants', () => {
+    expect(planTransfer([unpaired('uid-a')], [inCouple('uid-b', 'Y')])).toEqual({
+      kind: 'hold',
+      reason: 'no-loser',
+    });
+  });
+
+  it('(e) neither side resolves → hold(no-loser)', () => {
+    expect(planTransfer([unknown('uid-a')], [unpaired('uid-b')])).toEqual({
+      kind: 'hold',
+      reason: 'no-loser',
+    });
+  });
+
+  it('(f) multiple losers on different couples → one target each', () => {
+    expect(
+      planTransfer(
+        [inCouple('uid-a', 'X'), inCouple('uid-c', 'Z')],
+        [inCouple('uid-b', 'Y')],
+      ),
+    ).toEqual({
+      kind: 'revoke',
+      targets: [
+        { coupleId: 'X', uid: 'uid-a' },
+        { coupleId: 'Z', uid: 'uid-c' },
+      ],
+    });
+  });
+
+  it('(f) a mixed destination containing the loser’s own couple holds it harmless', () => {
+    // uid-a's couple X is among the destinations ⇒ X keeps its entitlement; the
+    // OTHER loser (couple Z) still lost it and is revoked.
+    expect(
+      planTransfer(
+        [inCouple('uid-a', 'X'), inCouple('uid-c', 'Z')],
+        [inCouple('uid-b', 'X')],
+      ),
+    ).toEqual({ kind: 'revoke', targets: [{ coupleId: 'Z', uid: 'uid-c' }] });
+  });
+});
+
+describe('revokedLane / revokeLane — the tombstone (ADR-015 Decision 4)', () => {
+  it('is a PURE projection of the event: entitled false, expiry = the transfer instant', () => {
+    const event = transferEvent({ eventTimestampMs: 5_000, store: 'APP_STORE', environment: 'SANDBOX' });
+    expect(revokedLane(event)).toEqual({
+      entitled: false,
+      productId: null,
+      periodType: null,
+      // NOT null — null is the non-expiring sentinel and would mint free premium.
+      expiresAtMs: 5_000,
+      willRenew: false,
+      store: 'APP_STORE',
+      environment: 'SANDBOX',
+      entitlementIds: null,
+    });
+  });
+
+  it('never copies the loser’s previous lane facts (convergence depends on this)', () => {
+    const lanes = { 'uid-a': lane({ productId: 'premium.yearly', expiresAtMs: 90_000 }) };
+    const next = revokeLane(lanes, 'uid-a', transferEvent({ eventTimestampMs: 5_000 }), 7);
+    expect(next['uid-a']).toMatchObject({
+      entitled: false,
+      productId: null,
+      expiresAtMs: 5_000,
+      entitlementIds: null,
+    });
+  });
+
+  it('writes a tombstone even when the lane does not exist yet', () => {
+    // Otherwise a late INITIAL_PURCHASE (older ts) resurrects a moved-away
+    // entitlement — the transfer-before-the-purchase-it-moves hazard.
+    const next = revokeLane({}, 'uid-a', transferEvent({ eventTimestampMs: 5_000 }), 7);
+    expect(next['uid-a']).toMatchObject({ entitled: false, lastEventTimestampMs: 5_000 });
+  });
+
+  it('is guarded by the SAME total order: a replay returns the same reference', () => {
+    const event = transferEvent();
+    const first = revokeLane({}, 'uid-a', event, 7);
+    expect(revokeLane(first, 'uid-a', event, 99)).toBe(first);
+  });
+
+  it('a STALE transfer cannot re-revoke a lane a newer renewal already advanced', () => {
+    const lanes = { 'uid-a': lane({ lastEventTimestampMs: 9_000, lastEventId: 'evt-new' }) };
+    expect(revokeLane(lanes, 'uid-a', transferEvent({ eventTimestampMs: 5_000 }), 7)).toBe(lanes);
+  });
+
+  it('a NEWER transfer replaces an entitled lane with the tombstone', () => {
+    const lanes = { 'uid-a': lane({ lastEventTimestampMs: 1_000, lastEventId: 'evt-1' }) };
+    const next = revokeLane(lanes, 'uid-a', transferEvent({ eventTimestampMs: 5_000 }), 7);
+    expect(next).not.toBe(lanes);
+    expect(next['uid-a'].entitled).toBe(false);
+  });
+});
+
+describe('deriveSummary with a tombstone', () => {
+  it('a revoked lane never outranks a still-entitled sibling lane (lane isolation)', () => {
+    const summary = deriveSummary({
+      'uid-a': { ...revokedLane(transferEvent({ eventTimestampMs: 5_000 })), lastEventId: 'evt-t1', lastEventTimestampMs: 5_000, updatedAtMs: 0 },
+      'uid-b': lane({ entitled: true, expiresAtMs: 9_000, productId: 'premium.yearly' }),
+    });
+    expect(summary).toMatchObject({ entitled: true, productId: 'premium.yearly', expiresAtMs: 9_000 });
+  });
+
+  it('all-revoked lanes ⇒ the couple is free', () => {
+    const summary = deriveSummary({
+      'uid-a': { ...revokedLane(transferEvent({ eventTimestampMs: 5_000 })), lastEventId: 'evt-t1', lastEventTimestampMs: 5_000, updatedAtMs: 0 },
+    });
+    expect(summary.entitled).toBe(false);
+  });
+});
+
+describe('logProjection on a TRANSFER', () => {
+  it('carries no identifiers — never the transfer arrays', () => {
+    const fields = logProjection(transferEvent(), 'transfer-hold:internal');
+    expect(fields).toEqual({
+      type: 'TRANSFER',
+      id: 'evt-t1',
+      environment: 'PRODUCTION',
+      decision: 'transfer-hold:internal',
+    });
+    expect(JSON.stringify(fields)).not.toContain('uid-a');
   });
 });

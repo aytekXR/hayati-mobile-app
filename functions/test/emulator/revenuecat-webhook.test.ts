@@ -109,4 +109,43 @@ describe('revenueCatWebhook (functions emulator)', () => {
     const response = await post('{ not valid json', TOKEN, true);
     expect(response.status).toBe(400);
   });
+
+  // THE Finding-0 wire proof (ADR-015): RC's REAL transfer body carries NO
+  // app_user_id. Before M4.3 the envelope contract rejected it as malformed and
+  // the endpoint answered 400 — RC would retry 5x over ~155 min and then DROP the
+  // event permanently. Body shape is RC's documented sample, verbatim.
+  it('accepts a REAL TRANSFER body (no app_user_id) over the wire and revokes the loser', async () => {
+    await db.collection('users').doc('uid-loser').set({ coupleId: 'couple-loser' });
+    await db.collection('users').doc('uid-gainer').set({ coupleId: 'couple-gainer' });
+    // The loser's couple is entitled from a real purchase.
+    await post(
+      envelope({ id: 'evt-buy-wire', app_user_id: 'uid-loser', event_timestamp_ms: 1_000 }),
+      TOKEN,
+    );
+    expect((await db.collection('subscriptions').doc('couple-loser').get()).get('entitled')).toBe(true);
+
+    const res = await post(
+      {
+        api_version: '1.0',
+        event: {
+          type: 'TRANSFER',
+          id: 'evt-transfer-wire',
+          event_timestamp_ms: 5_000,
+          store: 'APP_STORE',
+          environment: 'SANDBOX',
+          transferred_from: ['uid-loser'],
+          transferred_to: ['uid-gainer'],
+        },
+      },
+      TOKEN,
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'processed', decision: 'transfer-revoked' });
+    // The loser is downgraded; the gainer's mirror is never even created (a
+    // TRANSFER carries no product/expiry, so it can never entitle anyone).
+    const loser = await db.collection('subscriptions').doc('couple-loser').get();
+    expect(loser.get('entitled')).toBe(false);
+    expect((await db.collection('subscriptions').doc('couple-gainer').get()).exists).toBe(false);
+  });
 });
