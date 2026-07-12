@@ -883,9 +883,11 @@ them were found INDEPENDENTLY BY TWO LENSES, which is the signal worth trusting.
   `scale` key — harmless in the branch CI exercised, but the *other* branch is
   actool silently emitting no `CFBundleAlternateIcons`, which would leave the
   feature dead with a green pipeline. Rewritten to the canonical shape.
-- **Recorded, not fixed (deliberate):** `evaluatedPolicyDomainState` is
-  deprecated under the iOS 18 SDK in favour of `domainState.biometry` — it still
-  works and the replacement is not yet load-bearing; flagged for the M6.3 pass.
-  A transient Face ID *lockout* (too many failed face attempts) currently reads as
-  an enrollment change and permanently revokes the accelerator — fail-safe
-  direction (toward the PIN), mildly annoying, worth revisiting on device.
+- **Recorded, not fixed (deliberate — both filed, neither silent):**
+  `evaluatedPolicyDomainState` is deprecated under the iOS 18 SDK in favour of
+  `domainState.biometry` (**issue #47**) — it still works, and if a future SDK
+  ever made it return nil the adapter maps nil → revoke, which is the fail-safe
+  direction; migrate in M6.3. A transient Face ID *lockout* currently reads as an
+  enrollment change and permanently revokes the accelerator (**issue #48**) —
+  again fail-safe (toward the PIN), an annoyance rather than a hole; revisit once
+  operator item 4 says whether it bites in practice.
