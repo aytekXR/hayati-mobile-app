@@ -26,9 +26,12 @@ void main() {
       expect(cooldownFor(1000), const Duration(minutes: 5));
     });
 
-    test('a negative count (corrupt record) is treated as free, never throws', () {
-      expect(cooldownFor(-1), isNull);
-    });
+    test(
+      'a negative count (corrupt record) is treated as free, never throws',
+      () {
+        expect(cooldownFor(-1), isNull);
+      },
+    );
   });
 
   group('cooldownTierFor (tier-accurate copy — review finding DVUX-5)', () {

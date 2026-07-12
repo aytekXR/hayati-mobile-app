@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/app.dart';
 import 'package:hayati_app/core/config/app_config.dart';
 import 'package:hayati_app/core/config/app_config_provider.dart';
+import 'package:hayati_app/core/storage/pin_lock_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
@@ -11,10 +12,26 @@ import 'package:hayati_app/features/coach/domain/coach_reply.dart';
 import 'package:hayati_app/features/coach/presentation/state/coach_transcript.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
+// flutter_riverpod's curated export omits Override; riverpod_annotation exposes it.
+import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
 
 import 'support/fake_auth_repository.dart';
 import 'support/fake_deep_link_source.dart';
+import 'support/fake_pin_lock_store.dart';
 import 'support/fake_profile_repository.dart';
+
+/// The device-privacy seams (ADR-018) that `HayatiApp` now mounts unconditionally
+/// through the builder-level `PrivacyGuard`. Every full-app boot must bind them,
+/// exactly as the flavor entrypoints do — they are deliberately unimplemented at
+/// the base so a missing binding fails loudly instead of reaching a real
+/// Keychain. The empty snapshot is the lock-never-set-up default: no lock UI, no
+/// behaviour change (asserted in privacy_guard_test.dart).
+List<Override> lockSeams() => [
+  pinLockStoreProvider.overrideWithValue(FakePinLockStore()),
+  initialLockSnapshotProvider.overrideWithValue(
+    const PinLockSnapshot(record: null),
+  ),
+];
 
 void main() {
   Future<void> pumpFlavor(WidgetTester tester, AppFlavor flavor) async {
@@ -33,6 +50,7 @@ void main() {
           // (runHayati extraOverrides) with a fake instead of Firebase.
           authRepositoryProvider.overrideWith((ref) => fake),
           deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+          ...lockSeams(),
         ],
         child: const HayatiApp(),
       ),
@@ -86,6 +104,7 @@ void main() {
           // A null profile routes the signed-in gate to the self-contained
           // capture screen (no couple/solo repos needed for this test).
           profileRepositoryProvider.overrideWith((ref) => profiles),
+          ...lockSeams(),
         ],
       );
       addTearDown(container.dispose);

@@ -120,42 +120,44 @@ void main() {
       expect(store.callLog, ['write:set']);
     });
 
-    test('attempts 1-4 are free; the 5th starts a 30s cooldown (persisted)',
-        () async {
-      final store = FakePinLockStore(initial: aRecord());
-      final container = boot(store: store);
-      final controller = controllerOf(container);
+    test(
+      'attempts 1-4 are free; the 5th starts a 30s cooldown (persisted)',
+      () async {
+        final store = FakePinLockStore(initial: aRecord());
+        final container = boot(store: store);
+        final controller = controllerOf(container);
 
-      for (var attempt = 1; attempt <= 4; attempt++) {
-        final result = await controller.verifyPin(wrongPin);
+        for (var attempt = 1; attempt <= 4; attempt++) {
+          final result = await controller.verifyPin(wrongPin);
+          expect(
+            result,
+            PinLockAttemptWrong(
+              remainingBeforeCooldown: 4 - attempt,
+              tier: null,
+            ),
+            reason: 'attempt $attempt must be free',
+          );
+          expect(store.record!.wrongCount, attempt);
+          expect(store.record!.lockoutUntilMs, isNull);
+          expect(stateOf(container), const PrivacyLocked());
+        }
+
+        final fifth = await controller.verifyPin(wrongPin);
+        final until = msFromStart(const Duration(seconds: 30));
+
         expect(
-          result,
+          fifth,
           PinLockAttemptWrong(
-            remainingBeforeCooldown: 4 - attempt,
-            tier: null,
+            remainingBeforeCooldown: 0,
+            cooldownUntilMs: until,
+            tier: PinLockCooldownTier.thirtySeconds,
           ),
-          reason: 'attempt $attempt must be free',
         );
-        expect(store.record!.wrongCount, attempt);
-        expect(store.record!.lockoutUntilMs, isNull);
-        expect(stateOf(container), const PrivacyLocked());
-      }
-
-      final fifth = await controller.verifyPin(wrongPin);
-      final until = msFromStart(const Duration(seconds: 30));
-
-      expect(
-        fifth,
-        PinLockAttemptWrong(
-          remainingBeforeCooldown: 0,
-          cooldownUntilMs: until,
-          tier: PinLockCooldownTier.thirtySeconds,
-        ),
-      );
-      expect(store.record!.wrongCount, 5);
-      expect(store.record!.lockoutUntilMs, until);
-      expect(stateOf(container), PrivacyLocked(lockoutUntilMs: until));
-    });
+        expect(store.record!.wrongCount, 5);
+        expect(store.record!.lockoutUntilMs, until);
+        expect(stateOf(container), PrivacyLocked(lockoutUntilMs: until));
+      },
+    );
 
     test(
       'the increment is PERSISTED before the verdict is returned (SEC-4B)',
@@ -166,15 +168,16 @@ void main() {
         store.writeGate = gate;
 
         var settled = false;
-        final verdict = controllerOf(container)
-            .verifyPin(wrongPin)
-            .whenComplete(() => settled = true);
+        final verdict = controllerOf(
+          container,
+        ).verifyPin(wrongPin).whenComplete(() => settled = true);
 
         await pumpEventQueue();
         expect(
           settled,
           isFalse,
-          reason: 'the verdict must not render while the write is in flight — a '
+          reason:
+              'the verdict must not render while the write is in flight — a '
               'kill in that window would land on the FREE side',
         );
         expect(store.record!.wrongCount, 0, reason: 'the write is parked');
@@ -206,68 +209,77 @@ void main() {
       expect(store.callLog, isEmpty, reason: 'nothing written, nothing read');
     });
 
-    test('an expired cooldown re-allows attempts; the 6th tier is a minute',
-        () async {
-      final until = msFromStart(const Duration(seconds: 30));
-      final store = FakePinLockStore(
-        initial: aRecord(wrongCount: 5, lockoutUntilMs: until),
-      );
-      final container = boot(store: store);
+    test(
+      'an expired cooldown re-allows attempts; the 6th tier is a minute',
+      () async {
+        final until = msFromStart(const Duration(seconds: 30));
+        final store = FakePinLockStore(
+          initial: aRecord(wrongCount: 5, lockoutUntilMs: until),
+        );
+        final container = boot(store: store);
 
-      now = start.add(const Duration(seconds: 31));
-      final sixth = await controllerOf(container).verifyPin(wrongPin);
+        now = start.add(const Duration(seconds: 31));
+        final sixth = await controllerOf(container).verifyPin(wrongPin);
 
-      expect(
-        sixth,
-        PinLockAttemptWrong(
-          remainingBeforeCooldown: 0,
-          cooldownUntilMs: now.add(const Duration(minutes: 1))
-              .millisecondsSinceEpoch,
-          tier: PinLockCooldownTier.oneMinute,
-        ),
-      );
-      expect(store.record!.wrongCount, 6);
-    });
+        expect(
+          sixth,
+          PinLockAttemptWrong(
+            remainingBeforeCooldown: 0,
+            cooldownUntilMs: now
+                .add(const Duration(minutes: 1))
+                .millisecondsSinceEpoch,
+            tier: PinLockCooldownTier.oneMinute,
+          ),
+        );
+        expect(store.record!.wrongCount, 6);
+      },
+    );
 
-    test('a correct PIN during a cooldown is still refused (not consumed)',
-        () async {
-      final until = msFromStart(const Duration(seconds: 30));
-      final store = FakePinLockStore(
-        initial: aRecord(wrongCount: 5, lockoutUntilMs: until),
-      );
-      final container = boot(store: store);
+    test(
+      'a correct PIN during a cooldown is still refused (not consumed)',
+      () async {
+        final until = msFromStart(const Duration(seconds: 30));
+        final store = FakePinLockStore(
+          initial: aRecord(wrongCount: 5, lockoutUntilMs: until),
+        );
+        final container = boot(store: store);
 
-      expect(
-        await controllerOf(container).verifyPin(correctPin),
-        isA<PinLockAttemptCooldown>(),
-      );
-      expect(stateOf(container), isA<PrivacyLocked>());
-    });
+        expect(
+          await controllerOf(container).verifyPin(correctPin),
+          isA<PinLockAttemptCooldown>(),
+        );
+        expect(stateOf(container), isA<PrivacyLocked>());
+      },
+    );
 
-    test('the counter and the cooldown SURVIVE a relaunch (Decision 4)',
-        () async {
-      final store = FakePinLockStore(initial: aRecord());
-      final first = boot(store: store);
-      for (var i = 0; i < 5; i++) {
-        await controllerOf(first).verifyPin(wrongPin);
-      }
-      expect(store.record!.wrongCount, 5);
+    test(
+      'the counter and the cooldown SURVIVE a relaunch (Decision 4)',
+      () async {
+        final store = FakePinLockStore(initial: aRecord());
+        final first = boot(store: store);
+        for (var i = 0; i < 5; i++) {
+          await controllerOf(first).verifyPin(wrongPin);
+        }
+        expect(store.record!.wrongCount, 5);
 
-      // "Relaunch": a fresh container over the SAME device store, seeded from a
-      // fresh bootstrap read of it.
-      final relaunched = boot(store: store);
+        // "Relaunch": a fresh container over the SAME device store, seeded from a
+        // fresh bootstrap read of it.
+        final relaunched = boot(store: store);
 
-      expect(
-        stateOf(relaunched),
-        PrivacyLocked(lockoutUntilMs: msFromStart(const Duration(seconds: 30))),
-      );
-      expect(
-        await controllerOf(relaunched).verifyPin(wrongPin),
-        isA<PinLockAttemptCooldown>(),
-        reason: 'a restart is not a retry reset',
-      );
-      expect(store.record!.wrongCount, 5);
-    });
+        expect(
+          stateOf(relaunched),
+          PrivacyLocked(
+            lockoutUntilMs: msFromStart(const Duration(seconds: 30)),
+          ),
+        );
+        expect(
+          await controllerOf(relaunched).verifyPin(wrongPin),
+          isA<PinLockAttemptCooldown>(),
+          reason: 'a restart is not a retry reset',
+        );
+        expect(store.record!.wrongCount, 5);
+      },
+    );
   });
 
   group('wipe — the sign-out path (Decision 1)', () {
@@ -283,84 +295,80 @@ void main() {
       expect(store.callLog, ['clear']);
     });
 
-    test(
-      'the wiped state SURVIVES a re-read — no invalidate, no boot replay '
-      '(FLUTTER-2 regression pin)',
-      () async {
-        final store = FakePinLockStore(initial: aRecord());
-        final container = boot(store: store);
-        await controllerOf(container).wipe();
-
-        // If any future code path swapped the in-place mutation for
-        // `ref.invalidate(privacyLockControllerProvider)`, build() would re-run
-        // against the STALE by-value boot snapshot and resurrect the LOCKED
-        // state — re-locking a signed-out app with the previous user's PIN.
-        expect(stateOf(container), const PrivacyLockDisabled());
-        expect(
-          container.read(privacyLockControllerProvider),
-          const PrivacyLockDisabled(),
-        );
-      },
-    );
-
-    test('a failing clear still drops the lock state (orphaned ≠ bricked)',
-        () async {
-      final store = FakePinLockStore(initial: aRecord())
-        ..onClear = () async => throw StateError('keychain fault');
+    test('the wiped state SURVIVES a re-read — no invalidate, no boot replay '
+        '(FLUTTER-2 regression pin)', () async {
+      final store = FakePinLockStore(initial: aRecord());
       final container = boot(store: store);
-
       await controllerOf(container).wipe();
 
+      // If any future code path swapped the in-place mutation for
+      // `ref.invalidate(privacyLockControllerProvider)`, build() would re-run
+      // against the STALE by-value boot snapshot and resurrect the LOCKED
+      // state — re-locking a signed-out app with the previous user's PIN.
       expect(stateOf(container), const PrivacyLockDisabled());
+      expect(
+        container.read(privacyLockControllerProvider),
+        const PrivacyLockDisabled(),
+      );
     });
+
+    test(
+      'a failing clear still drops the lock state (orphaned ≠ bricked)',
+      () async {
+        final store = FakePinLockStore(initial: aRecord())
+          ..onClear = () async => throw StateError('keychain fault');
+        final container = boot(store: store);
+
+        await controllerOf(container).wipe();
+
+        expect(stateOf(container), const PrivacyLockDisabled());
+      },
+    );
   });
 
   group('THE GENERATION-GUARD RACE (the S019 class — FLUTTER-3, blocking)', () {
-    test(
-      'a wrong-attempt persist in flight when the wipe fires does not '
-      'resurrect the pinHash, and does not re-lock',
-      () async {
-        final store = FakePinLockStore(initial: aRecord());
-        final container = boot(store: store);
-        final controller = controllerOf(container);
+    test('a wrong-attempt persist in flight when the wipe fires does not '
+        'resurrect the pinHash, and does not re-lock', () async {
+      final store = FakePinLockStore(initial: aRecord());
+      final container = boot(store: store);
+      final controller = controllerOf(container);
 
-        final gate = Completer<void>();
-        store.writeGate = gate;
+      final gate = Completer<void>();
+      store.writeGate = gate;
 
-        final attempt = controller.verifyPin(wrongPin);
-        await pumpEventQueue();
-        expect(store.callLog, ['write:set'], reason: 'the write is parked');
+      final attempt = controller.verifyPin(wrongPin);
+      await pumpEventQueue();
+      expect(store.callLog, ['write:set'], reason: 'the write is parked');
 
-        // Sign-out lands mid-attempt. `ref.mounted` cannot catch this: the
-        // keepAlive controller is wiped IN PLACE and stays mounted.
-        final wiped = controller.wipe();
-        expect(
-          stateOf(container),
-          const PrivacyLockDisabled(),
-          reason: 'the wipe flips the state synchronously',
-        );
+      // Sign-out lands mid-attempt. `ref.mounted` cannot catch this: the
+      // keepAlive controller is wiped IN PLACE and stays mounted.
+      final wiped = controller.wipe();
+      expect(
+        stateOf(container),
+        const PrivacyLockDisabled(),
+        reason: 'the wipe flips the state synchronously',
+      );
 
-        gate.complete();
-        expect(
-          await attempt,
-          const PinLockAttemptAborted(),
-          reason: 'the in-flight op aborted on the generation bump',
-        );
-        await wiped;
+      gate.complete();
+      expect(
+        await attempt,
+        const PinLockAttemptAborted(),
+        reason: 'the in-flight op aborted on the generation bump',
+      );
+      await wiped;
 
-        expect(
-          store.record,
-          isNull,
-          reason: 'no pinHash resurrection — the next user inherits nothing',
-        );
-        expect(
-          stateOf(container),
-          const PrivacyLockDisabled(),
-          reason: 'the aborted attempt assigned no state',
-        );
-        expect(store.callLog.last, 'clear', reason: 'no write after the clear');
-      },
-    );
+      expect(
+        store.record,
+        isNull,
+        reason: 'no pinHash resurrection — the next user inherits nothing',
+      );
+      expect(
+        stateOf(container),
+        const PrivacyLockDisabled(),
+        reason: 'the aborted attempt assigned no state',
+      );
+      expect(store.callLog.last, 'clear', reason: 'no write after the clear');
+    });
 
     test(
       'a post-biometric write racing the wipe is ABORTED (the write issued '
@@ -436,20 +444,17 @@ void main() {
       expect(stateOf(container), const PrivacyLocked());
     });
 
-    test(
-      'without a backgrounded stamp, a resume NEVER locks — `.inactive` (the '
-      'share sheet, the biometric prompt, permission dialogs) must not fight '
-      'the user',
-      () async {
-        final container = await unlocked(FakePinLockStore(initial: aRecord()));
+    test('without a backgrounded stamp, a resume NEVER locks — `.inactive` (the '
+        'share sheet, the biometric prompt, permission dialogs) must not fight '
+        'the user', () async {
+      final container = await unlocked(FakePinLockStore(initial: aRecord()));
 
-        // noteBackgrounded deliberately NOT called: this is the `.inactive` path.
-        now = start.add(const Duration(hours: 2));
-        await controllerOf(container).noteResumed();
+      // noteBackgrounded deliberately NOT called: this is the `.inactive` path.
+      now = start.add(const Duration(hours: 2));
+      await controllerOf(container).noteResumed();
 
-        expect(stateOf(container), const PrivacyLockUnlocked());
-      },
-    );
+      expect(stateOf(container), const PrivacyLockUnlocked());
+    });
 
     test('the FIRST stamp wins (iOS fires hidden before paused)', () async {
       final container = await unlocked(FakePinLockStore(initial: aRecord()));
@@ -480,7 +485,8 @@ void main() {
         expect(
           stateOf(container),
           const PrivacyLocked(),
-          reason: 'biometricAvailable stays false until refresh re-checks — '
+          reason:
+              'biometricAvailable stays false until refresh re-checks — '
               'offering an unvalidated accelerator is exactly the over-claim '
               'Decision 1 forbids',
         );
@@ -530,19 +536,21 @@ void main() {
       expect(stateOf(container), const PrivacyLockDisabled());
     });
 
-    test('a CLEAN absent boot never re-reads (a clean null is final)',
-        () async {
-      final store = FakePinLockStore(initial: aRecord());
-      final container = boot(
-        store: store,
-        snapshot: const PinLockSnapshot(record: null),
-      );
+    test(
+      'a CLEAN absent boot never re-reads (a clean null is final)',
+      () async {
+        final store = FakePinLockStore(initial: aRecord());
+        final container = boot(
+          store: store,
+          snapshot: const PinLockSnapshot(record: null),
+        );
 
-      await controllerOf(container).noteResumed();
+        await controllerOf(container).noteResumed();
 
-      expect(store.callLog, isEmpty);
-      expect(stateOf(container), const PrivacyLockDisabled());
-    });
+        expect(store.callLog, isEmpty);
+        expect(stateOf(container), const PrivacyLockDisabled());
+      },
+    );
 
     test('a still-throwing re-read stays open rather than bricking', () async {
       final store = FakePinLockStore(initial: aRecord())
@@ -570,8 +578,9 @@ void main() {
       final biometric = FakeBiometricAuthenticator(enrollment: 'e1');
       final container = boot(store: store, biometric: biometric);
 
-      final ok = await controllerOf(container)
-          .authenticateBiometric(reason: reason);
+      final ok = await controllerOf(
+        container,
+      ).authenticateBiometric(reason: reason);
 
       expect(ok, isTrue);
       expect(stateOf(container), const PrivacyLockUnlocked());
@@ -590,17 +599,15 @@ void main() {
         final biometric = FakeBiometricAuthenticator(enrollment: 'e2');
         final container = boot(store: store, biometric: biometric);
 
-        final ok = await controllerOf(container)
-            .authenticateBiometric(reason: reason);
+        final ok = await controllerOf(
+          container,
+        ).authenticateBiometric(reason: reason);
 
         expect(ok, isFalse);
         expect(biometric.authenticateCalled, isFalse);
         expect(store.record!.biometricEnabled, isFalse);
         expect(store.record!.biometricEnrollmentState, isNull);
-        expect(
-          stateOf(container),
-          const PrivacyLocked(biometricRevoked: true),
-        );
+        expect(stateOf(container), const PrivacyLocked(biometricRevoked: true));
       },
     );
 
@@ -617,103 +624,98 @@ void main() {
       expect(stateOf(container), const PrivacyLocked(biometricRevoked: true));
     });
 
-    test(
-      'a revoke racing a wrong-PIN persist must NOT refund the consumed attempt '
-      '— the counter-refund race',
-      () async {
-        // The exact shape a partner can drive: change the biometric enrollment
-        // (so the next lock-screen mount will REVOKE), then guess a PIN while
-        // the mount-time probes are still in flight. `refreshBiometricAvailability`
-        // is deliberately not `_busy`-guarded, so the wrong-PIN persist lands
-        // INSIDE the probe window. If the revoke wrote back the record it captured
-        // BEFORE the probes, `wrongCount` would roll back to 0 — an unbounded PIN
-        // oracle, resettable at will. The revoke must re-base on the CURRENT record.
-        final store = FakePinLockStore(
-          initial: aRecord(
-            wrongCount: 3,
-            biometricEnabled: true,
-            enrollment: 'e1',
-          ),
-        );
-        final biometric = FakeBiometricAuthenticator(enrollment: 'e2')
-          ..probeGate = Completer<void>();
-        final container = boot(store: store, biometric: biometric);
-        final controller = controllerOf(container);
+    test('a revoke racing a wrong-PIN persist must NOT refund the consumed attempt '
+        '— the counter-refund race', () async {
+      // The exact shape a partner can drive: change the biometric enrollment
+      // (so the next lock-screen mount will REVOKE), then guess a PIN while
+      // the mount-time probes are still in flight. `refreshBiometricAvailability`
+      // is deliberately not `_busy`-guarded, so the wrong-PIN persist lands
+      // INSIDE the probe window. If the revoke wrote back the record it captured
+      // BEFORE the probes, `wrongCount` would roll back to 0 — an unbounded PIN
+      // oracle, resettable at will. The revoke must re-base on the CURRENT record.
+      final store = FakePinLockStore(
+        initial: aRecord(
+          wrongCount: 3,
+          biometricEnabled: true,
+          enrollment: 'e1',
+        ),
+      );
+      final biometric = FakeBiometricAuthenticator(enrollment: 'e2')
+        ..probeGate = Completer<void>();
+      final container = boot(store: store, biometric: biometric);
+      final controller = controllerOf(container);
 
-        // The mount-time refresh parks on its first probe.
-        final refresh = controller.refreshBiometricAvailability();
-        await pumpEventQueue();
+      // The mount-time refresh parks on its first probe.
+      final refresh = controller.refreshBiometricAvailability();
+      await pumpEventQueue();
 
-        // The 4th wrong attempt lands and is persisted while the probe is parked.
-        final attempt = await controller.verifyPin(wrongPin);
-        expect(attempt, isA<PinLockAttemptWrong>());
-        expect(store.record!.wrongCount, 4);
+      // The 4th wrong attempt lands and is persisted while the probe is parked.
+      final attempt = await controller.verifyPin(wrongPin);
+      expect(attempt, isA<PinLockAttemptWrong>());
+      expect(store.record!.wrongCount, 4);
 
-        // Now let the revoke complete.
-        biometric.probeGate!.complete();
-        await refresh;
+      // Now let the revoke complete.
+      biometric.probeGate!.complete();
+      await refresh;
 
-        expect(
-          store.record!.biometricEnabled,
-          isFalse,
-          reason: 'the revoke still happened',
-        );
-        expect(
-          store.record!.wrongCount,
-          4,
-          reason: 'the consumed attempt survives the revoke — never refunded',
-        );
+      expect(
+        store.record!.biometricEnabled,
+        isFalse,
+        reason: 'the revoke still happened',
+      );
+      expect(
+        store.record!.wrongCount,
+        4,
+        reason: 'the consumed attempt survives the revoke — never refunded',
+      );
 
-        // And the bound still bites: the 5th wrong attempt starts the cooldown.
-        final fifth = await controller.verifyPin(wrongPin);
-        expect(fifth, isA<PinLockAttemptWrong>());
-        expect(store.record!.lockoutUntilMs, isNotNull);
-      },
-    );
+      // And the bound still bites: the 5th wrong attempt starts the cooldown.
+      final fifth = await controller.verifyPin(wrongPin);
+      expect(fifth, isA<PinLockAttemptWrong>());
+      expect(store.record!.lockoutUntilMs, isNotNull);
+    });
 
-    test(
-      'the same refund race, one beat EARLIER: the revoke re-bases while the '
-      "wrong-attempt's write is still in flight",
-      () async {
-        // The tighter interleaving the previous test cannot reach: the probes
-        // resolve while `verifyPin`'s store write is STILL PARKED. This is why the
-        // controller advances `_record` BEFORE awaiting that write — a re-baser
-        // landing inside the write window must already see the consumed attempt.
-        // Advancing `_record` only after the write would leave a stale record
-        // visible for the whole width of a Keychain round-trip.
-        final store = FakePinLockStore(
-          initial: aRecord(
-            wrongCount: 3,
-            biometricEnabled: true,
-            enrollment: 'e1',
-          ),
-        )..writeGate = Completer<void>();
-        final biometric = FakeBiometricAuthenticator(enrollment: 'e2');
-        final container = boot(store: store, biometric: biometric);
-        final controller = controllerOf(container);
+    test('the same refund race, one beat EARLIER: the revoke re-bases while the '
+        "wrong-attempt's write is still in flight", () async {
+      // The tighter interleaving the previous test cannot reach: the probes
+      // resolve while `verifyPin`'s store write is STILL PARKED. This is why the
+      // controller advances `_record` BEFORE awaiting that write — a re-baser
+      // landing inside the write window must already see the consumed attempt.
+      // Advancing `_record` only after the write would leave a stale record
+      // visible for the whole width of a Keychain round-trip.
+      final store = FakePinLockStore(
+        initial: aRecord(
+          wrongCount: 3,
+          biometricEnabled: true,
+          enrollment: 'e1',
+        ),
+      )..writeGate = Completer<void>();
+      final biometric = FakeBiometricAuthenticator(enrollment: 'e2');
+      final container = boot(store: store, biometric: biometric);
+      final controller = controllerOf(container);
 
-        // The attempt parks on its (gated) persist — `_record` is already advanced.
-        final attempt = controller.verifyPin(wrongPin);
-        await pumpEventQueue();
+      // The attempt parks on its (gated) persist — `_record` is already advanced.
+      final attempt = controller.verifyPin(wrongPin);
+      await pumpEventQueue();
 
-        // The mount-time refresh runs its probes to completion INSIDE that window
-        // and decides to revoke.
-        final refresh = controller.refreshBiometricAvailability();
-        await pumpEventQueue();
+      // The mount-time refresh runs its probes to completion INSIDE that window
+      // and decides to revoke.
+      final refresh = controller.refreshBiometricAvailability();
+      await pumpEventQueue();
 
-        store.writeGate!.complete();
-        expect(await attempt, isA<PinLockAttemptWrong>());
-        await refresh;
+      store.writeGate!.complete();
+      expect(await attempt, isA<PinLockAttemptWrong>());
+      await refresh;
 
-        expect(store.record!.biometricEnabled, isFalse);
-        expect(
-          store.record!.wrongCount,
-          4,
-          reason: 'the in-flight attempt is not refunded by the revoke that '
-              're-based mid-write',
-        );
-      },
-    );
+      expect(store.record!.biometricEnabled, isFalse);
+      expect(
+        store.record!.wrongCount,
+        4,
+        reason:
+            'the in-flight attempt is not refunded by the revoke that '
+            're-based mid-write',
+      );
+    });
 
     test('refresh auto-revokes when biometrics went UNAVAILABLE', () async {
       final store = FakePinLockStore(
@@ -742,52 +744,49 @@ void main() {
 
       await controllerOf(container).refreshBiometricAvailability();
 
-      expect(
-        stateOf(container),
-        const PrivacyLocked(biometricAvailable: true),
-      );
+      expect(stateOf(container), const PrivacyLocked(biometricAvailable: true));
       expect(store.callLog, isEmpty);
     });
 
-    test('refresh leaves the button OFF when biometric is not enabled',
-        () async {
-      final store = FakePinLockStore(initial: aRecord());
-      final container = boot(store: store);
-
-      await controllerOf(container).refreshBiometricAvailability();
-
-      expect(stateOf(container), const PrivacyLocked());
-    });
-
     test(
-      'a biometric FAILURE stays locked and consumes NO PIN attempt (the '
-      'adapter maps every LocalAuthException to false)',
+      'refresh leaves the button OFF when biometric is not enabled',
       () async {
-        final store = FakePinLockStore(
-          initial: aRecord(
-            wrongCount: 2,
-            biometricEnabled: true,
-            enrollment: 'e1',
-          ),
-        );
-        final container = boot(
-          store: store,
-          biometric: FakeBiometricAuthenticator(
-            enrollment: 'e1',
-            succeeds: false,
-          ),
-        );
+        final store = FakePinLockStore(initial: aRecord());
+        final container = boot(store: store);
 
-        final ok = await controllerOf(container)
-            .authenticateBiometric(reason: reason);
+        await controllerOf(container).refreshBiometricAvailability();
 
-        expect(ok, isFalse);
-        expect(stateOf(container), isA<PrivacyLocked>());
-        expect(store.record!.wrongCount, 2, reason: 'not a PIN attempt');
-        expect(store.record!.lockoutUntilMs, isNull);
-        expect(store.callLog, isEmpty);
+        expect(stateOf(container), const PrivacyLocked());
       },
     );
+
+    test('a biometric FAILURE stays locked and consumes NO PIN attempt (the '
+        'adapter maps every LocalAuthException to false)', () async {
+      final store = FakePinLockStore(
+        initial: aRecord(
+          wrongCount: 2,
+          biometricEnabled: true,
+          enrollment: 'e1',
+        ),
+      );
+      final container = boot(
+        store: store,
+        biometric: FakeBiometricAuthenticator(
+          enrollment: 'e1',
+          succeeds: false,
+        ),
+      );
+
+      final ok = await controllerOf(
+        container,
+      ).authenticateBiometric(reason: reason);
+
+      expect(ok, isFalse);
+      expect(stateOf(container), isA<PrivacyLocked>());
+      expect(store.record!.wrongCount, 2, reason: 'not a PIN attempt');
+      expect(store.record!.lockoutUntilMs, isNull);
+      expect(store.callLog, isEmpty);
+    });
 
     test('biometric is refused outright when the record has it off', () async {
       final store = FakePinLockStore(initial: aRecord());
@@ -803,44 +802,49 @@ void main() {
   });
 
   group('settings ops (Decisions 1/7)', () {
-    test('enableLock writes the record and leaves THIS session unlocked',
-        () async {
-      final store = FakePinLockStore();
-      final container = boot(store: store);
+    test(
+      'enableLock writes the record and leaves THIS session unlocked',
+      () async {
+        final store = FakePinLockStore();
+        final container = boot(store: store);
 
-      final ok = await controllerOf(container).enableLock(correctPin);
+        final ok = await controllerOf(container).enableLock(correctPin);
 
-      expect(ok, isTrue);
-      expect(
-        stateOf(container),
-        const PrivacyLockUnlocked(),
-        reason: 'the user is standing INSIDE settings — do not lock them out of '
-            'the screen they are on; the lock engages next cold start',
-      );
-      final written = store.record!;
-      expect(written.isSet, isTrue);
-      expect(written.biometricEnabled, isFalse);
-      expect(written.wrongCount, 0);
-      expect(
-        constantTimeEquals(
-          hashPin(pin: correctPin, salt: written.salt),
-          written.pinHash,
-        ),
-        isTrue,
-      );
-      expect(written.salt, isNot(salt), reason: 'a fresh salt per enable');
-    });
+        expect(ok, isTrue);
+        expect(
+          stateOf(container),
+          const PrivacyLockUnlocked(),
+          reason:
+              'the user is standing INSIDE settings — do not lock them out of '
+              'the screen they are on; the lock engages next cold start',
+        );
+        final written = store.record!;
+        expect(written.isSet, isTrue);
+        expect(written.biometricEnabled, isFalse);
+        expect(written.wrongCount, 0);
+        expect(
+          constantTimeEquals(
+            hashPin(pin: correctPin, salt: written.salt),
+            written.pinHash,
+          ),
+          isTrue,
+        );
+        expect(written.salt, isNot(salt), reason: 'a fresh salt per enable');
+      },
+    );
 
-    test('a FAILED enable write reports false and claims no protection (D8)',
-        () async {
-      final store = FakePinLockStore()
-        ..onWrite = (_) async => throw StateError('keychain fault');
-      final container = boot(store: store);
+    test(
+      'a FAILED enable write reports false and claims no protection (D8)',
+      () async {
+        final store = FakePinLockStore()
+          ..onWrite = (_) async => throw StateError('keychain fault');
+        final container = boot(store: store);
 
-      expect(await controllerOf(container).enableLock(correctPin), isFalse);
-      expect(stateOf(container), const PrivacyLockDisabled());
-      expect(store.record, isNull);
-    });
+        expect(await controllerOf(container).enableLock(correctPin), isFalse);
+        expect(stateOf(container), const PrivacyLockDisabled());
+        expect(store.record, isNull);
+      },
+    );
 
     test('disableLock with the correct PIN clears the record', () async {
       final store = FakePinLockStore(initial: aRecord());
@@ -852,21 +856,24 @@ void main() {
       expect(stateOf(container), const PrivacyLockDisabled());
     });
 
-    test('disableLock with a WRONG PIN fails and persists the attempt',
-        () async {
-      final store = FakePinLockStore(initial: aRecord(wrongCount: 1));
-      final container = boot(store: store);
-      await controllerOf(container).verifyPin(correctPin);
+    test(
+      'disableLock with a WRONG PIN fails and persists the attempt',
+      () async {
+        final store = FakePinLockStore(initial: aRecord(wrongCount: 1));
+        final container = boot(store: store);
+        await controllerOf(container).verifyPin(correctPin);
 
-      expect(await controllerOf(container).disableLock(wrongPin), isFalse);
-      expect(
-        store.record!.wrongCount,
-        1,
-        reason: 'the successful verify reset it to 0, so this wrong disable '
-            'attempt puts it back at 1 — the same bounding as the lock screen',
-      );
-      expect(store.record!.isSet, isTrue);
-    });
+        expect(await controllerOf(container).disableLock(wrongPin), isFalse);
+        expect(
+          store.record!.wrongCount,
+          1,
+          reason:
+              'the successful verify reset it to 0, so this wrong disable '
+              'attempt puts it back at 1 — the same bounding as the lock screen',
+        );
+        expect(store.record!.isSet, isTrue);
+      },
+    );
 
     test('setBiometricEnabled(true) captures the enrollment state', () async {
       final store = FakePinLockStore(initial: aRecord());
@@ -890,22 +897,30 @@ void main() {
           biometric: FakeBiometricAuthenticator(enrollment: null),
         );
 
-        expect(await controllerOf(container).setBiometricEnabled(true), isFalse);
+        expect(
+          await controllerOf(container).setBiometricEnabled(true),
+          isFalse,
+        );
         expect(store.record!.biometricEnabled, isFalse);
       },
     );
 
-    test('setBiometricEnabled(false) nulls the stored enrollment state',
-        () async {
-      final store = FakePinLockStore(
-        initial: aRecord(biometricEnabled: true, enrollment: 'e1'),
-      );
-      final container = boot(store: store);
+    test(
+      'setBiometricEnabled(false) nulls the stored enrollment state',
+      () async {
+        final store = FakePinLockStore(
+          initial: aRecord(biometricEnabled: true, enrollment: 'e1'),
+        );
+        final container = boot(store: store);
 
-      expect(await controllerOf(container).setBiometricEnabled(false), isTrue);
-      expect(store.record!.biometricEnabled, isFalse);
-      expect(store.record!.biometricEnrollmentState, isNull);
-    });
+        expect(
+          await controllerOf(container).setBiometricEnabled(false),
+          isTrue,
+        );
+        expect(store.record!.biometricEnabled, isFalse);
+        expect(store.record!.biometricEnrollmentState, isNull);
+      },
+    );
 
     test('a FAILED biometric-toggle write reports false', () async {
       final store = FakePinLockStore(initial: aRecord())
@@ -936,8 +951,10 @@ void main() {
         stateOf(container).toString(),
         const PrivacyLockDisabled().toString(),
         const PrivacyLockUnlocked().toString(),
-        const PrivacyLocked(biometricRevoked: true, biometricAvailable: true)
-            .toString(),
+        const PrivacyLocked(
+          biometricRevoked: true,
+          biometricAvailable: true,
+        ).toString(),
       ].join('\n');
 
       for (final secret in [salt, correctHash, 'ENROLLMENT-BYTES']) {

@@ -251,8 +251,7 @@ class PinLockSnapshot {
   /// Presence only — [PinLockRecord.toString] already carries the no-content
   /// rule, and this must not undo it.
   @override
-  String toString() =>
-      'PinLockSnapshot(record: $record, degraded: $degraded)';
+  String toString() => 'PinLockSnapshot(record: $record, degraded: $degraded)';
 }
 
 /// The boot snapshot, overridden BY VALUE at bootstrap (and per test container).

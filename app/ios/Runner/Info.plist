@@ -57,6 +57,13 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- The Face ID prompt's purpose string (ADR-018 Decision 7). Biometric is
+	     only ever an ACCELERATOR for the app PIN, never the credential, and the
+	     seam pins `biometricOnly: true` so the device passcode is never a
+	     fallback. EN-only in v1: Info.plist localization rides the M6.3
+	     store-metadata pass. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Unlock Hayati with Face ID.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

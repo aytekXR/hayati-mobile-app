@@ -11,6 +11,8 @@ import 'core/firebase/firebase_bootstrap.dart';
 import 'core/firebase/google_sign_in_config.dart';
 import 'core/observability/crashlytics_bootstrap.dart';
 import 'core/storage/local_flag_store.dart';
+import 'core/storage/pin_lock_store.dart';
+import 'core/storage/secure_storage_pin_lock_store.dart';
 import 'core/storage/shared_preferences_local_flag_store.dart';
 import 'features/auth/data/apple_auth_gateway.dart';
 import 'features/auth/data/firebase_auth_repository.dart';
@@ -44,8 +46,12 @@ import 'features/pairing/domain/deep_link_source.dart';
 import 'features/pairing/domain/invite_preview_repository.dart';
 import 'features/pairing/domain/invite_repository_provider.dart';
 import 'features/pairing/domain/invite_share_launcher.dart';
+import 'features/privacy_lock/data/local_auth_biometric_authenticator.dart';
+import 'features/privacy_lock/domain/biometric_authenticator.dart';
 import 'features/profile/data/firestore_profile_repository.dart';
 import 'features/profile/domain/profile_repository_provider.dart';
+import 'features/settings/data/channel_app_icon_switcher.dart';
+import 'features/settings/domain/app_icon_switcher.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,6 +77,14 @@ Future<void> main() async {
   // its ack SYNCHRONOUSLY off the in-memory cache getInstance() populates, and
   // bind it BY VALUE below.
   final prefs = await SharedPreferences.getInstance();
+  // The device-lock record (ADR-018 Decision 2) — awaited BEFORE the first
+  // frame, exactly like SharedPreferences above. The gate must decide frame one:
+  // an async lock check would flash couple content, and the OS would snapshot
+  // that flash. A read that THROWS yields a DEGRADED snapshot (fail open for one
+  // launch, self-healed by the controller's re-read on the first resume) rather
+  // than a permanent brick behind a lock screen that can verify nothing.
+  const pinLockStore = SecureStoragePinLockStore();
+  final lockSnapshot = await readInitialLockSnapshot(pinLockStore);
   final googleConfig = googleSignInConfigFor(config.flavor);
   runHayati(
     config,
@@ -140,6 +154,15 @@ Future<void> main() async {
         SharedPreferencesLocalFlagStore(prefs),
       ),
       coachRepositoryProvider.overrideWith((ref) => FunctionsCoachRepository()),
+      // The three device-privacy seams (ADR-018 D2/D1/D6). Bound BY VALUE here
+      // and nowhere else, so `flutter test` never touches the Keychain,
+      // local_auth, or the hayati/device_privacy channel.
+      pinLockStoreProvider.overrideWithValue(pinLockStore),
+      initialLockSnapshotProvider.overrideWithValue(lockSnapshot),
+      biometricAuthenticatorProvider.overrideWithValue(
+        LocalAuthBiometricAuthenticator(),
+      ),
+      appIconSwitcherProvider.overrideWithValue(const ChannelAppIconSwitcher()),
     ],
   );
 }

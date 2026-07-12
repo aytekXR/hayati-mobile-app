@@ -16,6 +16,8 @@ import 'features/auth/presentation/state/auth_controller.dart';
 import 'features/coach/presentation/state/coach_transcript.dart';
 import 'features/entitlements/presentation/state/purchases_identity_sync.dart';
 import 'features/pairing/presentation/state/pending_invite.dart';
+import 'features/privacy_lock/presentation/privacy_guard.dart';
+import 'features/privacy_lock/presentation/state/privacy_lock_controller.dart';
 
 /// Boots the app for the given flavor [config]. Called only by the flavor
 /// entrypoints (`main_dev.dart` / `main_prod.dart`), which pass the
@@ -67,9 +69,29 @@ class HayatiApp extends ConsumerWidget {
     // sign-out→sign-in cycle in one process. Invalidating the family wholesale
     // from the always-mounted root (the purchasesIdentitySync mount precedent)
     // makes the ephemeral, retention-zero claim true.
+    //
+    // The lock wipe (ADR-018 Decision 1) rides the SAME listener with a
+    // DELIBERATELY DIFFERENT trigger — read the asymmetry before "fixing" it:
+    //
+    // * the coach tears down on ANY non-signed-in state, because there
+    //   fail-closed means CONTENT IS GONE;
+    // * the lock wipes ONLY on `AuthSignedOut`, because here fail-closed means
+    //   PROTECTION STAYS. An `AuthError` from a sign-out that threw must not
+    //   silently disable a lock the user believes is on — and on the recovery
+    //   path (Decision 4) the overlay is holding the app closed precisely until
+    //   a REAL sign-out is observed.
+    //
+    // And never `ref.invalidate(privacyLockControllerProvider)` — anywhere. It
+    // is keepAlive and seeded from the by-value boot snapshot, so invalidation
+    // replays BOOT state (re-locking after a wipe, or reverting a just-enabled
+    // lock). `wipe()` is a generation bump + `store.clear()` + an in-place state
+    // mutation, on purpose (review finding FLUTTER-2).
     ref.listen(authControllerProvider, (previous, next) {
       if (next is! AuthSignedIn) {
         ref.invalidate(coachTranscriptProvider);
+      }
+      if (next is AuthSignedOut) {
+        ref.read(privacyLockControllerProvider.notifier).wipe();
       }
     });
     return MaterialApp(
@@ -92,7 +114,11 @@ class HayatiApp extends ConsumerWidget {
         data: hayatiTheme(
           languageCode: Localizations.localeOf(context).languageCode,
         ),
-        child: child ?? const SizedBox.shrink(),
+        // The device-privacy gate (ADR-018 Decision 3). The builder is the one
+        // point above `home` AND every pushed route, so ONE overlay covers the
+        // whole surface — including whatever a cold-start deep link renders.
+        // It also owns the app-switcher snapshot shield (Decision 5).
+        child: PrivacyGuard(child: child ?? const SizedBox.shrink()),
       ),
       home: const SignInScreen(),
     );

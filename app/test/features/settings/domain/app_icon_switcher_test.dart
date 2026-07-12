@@ -43,8 +43,8 @@ void main() {
       'must revert, never claim a state the OS refused (D7)',
       () async {
         final switcher = FakeAppIconSwitcher()
-          ..onSetDiscreet =
-              (_) async => throw const AppIconException('channel-error');
+          ..onSetDiscreet = (_) async =>
+              throw const AppIconException('channel-error');
 
         await expectLater(
           switcher.setDiscreet(true),

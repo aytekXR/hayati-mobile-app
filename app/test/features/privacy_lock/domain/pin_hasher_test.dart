@@ -53,7 +53,10 @@ void main() {
     test('true for identical digests', () {
       final salt = generateSalt();
       final hash = hashPin(pin: '123456', salt: salt);
-      expect(constantTimeEquals(hash, hashPin(pin: '123456', salt: salt)), isTrue);
+      expect(
+        constantTimeEquals(hash, hashPin(pin: '123456', salt: salt)),
+        isTrue,
+      );
     });
 
     test('false for differing digests of equal length', () {

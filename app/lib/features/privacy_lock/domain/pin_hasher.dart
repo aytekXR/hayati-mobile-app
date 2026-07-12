@@ -44,10 +44,7 @@ String generateSalt() {
 
 /// `base64(SHA-256(base64Decode(salt) ‖ utf8(pin)))` — see the honesty note.
 String hashPin({required String pin, required String salt}) {
-  final digest = sha256.convert([
-    ...base64Decode(salt),
-    ...utf8.encode(pin),
-  ]);
+  final digest = sha256.convert([...base64Decode(salt), ...utf8.encode(pin)]);
   return base64Encode(digest.bytes);
 }
 

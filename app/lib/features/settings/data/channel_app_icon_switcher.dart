@@ -15,9 +15,7 @@ import '../domain/app_icon_switcher.dart';
 /// both safe), while [setDiscreet] THROWS so the UI can revert the switch — we
 /// never render a state the OS refused.
 class ChannelAppIconSwitcher implements AppIconSwitcher {
-  const ChannelAppIconSwitcher([
-    this._channel = const DevicePrivacyChannel(),
-  ]);
+  const ChannelAppIconSwitcher([this._channel = const DevicePrivacyChannel()]);
 
   final DevicePrivacyChannel _channel;
 

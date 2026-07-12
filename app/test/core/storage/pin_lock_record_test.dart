@@ -24,20 +24,26 @@ void main() {
       expect(PinLockRecord.fromJson(record.toJson()), record);
     });
 
-    test('round-trips through encode/decode (the string the store persists)', () {
-      final record = _aRecord();
-      expect(PinLockRecord.decode(record.encode()), record);
-    });
+    test(
+      'round-trips through encode/decode (the string the store persists)',
+      () {
+        final record = _aRecord();
+        expect(PinLockRecord.decode(record.encode()), record);
+      },
+    );
 
     test('carries the current version', () {
       expect(_aRecord().toJson()['version'], kPinLockRecordVersion);
       expect(kPinLockRecordVersion, 1);
     });
 
-    test('an UNKNOWN version deserialises to null (treated as absent — D2)', () {
-      final json = _aRecord().toJson()..['version'] = 2;
-      expect(PinLockRecord.fromJson(json), isNull);
-    });
+    test(
+      'an UNKNOWN version deserialises to null (treated as absent — D2)',
+      () {
+        final json = _aRecord().toJson()..['version'] = 2;
+        expect(PinLockRecord.fromJson(json), isNull);
+      },
+    );
 
     test('an ABSENT version deserialises to null', () {
       final json = _aRecord().toJson()..remove('version');
@@ -65,7 +71,9 @@ void main() {
         isNull,
       );
       expect(
-        PinLockRecord.fromJson(_aRecord().toJson()..['lockoutUntilMs'] = 'soon'),
+        PinLockRecord.fromJson(
+          _aRecord().toJson()..['lockoutUntilMs'] = 'soon',
+        ),
         isNull,
       );
       expect(PinLockRecord.fromJson(const <String, dynamic>{}), isNull);
@@ -111,22 +119,25 @@ void main() {
   });
 
   group('the no-content rule (arch §8 / ADR-018 D2)', () {
-    test('toString renders PRESENCE only — no salt, hash, or enrollment bytes', () {
-      final rendered = _aRecord().toString();
+    test(
+      'toString renders PRESENCE only — no salt, hash, or enrollment bytes',
+      () {
+        final rendered = _aRecord().toString();
 
-      expect(rendered, isNot(contains(_salt)));
-      expect(rendered, isNot(contains(_hash)));
-      expect(rendered, isNot(contains(_enrollment)));
-      // And not a fragment of them either (a truncated echo is still a leak).
-      expect(rendered, isNot(contains(_salt.substring(0, 8))));
-      expect(rendered, isNot(contains(_hash.substring(0, 8))));
-      expect(rendered, isNot(contains(_enrollment.substring(0, 8))));
+        expect(rendered, isNot(contains(_salt)));
+        expect(rendered, isNot(contains(_hash)));
+        expect(rendered, isNot(contains(_enrollment)));
+        // And not a fragment of them either (a truncated echo is still a leak).
+        expect(rendered, isNot(contains(_salt.substring(0, 8))));
+        expect(rendered, isNot(contains(_hash.substring(0, 8))));
+        expect(rendered, isNot(contains(_enrollment.substring(0, 8))));
 
-      expect(rendered, contains('set: true'));
-      expect(rendered, contains('biometric: true'));
-      expect(rendered, contains('wrongCount: 3'));
-      expect(rendered, contains('lockedOut: true'));
-    });
+        expect(rendered, contains('set: true'));
+        expect(rendered, contains('biometric: true'));
+        expect(rendered, contains('wrongCount: 3'));
+        expect(rendered, contains('lockedOut: true'));
+      },
+    );
 
     test('an empty-hash record renders set: false', () {
       const record = PinLockRecord(
@@ -172,21 +183,27 @@ void main() {
       expect(snapshot.degraded, isFalse);
     });
 
-    test('a clean ABSENT read yields a non-degraded null (final, D2)', () async {
-      final snapshot = await readInitialLockSnapshot(
-        _StubStore(() async => null),
-      );
-      expect(snapshot.record, isNull);
-      expect(snapshot.degraded, isFalse);
-    });
+    test(
+      'a clean ABSENT read yields a non-degraded null (final, D2)',
+      () async {
+        final snapshot = await readInitialLockSnapshot(
+          _StubStore(() async => null),
+        );
+        expect(snapshot.record, isNull);
+        expect(snapshot.degraded, isFalse);
+      },
+    );
 
-    test('a THROWING read fails open but marks the snapshot degraded', () async {
-      final snapshot = await readInitialLockSnapshot(
-        _StubStore(() async => throw StateError('keychain fault')),
-      );
-      expect(snapshot.record, isNull);
-      expect(snapshot.degraded, isTrue);
-    });
+    test(
+      'a THROWING read fails open but marks the snapshot degraded',
+      () async {
+        final snapshot = await readInitialLockSnapshot(
+          _StubStore(() async => throw StateError('keychain fault')),
+        );
+        expect(snapshot.record, isNull);
+        expect(snapshot.degraded, isTrue);
+      },
+    );
   });
 }
 

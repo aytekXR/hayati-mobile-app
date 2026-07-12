@@ -153,6 +153,21 @@ class PrivacyLockController extends _$PrivacyLockController {
     return const PrivacyLockDisabled();
   }
 
+  /// Read-only mirror of the record's biometric flag, for the SETTINGS toggle
+  /// (ADR-018 Decision 7 — the settings screen must render the CURRENT value of
+  /// a switch it owns). A plain bool: no salt, hash, or enrollment byte crosses
+  /// this boundary (the no-content rule).
+  ///
+  /// Deliberately NOT part of [PrivacyLockState]: the lock states are what the
+  /// GATE renders, and the gate must never care about the accelerator's stored
+  /// flag — only about whether a button may be offered right now
+  /// ([PrivacyLocked.biometricAvailable], which is re-validated on every
+  /// lock-screen mount). Consequently this getter is not reactive: settings
+  /// re-reads it after each successful [setBiometricEnabled]. That is exact,
+  /// because an auto-revoke never fires against an UNLOCKED state (see
+  /// [_revokeBiometric]) — i.e. never while the user is standing in settings.
+  bool get biometricEnabled => _record?.biometricEnabled ?? false;
+
   PinLockStore get _store => ref.read(pinLockStoreProvider);
 
   int get _nowMs => ref.read(soloClockProvider)().millisecondsSinceEpoch;
@@ -189,8 +204,10 @@ class PrivacyLockController extends _$PrivacyLockController {
         );
       }
 
-      if (constantTimeEquals(hashPin(pin: pin, salt: record.salt),
-          record.pinHash)) {
+      if (constantTimeEquals(
+        hashPin(pin: pin, salt: record.salt),
+        record.pinHash,
+      )) {
         final reset = record.copyWith(wrongCount: 0, lockoutUntilMs: null);
         if (gen != _generation) return const PinLockAttemptAborted();
         // In-memory FIRST, then the awaited write (see the wrong-attempt path
@@ -229,8 +246,7 @@ class PrivacyLockController extends _$PrivacyLockController {
       final current = state;
       state = PrivacyLocked(
         lockoutUntilMs: lockoutUntilMs,
-        biometricRevoked:
-            current is PrivacyLocked && current.biometricRevoked,
+        biometricRevoked: current is PrivacyLocked && current.biometricRevoked,
         biometricAvailable:
             current is PrivacyLocked && current.biometricAvailable,
       );
@@ -266,8 +282,7 @@ class PrivacyLockController extends _$PrivacyLockController {
       final authenticator = ref.read(biometricAuthenticatorProvider);
       final enrollment = await authenticator.enrollmentState();
       if (gen != _generation) return false;
-      if (enrollment == null ||
-          enrollment != record.biometricEnrollmentState) {
+      if (enrollment == null || enrollment != record.biometricEnrollmentState) {
         await _revokeBiometric(gen);
         return false;
       }

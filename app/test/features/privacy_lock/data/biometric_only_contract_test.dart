@@ -31,7 +31,8 @@ void main() {
     expect(
       file.existsSync(),
       isTrue,
-      reason: 'the sentinel must fail loudly if the adapter is renamed or moved '
+      reason:
+          'the sentinel must fail loudly if the adapter is renamed or moved '
           'rather than pass vacuously — re-point this path and keep the pin',
     );
     source = file.readAsStringSync();
@@ -53,15 +54,17 @@ void main() {
     expect(source, isNot(contains('deviceOwnerAuthentication)')));
   });
 
-  test('every local_auth call is wrapped so a throw becomes false/null (TEST-4)',
-      () {
-    // local_auth 3.x THROWS LocalAuthException for most failure cases; the seam's
-    // bool/null contract is the adapter's obligation, and every failure must fall
-    // back to the PIN keypad.
-    expect(
-      'catch (_)'.allMatches(source).length,
-      greaterThanOrEqualTo(3),
-      reason: 'isAvailable, authenticate and enrollmentState must each catch',
-    );
-  });
+  test(
+    'every local_auth call is wrapped so a throw becomes false/null (TEST-4)',
+    () {
+      // local_auth 3.x THROWS LocalAuthException for most failure cases; the seam's
+      // bool/null contract is the adapter's obligation, and every failure must fall
+      // back to the PIN keypad.
+      expect(
+        'catch (_)'.allMatches(source).length,
+        greaterThanOrEqualTo(3),
+        reason: 'isAvailable, authenticate and enrollmentState must each catch',
+      );
+    },
+  );
 }

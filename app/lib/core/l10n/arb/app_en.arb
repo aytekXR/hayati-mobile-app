@@ -584,5 +584,172 @@
   "coachGatedCta": "See Premium",
   "@coachGatedCta": {
     "description": "Primary CTA on the coach gated view opening the paywall"
+  },
+  "settingsTitle": "Settings",
+  "@settingsTitle": {
+    "description": "Title of the settings screen (ADR-018 D7 — the app's first settings surface)"
+  },
+  "settingsLockTitle": "App lock",
+  "@settingsLockTitle": {
+    "description": "Row 1 title: the PIN lock"
+  },
+  "settingsLockSubtitleOff": "Protect Hayati with a 6-digit PIN.",
+  "@settingsLockSubtitleOff": {
+    "description": "Row 1 subtitle when no PIN is set"
+  },
+  "settingsLockSubtitleOn": "Hayati asks for your PIN when you open it.",
+  "@settingsLockSubtitleOn": {
+    "description": "Row 1 subtitle when a PIN is set"
+  },
+  "settingsLockSetUp": "Set up PIN",
+  "@settingsLockSetUp": {
+    "description": "Row 1 action when the lock is off — opens the PIN setup flow"
+  },
+  "settingsLockTurnOff": "Turn off",
+  "@settingsLockTurnOff": {
+    "description": "Row 1 action when the lock is on — opens the PIN verify dialog"
+  },
+  "settingsLockVerifyTitle": "Enter your PIN",
+  "@settingsLockVerifyTitle": {
+    "description": "Title of the PIN-verify dialog shown before the lock is turned off"
+  },
+  "settingsLockDisableFailed": "That PIN didn't match. The lock is still on.",
+  "@settingsLockDisableFailed": {
+    "description": "Honest failure copy when disableLock refuses (wrong PIN or a running cooldown) — never claim the lock came off"
+  },
+  "settingsBiometricTitle": "Unlock with Face ID or Touch ID",
+  "@settingsBiometricTitle": {
+    "description": "Row 2 title: the biometric accelerator (visible only when the lock is on and biometrics are available)"
+  },
+  "settingsBiometricSubtitle": "A shortcut only — your PIN always works.",
+  "@settingsBiometricSubtitle": {
+    "description": "Row 2 subtitle: biometric is an accelerator, never the credential (ADR-018 D1)"
+  },
+  "settingsBiometricWarningTitle": "Before you turn this on",
+  "@settingsBiometricWarningTitle": {
+    "description": "Title of the DV warning shown BEFORE the biometric toggle is written (review finding DVUX-1)"
+  },
+  "settingsBiometricWarningBody": "Anyone whose face or fingerprint is saved on this phone can unlock Hayati. Your PIN stays private to you.",
+  "@settingsBiometricWarningBody": {
+    "description": "The DV warning body: the app cannot know whose biometrics are enrolled on a shared device (ADR-018 D1)"
+  },
+  "settingsBiometricWarningConfirm": "I understand",
+  "@settingsBiometricWarningConfirm": {
+    "description": "Acknowledge button on the DV biometric warning"
+  },
+  "settingsBiometricFailed": "Face ID couldn't be turned on. Your PIN still works.",
+  "@settingsBiometricFailed": {
+    "description": "Honest failure copy when setBiometricEnabled returns false — the toggle stays off"
+  },
+  "settingsDiscreetTitle": "Discreet app icon",
+  "@settingsDiscreetTitle": {
+    "description": "Row 3 title: the alternate home-screen icon (never 'hide the app' — ADR-018 D6)"
+  },
+  "settingsDiscreetSubtitle": "Shows a plain icon on your home screen. The app's name still appears under it.",
+  "@settingsDiscreetSubtitle": {
+    "description": "Row 3 subtitle carrying the honest bound: setAlternateIconName changes the IMAGE only; CFBundleDisplayName has no runtime API (review finding DVUX-2)"
+  },
+  "settingsDiscreetFailed": "The icon couldn't be changed. Nothing was altered.",
+  "@settingsDiscreetFailed": {
+    "description": "Honest failure copy when the icon channel refuses — the switch reverts (ADR-018 D7)"
+  },
+  "settingsSignOut": "Sign out",
+  "@settingsSignOut": {
+    "description": "Row 4: sign out of this device"
+  },
+  "settingsSignOutSubtitle": "Signing out also removes the PIN from this phone.",
+  "@settingsSignOutSubtitle": {
+    "description": "Row 4 subtitle: the lock is device-scoped and dies with the session (ADR-018 D1)"
+  },
+  "settingsCancel": "Cancel",
+  "@settingsCancel": {
+    "description": "Dismiss button on the settings dialogs"
+  },
+  "settingsPinSetupTitle": "Set up PIN",
+  "@settingsPinSetupTitle": {
+    "description": "Title of the PIN setup screen"
+  },
+  "settingsPinEnterPrompt": "Choose a 6-digit PIN",
+  "@settingsPinEnterPrompt": {
+    "description": "Prompt on the first phase of PIN setup"
+  },
+  "settingsPinConfirmPrompt": "Enter your PIN again",
+  "@settingsPinConfirmPrompt": {
+    "description": "Prompt on the confirm phase of PIN setup"
+  },
+  "settingsPinMismatch": "Those PINs didn't match. Start again.",
+  "@settingsPinMismatch": {
+    "description": "Honest error when the confirm phase disagrees with the first entry — the flow restarts"
+  },
+  "settingsPinSaveFailed": "The PIN couldn't be saved. The lock is still off.",
+  "@settingsPinSaveFailed": {
+    "description": "Honest error when the lock record write fails — never claim protection that did not persist (ADR-018 D8)"
+  },
+  "lockTitle": "Hayati is locked",
+  "@lockTitle": {
+    "description": "Title on the lock screen overlay"
+  },
+  "lockPrompt": "Enter your 6-digit PIN",
+  "@lockPrompt": {
+    "description": "Prompt above the PIN dots on the lock screen"
+  },
+  "lockWrongPin": "{remaining, plural, =0{Wrong PIN. The next wrong entry starts a wait.} =1{Wrong PIN. 1 try left before a wait.} other{Wrong PIN. {remaining} tries left before a wait.}}",
+  "@lockWrongPin": {
+    "description": "Wrong-PIN copy on the lock screen, showing how many free attempts remain before a cooldown starts (ADR-018 D4)",
+    "placeholders": {
+      "remaining": { "type": "int" }
+    }
+  },
+  "lockCooldownThirtySeconds": "Too many attempts. Try again in about 30 seconds.",
+  "@lockCooldownThirtySeconds": {
+    "description": "Cooldown copy, 30-second tier. Three DISTINCT strings by tier: one shared 'about a minute' would understate the 5-minute tier 5x (review finding DVUX-5)"
+  },
+  "lockCooldownOneMinute": "Too many attempts. Try again in about a minute.",
+  "@lockCooldownOneMinute": {
+    "description": "Cooldown copy, 1-minute tier (see lockCooldownThirtySeconds)"
+  },
+  "lockCooldownFiveMinutes": "Too many attempts. Try again in about 5 minutes.",
+  "@lockCooldownFiveMinutes": {
+    "description": "Cooldown copy, 5-minute tier (see lockCooldownThirtySeconds)"
+  },
+  "lockBiometricCta": "Use Face ID or Touch ID",
+  "@lockBiometricCta": {
+    "description": "Button on the lock screen that runs the biometric accelerator"
+  },
+  "lockBiometricReason": "Unlock Hayati",
+  "@lockBiometricReason": {
+    "description": "The reason string passed to the OS biometric prompt"
+  },
+  "lockBiometricRevoked": "Face ID changed on this phone — enter your PIN.",
+  "@lockBiometricRevoked": {
+    "description": "Honest one-liner when the platform's biometric enrollment state changed and the accelerator was auto-revoked (ADR-018 D1)"
+  },
+  "lockBackspace": "Delete",
+  "@lockBackspace": {
+    "description": "Accessibility label for the keypad's backspace key"
+  },
+  "lockForgotPin": "Forgot PIN? Sign out",
+  "@lockForgotPin": {
+    "description": "The always-visible recovery action on the lock screen"
+  },
+  "lockRecoveryTitle": "Sign out to reset your PIN",
+  "@lockRecoveryTitle": {
+    "description": "Title of the inline recovery confirm panel (a widget, never a dialog — the lock screen has no Navigator ancestor)"
+  },
+  "lockRecoveryBody": "This signs you out on this phone and removes the PIN. Your answers are safe — sign back in to see them again.",
+  "@lockRecoveryBody": {
+    "description": "Body of the recovery confirm panel: recovery is destructive and detectable, never silent (ADR-018 D4)"
+  },
+  "lockRecoveryConfirm": "Sign out",
+  "@lockRecoveryConfirm": {
+    "description": "Confirm button on the recovery panel"
+  },
+  "lockRecoveryCancel": "Cancel",
+  "@lockRecoveryCancel": {
+    "description": "Cancel button on the recovery panel — returns to the keypad"
+  },
+  "lockRecoveryFailed": "Couldn't sign out — check your connection and try again.",
+  "@lockRecoveryFailed": {
+    "description": "Honest retry line when the recovery sign-out throws: nothing was wiped and the overlay stays locked (ADR-018 D4)"
   }
 }

@@ -12,6 +12,7 @@ import '../../auth/presentation/state/auth_controller.dart';
 import '../../pairing/presentation/invite_share_screen.dart';
 import '../../profile/domain/relationship_profile.dart';
 import '../../profile/presentation/state/profile_providers.dart';
+import '../../settings/presentation/widgets/settings_gear_overlay.dart';
 import '../domain/question.dart';
 import '../domain/solo_answer.dart';
 import '../domain/solo_answer_exception.dart';
@@ -48,6 +49,15 @@ class SoloHomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // ONE wrap over the whole build (ADR-018 Decision 7; review finding
+    // DVUX-7): this screen returns a different Scaffold per state, so the
+    // settings gear cannot live "in the SafeArea" of any one of them. Wrapping
+    // the return puts it in EVERY state — including the error state, where a
+    // user whose pack load is broken must still be able to reach the lock.
+    return SettingsGearOverlay(uid: uid, child: _buildBody(context, ref));
+  }
+
+  Widget _buildBody(BuildContext context, WidgetRef ref) {
     final now = ref.watch(soloClockProvider)();
     final day = soloDayNumber(anchor: profile.createdAt?.toLocal(), now: now);
     if (soloCycleComplete(day)) {
