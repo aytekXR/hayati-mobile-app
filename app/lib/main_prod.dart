@@ -34,6 +34,8 @@ import 'features/daily_question/domain/couple_repository_provider.dart';
 import 'features/daily_question/domain/question_pack_repository_provider.dart';
 import 'features/daily_question/domain/solo_answers_repository_provider.dart';
 import 'features/daily_question/domain/solo_question_pack_repository_provider.dart';
+import 'features/data_rights/data/functions_data_rights_repository.dart';
+import 'features/data_rights/domain/data_rights_repository_provider.dart';
 import 'features/entitlements/data/firestore_entitlement_repository.dart';
 import 'features/entitlements/data/rc_purchases_repository.dart';
 import 'features/entitlements/domain/entitlement_repository_provider.dart';
@@ -157,6 +159,9 @@ Future<void> main() async {
         SharedPreferencesLocalFlagStore(prefs),
       ),
       coachRepositoryProvider.overrideWith((ref) => FunctionsCoachRepository()),
+      dataRightsRepositoryProvider.overrideWith(
+        (ref) => FunctionsDataRightsRepository(),
+      ),
       // The three device-privacy seams (ADR-018 D2/D1/D6). Bound BY VALUE here
       // and nowhere else, so `flutter test` never touches the Keychain,
       // local_auth, or the hayati/device_privacy channel.

@@ -19,6 +19,16 @@ import { adminFirestore, clearFirestoreData } from '../support/admin';
 // getFirestore() call resolves it.
 const db = adminFirestore();
 
+/** Since ADR-019, issuing requires the creator's profile to exist. */
+function seedProfile(uid: string): Promise<unknown> {
+  return db.collection('users').doc(uid).set({
+    status: 'married',
+    contentLanguage: 'tr',
+    register: 'respectful',
+    createdAt: new Date(),
+  });
+}
+
 function authedRequest(uid: string): CallableRequest {
   return { auth: { uid } } as unknown as CallableRequest;
 }
@@ -51,6 +61,7 @@ describe('createInvite handler', () => {
   });
 
   it('issues an invite for the caller and persists it', async () => {
+    await seedProfile('handler-uid');
     const handler = makeCreateInviteHandler();
     const issued = await handler(authedRequest('handler-uid'));
 
@@ -58,6 +69,20 @@ describe('createInvite handler', () => {
     expect(doc.exists).toBe(true);
     expect(doc.data()!.creatorUid).toBe('handler-uid');
     expect(issued.reused).toBe(false);
+  });
+
+  it("maps an absent creator profile to failed-precondition / 'profile-missing' (ADR-019 INVITE-1)", async () => {
+    // Real issue, no profile seeded: the token-window closure on the admin-SDK
+    // callable surface. Positive control (a live profile issues) is above.
+    const handler = makeCreateInviteHandler();
+    const error = await handler(authedRequest('no-profile-uid')).then(
+      () => {
+        throw new Error('expected the handler to reject');
+      },
+      (thrown) => thrown as HttpsError,
+    );
+    expect(error.code).toBe('failed-precondition');
+    expect(error.details).toEqual({ reason: 'profile-missing' });
   });
 
   it('maps code-space exhaustion to resource-exhausted', async () => {

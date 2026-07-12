@@ -105,7 +105,7 @@ final class PrivacyLockControllerProvider
 }
 
 String _$privacyLockControllerHash() =>
-    r'bedb98bfe3a93a00e11c9993f93264120ebeb654';
+    r'5b305f1884fcdfc1948fb1796986e31579bceff0';
 
 /// The device-lock state machine (ADR-018 Decisions 1/2/3/4) — the security core
 /// of the privacy layer. `keepAlive`: the gate is mounted for the process's whole

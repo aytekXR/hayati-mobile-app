@@ -42,4 +42,13 @@ abstract interface class AuthRepository {
   Future<AuthUser> confirmPhoneCode(PhoneSignInSession session, String smsCode);
 
   Future<void> signOut();
+
+  /// Tears down the LOCAL session after the server has already deleted the
+  /// account (ADR-019 Decision 7, phase 2). Distinct from [signOut] in one way:
+  /// a failure of the Google half is SWALLOWED — a live Google session for an
+  /// already-deleted account is meaningless residue, not a protection, so it must
+  /// never block the Firebase sign-out that lands the controller on
+  /// [AuthSignedOut] and fires the lock wipe. The Firebase sign-out itself throws
+  /// only [AuthException] subtypes (the phase-2 self-heal path).
+  Future<void> signOutAfterAccountDeletion();
 }

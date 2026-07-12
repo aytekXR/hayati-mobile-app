@@ -30,6 +30,8 @@ class RelationshipProfile {
     required this.register,
     this.coupleId,
     this.createdAt,
+    this.notificationPrivacyDiscreet = false,
+    this.coupleEndedAt,
   });
 
   final RelationshipStatus status;
@@ -51,6 +53,22 @@ class RelationshipProfile {
   /// (the local echo of the very first save) — treated as day 1.
   final DateTime? createdAt;
 
+  /// Whether the per-user discreet-notification override is EXPLICITLY set
+  /// (ADR-019 Decision 6). True only when `users/{uid}.notificationPrivacy ==
+  /// 'discreet'` — an enum-safe defensive read where anything else (absent, junk)
+  /// reads false; the AR-locale default is resolved server-side, not here.
+  /// Server-owned: written by the `updateNotificationPrivacy` callable, never by
+  /// the client — so, like [coupleId], it is NOT a [copyWith] parameter yet is
+  /// carried THROUGH copyWith.
+  final bool notificationPrivacyDiscreet;
+
+  /// When this member's couple was ended by the partner's cascade deletion
+  /// (ADR-019 Decision 3), mapped from the nested `users/{uid}.coupleEnded.at`
+  /// Timestamp, or null while still paired / never-ended. Server-owned READ-ONLY
+  /// (the rules freeze it): the app renders the honest terminal notice off it and
+  /// never writes it. Carried THROUGH copyWith, not a parameter.
+  final DateTime? coupleEndedAt;
+
   RelationshipProfile copyWith({
     RelationshipStatus? status,
     ContentLanguage? contentLanguage,
@@ -61,6 +79,8 @@ class RelationshipProfile {
     register: register ?? this.register,
     coupleId: coupleId,
     createdAt: createdAt,
+    notificationPrivacyDiscreet: notificationPrivacyDiscreet,
+    coupleEndedAt: coupleEndedAt,
   );
 
   @override
@@ -71,15 +91,25 @@ class RelationshipProfile {
           other.contentLanguage == contentLanguage &&
           other.register == register &&
           other.coupleId == coupleId &&
-          other.createdAt == createdAt;
+          other.createdAt == createdAt &&
+          other.notificationPrivacyDiscreet == notificationPrivacyDiscreet &&
+          other.coupleEndedAt == coupleEndedAt;
 
   @override
-  int get hashCode =>
-      Object.hash(status, contentLanguage, register, coupleId, createdAt);
+  int get hashCode => Object.hash(
+    status,
+    contentLanguage,
+    register,
+    coupleId,
+    createdAt,
+    notificationPrivacyDiscreet,
+    coupleEndedAt,
+  );
 
   @override
   String toString() =>
       'RelationshipProfile(status: $status, contentLanguage: '
       '$contentLanguage, register: $register, coupleId: $coupleId, '
-      'createdAt: $createdAt)';
+      'createdAt: $createdAt, notificationPrivacyDiscreet: '
+      '$notificationPrivacyDiscreet, coupleEndedAt: $coupleEndedAt)';
 }

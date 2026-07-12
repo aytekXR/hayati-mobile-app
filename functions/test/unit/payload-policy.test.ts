@@ -37,6 +37,25 @@ describe('composePush', () => {
     }
   });
 
+  // ADR-019 D3: the coupleEnded partner-notification is field + in-app notice
+  // only — deliberately NO push. This pins that no fourth PushKind slipped in:
+  // the union is exactly the three shipped kinds (a string-audit on the source,
+  // so a new kind cannot be added without this test going red).
+  it('the PushKind union is unchanged — exactly three kinds, no coupleEnded push (ADR-019 D3)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const source = readFileSync(
+      fileURLToPath(new URL('../../src/notifications/payload-policy.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(source).toContain(
+      "export type PushKind = 'partnerAnswered' | 'reveal' | 'streakAtRisk';",
+    );
+    expect(source).not.toContain('coupleEnded');
+    expect(KINDS).toHaveLength(3);
+    expect([...KINDS].sort()).toEqual(['partnerAnswered', 'reveal', 'streakAtRisk']);
+  });
+
   describe('discreet mode leaks nothing event-specific', () => {
     it('never contains the partner name, in any kind or language', () => {
       for (const kind of KINDS) {

@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/storage/local_flag_store.dart';
 import '../../auth/domain/auth_user.dart';
 import '../../daily_question/presentation/paired_home_screen.dart';
 import '../../daily_question/presentation/solo_home_screen.dart';
+import '../../data_rights/presentation/couple_ended_notice_screen.dart';
+import '../../data_rights/presentation/state/couple_ended_seen.dart';
 import '../../pairing/presentation/partner_preview_screen.dart';
 import '../../pairing/presentation/state/pending_invite.dart';
 import '../domain/profile_exception.dart';
@@ -22,10 +25,14 @@ import 'state/profile_providers.dart';
 ///  2. profile.coupleId != null   → the paired home (M3 slot) — the terminal
 ///     state wins over everything, so a just-joined user re-routes here the
 ///     moment `joinInvite` stamps the couple, whichever screen they came from;
-///  3. pendingInvite != null      → the partner preview / join screen — an
+///  3. coupleId == null && coupleEndedAt != null && !seen → the honest terminal
+///     notice (ADR-019 D3), evaluated BEFORE the pending-invite branch (review
+///     finding NOTICE-2 — a joiner arriving by deep link with `coupleEnded` set
+///     must see the notice first; the invite flow continues after Continue);
+///  4. pendingInvite != null      → the partner preview / join screen — an
 ///     onboarded-but-solo user who arrived on a `hayati://invite/<code>` link
 ///     sees who invited them and can accept;
-///  4. otherwise                  → the solo home (M2.4): the day-N solo
+///  5. otherwise                  → the solo home (M2.4): the day-N solo
 ///     reflection question with the persistent invite nudge — the share flow
 ///     stays one tap away behind the nudge.
 class OnboardingGate extends ConsumerWidget {
@@ -36,6 +43,10 @@ class OnboardingGate extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileStreamProvider(user.uid));
+    // Subscribe so acknowledging the couple-ended notice (which bumps this
+    // provider after writing the durable seen flag) re-evaluates the gate
+    // reactively (review finding APP-2). No override needed — it seeds to 0.
+    ref.watch(coupleEndedSeenProvider);
     // Precedence over the AsyncValue flags (not the subtype — Riverpod 3
     // carries previous error/value across states): in-flight (first load or
     // explicit retry) → spinner; settled error → retry view; settled data →
@@ -59,6 +70,21 @@ class OnboardingGate extends ConsumerWidget {
     final coupleId = value.coupleId;
     if (coupleId != null) {
       return PairedHomeScreen(uid: user.uid, coupleId: coupleId);
+    }
+    // The honest terminal notice (ADR-019 D3): a member whose couple was ended by
+    // the partner's cascade deletion — coupleId cleared, coupleEnded stamped —
+    // sees this ONCE per event before anything else routes them silently to solo.
+    // Evaluated ABOVE the pending-invite branch (NOTICE-2). The seen flag is
+    // event-keyed (by the `at`), so a SECOND ending after a re-pair shows again.
+    final coupleEndedAt = value.coupleEndedAt;
+    if (coupleEndedAt != null &&
+        !ref
+            .read(localFlagStoreProvider)
+            .isSet(coupleEndedSeenKey(user.uid, coupleEndedAt))) {
+      return CoupleEndedNoticeScreen(
+        uid: user.uid,
+        coupleEndedAt: coupleEndedAt,
+      );
     }
     if (ref.watch(pendingInviteProvider) != null) {
       return const PartnerPreviewScreen();

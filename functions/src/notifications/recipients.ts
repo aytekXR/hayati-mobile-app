@@ -8,15 +8,37 @@
 import type { PushLanguage } from './payload-policy';
 
 /**
- * Discreet-mode default for a recipient (PRD F6: "notification privacy defaults
- * ON in AR locale"). True iff the resolved content language is exactly 'ar',
- * false otherwise. A future per-user notification-privacy SETTING will thread
- * through this same resolver seam (the settings value overriding the locale
- * default), so all callers read the discreet decision from here and nowhere
- * else — keeping that override a one-function change.
+ * Discreet-mode decision for a recipient (PRD F6: "notification privacy defaults
+ * ON in AR locale"; ADR-019 Decision 6: the per-user override). True iff the
+ * per-user `notificationPrivacy` field is exactly 'discreet' (opt-in, written by
+ * the updateNotificationPrivacy callable) OR the resolved content language is
+ * exactly 'ar' (the locale default). The override this seam anticipated now
+ * exists: v1 is opt-IN only, so it can turn discreet ON but the AR default stays
+ * non-overridable. Junk `notificationPrivacy` values are ignored (the
+ * defensive-reader pattern) — only the exact 'discreet' string counts. Both call
+ * sites (reveal-service, at-risk) read the discreet decision from here and nowhere
+ * else, so it stayed a one-function change.
  */
-export function resolveDiscreet(contentLanguage: string | undefined): boolean {
-  return contentLanguage === 'ar';
+export function resolveDiscreet(
+  contentLanguage: string | undefined,
+  notificationPrivacy?: unknown,
+): boolean {
+  return notificationPrivacy === 'discreet' || contentLanguage === 'ar';
+}
+
+/**
+ * The per-user notification-privacy override off `users/{uid}.notificationPrivacy`
+ * (ADR-019 Decision 6). A clean string or undefined for absent/malformed — the
+ * defensive-reader contract the call sites pass into resolveDiscreet.
+ */
+export function notificationPrivacyOf(userData: unknown): string | undefined {
+  if (typeof userData === 'object' && userData !== null) {
+    const value = (userData as Record<string, unknown>).notificationPrivacy;
+    if (typeof value === 'string') {
+      return value;
+    }
+  }
+  return undefined;
 }
 
 /**

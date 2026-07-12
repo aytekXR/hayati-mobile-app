@@ -1,23 +1,57 @@
 import { describe, expect, it } from 'vitest';
 
-import { contentLanguageOf, fcmTokensOf, resolveDiscreet } from '../../src/notifications/recipients';
+import {
+  contentLanguageOf,
+  fcmTokensOf,
+  notificationPrivacyOf,
+  resolveDiscreet,
+} from '../../src/notifications/recipients';
 
 // M3.4 (ADR-012 decision 3). Defensive readers over the untyped users/{uid} doc.
 // They must never throw on shape and must default safely: discreet defaults ON in
 // AR (PRD F6), unknown language falls back to the founder default 'tr', and the
 // FCM token array — which nothing writes yet — reads as [] for every junk shape.
 
-describe('resolveDiscreet', () => {
-  it('defaults ON for the AR locale (PRD F6)', () => {
+describe('resolveDiscreet (ADR-019 D6: per-user override + AR default)', () => {
+  it('defaults ON for the AR locale even with no override (PRD F6)', () => {
     expect(resolveDiscreet('ar')).toBe(true);
+    expect(resolveDiscreet('ar', undefined)).toBe(true);
   });
 
-  it('defaults OFF for other languages and for absent input', () => {
+  it("turns ON for a non-AR locale when notificationPrivacy is exactly 'discreet'", () => {
+    expect(resolveDiscreet('tr', 'discreet')).toBe(true);
+    expect(resolveDiscreet('en', 'discreet')).toBe(true);
+  });
+
+  it('stays OFF for a non-AR locale with no override', () => {
     expect(resolveDiscreet('tr')).toBe(false);
-    expect(resolveDiscreet('en')).toBe(false);
-    expect(resolveDiscreet(undefined)).toBe(false);
-    expect(resolveDiscreet('')).toBe(false);
-    expect(resolveDiscreet('AR')).toBe(false); // exact 'ar' only, no case-folding guessed
+    expect(resolveDiscreet('tr', undefined)).toBe(false);
+    expect(resolveDiscreet('en', undefined)).toBe(false);
+  });
+
+  it('ignores junk override values (only the exact string counts)', () => {
+    expect(resolveDiscreet('tr', 'DISCREET')).toBe(false); // exact match only
+    expect(resolveDiscreet('tr', 'named')).toBe(false);
+    expect(resolveDiscreet('tr', 42)).toBe(false);
+    expect(resolveDiscreet('tr', {})).toBe(false);
+    expect(resolveDiscreet('tr', null)).toBe(false);
+    // AR + junk override still discreet (the locale default wins).
+    expect(resolveDiscreet('ar', 'garbage')).toBe(true);
+  });
+});
+
+describe('notificationPrivacyOf', () => {
+  it('returns the field as a clean string when present', () => {
+    expect(notificationPrivacyOf({ notificationPrivacy: 'discreet' })).toBe('discreet');
+  });
+
+  it('returns undefined for absent / non-string / non-object shapes', () => {
+    expect(notificationPrivacyOf({})).toBeUndefined();
+    expect(notificationPrivacyOf({ notificationPrivacy: 5 })).toBeUndefined();
+    expect(notificationPrivacyOf({ notificationPrivacy: null })).toBeUndefined();
+    expect(notificationPrivacyOf(undefined)).toBeUndefined();
+    expect(notificationPrivacyOf(null)).toBeUndefined();
+    expect(notificationPrivacyOf('discreet')).toBeUndefined();
   });
 });
 

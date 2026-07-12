@@ -7,88 +7,73 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-12, Session 020 close (M6.1 — the device-privacy
-layer: app lock + discreet icon + snapshot shield + your first settings
-screen; **on plan, 19/22 units, 86%**). The TestFlight runbook lives below._
+_Last refreshed: 2026-07-13, Session 021 close (M6.2 — **KVKK/PDPL data
+rights**: self-serve export + hard cascade delete with partner notification +
+the discreet-notification override; the last legally-required MVP feature;
+**on plan, 20/22 units, 91%**). The TestFlight runbook lives below._
 
-## Expected from you right now: **NOTHING IS BLOCKING THIS SESSION'S WORK — no action was required and none was taken on your behalf.** Two decisions remain open and neither blocked Session 020: **item 6 (pick the AI provider — now OVERDUE, it is the only thing between the coach and its first live conversation)** and item 7 (should coach chats ever be saved?). Item 6 unblocks M5.3, which jumps to the front of the queue the moment you answer.
+## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** Session 021 deliberately created **no new operator item** (the data export is delivered in-app, so no email provider was needed). But the queue ahead is now genuinely shaped by your two pending items: **item 6 (pick the AI provider — OVERDUE since Session 019; the only thing between the coach and its first live conversation, and it PREEMPTS the next session's plan the moment you answer)** and **item 4 (the Apple Developer enrollment, promised 2026-07-08 — the next session, M6.3, builds the release lane and store metadata, and the signed-build/TestFlight half of the LAST M6 accept line is blocked on exactly this enrollment)**. Item 7 (should coach chats ever be saved?) stays open, non-blocking.
 
-**Session 020 needed nothing from you mid-flight.** It built the app lock —
-the feature your PRD calls a headline, not a setting — and it is the last
-piece the privacy story was missing.
+**Session 021 needed nothing from you mid-flight.** It built the feature the
+law requires before anyone but you two can use the app: your data can now be
+downloaded, and your account — and everything it touches — can be deleted,
+by you, from inside the app.
 
 **What you should know from this session:**
 
-**1. The app now locks. The whole app, not parts of it.** Set a 6-digit PIN
-in the new Settings screen (reach it via the gear on your home screen) and
-Hayati asks for it on every cold start, and again whenever you come back
-after being away for more than a minute. Everything sits behind it — the
-daily question, the reveal, the coach, even a partner's invite link tapped
-while the phone is locked. Face ID works too, but only as a shortcut (see 3).
+**1. "Delete my account" now exists, and it means it.** Settings → Delete
+account & data. It asks twice (and for your PIN if the lock is on), tells you
+plainly that it is irreversible, and then deletes everything: your profile,
+your solo reflections, your account — and the **entire shared space, both
+sides of every answer**. Your partner keeps what was always theirs alone
+(their own profile and solo reflections) and loses the shared thread, same
+as you. This was the hardest call of the session and it is yours to overturn:
+the alternative — each partner keeps their own half of the thread — is
+written out in ADR-019 with the honest costs of both options. We chose whole-
+thread deletion because the shared conversation is *about both of you* (a
+"deleted" relationship record that leaves one side readable has been
+redacted, not erased), and because for someone deleting to *escape* a
+relationship, nothing they wrote should survive anywhere the partner can
+read. One honest bound, stated in the app's own copy: deletion removes the
+server's copies — it cannot un-see what a partner already read or
+screenshot.
 
-**2. Two things you should know because they will surprise you otherwise:**
-- **Deleting and reinstalling the app does NOT remove the lock.** This is
-  deliberate, and it is the single most important design decision in the
-  feature. Your sign-in session already survives a reinstall (Apple stores
-  it in the Keychain) — so if the lock did *not* survive, anyone could delete
-  the app, reinstall it, and walk straight into your still-signed-in account.
-  The lock now shares fate with the thing it protects. If you genuinely
-  forget the PIN, the escape is "Forgot PIN? Sign out" on the lock screen —
-  it signs you out and clears the lock; your data is safe on the server and
-  comes back when you sign in again.
-- **The discreet icon changes the icon picture, not the name under it.**
-  iOS gives apps no way to change their home-screen name at runtime. So the
-  app still reads "Hayati App" under the innocuous icon. The app tells you
-  this honestly in Settings rather than letting you believe you are hidden
-  when you are not. If you want the *name* to be less identifying, that is a
-  product decision about what we publish to the App Store — tell a session
-  and it becomes part of the store-metadata work (M6.3).
+**2. The partner is told honestly — but deliberately NOT pinged.** No push
+notification fires when a deletion happens. The other partner learns from a
+calm, non-blaming notice the next time they open Hayati ("your shared space
+has been closed and its content permanently deleted; your own reflections
+are untouched; you can pair again whenever you choose"). The review's
+reasoning, recorded in full: a real-time "your space was closed" alert to a
+possibly-abusive partner at the exact moment a victim cuts ties is a safety
+risk nothing in the spec requires. If you ever want a push, it is one
+decision away, with the analysis already written.
 
-**3. Face ID is a shortcut, and we made it revoke itself — and turning it on
-costs you your PIN.** On a shared phone, whoever's face or fingerprint is
-enrolled can pass Face ID — the phone cannot tell us *whose* face it was. So:
-Face ID is off by default; turning it on shows an explicit warning saying
-exactly that, **and then asks for your PIN**; and if the phone's Face ID
-enrollment ever changes afterwards, Hayati automatically switches it off and
-demands the PIN again. Someone adding their face to your phone later gains
-nothing.
+**3. Deleting does NOT cancel a subscription — Apple does not let us.** If
+either of you has an active subscription, deletion removes Premium from the
+(now gone) couple, but Apple keeps billing until the payer cancels in their
+App Store settings. Both the deleter's confirmation screen and the partner's
+notice say this in plain words. No app can do this part for you, and we would
+rather say so than pretend.
 
-*Why the PIN to turn it ON — this one is worth understanding, because it is
-counter-intuitive:* attaching Face ID attaches a **second key** to your lock.
-Without the PIN check, someone who caught your phone unlocked for thirty
-seconds could add *their own face* as that second key and keep permanent
-access — never knowing your PIN, and with our automatic revocation powerless
-to help (nothing "changed" afterwards; they were inside the enrollment from
-the start). Removing the lock already needed the PIN; adding a second key to
-it now does too. Turning Face ID **off** needs no PIN — that only ever makes
-things safer.
+**4. "Download my data" exists too, free for everyone.** Settings → Download
+my data produces a JSON document of everything that is YOURS — your profile,
+your solo answers, your own halves of the shared answers, your own coach-
+usage counts — and deliberately nothing your partner wrote (their answers
+are their data, even the ones you can read in the app; a durable exported
+copy is a different thing from reading together, and we chose the protective
+side). Delivered in-app with copy-to-clipboard — no email involved, which
+also means no email provider to set up.
 
-**4. What the lock honestly does and does not protect against.** It blocks
-casual and silent access: someone picking up your phone cannot read your
-answers or your coach chats. It does **not** stop someone who holds your SIM
-or your Apple ID from forcing their way in through the "forgot PIN" path —
-no app can prevent that, and we would rather say so than pretend. But that
-path is **destructive and visible**: it signs you out and wipes your PIN, so
-you would know it happened. The app switcher is also covered now — the
-preview card iOS shows when you swipe between apps is a blank panel, not
-your conversation (and deliberately not our logo either, so it does not
-give the app away).
+**5. Discreet notifications are now a real setting.** Settings has a new
+toggle: when on, every notification shows only "Hayati" and a neutral line,
+never what happened. Arabic-language users have had this by default since
+M3.4 and still do; the toggle lets anyone opt in (and an Arabic user who
+turns it on explicitly keeps the protection even if they later switch the
+app's content language).
 
-**5. Nothing changed for the daily loop.** If you never set a PIN, the app
-behaves exactly as it did — proven by tests that would fail if it didn't.
-
-**6. Your Turkish copy caught a real safety bug — and it argues for doing the
-native review sooner.** The lock's Turkish strings said *"Kilit hâlâ kapalı"*.
-Read naturally, that means "the lock is **closed**" — i.e. engaged, you are
-protected. It was supposed to mean the opposite ("the lock is still **off**"),
-and it appeared on exactly the screen you'd see if saving your PIN had
-*failed*. A Turkish user would have been told they were protected at the one
-moment they were not. It is fixed (`etkin` / `etkin değil`), and the Arabic was
-correct throughout — but note what caught it: **a human reading the sentence.**
-No test can see a sentence that is grammatically perfect and semantically
-inverted. That is the whole argument for item 1's native review, and it is why
-the two safety-bearing strings (the Face ID warning, the "Forgot PIN?" copy)
-are worth your eyes before the beta, not after.
+**6. Nothing changed for the daily loop or the lock** — proven by the same
+kind of tests as always (1,300 app-side now, 848 server-side, all green,
+both review passes run and their findings fixed before merge).
 
 ## ★ NEW (Session 018): native review of the CRISIS content — the one gate before the coach runs on your phones
 
@@ -377,6 +362,17 @@ instead of M5.2 — say so and it will be re-scoped.
   recovery signs you out rather than quietly letting someone in. The rest
   (cooldown lines, the discreet-icon bound, error states) is standard tone
   review. AI-drafted; TR by you two, AR by your Gulf reviewer.
+- **NEW since M6.2 (standard gate, but three strings carry legal/safety
+  weight):** the data-rights copy — `dataRights*`/`coupleEnded*`/
+  `settingsNotificationPrivacy*` keys × TR/AR/EN in `app/lib/core/l10n/arb/`.
+  Worth your eyes specifically: **(a) the deletion confirmation** (it must
+  read as genuinely irreversible and say the shared space goes for BOTH of
+  you — an under-translated warning here is a legal problem, not a tone
+  problem); **(b) the partner's "shared space closed" notice** (it must stay
+  calm and non-blaming in TR and AR — it deliberately never says who did it);
+  **(c) the "does not cancel your subscription" line** (users will act on
+  this sentence with money involved). The rest (export screen, toggle
+  captions, error states) is standard tone review.
 
 ## 2. Blaze plan decision — **last call, optional bonus otherwise**
 
@@ -480,18 +476,20 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 020 close)
+## Progress & readiness snapshot (as of Session 021 close)
 
 - **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 engineering ✅ (sandbox
   accept line open on item 0)** · **M5: 2/3 (spine + chat UI; M5.3 live
-  adapter is founder-blocked on item 6)** · **M6: 1/3 (M6.1 device-privacy
-  layer ✅)** — **19/22 session-units (86%) in 20 sessions; 3 planned
-  session-units left to the MVP** (M5: 1, blocked · M6: 2; M6.5 Android sits
-  outside the 22-unit MVP count). On track; no plan or scope changes in
-  Session 020 (M1's +1 session remains the only slippage ever). Next session:
-  **M6.2 — KVKK/PDPL export + cascade delete + partner notification**, unless
-  you answer item 6, in which case **M5.3 (the coach going live) takes
-  precedence** and M6.2 slides one session.
+  adapter is founder-blocked on item 6)** · **M6: 2/3 (M6.1 device-privacy ✅,
+  M6.2 data rights ✅)** — **20/22 session-units (91%) in 21 sessions; 2
+  planned session-units left to the MVP** (M5.3, blocked on item 6 · M6.3;
+  M6.5 Android sits outside the 22-unit MVP count). On track; no plan or
+  scope changes in Session 021 (M1's +1 session remains the only slippage
+  ever). Next session: **M6.3 — store metadata TR/EN via Fastlane + the
+  performance pass + the closed-beta release lane** (its signed-build half is
+  blocked on YOUR item 4 enrollment), unless you answer item 6, in which case
+  **M5.3 (the coach going live) takes precedence** and M6.3 slides one
+  session.
 - **Readiness: pre-MVP, emulator/CI-proven, nothing deployed, nothing on a
   phone.** Working and proven against emulators + CI: auth, profile + rules,
   the whole pairing loop, the unpaired solo week, the content pipeline, the
@@ -512,15 +510,23 @@ secret**, then rework/land the branch.
   delete-and-reinstall cannot shed the lock while the sign-in session it
   guards survives; attempt-bounding with escalating cooldowns that survive a
   force-quit; Face ID as a self-revoking shortcut; the app-switcher card
-  blanked; the discreet iOS icon — 1,223 app tests / 773 server tests green).
+  blanked; the discreet iOS icon), and now the **data-rights layer** (M6.2,
+  ADR-019: self-serve in-app JSON export of strictly-your-own data; the hard
+  cascade delete — idempotent, resumable, kill-tested at every step,
+  concurrency-tested across both partners deleting at once; the partner's
+  honest in-app notice with deliberately no push; the entitlement mirror
+  dying with the couple; the per-user discreet-notification override — 1,300
+  app tests / 848 server tests green, both adversarial review passes run and
+  every confirmed finding fixed before merge).
   **What "production-ready" is still missing, honestly:** no deploy has ever
   happened (Spark plan — item 2), the app has never run on a real device
   (Mac/enrollment — item 4), no real purchase has ever been made (item 0),
   push notifications have no device half (APNs — item 4), the coach has no
   live AI provider (item 6 — the ONLY gap left in M5), and the privacy
-  layer's four on-device checks (item 4's new sub-list) are unverified on
-  real hardware. KVKK export/delete lands next (M6.2). Call it **~86% of the
-  MVP's engineering, 0% of its operational proof.**
+  layer's four on-device checks (item 4's sub-list) are unverified on real
+  hardware. The release lane + store metadata land next (M6.3); its
+  signed-build half waits on item 4. Call it **~91% of the MVP's
+  engineering, 0% of its operational proof.**
   Deferred loudly (nothing silent): seasonal question windows (issue #29), the
   schedule trigger + Eventarc retry + webhook Secret Manager binding
   (deploy-verified at first Blaze deploy), `users.fcmTokens` capture + APNs
@@ -535,13 +541,21 @@ secret**, then rework/land the branch.
   **Group Purchases** (WWDC26; no RevenueCat support yet), and two
   quarantined tests (ci-debt #36 reveal round-trip listener race, #15
   phone-auth simulator crash — at the >2-forces-stabilization threshold, not
-  over it). **New from M6.1:** the per-user neutral-notification override
-  (M6.2 — AR-locale users already get discreet pushes by default; TR/EN needs
-  a `users` field + a settings Function), the device-privacy layer's four
+  over it). **Still open from M6.1:** the device-privacy layer's four
   on-device verifications (item 4), a native SceneDelegate snapshot cover
   (only if the on-device check finds the pure-Dart shield leaves a gap — the
   fix is pre-recorded in ADR-018 D5), Android's lock + activity-alias icon
   (M6.5), and a change-PIN flow (today: turn off, turn on — both verify
-  first, so it is a convenience gap, not a hole).
-  **Closed this session:** the OS app-switcher snapshot obscuring (was
-  deferred from ADR-017) — shipped as an always-on neutral cover.
+  first, so it is a convenience gap, not a hole). **New from M6.2
+  (ADR-019):** backup-retention alignment with the erasure right (the first
+  deploy session inherits it — no backups exist today, so "deleted" is
+  currently literal), export rate-limiting (deploy hardening, rides the
+  existing limiter note), the AR discreet-default opt-out (a recorded product
+  decision — the enum leaves the door open), `coach_sessions` export/cascade
+  coverage (contingent on your item 7), and consent screens + the DPA
+  inventory (the mvp item-12 legal bundle, pre-launch — architecture §8 now
+  says "unbuilt" honestly instead of asserting them).
+  **Closed this session:** the per-user neutral-notification override (was
+  M6.1's deferral — shipped as the Settings toggle + `users` field through
+  the documented resolver seam), and the KVKK/PDPL export + delete
+  self-serve rights themselves — the last legally-required MVP feature.

@@ -46,6 +46,20 @@ export class CreatorAlreadyPairedError extends Error {
 }
 
 /**
+ * The creator has no users/{uid} profile yet (ADR-019 Decision 2, INVITE-1
+ * closure). issuing is an admin-SDK callable that rules cannot guard, so a
+ * just-deleted user's ≤1h-valid token could otherwise mint a fresh, never-swept
+ * uid-bearing invite. Requiring the profile closes that surface. Mapped by
+ * create-invite.ts to failed-precondition {reason: 'profile-missing'}.
+ */
+export class CreatorProfileMissingError extends Error {
+  constructor() {
+    super('creator has no profile');
+    this.name = 'CreatorProfileMissingError';
+  }
+}
+
+/**
  * Issues a pairing code for `creatorUid` (architecture.md §3, invites/{code}).
  *
  * Re-issue policy (documented decision, Session 007): ONE active invite per
@@ -70,9 +84,15 @@ export async function issueInvite(
 
     // M2.3 guard (read-before-writes): a creator who is already paired must not
     // mint OR re-use an invite, so this precedes the pending-invite lookup and
-    // the reuse-return below. A MISSING users doc keeps the M2.1 behavior
-    // (proceed) — issuing does not itself require a profile; only pairing does.
+    // the reuse-return below. A MISSING users doc now REJECTS (ADR-019 Decision 2,
+    // INVITE-1): issuing is an admin-SDK callable rules cannot guard, so a
+    // just-deleted account's still-valid token must not mint a fresh, never-swept
+    // invite naming the deleted uid. profile-missing is checked before
+    // already-paired (the cheaper, absent-doc reason first).
     const creatorSnap = await tx.get(db.collection('users').doc(creatorUid));
+    if (!creatorSnap.exists) {
+      throw new CreatorProfileMissingError();
+    }
     if (hasCoupleId(creatorSnap)) {
       throw new CreatorAlreadyPairedError();
     }

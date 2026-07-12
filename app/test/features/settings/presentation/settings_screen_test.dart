@@ -4,7 +4,13 @@ import 'package:hayati_app/core/storage/pin_lock_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_clock.dart';
+import 'package:hayati_app/features/data_rights/domain/data_rights_exception.dart';
+import 'package:hayati_app/features/data_rights/domain/data_rights_repository_provider.dart';
+import 'package:hayati_app/features/data_rights/presentation/delete_account_screen.dart';
+import 'package:hayati_app/features/data_rights/presentation/export_screen.dart';
 import 'package:hayati_app/features/privacy_lock/domain/biometric_authenticator.dart';
+import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
+import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 import 'package:hayati_app/features/settings/domain/app_icon_switcher.dart';
 import 'package:hayati_app/features/settings/presentation/pin_setup_screen.dart';
 import 'package:hayati_app/features/settings/presentation/settings_screen.dart';
@@ -14,7 +20,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
 import '../../../support/fake_app_icon_switcher.dart';
 import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_biometric_authenticator.dart';
+import '../../../support/fake_data_rights_repository.dart';
 import '../../../support/fake_pin_lock_store.dart';
+import '../../../support/fake_profile_repository.dart';
 import '../../../support/localized_app.dart';
 import '../../../support/pin_lock_fixtures.dart';
 
@@ -32,12 +40,16 @@ void main() {
     FakeAppIconSwitcher icons,
     FakeBiometricAuthenticator biometrics,
     FakeAuthRepository auth,
+    FakeProfileRepository profiles,
+    FakeDataRightsRepository dataRights,
     List<Override> overrides,
   })
   arrange({
     PinLockRecord? record,
     FakeAppIconSwitcher? icons,
     FakeBiometricAuthenticator? biometrics,
+    RelationshipProfile? profile,
+    FakeDataRightsRepository? dataRights,
   }) {
     final store = FakePinLockStore(initial: record);
     final iconSwitcher = icons ?? FakeAppIconSwitcher(supported: false);
@@ -46,12 +58,17 @@ void main() {
     final auth = FakeAuthRepository(
       initialUser: const AuthUser(uid: _uid, displayName: 'Aytek'),
     );
+    final profiles = FakeProfileRepository(initialProfiles: {_uid: ?profile});
+    final dataRightsRepo = dataRights ?? FakeDataRightsRepository();
     addTearDown(auth.dispose);
+    addTearDown(profiles.dispose);
     return (
       store: store,
       icons: iconSwitcher,
       biometrics: biometricAuth,
       auth: auth,
+      profiles: profiles,
+      dataRights: dataRightsRepo,
       overrides: [
         pinLockStoreProvider.overrideWithValue(store),
         initialLockSnapshotProvider.overrideWithValue(
@@ -60,6 +77,8 @@ void main() {
         biometricAuthenticatorProvider.overrideWithValue(biometricAuth),
         appIconSwitcherProvider.overrideWithValue(iconSwitcher),
         authRepositoryProvider.overrideWith((ref) => auth),
+        profileRepositoryProvider.overrideWith((ref) => profiles),
+        dataRightsRepositoryProvider.overrideWith((ref) => dataRightsRepo),
         soloClockProvider.overrideWith(
           (ref) =>
               () => _now,
@@ -328,6 +347,116 @@ void main() {
       // The lock is device-scoped and dies with the session (Decision 1) — a
       // surprise worth spending a line of copy on.
       expect(find.text(en.settingsSignOutSubtitle), findsOneWidget);
+    });
+  });
+
+  const soloProfile = RelationshipProfile(
+    status: RelationshipStatus.married,
+    contentLanguage: ContentLanguage.tr,
+    register: ContentRegister.playful,
+  );
+  const discreetProfile = RelationshipProfile(
+    status: RelationshipStatus.married,
+    contentLanguage: ContentLanguage.tr,
+    register: ContentRegister.playful,
+    notificationPrivacyDiscreet: true,
+  );
+  const arabicProfile = RelationshipProfile(
+    status: RelationshipStatus.married,
+    contentLanguage: ContentLanguage.ar,
+    register: ContentRegister.respectful,
+  );
+
+  group('row 5 — discreet notifications (ADR-019 D6)', () {
+    testWidgets('the switch is OFF when the explicit field is absent', (
+      tester,
+    ) async {
+      final env = arrange(profile: soloProfile);
+      await pumpSettings(tester, env.overrides);
+      expect(find.text(en.settingsNotificationPrivacyTitle), findsOneWidget);
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    });
+
+    testWidgets('the switch is ON when the explicit field is set', (
+      tester,
+    ) async {
+      final env = arrange(profile: discreetProfile);
+      await pumpSettings(tester, env.overrides);
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    });
+
+    testWidgets('AR content shows the default-already-on subtitle', (
+      tester,
+    ) async {
+      final env = arrange(profile: arabicProfile);
+      await pumpSettings(tester, env.overrides);
+      expect(
+        find.text(en.settingsNotificationPrivacySubtitleAr),
+        findsOneWidget,
+      );
+      expect(find.text(en.settingsNotificationPrivacySubtitle), findsNothing);
+    });
+
+    testWidgets('turning it ON writes discreet and the switch follows the '
+        'profile stream round-trip', (tester) async {
+      final env = arrange(profile: soloProfile);
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      // The callable was invoked with discreet: true (the explicit write).
+      expect(env.dataRights.notificationPrivacyCalls, [true]);
+
+      // Server truth re-emits on the profile stream; the switch follows it.
+      env.profiles.emitProfile(_uid, discreetProfile);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    });
+
+    testWidgets('a failed write shows the honest error and the switch stays '
+        'truthful to the server', (tester) async {
+      final dataRights = FakeDataRightsRepository()
+        ..onUpdateNotificationPrivacy = (_) async =>
+            throw const DataRightsNetworkException();
+      final env = arrange(profile: soloProfile, dataRights: dataRights);
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.settingsNotificationPrivacyFailed), findsOneWidget);
+      // The server did not change, so the switch reflects the old (false) truth.
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    });
+  });
+
+  group('data-rights rows (ADR-019 D5/D7)', () {
+    testWidgets('free tier: all three data-rights additions render for a free '
+        'user (a data right is not premium)', (tester) async {
+      // No lock, no premium, an ordinary solo profile.
+      final env = arrange(profile: soloProfile);
+      await pumpSettings(tester, env.overrides);
+      expect(find.text(en.dataRightsExportRowTitle), findsOneWidget);
+      expect(find.text(en.dataRightsDeleteRowTitle), findsOneWidget);
+      expect(find.text(en.settingsNotificationPrivacyTitle), findsOneWidget);
+    });
+
+    testWidgets('the download row pushes the export screen', (tester) async {
+      final env = arrange(profile: soloProfile);
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.text(en.dataRightsExportRowTitle));
+      await tester.pumpAndSettle();
+      expect(find.byType(ExportScreen), findsOneWidget);
+    });
+
+    testWidgets('the delete row pushes the delete screen', (tester) async {
+      final env = arrange(profile: soloProfile);
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.text(en.dataRightsDeleteRowTitle));
+      await tester.pumpAndSettle();
+      expect(find.byType(DeleteAccountScreen), findsOneWidget);
     });
   });
 }

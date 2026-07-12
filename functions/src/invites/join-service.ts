@@ -216,8 +216,12 @@ export async function joinInvite(
       timezone: coupleTimezone,
       createdAt: FieldValue.serverTimestamp(),
     });
-    tx.update(joinerRef, { coupleId: coupleRef.id });
-    tx.update(creatorRef, { coupleId: coupleRef.id });
+    // coupleEnded is the M6.2 partner-notification tombstone (ADR-019 D3): a
+    // re-pairing member must not carry a stale one, so the join clears it from
+    // BOTH docs atomically with the coupleId write. FieldValue.delete() is a
+    // no-op when the field is absent (the common case).
+    tx.update(joinerRef, { coupleId: coupleRef.id, coupleEnded: FieldValue.delete() });
+    tx.update(creatorRef, { coupleId: coupleRef.id, coupleEnded: FieldValue.delete() });
     tx.update(inviteRef, {
       status: 'joined',
       coupleId: coupleRef.id,

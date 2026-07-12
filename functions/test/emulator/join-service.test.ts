@@ -103,6 +103,31 @@ describe('joinInvite — happy path', () => {
     expect(invite.joinerUid).toBe(JOINER);
     expect(invite.joinedAt).toBeInstanceOf(Timestamp);
   });
+
+  // ADR-019 Decision 3: a re-pairing member must not carry a stale coupleEnded
+  // tombstone from a prior deletion, so the join clears it from BOTH docs.
+  it('clears the coupleEnded tombstone from both members on join', async () => {
+    await users.doc(CREATOR).set({
+      status: 'married',
+      contentLanguage: 'tr',
+      register: 'respectful',
+      createdAt: Timestamp.now(),
+      coupleEnded: { at: Timestamp.now() },
+    });
+    await users.doc(JOINER).set({
+      status: 'married',
+      contentLanguage: 'ar',
+      register: 'respectful',
+      createdAt: Timestamp.now(),
+      coupleEnded: { at: Timestamp.now() },
+    });
+    await seedInvite(CODE);
+
+    await joinInvite(db, JOINER, CODE);
+
+    expect((await users.doc(CREATOR).get()).get('coupleEnded')).toBeUndefined();
+    expect((await users.doc(JOINER).get()).get('coupleEnded')).toBeUndefined();
+  });
 });
 
 describe('joinInvite — timezone', () => {

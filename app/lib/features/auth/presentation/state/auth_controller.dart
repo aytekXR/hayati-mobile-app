@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../data_rights/domain/data_rights_repository_provider.dart';
 import '../../domain/auth_exception.dart';
 import '../../domain/auth_repository_provider.dart';
 import '../../domain/auth_state.dart';
@@ -88,6 +89,52 @@ class AuthController extends _$AuthController {
     final repo = ref.read(authRepositoryProvider);
     try {
       await repo.signOut();
+      if (!ref.mounted) return;
+      state = const AuthSignedOut();
+    } on AuthException catch (failure) {
+      if (!ref.mounted) return;
+      state = AuthError(failure);
+    } finally {
+      if (ref.mounted) {
+        _manualInProgress = false;
+      }
+    }
+  }
+
+  /// Runs the KVKK/PDPL account deletion (ADR-019 Decision 7). The manual-op gate
+  /// spans the WHOLE operation (so a stream `null` mid-teardown can never race the
+  /// terminal state), but the two phases have deliberately different state owners:
+  ///
+  /// **Phase 1 — the server cascade — is a LOCAL operation.** A callable failure
+  /// leaves [state] EXACTLY as it was ([AuthSignedIn] — nothing transitions,
+  /// nothing pops, so the host settings screen's auth-loss self-pop never fires
+  /// and the delete screen survives to render its retry copy) and the typed
+  /// [DataRightsException] propagates to the screen. It is NOT an [AuthException],
+  /// so the `on AuthException` catch below deliberately does NOT swallow it; the
+  /// finally still releases the gate. Re-driving is safe (Decision 2 idempotency).
+  ///
+  /// **Phase 2 — session teardown — only after server success.** The Google half
+  /// is attempted and swallowed inside the repository (meaningless residue);
+  /// `signOutAfterAccountDeletion` runs the Firebase sign-out; on success the
+  /// controller sets [AuthSignedOut] EXPLICITLY. The pre-state is [AuthSignedIn],
+  /// so that value-inequal transition fires the root listener's lock `wipe()`.
+  ///
+  /// **If phase 2 throws:** [AuthError]. Protection stays; the host self-pop dumps
+  /// to the root shell; the dead session self-heals to [AuthSignedOut] on its next
+  /// token-refresh failure (≤~1h) — the D8 row-7 correction (a completed deletion
+  /// masquerading as an error must not be stranded in "retry forever").
+  Future<void> deleteAccount() async {
+    if (_manualInProgress) return;
+    _manualInProgress = true;
+    final authRepo = ref.read(authRepositoryProvider);
+    final dataRights = ref.read(dataRightsRepositoryProvider);
+    try {
+      // Phase 1: on any DataRightsException the state is left untouched and the
+      // exception propagates past the `on AuthException` catch to the screen.
+      await dataRights.deleteAccount();
+      if (!ref.mounted) return;
+      // Phase 2: teardown only after server success.
+      await authRepo.signOutAfterAccountDeletion();
       if (!ref.mounted) return;
       state = const AuthSignedOut();
     } on AuthException catch (failure) {

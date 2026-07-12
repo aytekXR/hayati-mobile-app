@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design_system/color_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
+import '../../data_rights/domain/data_rights_exception.dart';
+import '../../data_rights/domain/data_rights_repository_provider.dart';
+import '../../data_rights/presentation/delete_account_screen.dart';
+import '../../data_rights/presentation/export_screen.dart';
 import '../../privacy_lock/domain/biometric_authenticator.dart';
-import '../../privacy_lock/domain/pin_hasher.dart';
 import '../../privacy_lock/domain/pin_lock_attempt_result.dart';
 import '../../privacy_lock/presentation/state/privacy_lock_controller.dart';
-import '../../privacy_lock/presentation/widgets/pin_keypad.dart';
+import '../../profile/domain/relationship_profile.dart';
+import '../../profile/presentation/state/profile_providers.dart';
 import '../domain/app_icon_switcher.dart';
 import 'pin_setup_screen.dart';
+import 'widgets/pin_verify_dialog.dart';
+import 'widgets/settings_error_line.dart';
 
 /// Pushes the settings screen over the current route — the `showCoach` /
 /// `showPaywall` exported-helper convention. Entered from the gear both homes
@@ -23,8 +28,9 @@ Future<void> showSettings(BuildContext context, {required String uid}) {
   ).push(MaterialPageRoute<void>(builder: (_) => SettingsScreen(uid: uid)));
 }
 
-/// The app's first settings surface (ADR-018 Decision 7): four rows — app lock,
-/// the biometric accelerator, the discreet icon, sign out.
+/// The app's settings surface (ADR-018 Decision 7, extended by ADR-019 D6/D7):
+/// app lock, the biometric accelerator, the discreet icon, the discreet-
+/// notification override, the two data-rights rows (download / delete), sign out.
 ///
 /// This screen is pushed INSIDE the Navigator (and sits below the gate like
 /// everything else), so `showDialog` is legitimate here — unlike on the lock
@@ -32,10 +38,10 @@ Future<void> showSettings(BuildContext context, {required String uid}) {
 /// DV-warning dialogs below are the whole reason that distinction is worth
 /// stating twice.
 ///
-/// M6.2 extends this screen (KVKK export/delete) rather than inventing a
-/// surface. Deliberately NOT here in v1: a theme toggle (MVP OUT-list), the
-/// notification-privacy override (Decision 6's loud M6.2 deferral), change-PIN
-/// (disable→enable covers it), hotline content (founder-gated).
+/// M6.2 (ADR-019) extended this screen rather than inventing a surface — the KVKK
+/// export/delete rows and the notification-privacy toggle land HERE, as Decision 7
+/// reserved. Still deliberately NOT here in v1: a theme toggle (MVP OUT-list),
+/// change-PIN (disable→enable covers it), hotline content (founder-gated).
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key, required this.uid});
 
@@ -52,15 +58,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _biometricAvailable = false;
   bool _discreet = false;
 
-  /// A platform call is in flight — the row's control is inert until it lands.
+  /// A platform (or callable) call is in flight — the row's control is inert
+  /// until it lands.
   bool _iconBusy = false;
   bool _biometricBusy = false;
+  bool _notificationPrivacyBusy = false;
 
   /// The one honest failure line per row, or null. Resolved against l10n at
-  /// render time (the `_PairedErrorView` idiom).
+  /// render time (the `SettingsErrorLine` idiom).
   String Function(AppLocalizations)? _iconError;
   String Function(AppLocalizations)? _biometricError;
   String Function(AppLocalizations)? _lockError;
+  String Function(AppLocalizations)? _notificationPrivacyError;
 
   @override
   void initState() {
@@ -98,7 +107,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _lockError = null);
     final pin = await showDialog<String>(
       context: context,
-      builder: (_) => const _PinVerifyDialog(),
+      builder: (_) => const PinVerifyDialog(),
     );
     if (pin == null || !mounted) return;
     final result = await ref
@@ -163,7 +172,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
         pin = await showDialog<String>(
           context: context,
-          builder: (_) => const _PinVerifyDialog(),
+          builder: (_) => const PinVerifyDialog(),
         );
         if (pin == null || !mounted) return;
       }
@@ -204,10 +213,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  // ── Row 4: the discreet-notification override (ADR-019 D6) ───────────────
+
+  /// Turning the override ON writes `notificationPrivacy: 'discreet'`; OFF
+  /// deletes the explicit value. The switch's VALUE is the explicit server field
+  /// (streamed via the profile watch), not the resolved posture: an AR-locale
+  /// user is discreet by default even with the field absent (v1 cannot override
+  /// that protective default — the copy says so), yet flipping it on still writes
+  /// the explicit value so the posture survives a later content-language change.
+  Future<void> _setNotificationPrivacy(bool discreet) async {
+    setState(() {
+      _notificationPrivacyError = null;
+      _notificationPrivacyBusy = true;
+    });
+    try {
+      await ref
+          .read(dataRightsRepositoryProvider)
+          .updateNotificationPrivacy(discreet: discreet);
+      // The profile stream re-emits the server-written field; the switch follows
+      // it. On failure the server did not change, so the switch stays truthful.
+    } on DataRightsException {
+      if (!mounted) return;
+      setState(
+        () =>
+            _notificationPrivacyError = (l10n) =>
+                l10n.settingsNotificationPrivacyFailed,
+      );
+    } finally {
+      if (mounted) setState(() => _notificationPrivacyBusy = false);
+    }
+  }
+
+  // ── The two data-rights rows (ADR-019 D5/D7) ─────────────────────────────
+
+  Future<void> _openExport() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const ExportScreen()));
+
+  Future<void> _openDelete() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute<void>(builder: (_) => const DeleteAccountScreen()));
+
   @override
   Widget build(BuildContext context) {
     // Auth-loss self-pop (the CoachScreen idiom): a remote sign-out would
-    // otherwise strand the user on this pushed route over the auth shell.
+    // otherwise strand the user on this pushed route over the auth shell. The
+    // ADR-019 delete flow's phase model exists precisely so this never fires on a
+    // phase-1 cascade failure (state stays AuthSignedIn) — only on the real
+    // AuthSignedOut/AuthError teardown transitions.
     ref.listen(authControllerProvider, (previous, next) {
       if (next is! AuthSignedIn) {
         Navigator.of(context).popUntil((route) => route.isFirst);
@@ -220,6 +273,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final biometricOn = ref
         .read(privacyLockControllerProvider.notifier)
         .biometricEnabled;
+    // The discreet-notification switch reflects the EXPLICIT server field; the
+    // AR subtitle notes the default is already on for Arabic content. Loading or
+    // an error settles to no explicit override (the honest, non-lying default).
+    final profile = switch (ref.watch(profileStreamProvider(widget.uid))) {
+      AsyncData(:final value) => value,
+      _ => null,
+    };
+    final notificationDiscreet = profile?.notificationPrivacyDiscreet ?? false;
+    final isArabicContent = profile?.contentLanguage == ContentLanguage.ar;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
@@ -241,7 +303,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ),
-            _ErrorLine(resolve: _lockError),
+            SettingsErrorLine(resolve: _lockError),
             if (lockOn && _biometricAvailable) ...[
               SwitchListTile(
                 value: biometricOn,
@@ -249,7 +311,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: Text(l10n.settingsBiometricTitle),
                 subtitle: Text(l10n.settingsBiometricSubtitle),
               ),
-              _ErrorLine(resolve: _biometricError),
+              SettingsErrorLine(resolve: _biometricError),
             ],
             if (_supportsIcons) ...[
               SwitchListTile(
@@ -261,8 +323,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // runtime API, so the app's NAME still shows under the icon.
                 subtitle: Text(l10n.settingsDiscreetSubtitle),
               ),
-              _ErrorLine(resolve: _iconError),
+              SettingsErrorLine(resolve: _iconError),
             ],
+            SwitchListTile(
+              value: notificationDiscreet,
+              onChanged: _notificationPrivacyBusy
+                  ? null
+                  : _setNotificationPrivacy,
+              title: Text(l10n.settingsNotificationPrivacyTitle),
+              subtitle: Text(
+                isArabicContent
+                    ? l10n.settingsNotificationPrivacySubtitleAr
+                    : l10n.settingsNotificationPrivacySubtitle,
+              ),
+            ),
+            SettingsErrorLine(resolve: _notificationPrivacyError),
+            ListTile(
+              title: Text(l10n.dataRightsExportRowTitle),
+              subtitle: Text(l10n.dataRightsExportRowSubtitle),
+              trailing: const Icon(Icons.download_outlined),
+              onTap: _openExport,
+            ),
+            ListTile(
+              title: Text(l10n.dataRightsDeleteRowTitle),
+              subtitle: Text(l10n.dataRightsDeleteRowSubtitle),
+              trailing: const Icon(Icons.delete_outline),
+              onTap: _openDelete,
+            ),
             ListTile(
               title: Text(l10n.settingsSignOut),
               subtitle: Text(l10n.settingsSignOutSubtitle),
@@ -271,31 +358,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// One honest failure line under the row that produced it, or nothing.
-class _ErrorLine extends StatelessWidget {
-  const _ErrorLine({required this.resolve});
-
-  final String Function(AppLocalizations)? resolve;
-
-  @override
-  Widget build(BuildContext context) {
-    final resolve = this.resolve;
-    if (resolve == null) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(
-        start: SpacingTokens.cardPadding,
-        end: SpacingTokens.cardPadding,
-        bottom: SpacingTokens.x3,
-      ),
-      child: Text(
-        resolve(AppLocalizations.of(context)),
-        style: theme.textTheme.bodySmall?.copyWith(color: ColorTokens.alert),
       ),
     );
   }
@@ -322,57 +384,6 @@ class _BiometricWarningDialog extends StatelessWidget {
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(l10n.settingsBiometricWarningConfirm),
-        ),
-      ],
-    );
-  }
-}
-
-/// PIN verification before the lock is turned off (ADR-018 Decision 1). A real
-/// dialog, legitimately: this route is inside the Navigator (see the class doc
-/// on [SettingsScreen]). Pops the entered PIN, or null on cancel; the PIN never
-/// leaves this widget except as the argument to `disableLock`.
-class _PinVerifyDialog extends StatefulWidget {
-  const _PinVerifyDialog();
-
-  @override
-  State<_PinVerifyDialog> createState() => _PinVerifyDialogState();
-}
-
-class _PinVerifyDialogState extends State<_PinVerifyDialog> {
-  String _pin = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return AlertDialog(
-      title: Text(l10n.settingsLockVerifyTitle),
-      contentPadding: const EdgeInsets.symmetric(
-        vertical: SpacingTokens.x5,
-        horizontal: SpacingTokens.x2,
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PinDots(filled: _pin.length),
-          const SizedBox(height: SpacingTokens.x5),
-          PinKeypad(
-            onDigit: (digit) {
-              if (_pin.length >= kPinLength) return;
-              setState(() => _pin += digit);
-              if (_pin.length == kPinLength) Navigator.of(context).pop(_pin);
-            },
-            onBackspace: () {
-              if (_pin.isEmpty) return;
-              setState(() => _pin = _pin.substring(0, _pin.length - 1));
-            },
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.settingsCancel),
         ),
       ],
     );
