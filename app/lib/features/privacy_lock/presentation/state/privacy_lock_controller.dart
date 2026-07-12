@@ -291,10 +291,17 @@ class PrivacyLockController extends _$PrivacyLockController {
       if (gen != _generation) return false;
       if (!ok) return false;
 
-      final reset = record.copyWith(wrongCount: 0, lockoutUntilMs: null);
+      // Re-base on the CURRENT record (the biometric prompt above is a long
+      // await — a concurrent revoke may have rewritten it) and advance the
+      // in-memory record BEFORE the write, so a re-baser landing inside the
+      // write window sees the reset rather than a stale cooldown it would then
+      // persist back over a legitimate unlock (review finding LOCKBYPASS-3).
+      final current = _record;
+      if (current == null || !current.isSet) return false;
+      final reset = current.copyWith(wrongCount: 0, lockoutUntilMs: null);
+      _record = reset;
       await _writeQuietly(reset);
       if (gen != _generation) return false;
-      _record = reset;
       state = const PrivacyLockUnlocked();
       return true;
     } finally {
@@ -380,34 +387,52 @@ class PrivacyLockController extends _$PrivacyLockController {
   /// in constant time. A WRONG PIN here counts as a wrong attempt and is
   /// persisted: the same bounding as the lock screen, or "disable" would be an
   /// unbounded oracle. A running cooldown refuses without consuming an attempt.
-  Future<bool> disableLock(String pin) async {
-    if (_busy) return false;
+  ///
+  /// Returns the same [PinLockAttemptResult] as [verifyPin] rather than a bool
+  /// (review finding DVUX-4): the caller MUST be able to tell "that PIN was
+  /// wrong" from "a cooldown is running, so the PIN was never even compared".
+  /// Collapsing both to `false` made settings assert *"That PIN didn't match"*
+  /// about a PIN it had not looked at — a lie, on a security surface, in the
+  /// one place the user is trying to prove they are the owner.
+  Future<PinLockAttemptResult> disableLock(String pin) async {
+    if (_busy) return const PinLockAttemptAborted();
     final record = _record;
-    if (record == null || !record.isSet) return false;
+    if (record == null || !record.isSet) return const PinLockAttemptAborted();
 
     final gen = _generation;
     _busy = true;
     try {
       final now = _nowMs;
-      if (_activeCooldown(now) != null) return false;
+      final cooldownUntil = _activeCooldown(now);
+      if (cooldownUntil != null) {
+        return PinLockAttemptCooldown(
+          cooldownUntilMs: cooldownUntil,
+          tier: cooldownTierFor(record.wrongCount),
+        );
+      }
 
       if (!constantTimeEquals(
         hashPin(pin: pin, salt: record.salt),
         record.pinHash,
       )) {
         await _persistWrongAttempt(record, gen, now);
-        return false;
+        final updated = _record ?? record;
+        return PinLockAttemptWrong(
+          remainingBeforeCooldown: remainingBeforeCooldown(updated.wrongCount),
+          cooldownUntilMs: updated.lockoutUntilMs,
+          tier: cooldownTierFor(updated.wrongCount),
+        );
       }
 
-      if (gen != _generation) return false;
+      if (gen != _generation) return const PinLockAttemptAborted();
       await _store.clear();
-      if (gen != _generation) return false;
+      if (gen != _generation) return const PinLockAttemptAborted();
       _record = null;
       _backgroundedAtMs = null;
       state = const PrivacyLockDisabled();
-      return true;
+      return const PinLockAttemptAccepted();
     } catch (_) {
-      return false;
+      return const PinLockAttemptAborted();
     } finally {
       _busy = false;
     }
@@ -417,10 +442,30 @@ class PrivacyLockController extends _$PrivacyLockController {
   /// CAPTURES the platform's current enrollment state into the record (the input
   /// to the revocation check); disabling nulls it.
   ///
-  /// Returns false when the platform has no enrollment state to capture (nothing
-  /// enrolled / unavailable) or when the write fails — never claim an accelerator
-  /// we could not persist or could not later validate.
-  Future<bool> setBiometricEnabled(bool enabled) async {
+  /// **Enabling REQUIRES [pin]** (post-implementation review finding
+  /// LOCKBYPASS-2; ADR-018 D1 always said so — "re-enabling requires the PIN plus
+  /// the warning again" — the first implementation shipped only the warning).
+  /// Attaching a biometric attaches a SECOND CREDENTIAL to the lock, at least as
+  /// security-significant as removing it — and [disableLock] already demands the
+  /// PIN. Without the PIN here, a partner who catches the phone momentarily
+  /// unlocked (inside the 60s grace, or simply handed it) flips this on,
+  /// acknowledges a warning written for the owner, and the record captures an
+  /// enrollment state with THEIR already-enrolled face inside it: a permanent
+  /// second key to the lock, obtained silently, with zero PIN knowledge. The
+  /// enrollment-change revocation cannot catch that — the enrollment never
+  /// changed *after* enable; the attacker was captured *in* it.
+  ///
+  /// The PIN check is bounded exactly like the lock screen's (a wrong PIN is
+  /// persisted as an attempt; a running cooldown refuses) or "enable biometric"
+  /// would be an unbounded PIN oracle sitting behind the gate.
+  ///
+  /// DISABLING needs no PIN: it only ever REDUCES access (fail-safe direction).
+  ///
+  /// Returns false when the PIN is absent/wrong, when the platform has no
+  /// enrollment state to capture (nothing enrolled / unavailable), or when the
+  /// write fails — never claim an accelerator that was not authorised, that we
+  /// could not persist, or that we could not later validate.
+  Future<bool> setBiometricEnabled(bool enabled, {String? pin}) async {
     if (_busy) return false;
     final record = _record;
     if (record == null || !record.isSet) return false;
@@ -430,14 +475,35 @@ class PrivacyLockController extends _$PrivacyLockController {
     try {
       PinLockRecord updated;
       if (enabled) {
+        if (pin == null) return false;
+
+        final now = _nowMs;
+        if (_activeCooldown(now) != null) return false;
+        if (!constantTimeEquals(
+          hashPin(pin: pin, salt: record.salt),
+          record.pinHash,
+        )) {
+          await _persistWrongAttempt(record, gen, now);
+          return false;
+        }
+
         final enrollment = await ref
             .read(biometricAuthenticatorProvider)
             .enrollmentState();
         if (gen != _generation) return false;
         if (enrollment == null) return false;
-        updated = record.copyWith(
+
+        // Re-base on the CURRENT record after the probe await — the rule this
+        // controller lives by (see [_revokeBiometric]).
+        final current = _record;
+        if (current == null || !current.isSet) return false;
+        updated = current.copyWith(
           biometricEnabled: true,
           biometricEnrollmentState: enrollment,
+          // A proven PIN is a successful verification: it resets the bound, the
+          // same as unlocking with it would.
+          wrongCount: 0,
+          lockoutUntilMs: null,
         );
       } else {
         updated = record.copyWith(
@@ -447,9 +513,11 @@ class PrivacyLockController extends _$PrivacyLockController {
       }
 
       if (gen != _generation) return false;
+      // In-memory BEFORE the awaited write, so a concurrent re-baser sees it
+      // (the ordering invariant — see [verifyPin]).
+      _record = updated;
       await _store.write(updated);
       if (gen != _generation) return false;
-      _record = updated;
       return true;
     } catch (_) {
       return false;

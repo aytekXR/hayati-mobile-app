@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/storage/pin_lock_store.dart';
 
+import '../../support/fake_crash_reporter.dart';
+
 /// A record whose secret material is recognisable in a `toString()` haystack.
 const _salt = 'U0FMVFNBTFRTQUxUU0FMVA==';
 const _hash = 'SEFTSEhBU0hIQVNISEFTSEhBU0hIQVNISEFTSA==';
@@ -191,6 +193,32 @@ void main() {
         );
         expect(snapshot.record, isNull);
         expect(snapshot.degraded, isFalse);
+      },
+    );
+
+    test(
+      'a THROWING read BREADCRUMBS before failing open — "loudly" is half the '
+      'promise (D8 row 1; review finding SPEC-2)',
+      () async {
+        // The one state in which the lock is silently not protecting a user who
+        // believes it is. Without this line it would leave no trace anywhere.
+        final reporter = FakeCrashReporter();
+        final snapshot = await readInitialLockSnapshot(
+          _StubStore(() async => throw StateError('keychain fault: item foo')),
+          reporter: reporter,
+        );
+
+        expect(snapshot.degraded, isTrue);
+        expect(reporter.logs, hasLength(1));
+        expect(reporter.logs.single, contains('privacy_lock'));
+        expect(reporter.logs.single, contains('StateError'));
+        expect(
+          reporter.logs.single,
+          isNot(contains('item foo')),
+          reason:
+              'runtimeType only — the no-content rule governs diagnostics '
+              'too; a Keychain fault message can name the item',
+        );
       },
     );
 

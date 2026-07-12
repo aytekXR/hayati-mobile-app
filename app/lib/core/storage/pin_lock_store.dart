@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../observability/crash_reporter.dart';
+
 part 'pin_lock_store.g.dart';
 
 /// The schema version of the persisted lock record (ADR-018 Decision 2). One key,
@@ -269,14 +271,32 @@ PinLockSnapshot initialLockSnapshot(Ref ref) => throw StateError(
 /// fail-open row). Takes the SEAM, not the adapter, so it is unit-tested and
 /// the plugin never enters the test binary. Called by the entrypoints before
 /// `runHayati`.
-Future<PinLockSnapshot> readInitialLockSnapshot(PinLockStore store) async {
+///
+/// "Fail OPEN, **loudly**" is the ADR's phrasing, and [reporter] is the loud
+/// half — without it, the ONE state in which the lock is silently not protecting
+/// a user who believes it is would leave no trace anywhere (Decision 8's first
+/// row; post-implementation review finding SPEC-2). The entrypoints pass the
+/// Crashlytics-backed reporter; widget tests pass none.
+///
+/// The breadcrumb carries a fixed marker and the error's **runtimeType only** —
+/// never its `toString()`, which on a Keychain fault could carry the item's key
+/// or attributes. The no-content rule (architecture §8) governs diagnostics too.
+Future<PinLockSnapshot> readInitialLockSnapshot(
+  PinLockStore store, {
+  CrashReporter? reporter,
+}) async {
   try {
     return PinLockSnapshot(record: await store.read());
-  } catch (_) {
-    // Fail OPEN, loudly: degraded → disabled first frame + a one-shot re-read on
-    // the first resume (the controller's reconcile). An attacker cannot induce a
+  } catch (error) {
+    // Fail OPEN: degraded → disabled first frame + a one-shot re-read on the
+    // first resume (the controller's reconcile). An attacker cannot induce a
     // Keychain read failure without device-level compromise (out of threat
-    // model); a permanent brick is the worse failure.
+    // model), and a permanent brick is the worse failure — reinstalling does not
+    // clear the Keychain. But it must never be SILENT.
+    await reporter?.log(
+      'privacy_lock: boot read failed (${error.runtimeType}); failing open, '
+      'degraded snapshot, will re-read on first resume',
+    );
     return const PinLockSnapshot(record: null, degraded: true);
   }
 }

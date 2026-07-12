@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/app.dart';
 import 'package:hayati_app/core/config/app_config.dart';
 import 'package:hayati_app/core/config/app_config_provider.dart';
+import 'package:hayati_app/core/l10n/gen/app_localizations.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/core/storage/pin_lock_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_exception.dart';
@@ -203,8 +204,13 @@ void main() {
     Uri? deepLink,
     DateTime Function()? clock,
     FakeBiometricAuthenticator? biometrics,
+    bool signedIn = true,
   }) async {
-    final auth = FakeAuthRepository(initialUser: _user);
+    // `signedIn: false` with a stored record is the ORPHANED-RECORD edge
+    // (ADR-018 D1/D8): a lock that outlived its session, e.g. because the
+    // sign-out wipe's `clear()` threw. The lock screen still comes up — the
+    // overlay is state-driven, not auth-driven — and recovery must still escape.
+    final auth = FakeAuthRepository(initialUser: signedIn ? _user : null);
     final deepLinks = FakeDeepLinkSource(initialUri: deepLink);
     final profiles = FakeProfileRepository(initialProfiles: {_uid: profile});
     final couples = FakeCoupleRepository(
@@ -633,5 +639,128 @@ void main() {
       expect(app.store.record, isNotNull);
       expect(app.auth.signOutCalls, 0);
     });
+
+    testWidgets(
+      'the ORPHANED-RECORD edge: recovery escapes even when the app is ALREADY '
+      'signed out — the one path that could brick the device permanently',
+      (tester) async {
+        // A lock record that outlived its session (ADR-018 D1/D8 — e.g. the
+        // sign-out wipe's `clear()` threw). ADR-018 D4 promises recovery here is
+        // "idempotent and works when already signed out: it wipes and lands on
+        // the sign-in screen either way."
+        //
+        // The trap this pins: the wipe used to ride ONLY the root
+        // `ref.listen(authControllerProvider)`, which fires on a state CHANGE.
+        // `AuthSignedOut` is value-equal, so signing out when ALREADY signed out
+        // re-enters an identical state, Riverpod suppresses the notification, the
+        // listener never runs — and the record is never wiped. The overlay would
+        // stay up forever, showing NO error, with no escape: reinstalling does not
+        // clear the Keychain (that is D2's whole point). A permanent brick.
+        final app = await pumpApp(
+          tester,
+          snapshot: lockedSnapshot(),
+          signedIn: false,
+        );
+        expect(app.store.record, isNotNull);
+        expect(find.byType(LockScreen), findsOneWidget);
+
+        await tester.tap(find.text(en.lockForgotPin));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(en.lockRecoveryConfirm));
+        await tester.pumpAndSettle();
+
+        expect(
+          app.store.record,
+          isNull,
+          reason: 'the record MUST be wiped — otherwise the device is bricked',
+        );
+        expect(
+          app.container.read(privacyLockControllerProvider),
+          const PrivacyLockDisabled(),
+        );
+        expect(find.byType(LockScreen), findsNothing);
+        expect(find.byType(SignInScreen), findsOneWidget);
+        expect(
+          find.text(en.lockRecoveryFailed),
+          findsNothing,
+          reason: 'it did not fail — it must not claim it did',
+        );
+      },
+    );
+  });
+
+  group('focus (review finding LOCKBYPASS-4)', () {
+    testWidgets(
+      'engaging the gate DROPS focus — an offstage TextField must not keep the '
+      'keyboard up over the lock screen',
+      (tester) async {
+        // `Offstage` stops paint, hit-testing and semantics — but it does NOT
+        // move focus. A composer the user was typing an answer into stays focused
+        // underneath the lock, so iOS keeps the soft keyboard up OVER the lock
+        // screen (covering the keypad's lower rows AND the always-visible
+        // Forgot-PIN escape), and a hardware keyboard keeps talking to couple
+        // content the lock is supposed to have closed. Unfocusing severs it.
+        var now = _fixedNow;
+        final store = FakePinLockStore();
+        final container = ProviderContainer(
+          overrides: [
+            pinLockStoreProvider.overrideWithValue(store),
+            initialLockSnapshotProvider.overrideWithValue(noLockSnapshot),
+            biometricAuthenticatorProvider.overrideWithValue(
+              FakeBiometricAuthenticator(available: false),
+            ),
+            authRepositoryProvider.overrideWith(
+              (ref) => FakeAuthRepository(initialUser: _user),
+            ),
+            soloClockProvider.overrideWith(
+              (ref) =>
+                  () => now,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final field = FocusNode();
+        addTearDown(field.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              locale: const Locale('en'),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: PrivacyGuard(
+                child: Scaffold(
+                  body: TextField(focusNode: field, autofocus: true),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(field.hasFocus, isTrue, reason: 'the composer is focused');
+
+        // The real path: a PIN exists, the user leaves, and comes back past the
+        // grace window.
+        final controller = container.read(
+          privacyLockControllerProvider.notifier,
+        );
+        await controller.enableLock('123456');
+        controller.noteBackgrounded();
+        now = _fixedNow.add(kLockGraceWindow + const Duration(seconds: 1));
+        await controller.noteResumed();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(LockScreen), findsOneWidget);
+        expect(
+          field.hasFocus,
+          isFalse,
+          reason:
+              'focus must not survive the gate — the keyboard would ride up over '
+              'the lock screen and keep typing into couple content',
+        );
+      },
+    );
   });
 }

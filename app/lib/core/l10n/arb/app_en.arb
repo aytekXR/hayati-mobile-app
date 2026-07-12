@@ -597,9 +597,9 @@
   "@settingsLockSubtitleOff": {
     "description": "Row 1 subtitle when no PIN is set"
   },
-  "settingsLockSubtitleOn": "Hayati asks for your PIN when you open it.",
+  "settingsLockSubtitleOn": "Hayati asks for your PIN when you open it, and again if you've been away for more than a minute.",
   "@settingsLockSubtitleOn": {
-    "description": "Row 1 subtitle when a PIN is set"
+    "description": "Subtitle when the lock is ON. MUST disclose the 60s grace window — a categorical \"every time you open it\" is false and over-claims the layer's own fail-direction (review finding DVUX-2)."
   },
   "settingsLockSetUp": "Set up PIN",
   "@settingsLockSetUp": {
@@ -697,7 +697,9 @@
   "@lockWrongPin": {
     "description": "Wrong-PIN copy on the lock screen, showing how many free attempts remain before a cooldown starts (ADR-018 D4)",
     "placeholders": {
-      "remaining": { "type": "int" }
+      "remaining": {
+        "type": "int"
+      }
     }
   },
   "lockCooldownThirtySeconds": "Too many attempts. Try again in about 30 seconds.",
@@ -751,5 +753,9 @@
   "lockRecoveryFailed": "Couldn't sign out — check your connection and try again.",
   "@lockRecoveryFailed": {
     "description": "Honest retry line when the recovery sign-out throws: nothing was wiped and the overlay stays locked (ADR-018 D4)"
+  },
+  "settingsLockCooldown": "Too many attempts. Try again shortly.",
+  "@settingsLockCooldown": {
+    "description": "Shown in settings when a PIN op is refused because a cooldown is running — the PIN was never compared, so claiming it \"did not match\" would be a lie (review finding DVUX-4)."
   }
 }

@@ -817,3 +817,75 @@ ALL folded into this rev before any code:
   previews carry no couple content by ADR-012 D3 (payloads are
   content-free in every mode); Offstage additionally closes the VoiceOver
   readback channel (recorded as a positive in D3).
+
+## Post-implementation adversarial review record (rev 3 — 5 lenses × 2 verifiers)
+
+Run against the built diff (lock-bypass, Flutter correctness, spec conformance,
+iOS/CI, DV-copy/l10n), each finding verified by a refuting skeptic and a spec
+adjudicator. **2 blocking + 4 serious confirmed and fixed before merge.** Two of
+them were found INDEPENDENTLY BY TWO LENSES, which is the signal worth trusting.
+
+- **BLOCKING — the orphaned-record brick (SPEC-1 / LOCKBYPASS-1).** The wipe
+  rode ONLY the root `ref.listen(authControllerProvider)`, which fires on a
+  state *change*. `AuthSignedOut` is value-equal, so signing out while ALREADY
+  signed out re-enters an identical state, Riverpod suppresses the
+  notification, and the listener never runs. The orphaned-record edge (a lock
+  that outlived its session because the wipe's `clear()` threw — D1/D8's own
+  named case) boots exactly there: lock screen up, auth already signed out. The
+  user taps "Forgot PIN? Sign out", and *nothing happens* — no wipe, no error,
+  forever, with **no escape**, because reinstalling does not clear the Keychain
+  (D2's whole point). D4 had promised this path was "idempotent and works when
+  already signed out"; the code did not carry it. **Fix:** recovery reads the
+  SETTLED auth state after `signOut()` and wipes on the *state*, not on the
+  transition. Ordering (sign-out first, lock held until confirmed) is preserved;
+  `wipe()` is idempotent so the normal path's double-wipe is harmless.
+- **BLOCKING — biometric attachable without the PIN (LOCKBYPASS-2 / DVUX-1).**
+  Enabling the accelerator required only the DV warning, not the PIN — though
+  D1's own revocation paragraph already said "re-enabling requires the PIN plus
+  the warning again". A partner who catches the phone *momentarily unlocked*
+  (inside the 60s grace, or simply handed it) walks into Settings, flips Face ID
+  on, acknowledges a warning written for the owner, and the record captures an
+  enrollment state **with their own already-enrolled face inside it** — a
+  permanent second credential to the lock, obtained silently, with zero PIN
+  knowledge. Enrollment-change revocation cannot catch it: the enrollment never
+  changed *after* enable; the attacker was captured *in* it. This converted a
+  transient unlocked-phone window into persistent access and broke D4's promise
+  that access cannot be gained *silently*. **Fix:** enabling now demands the PIN,
+  attempt-bounded exactly like the lock screen (or "enable biometric" would be an
+  unbounded PIN oracle sitting behind the gate). Disabling still needs no PIN —
+  it only ever reduces access.
+- **SERIOUS — the TR copy inverted the lock state (DVUX-3).** `settingsPinSaveFailed`
+  read *"Kilit hâlâ kapalı"* — intended as "the lock is still off", but a Turkish
+  speaker reads *kilit kapalı* as "the lock is **closed**", i.e. engaged. On the
+  exact path D8 governs ("never claim protection that didn't persist"), the app
+  told users in its primary market that they **were** protected when the record
+  had failed to save. Its sibling inverted the other way. Fixed to
+  `etkin` / `etkin değil`, which carry no open/closed metaphor. (AR was correct
+  throughout: `مفعّل` / `متوقف`.) Neither the ARB parity guard nor the goldens can
+  see a semantic inversion — only a reader can.
+- **SERIOUS — the grace window was hidden from the copy (DVUX-2).** The
+  lock-on subtitle promised the PIN is asked *"every time you open it"* (TR:
+  "her açtığında"; AR: "في كل مرة"). The 60s grace makes that categorically
+  false in precisely the DV hand-off scenario. Copy now discloses it.
+- **SERIOUS — "that PIN didn't match" about a PIN never compared (DVUX-4).**
+  Settings collapsed a wrong PIN and a running cooldown into one `false`, then
+  asserted the PIN mismatched — telling owners they mistyped when the app had not
+  looked. `disableLock` now returns the same `PinLockAttemptResult` as `verifyPin`
+  so the two refusals render distinctly.
+- **SERIOUS — focus survived the gate (LOCKBYPASS-4).** `Offstage` stops paint and
+  hit-testing but does not move focus: a TextField the user was typing an answer
+  into stayed focused *underneath* the lock, so the soft keyboard rode up over the
+  lock screen and a hardware keyboard kept talking to couple content. The guard now
+  unfocuses when it engages.
+- **Also fixed:** `authenticateBiometric` advanced `_record` after its awaited
+  write (the stale-window class already fixed in `verifyPin`); the discreet
+  icon's `Contents.json` mixed the Xcode 14+ single-size shape with a legacy
+  `scale` key — harmless in the branch CI exercised, but the *other* branch is
+  actool silently emitting no `CFBundleAlternateIcons`, which would leave the
+  feature dead with a green pipeline. Rewritten to the canonical shape.
+- **Recorded, not fixed (deliberate):** `evaluatedPolicyDomainState` is
+  deprecated under the iOS 18 SDK in favour of `domainState.biometry` — it still
+  works and the replacement is not yet load-bearing; flagged for the M6.3 pass.
+  A transient Face ID *lockout* (too many failed face attempts) currently reads as
+  an enrollment change and permanently revokes the accelerator — fail-safe
+  direction (toward the PIN), mildly annoying, worth revisiting on device.

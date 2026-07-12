@@ -99,6 +99,27 @@ class _PrivacyGuardState extends ConsumerState<PrivacyGuard>
   @override
   Widget build(BuildContext context) {
     final locked = ref.watch(privacyLockControllerProvider) is PrivacyLocked;
+
+    // Drop focus the moment the gate engages (review finding LOCKBYPASS-4).
+    // `Offstage` stops paint and hit-testing, but it does NOT move focus: a
+    // TextField the user was typing an answer into stays focused underneath, so
+    // the soft keyboard rides up OVER the lock screen — and a hardware keyboard
+    // (or the keyboard's own predictive-text bar, which can surface the field's
+    // recent content) keeps talking to couple content the lock is supposed to
+    // have closed. Unfocusing is the only thing that severs it.
+    if (locked) {
+      final focus = FocusManager.instance.primaryFocus;
+      if (focus != null) {
+        // Post-frame: we are inside build, and unfocus mutates the focus tree.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              ref.read(privacyLockControllerProvider) is PrivacyLocked) {
+            FocusManager.instance.primaryFocus?.unfocus();
+          }
+        });
+      }
+    }
+
     return Stack(
       fit: StackFit.expand,
       children: [

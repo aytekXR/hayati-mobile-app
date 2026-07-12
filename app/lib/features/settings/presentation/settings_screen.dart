@@ -8,6 +8,7 @@ import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
 import '../../privacy_lock/domain/biometric_authenticator.dart';
 import '../../privacy_lock/domain/pin_hasher.dart';
+import '../../privacy_lock/domain/pin_lock_attempt_result.dart';
 import '../../privacy_lock/presentation/state/privacy_lock_controller.dart';
 import '../../privacy_lock/presentation/widgets/pin_keypad.dart';
 import '../domain/app_icon_switcher.dart';
@@ -100,27 +101,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (_) => const _PinVerifyDialog(),
     );
     if (pin == null || !mounted) return;
-    final ok = await ref
+    final result = await ref
         .read(privacyLockControllerProvider.notifier)
         .disableLock(pin);
     if (!mounted) return;
-    if (!ok) {
-      // Honest either way: a wrong PIN and a running cooldown both mean "the
-      // lock is still on" — and the wrong attempt was persisted (Decision 4:
-      // disable is bounded exactly like the lock screen, or it would be an
-      // unbounded oracle).
-      setState(() => _lockError = (l10n) => l10n.settingsLockDisableFailed);
-    }
+
+    // The two refusals are NOT the same thing, and saying so was a lie (review
+    // finding DVUX-4). A wrong PIN was compared and did not match. A cooldown
+    // means the PIN was never even LOOKED at — asserting "that PIN didn't match"
+    // there tells the owner they mistyped when they did not, on the one surface
+    // where they are trying to prove they are the owner. (The disable path IS
+    // attempt-bounded, exactly like the lock screen, or it would be an unbounded
+    // PIN oracle — so a cooldown is genuinely reachable from here.)
+    setState(() {
+      _lockError = switch (result) {
+        PinLockAttemptWrong() => (l10n) => l10n.settingsLockDisableFailed,
+        PinLockAttemptCooldown() => (l10n) => l10n.settingsLockCooldown,
+        PinLockAttemptAccepted() || PinLockAttemptAborted() => null,
+      };
+    });
   }
 
   // ── Row 2: the biometric accelerator ─────────────────────────────────────
 
+  /// Turning the accelerator ON demands the **PIN**, not just the warning
+  /// (post-implementation review finding LOCKBYPASS-2; ADR-018 D1 already said
+  /// so — "re-enabling requires the PIN plus the warning again" — and the first
+  /// implementation shipped only the warning).
+  ///
+  /// Why the PIN is load-bearing here, not ceremony: attaching a biometric is
+  /// attaching a SECOND CREDENTIAL to the lock, which is at least as
+  /// security-significant as removing it — and removing it already demands the
+  /// PIN. Without this, a partner who catches the phone momentarily unlocked
+  /// (inside the 60s grace, or simply handed it) can walk into Settings, flip
+  /// this on, acknowledge a warning written for the owner, and have the record
+  /// capture the enrollment state **with their own already-enrolled face inside
+  /// it** — a permanent second key to the lock, obtained silently, without ever
+  /// knowing the PIN. The enrollment-change revocation cannot save us there: the
+  /// enrollment never changed *after* enable; the attacker was captured *in* it.
+  /// That would turn a transient unlocked-phone window into persistent access
+  /// and break D4's honest promise that access cannot be gained *silently*.
+  ///
+  /// Turning it OFF needs no PIN: it only ever REDUCES access (fail-safe).
   Future<void> _setBiometric(bool enabled) async {
     setState(() {
       _biometricError = null;
       _biometricBusy = true;
     });
     try {
+      String? pin;
       if (enabled) {
         // The DV warning comes BEFORE any write (review finding DVUX-1): at
         // enable time the app cannot know WHOSE face or finger is enrolled on
@@ -131,10 +160,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           builder: (_) => const _BiometricWarningDialog(),
         );
         if (acknowledged != true || !mounted) return;
+
+        pin = await showDialog<String>(
+          context: context,
+          builder: (_) => const _PinVerifyDialog(),
+        );
+        if (pin == null || !mounted) return;
       }
       final ok = await ref
           .read(privacyLockControllerProvider.notifier)
-          .setBiometricEnabled(enabled);
+          .setBiometricEnabled(enabled, pin: pin);
       if (!mounted) return;
       if (!ok) {
         setState(

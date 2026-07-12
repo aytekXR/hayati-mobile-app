@@ -846,46 +846,135 @@ void main() {
       },
     );
 
+    test('disableLock during a COOLDOWN reports the cooldown, NOT a wrong PIN — '
+        'the PIN was never compared (DVUX-4)', () async {
+      // Settings used to collapse both refusals to `false` and then assert
+      // "That PIN didn't match" — telling the owner they mistyped when the app
+      // had not even looked at what they typed, on the one surface where they
+      // are trying to prove they ARE the owner.
+      final until = msFromStart(const Duration(seconds: 30));
+      final store = FakePinLockStore(
+        initial: aRecord(wrongCount: 5, lockoutUntilMs: until),
+      );
+      final container = boot(store: store);
+
+      final result = await controllerOf(container).disableLock(correctPin);
+
+      expect(result, isA<PinLockAttemptCooldown>());
+      expect(store.record!.wrongCount, 5, reason: 'not consumed');
+      expect(store.record, isNotNull, reason: 'the lock stays on');
+    });
+
     test('disableLock with the correct PIN clears the record', () async {
       final store = FakePinLockStore(initial: aRecord());
       final container = boot(store: store);
       await controllerOf(container).verifyPin(correctPin);
 
-      expect(await controllerOf(container).disableLock(correctPin), isTrue);
+      expect(
+        await controllerOf(container).disableLock(correctPin),
+        const PinLockAttemptAccepted(),
+      );
       expect(store.record, isNull);
       expect(stateOf(container), const PrivacyLockDisabled());
     });
 
-    test(
-      'disableLock with a WRONG PIN fails and persists the attempt',
-      () async {
-        final store = FakePinLockStore(initial: aRecord(wrongCount: 1));
-        final container = boot(store: store);
-        await controllerOf(container).verifyPin(correctPin);
+    test('disableLock with a WRONG PIN fails and persists the attempt', () async {
+      final store = FakePinLockStore(initial: aRecord(wrongCount: 1));
+      final container = boot(store: store);
+      await controllerOf(container).verifyPin(correctPin);
 
-        expect(await controllerOf(container).disableLock(wrongPin), isFalse);
-        expect(
-          store.record!.wrongCount,
-          1,
-          reason:
-              'the successful verify reset it to 0, so this wrong disable '
-              'attempt puts it back at 1 — the same bounding as the lock screen',
+      // The result TYPE is load-bearing (review finding DVUX-4): settings must be
+      // able to say "that PIN was wrong" only when a PIN was actually compared.
+      expect(
+        await controllerOf(container).disableLock(wrongPin),
+        isA<PinLockAttemptWrong>(),
+      );
+      expect(
+        store.record!.wrongCount,
+        1,
+        reason:
+            'the successful verify reset it to 0, so this wrong disable '
+            'attempt puts it back at 1 — the same bounding as the lock screen',
+      );
+      expect(store.record!.isSet, isTrue);
+    });
+
+    test(
+      'setBiometricEnabled(true) captures the enrollment state — with the PIN',
+      () async {
+        final store = FakePinLockStore(initial: aRecord());
+        final container = boot(
+          store: store,
+          biometric: FakeBiometricAuthenticator(enrollment: 'e9'),
         );
-        expect(store.record!.isSet, isTrue);
+
+        expect(
+          await controllerOf(
+            container,
+          ).setBiometricEnabled(true, pin: correctPin),
+          isTrue,
+        );
+        expect(store.record!.biometricEnabled, isTrue);
+        expect(store.record!.biometricEnrollmentState, 'e9');
       },
     );
 
-    test('setBiometricEnabled(true) captures the enrollment state', () async {
+    test('ATTACHING a biometric REQUIRES the PIN — without it, a partner holding a '
+        'momentarily-unlocked phone gains a permanent second credential '
+        '(LOCKBYPASS-2)', () async {
+      // The attack: the lock is ON, biometric OFF, and the partner catches the
+      // phone unlocked (inside the 60s grace, or simply handed it). They walk
+      // into Settings and flip Face ID on. The record would capture the CURRENT
+      // enrollment state — which already contains THEIR face — giving them a
+      // permanent key to the lock, silently, with zero PIN knowledge. The
+      // enrollment-change revocation cannot save us: the enrollment never
+      // changed *after* enable; they were captured *inside* it.
+      //
+      // Attaching a second credential is at least as security-significant as
+      // REMOVING the lock — and removing it already demands the PIN.
       final store = FakePinLockStore(initial: aRecord());
-      final container = boot(
-        store: store,
-        biometric: FakeBiometricAuthenticator(enrollment: 'e9'),
+      final biometric = FakeBiometricAuthenticator(enrollment: 'partner-face');
+      final container = boot(store: store, biometric: biometric);
+      final controller = controllerOf(container);
+
+      expect(
+        await controller.setBiometricEnabled(true),
+        isFalse,
+        reason: 'no PIN, no accelerator',
+      );
+      expect(
+        await controller.setBiometricEnabled(true, pin: wrongPin),
+        isFalse,
       );
 
-      expect(await controllerOf(container).setBiometricEnabled(true), isTrue);
-      expect(store.record!.biometricEnabled, isTrue);
-      expect(store.record!.biometricEnrollmentState, 'e9');
+      expect(store.record!.biometricEnabled, isFalse);
+      expect(store.record!.biometricEnrollmentState, isNull);
+      expect(
+        biometric.callLog,
+        isNot(contains('enrollmentState')),
+        reason: 'a wrong PIN must not even reach the enrollment probe',
+      );
+      // And the wrong attempt is BOUNDED like every other PIN entry, or
+      // "enable biometric" would be an unbounded PIN oracle behind the gate.
+      expect(store.record!.wrongCount, 1);
     });
+
+    test(
+      'DISABLING the accelerator needs no PIN — it only reduces access',
+      () async {
+        final store = FakePinLockStore(
+          initial: aRecord(biometricEnabled: true, enrollment: 'e1'),
+        );
+        final container = boot(store: store);
+
+        expect(
+          await controllerOf(container).setBiometricEnabled(false),
+          isTrue,
+        );
+        expect(store.record!.biometricEnabled, isFalse);
+        expect(store.record!.biometricEnrollmentState, isNull);
+      },
+    );
 
     test(
       'setBiometricEnabled(true) refuses when the platform has no enrollment '
@@ -898,7 +987,9 @@ void main() {
         );
 
         expect(
-          await controllerOf(container).setBiometricEnabled(true),
+          await controllerOf(
+            container,
+          ).setBiometricEnabled(true, pin: correctPin),
           isFalse,
         );
         expect(store.record!.biometricEnabled, isFalse);

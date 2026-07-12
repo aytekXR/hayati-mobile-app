@@ -172,11 +172,28 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   /// The recovery flow (ADR-018 Decision 4; review finding DVUX-3).
   ///
   /// ORDERING IS LOAD-BEARING: sign out FIRST, with the overlay still LOCKED.
-  /// The root listener in `app.dart` observes `AuthSignedOut` and wipes the
-  /// record, which flips the state to `disabled` and drops this overlay onto the
-  /// sign-in screen. We never wipe first — a wipe-then-sign-out ordering, with a
-  /// sign-out that throws, would drop the overlay on a still-signed-in app and
-  /// paint couple content.
+  /// We never wipe first — a wipe-then-sign-out ordering, with a sign-out that
+  /// throws, would drop the overlay on a still-signed-in app and paint couple
+  /// content.
+  ///
+  /// But the wipe must NOT depend on the root listener's auth TRANSITION firing,
+  /// and this is the subtle part (post-implementation review, SPEC-1 — the one
+  /// defect in this layer that could brick a device permanently):
+  ///
+  /// `ref.listen(authControllerProvider, …)` in `app.dart` fires on a state
+  /// CHANGE. `AuthSignedOut` is value-equal, so signing out while ALREADY signed
+  /// out re-enters an identical state, Riverpod suppresses the notification, and
+  /// the listener never runs. That is not a hypothetical: the ORPHANED-RECORD
+  /// edge (a lock that outlived its session because the wipe's `clear()` threw —
+  /// ADR-018 D1/D8) boots exactly there, lock screen up, auth already signed out.
+  /// Riding the listener alone would leave the record un-wiped, the overlay up,
+  /// and NO error shown — with no escape, because reinstalling does not clear the
+  /// Keychain (D2's whole point). Permanent brick.
+  ///
+  /// So: sign out, then read the SETTLED auth state, and wipe on the STATE, not
+  /// on the transition. `wipe()` is idempotent (generation bump + clear + state
+  /// mutation), so the normal path — where the listener already wiped during the
+  /// await — is a harmless second call.
   Future<void> _confirmRecovery() async {
     setState(() {
       _signingOut = true;
@@ -189,10 +206,17 @@ class _LockScreenState extends ConsumerState<LockScreen> {
       // belt for anything else. Either way: nothing was wiped, we stay locked.
     }
     if (!mounted) return;
-    final auth = ref.read(authControllerProvider);
+
+    if (ref.read(authControllerProvider) is AuthSignedOut) {
+      // Confirmed signed out — the only condition under which the lock may drop
+      // (Decision 4). Idempotent by construction.
+      await ref.read(privacyLockControllerProvider.notifier).wipe();
+      return; // The state flip to `disabled` un-mounts this overlay.
+    }
+
     setState(() {
       _signingOut = false;
-      _recoveryFailed = auth is! AuthSignedOut;
+      _recoveryFailed = true;
     });
   }
 

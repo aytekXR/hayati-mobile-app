@@ -84,7 +84,10 @@ Future<void> main() async {
   // launch, self-healed by the controller's re-read on the first resume) rather
   // than a permanent brick behind a lock screen that can verify nothing.
   const pinLockStore = SecureStoragePinLockStore();
-  final lockSnapshot = await readInitialLockSnapshot(pinLockStore);
+  final lockSnapshot = await readInitialLockSnapshot(
+    pinLockStore,
+    reporter: crashReporter,
+  );
   final googleConfig = googleSignInConfigFor(config.flavor);
   runHayati(
     config,

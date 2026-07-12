@@ -156,7 +156,7 @@ void main() {
       expect(find.text(en.settingsBiometricTitle), findsNothing);
     });
 
-    testWidgets('enabling shows the DV WARNING before ANY write', (
+    testWidgets('enabling shows the DV WARNING and then demands the PIN', (
       tester,
     ) async {
       final env = arrange(
@@ -178,8 +178,40 @@ void main() {
       await tester.tap(find.text(en.settingsBiometricWarningConfirm));
       await tester.pumpAndSettle();
 
+      // Acknowledging the warning is NOT authorisation (review finding
+      // LOCKBYPASS-2). Attaching a second credential to the lock demands the PIN,
+      // exactly as removing the lock does — otherwise a partner holding a
+      // momentarily-unlocked phone attaches their own enrolled face and keeps
+      // permanent access without ever knowing the PIN.
+      expect(
+        env.store.record?.biometricEnabled,
+        isFalse,
+        reason: 'the warning alone must not enable it',
+      );
+      await enterPin(tester, kTestPin);
+      await tester.pumpAndSettle();
+
       expect(env.store.record?.biometricEnabled, isTrue);
       expect(env.store.record?.biometricEnrollmentState, 'enrollment-v1');
+    });
+
+    testWidgets('a WRONG PIN leaves the accelerator off', (tester) async {
+      final env = arrange(
+        record: lockRecord(),
+        biometrics: FakeBiometricAuthenticator(),
+      );
+      await pumpSettings(tester, env.overrides);
+
+      await tester.tap(find.byType(Switch).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.settingsBiometricWarningConfirm));
+      await tester.pumpAndSettle();
+      await enterPin(tester, kWrongPin);
+      await tester.pumpAndSettle();
+
+      expect(env.store.record?.biometricEnabled, isFalse);
+      expect(env.store.record?.biometricEnrollmentState, isNull);
+      expect(find.text(en.settingsBiometricFailed), findsOneWidget);
     });
 
     testWidgets('declining the warning writes nothing and leaves it off', (
@@ -215,6 +247,8 @@ void main() {
         await tester.tap(find.byType(Switch).first);
         await tester.pumpAndSettle();
         await tester.tap(find.text(en.settingsBiometricWarningConfirm));
+        await tester.pumpAndSettle();
+        await enterPin(tester, kTestPin);
         await tester.pumpAndSettle();
 
         expect(find.text(en.settingsBiometricFailed), findsOneWidget);

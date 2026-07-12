@@ -136,7 +136,7 @@
   "settingsTitle": "الإعدادات",
   "settingsLockTitle": "قفل التطبيق",
   "settingsLockSubtitleOff": "احمِ حياتي برمز PIN من ٦ أرقام.",
-  "settingsLockSubtitleOn": "يطلب حياتي رمزك في كل مرة تفتحه.",
+  "settingsLockSubtitleOn": "يطلب حياتي رمزك عند فتحه، ومرة أخرى إذا غبت أكثر من دقيقة.",
   "settingsLockSetUp": "إنشاء رمز PIN",
   "settingsLockTurnOff": "إيقاف",
   "settingsLockVerifyTitle": "أدخل رمزك",
@@ -173,5 +173,6 @@
   "lockRecoveryBody": "سيؤدي هذا إلى تسجيل خروجك من هذا الهاتف وحذف الرمز. إجاباتك في أمان — سجّل الدخول مجددًا لتراها.",
   "lockRecoveryConfirm": "تسجيل الخروج",
   "lockRecoveryCancel": "إلغاء",
-  "lockRecoveryFailed": "تعذّر تسجيل الخروج — تحقق من اتصالك وحاول مرة أخرى."
+  "lockRecoveryFailed": "تعذّر تسجيل الخروج — تحقق من اتصالك وحاول مرة أخرى.",
+  "settingsLockCooldown": "محاولات كثيرة. حاول مرة أخرى بعد قليل."
 }
