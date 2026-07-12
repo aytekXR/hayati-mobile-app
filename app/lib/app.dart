@@ -10,7 +10,10 @@ import 'core/design_system/hayati_theme.dart';
 import 'core/l10n/gen/app_localizations.dart';
 import 'core/observability/crash_reporter.dart';
 import 'core/observability/error_hooks.dart';
+import 'features/auth/domain/auth_state.dart';
 import 'features/auth/presentation/sign_in_screen.dart';
+import 'features/auth/presentation/state/auth_controller.dart';
+import 'features/coach/presentation/state/coach_transcript.dart';
 import 'features/entitlements/presentation/state/purchases_identity_sync.dart';
 import 'features/pairing/presentation/state/pending_invite.dart';
 
@@ -57,6 +60,18 @@ class HayatiApp extends ConsumerWidget {
     // app root is the only always-mounted widget (ADR-014 Decision 2). Lazy by
     // design: a signed-out lifecycle never resolves the purchases seam.
     ref.listen(purchasesIdentitySyncProvider, (_, _) {});
+    // Tear down all coach conversation state on any transition away from a
+    // signed-in user (ADR-017 Decision 3). The coach transcript family is
+    // keepAlive — it survives route pops BY DESIGN — so a sign-out that only
+    // popped the route would leave crisis text reachable across a
+    // sign-out→sign-in cycle in one process. Invalidating the family wholesale
+    // from the always-mounted root (the purchasesIdentitySync mount precedent)
+    // makes the ephemeral, retention-zero claim true.
+    ref.listen(authControllerProvider, (previous, next) {
+      if (next is! AuthSignedIn) {
+        ref.invalidate(coachTranscriptProvider);
+      }
+    });
     return MaterialApp(
       // Brand name stays sourced from core/config (never the ARBs) so a
       // rename touches one place (docs/frontend-brandkit.md §1).

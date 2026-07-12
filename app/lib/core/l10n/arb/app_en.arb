@@ -470,5 +470,119 @@
   "packSelectionGatedCta": "See Premium",
   "@packSelectionGatedCta": {
     "description": "Primary CTA on the locked pack selection view opening the paywall"
+  },
+  "coachTileTitle": "Coach",
+  "@coachTileTitle": {
+    "description": "Title of the coach entry tile on the paired home question view (premium only)"
+  },
+  "coachTileSubtitle": "Advice, date ideas, and gifts — for the two of you",
+  "@coachTileSubtitle": {
+    "description": "Subtitle of the coach entry tile: what the coach personas offer"
+  },
+  "coachTitle": "Coach",
+  "@coachTitle": {
+    "description": "App bar title of the coach chat screen"
+  },
+  "coachPersonaCoach": "Coach",
+  "@coachPersonaCoach": {
+    "description": "Label of the Coach persona choice chip and its reply-bubble attribution"
+  },
+  "coachPersonaDateGenie": "Date Genie",
+  "@coachPersonaDateGenie": {
+    "description": "Label of the Date Genie persona choice chip and its reply-bubble attribution"
+  },
+  "coachPersonaGiftGenie": "Gift Genie",
+  "@coachPersonaGiftGenie": {
+    "description": "Label of the Gift Genie persona choice chip and its reply-bubble attribution"
+  },
+  "coachEmptyState": "Ask anything — from a hard conversation to a date idea.",
+  "@coachEmptyState": {
+    "description": "Empty-transcript prompt shown before the first message to a persona"
+  },
+  "coachInputHint": "Type a message…",
+  "@coachInputHint": {
+    "description": "Placeholder in the coach composer text field"
+  },
+  "coachSend": "Send",
+  "@coachSend": {
+    "description": "Label of the coach composer send button"
+  },
+  "coachInputTooLong": "That message is a little too long — try trimming it.",
+  "@coachInputTooLong": {
+    "description": "Inline caption when the drafted message exceeds the 2000 code-unit wire bound (send disabled)"
+  },
+  "coachDisclaimerTitle": "Before you begin",
+  "@coachDisclaimerTitle": {
+    "description": "Title of the first-open coach disclaimer gate (not-therapy note)"
+  },
+  "coachDisclaimerBody": "A gentle note: this coach is here for warmth and reflection, not for medical or psychological care. It is not therapy and not a substitute for a professional. If something feels serious, please reach out to a qualified person you trust.",
+  "@coachDisclaimerBody": {
+    "description": "Body of the first-open coach disclaimer gate: the not-therapy framing (moved from the server, ADR-017 Decision 4)"
+  },
+  "coachDisclaimerCta": "I understand",
+  "@coachDisclaimerCta": {
+    "description": "Acknowledge CTA on the coach disclaimer gate; persists the ack and reveals the chat"
+  },
+  "coachHelpTitle": "We're here for you",
+  "@coachHelpTitle": {
+    "description": "Header of the safety help card rendered on a crisis (help-path) response"
+  },
+  "coachPausedBody": "This conversation is paused to keep you safe. When you're ready, you can start a new one.",
+  "@coachPausedBody": {
+    "description": "Body of the paused panel that replaces the composer while a conversation is help-latched"
+  },
+  "coachNewConversation": "Start a new conversation",
+  "@coachNewConversation": {
+    "description": "Action that clears the active persona's transcript, latch, and quota hint (paused panel and app bar reset)"
+  },
+  "coachQuotaRemaining": "{count, plural, =1{1 message left today} other{{count} messages left today}}",
+  "@coachQuotaRemaining": {
+    "description": "Daily remaining-messages caption under the transcript (display-only response hint, never a gate; never shows the monthly figure)",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "7"
+      }
+    }
+  },
+  "coachQuotaExhausted": "You've used today's messages — see you tomorrow",
+  "@coachQuotaExhausted": {
+    "description": "Quota caption when the daily remaining hint is zero (dedicated non-plural string; input stays enabled)"
+  },
+  "coachErrorUnavailable": "The coach isn't available right now. Please try again in a moment.",
+  "@coachErrorUnavailable": {
+    "description": "Inline error for CoachUnavailableException (provider/transport outage)"
+  },
+  "coachErrorRateLimited": "That's quick! Give it a few seconds and try again.",
+  "@coachErrorRateLimited": {
+    "description": "Inline error for CoachRateLimitedException (too many requests too fast)"
+  },
+  "coachErrorCapDaily": "You've reached today's message limit. It resets tomorrow.",
+  "@coachErrorCapDaily": {
+    "description": "Inline error for CoachDailyCapException (this user's daily allotment is used)"
+  },
+  "coachErrorCapMonthly": "You've reached this month's shared limit for you two.",
+  "@coachErrorCapMonthly": {
+    "description": "Inline error for CoachMonthlyCapException (the couple-shared monthly limit)"
+  },
+  "coachErrorLimit": "A limit was reached — please try again later.",
+  "@coachErrorLimit": {
+    "description": "Inline error for CoachLimitReachedException (resource-exhausted with the reason dropped; never over-claims daily vs monthly)"
+  },
+  "coachErrorGeneric": "Something went wrong. Please try again.",
+  "@coachErrorGeneric": {
+    "description": "Inline error for CoachUnknownException/CoachNotMemberException and the honest profile-error state"
+  },
+  "coachGatedTitle": "The coach is a Premium feature",
+  "@coachGatedTitle": {
+    "description": "Title of the coach gated view (mid-session downgrade defense in depth)"
+  },
+  "coachGatedBody": "One subscription unlocks it for both of you.",
+  "@coachGatedBody": {
+    "description": "Body of the coach gated view: the couple-scoped premium pitch"
+  },
+  "coachGatedCta": "See Premium",
+  "@coachGatedCta": {
+    "description": "Primary CTA on the coach gated view opening the paywall"
   }
 }
