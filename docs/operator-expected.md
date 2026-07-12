@@ -7,46 +7,64 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-12, Session 019 close (M5.2 — the coach CHAT UI on
-the M5.1 spine + persona scaffolds + the private-thread decision; **on plan,
-18/22 units, 82%**). The TestFlight runbook lives below._
+_Last refreshed: 2026-07-12, Session 020 close (M6.1 — the device-privacy
+layer: app lock + discreet icon + snapshot shield + your first settings
+screen; **on plan, 19/22 units, 86%**). The TestFlight runbook lives below._
 
-## Expected from you right now: **nothing was blocked this session — but item 6 (pick the AI provider) is now DUE: the next coach step (M5.3, going live) waits on it. One NEW decision joined the list (item 7, private-thread retention). Neither blocks Session 020 (it builds the app lock / discreet mode instead).**
+## Expected from you right now: **NOTHING IS BLOCKING THIS SESSION'S WORK — no action was required and none was taken on your behalf.** Two decisions remain open and neither blocked Session 020: **item 6 (pick the AI provider — now OVERDUE, it is the only thing between the coach and its first live conversation)** and item 7 (should coach chats ever be saved?). Item 6 unblocks M5.3, which jumps to the front of the queue the moment you answer.
 
-**Session 019 needed nothing from you mid-flight.** Per plan it built the
-couple-facing coach chat — the screen you two will actually talk to —
-entirely on recorded fixtures: still no AI account, no key, no cost.
+**Session 020 needed nothing from you mid-flight.** It built the app lock —
+the feature your PRD calls a headline, not a setting — and it is the last
+piece the privacy story was missing.
 
 **What you should know from this session:**
 
-**1. The coach now has its chat screen — and it only exists for Premium.**
-Three personas (Coach, Date Genie, Gift Genie — in Turkish "Perisi", in
-Arabic "ملهم": the literal genie word is cin/جنّي, which reads spooky-folkloric
-in both languages, so the drafts avoid it; your native review can overrule).
-A free user sees NO trace of the coach anywhere — not even a locked teaser
-(stricter than the packs tile, per your PRD). Before first use each of you
-sees the "this is not therapy" note once per device and confirms it.
+**1. The app now locks. The whole app, not parts of it.** Set a 6-digit PIN
+in the new Settings screen (reach it via the gear on your home screen) and
+Hayati asks for it on every cold start, and again whenever you come back
+after being away for more than a minute. Everything sits behind it — the
+daily question, the reveal, the coach, even a partner's invite link tapped
+while the phone is locked. Face ID works too, but only as a shortcut (see 3).
 
-**2. The safety net got a second, deeper layer.** The pre-code adversarial
-review — now FIVE sessions in a row catching real flaws before code — found
-that the "conversation pauses after a crisis" promise could silently expire
-(old messages scroll out of what the AI sees; some crisis replies never
-re-trigger the filter). Fixed: the pause is now enforced by the app itself
-the moment a help response arrives — the conversation stays paused, nothing
-more is sent from it, until you deliberately start a fresh one. A second
-review after implementation caught a subtle race where signing out mid-reply
-could leave a conversation remnant behind — also fixed and pinned by tests.
+**2. Two things you should know because they will surprise you otherwise:**
+- **Deleting and reinstalling the app does NOT remove the lock.** This is
+  deliberate, and it is the single most important design decision in the
+  feature. Your sign-in session already survives a reinstall (Apple stores
+  it in the Keychain) — so if the lock did *not* survive, anyone could delete
+  the app, reinstall it, and walk straight into your still-signed-in account.
+  The lock now shares fate with the thing it protects. If you genuinely
+  forget the PIN, the escape is "Forgot PIN? Sign out" on the lock screen —
+  it signs you out and clears the lock; your data is safe on the server and
+  comes back when you sign in again.
+- **The discreet icon changes the icon picture, not the name under it.**
+  iOS gives apps no way to change their home-screen name at runtime. So the
+  app still reads "Hayati App" under the innocuous icon. The app tells you
+  this honestly in Settings rather than letting you believe you are hidden
+  when you are not. If you want the *name* to be less identifying, that is a
+  product decision about what we publish to the App Store — tell a session
+  and it becomes part of the store-metadata work (M6.3).
 
-**3. Conversations are deliberately ephemeral for now.** Nothing you type to
-the coach is stored anywhere — not on our servers (since M5.1), and now
-provably not on the phone either (a fresh app start = a fresh conversation;
-signing out wipes them instantly). Whether coach chats should ever be SAVED
-is your call to make — that's new item 7 below.
+**3. Face ID is a shortcut, and we made it revoke itself.** On a shared
+phone, whoever's face or fingerprint is enrolled can pass Face ID — the
+phone cannot tell us *whose* face it was. So: Face ID is off by default,
+turning it on shows you an explicit warning saying exactly that, and — the
+part that matters — **if the phone's Face ID enrollment ever changes after
+you turn it on, Hayati automatically switches it off and demands the PIN.**
+Someone adding their face to your phone later gains nothing.
 
-**4. The coach still honestly says "unavailable" until item 6 is decided.**
-Crisis protection and the whole chat UI work regardless — but a real AI
-reply needs your provider choice + key. That decision is now the ONLY thing
-between the coach and its first live conversation.
+**4. What the lock honestly does and does not protect against.** It blocks
+casual and silent access: someone picking up your phone cannot read your
+answers or your coach chats. It does **not** stop someone who holds your SIM
+or your Apple ID from forcing their way in through the "forgot PIN" path —
+no app can prevent that, and we would rather say so than pretend. But that
+path is **destructive and visible**: it signs you out and wipes your PIN, so
+you would know it happened. The app switcher is also covered now — the
+preview card iOS shows when you swipe between apps is a blank panel, not
+your conversation (and deliberately not our logo either, so it does not
+give the app away).
+
+**5. Nothing changed for the daily loop.** If you never set a PIN, the app
+behaves exactly as it did — proven by tests that would fail if it didn't.
 
 ## ★ NEW (Session 018): native review of the CRISIS content — the one gate before the coach runs on your phones
 
@@ -325,6 +343,16 @@ instead of M5.2 — say so and it will be re-scoped.
   `functions/src/coach/persona-prompts.ts` (their SAFETY lines are in the ★
   gate above). AI-drafted in the brandkit voice; same TR-by-you-two /
   AR-by-your-Gulf-reviewer pass before public launch.
+- **NEW since M6.1 (standard gate, but read the two flagged ones):** the lock
+  and settings copy — 41 strings × TR/AR/EN in `app/lib/core/l10n/arb/` (keys
+  starting `lock`/`settings`). Two of these carry **safety meaning**, not just
+  tone, and are worth your eyes even before launch: **(a) the Face ID warning**
+  ("anyone whose face or fingerprint is saved on this phone can unlock
+  Hayati") — it must land as a plain factual caution, not an accusation, in
+  both languages; **(b) the "Forgot PIN?" copy**, which must make clear that
+  recovery signs you out rather than quietly letting someone in. The rest
+  (cooldown lines, the discreet-icon bound, error states) is standard tone
+  review. AI-drafted; TR by you two, AR by your Gulf reviewer.
 
 ## 2. Blaze plan decision — **last call, optional bonus otherwise**
 
@@ -384,6 +412,24 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
   `displayName`.
 - **Deep-link delivery test** (M2.2/M2.3): `hayati://invite/<code>` cold + warm
   OS→app delivery can only be proven on a device/simulator.
+- **NEW (M6.1, ADR-018) — the device-privacy layer's on-device half.** All of
+  it is emulator-proven and CI-compiled, but four things can only be seen on a
+  real iPhone. When you do the TestFlight install, please check:
+  1. **The Keychain round-trip** — set a PIN, force-quit, relaunch: it must ask
+     for the PIN. Then **delete the app, reinstall, and launch**: it must STILL
+     ask for the PIN (that is the reinstall-bypass defence working; if it opens
+     straight into the app, tell a session immediately — that is a real hole).
+  2. **The Face ID prompt** — turn it on in Settings, lock the app, unlock with
+     Face ID. Then change/add a face in iOS Settings and reopen Hayati: it must
+     have switched Face ID **off** by itself and be demanding the PIN.
+  3. **The discreet icon** — flip it in Settings. iOS shows its own alert
+     ("You have changed the icon for Hayati App") — that is Apple's, expected,
+     and not suppressible. Confirm the home-screen icon actually changes, and
+     confirm what we told you: the *name* under it does not.
+  4. **The app-switcher snapshot** — open the coach or a revealed answer, swipe
+     up to the app switcher: the Hayati card must show a **blank panel**, never
+     your content. (If any content shows through, there is a known fix — a
+     native SceneDelegate cover — recorded in ADR-018 Decision 5.)
 - **Universal links** (decision, not urgent): needs enrollment + a hosted
   `apple-app-site-association` → a domain choice. Custom scheme shipped in
   M2.2; upgrade path documented in `architecture.md` §4.
@@ -410,17 +456,18 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 019 close)
+## Progress & readiness snapshot (as of Session 020 close)
 
 - **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 engineering ✅ (sandbox
   accept line open on item 0)** · **M5: 2/3 (spine + chat UI; M5.3 live
-  adapter is founder-blocked on item 6)** · M6 starting — **18/22
-  session-units (82%) in 19 sessions; 4 planned session-units left to the
-  MVP** (M5: 1, blocked · M6: 3; M6.5 Android sits outside the 22-unit MVP
-  count). On track; no plan or scope changes in Session 019 (M1's +1 session
-  remains the only slippage ever). Next session: M6.1, the device-privacy
-  layer (app lock + discreet icon) — deliberately re-ordered ahead of the
-  blocked M5.3.
+  adapter is founder-blocked on item 6)** · **M6: 1/3 (M6.1 device-privacy
+  layer ✅)** — **19/22 session-units (86%) in 20 sessions; 3 planned
+  session-units left to the MVP** (M5: 1, blocked · M6: 2; M6.5 Android sits
+  outside the 22-unit MVP count). On track; no plan or scope changes in
+  Session 020 (M1's +1 session remains the only slippage ever). Next session:
+  **M6.2 — KVKK/PDPL export + cascade delete + partner notification**, unless
+  you answer item 6, in which case **M5.3 (the coach going live) takes
+  precedence** and M6.2 slides one session.
 - **Readiness: pre-MVP, emulator/CI-proven, nothing deployed, nothing on a
   phone.** Working and proven against emulators + CI: auth, profile + rules,
   the whole pairing loop, the unpaired solo week, the content pipeline, the
@@ -432,17 +479,24 @@ secret**, then rework/land the branch.
   assertion-protected), the **coach safety spine** (crisis detector
   TR/AR/Arabizi/EN proven against engineered evasions; `coachProxy` with
   server-side premium gate, transactional caps, fail-closed provider seam),
-  and now the **coach chat UI** (premium-only surface with three personas,
-  the help-sticky pause enforced app-side, per-device "not therapy" consent,
+  the **coach chat UI** (premium-only surface with three personas, the
+  help-sticky pause enforced app-side, per-device "not therapy" consent,
   honest states for every server outcome, conversations ephemeral by design
-  and wiped on sign-out — 1,025 app tests / 773 server tests green). **What
-  "production-ready" is still missing, honestly:** no deploy has ever
+  and wiped on sign-out), and now the **device-privacy layer** (the whole app
+  behind a PIN at the root — cold start, background-return, deep links and
+  pushed routes all gated and test-pinned; the PIN in the Keychain so a
+  delete-and-reinstall cannot shed the lock while the sign-in session it
+  guards survives; attempt-bounding with escalating cooldowns that survive a
+  force-quit; Face ID as a self-revoking shortcut; the app-switcher card
+  blanked; the discreet iOS icon — 1,206 app tests / 773 server tests green).
+  **What "production-ready" is still missing, honestly:** no deploy has ever
   happened (Spark plan — item 2), the app has never run on a real device
   (Mac/enrollment — item 4), no real purchase has ever been made (item 0),
   push notifications have no device half (APNs — item 4), the coach has no
-  live AI provider (item 6 — the ONLY gap left in M5), and privacy/launch
-  hardening (M6) starts next session. Call it **~82% of the MVP's
-  engineering, 0% of its operational proof.**
+  live AI provider (item 6 — the ONLY gap left in M5), and the privacy
+  layer's four on-device checks (item 4's new sub-list) are unverified on
+  real hardware. KVKK export/delete lands next (M6.2). Call it **~86% of the
+  MVP's engineering, 0% of its operational proof.**
   Deferred loudly (nothing silent): seasonal question windows (issue #29), the
   schedule trigger + Eventarc retry + webhook Secret Manager binding
   (deploy-verified at first Blaze deploy), `users.fcmTokens` capture + APNs
@@ -451,10 +505,19 @@ secret**, then rework/land the branch.
   thread (item 7 — founder retention decision; ephemeral until then), the
   coach's live provider adapter + `LLM_API_KEY` (item 6 — DUE), the
   crisis-content native review + hotline numbers (★ — blocks coach-on-device
-  only), the OS app-switcher snapshot obscuring (M6.1, next session), Remote
-  Config cap binding (deploy era), the coach rate limiter's per-instance
-  scope (deploy hardening), a pre-first-message quota meter (needs the
-  `coachUsage` watch), `invitePreview.questionText` (W9), Apple **Group
-  Purchases** (WWDC26; no RevenueCat support yet), and two quarantined tests
-  (ci-debt #36 reveal round-trip listener race, #15 phone-auth simulator
-  crash — at the >2-forces-stabilization threshold, not over it).
+  only), Remote Config cap binding (deploy era), the coach rate limiter's
+  per-instance scope (deploy hardening), a pre-first-message quota meter
+  (needs the `coachUsage` watch), `invitePreview.questionText` (W9), Apple
+  **Group Purchases** (WWDC26; no RevenueCat support yet), and two
+  quarantined tests (ci-debt #36 reveal round-trip listener race, #15
+  phone-auth simulator crash — at the >2-forces-stabilization threshold, not
+  over it). **New from M6.1:** the per-user neutral-notification override
+  (M6.2 — AR-locale users already get discreet pushes by default; TR/EN needs
+  a `users` field + a settings Function), the device-privacy layer's four
+  on-device verifications (item 4), a native SceneDelegate snapshot cover
+  (only if the on-device check finds the pure-Dart shield leaves a gap — the
+  fix is pre-recorded in ADR-018 D5), Android's lock + activity-alias icon
+  (M6.5), and a change-PIN flow (today: turn off, turn on — both verify
+  first, so it is a convenience gap, not a hole).
+  **Closed this session:** the OS app-switcher snapshot obscuring (was
+  deferred from ADR-017) — shipped as an always-on neutral cover.
