@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseFirestore;
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/config/app_config.dart';
@@ -9,11 +10,15 @@ import 'core/firebase/app_check_bootstrap.dart';
 import 'core/firebase/firebase_bootstrap.dart';
 import 'core/firebase/google_sign_in_config.dart';
 import 'core/observability/crashlytics_bootstrap.dart';
+import 'core/storage/local_flag_store.dart';
+import 'core/storage/shared_preferences_local_flag_store.dart';
 import 'features/auth/data/apple_auth_gateway.dart';
 import 'features/auth/data/firebase_auth_repository.dart';
 import 'features/auth/data/google_auth_gateway.dart';
 import 'features/auth/data/phone_auth_gateway.dart';
 import 'features/auth/domain/auth_repository_provider.dart';
+import 'features/coach/data/functions_coach_repository.dart';
+import 'features/coach/domain/coach_repository_provider.dart';
 import 'features/daily_question/data/asset_question_pack_repository.dart';
 import 'features/daily_question/data/asset_solo_question_pack_repository.dart';
 import 'features/daily_question/data/firestore_couple_answers_repository.dart';
@@ -61,6 +66,11 @@ Future<void> main() async {
   // the STORED timezone (ADR-011) and needs the tz database loaded (also
   // lazily guarded inside coupleDayKey — this just front-loads the parse).
   ensureCoupleTimeZonesInitialized();
+  // The local-flag store (ADR-017 Decision 4) is the app's first local
+  // persistence: await SharedPreferences once here so the disclaimer gate reads
+  // its ack SYNCHRONOUSLY off the in-memory cache getInstance() populates, and
+  // bind it BY VALUE below.
+  final prefs = await SharedPreferences.getInstance();
   final googleConfig = googleSignInConfigFor(config.flavor);
   runHayati(
     config,
@@ -126,6 +136,10 @@ Future<void> main() async {
       purchasesRepositoryProvider.overrideWith(
         (ref) => RcPurchasesRepository(),
       ),
+      localFlagStoreProvider.overrideWithValue(
+        SharedPreferencesLocalFlagStore(prefs),
+      ),
+      coachRepositoryProvider.overrideWith((ref) => FunctionsCoachRepository()),
     ],
   );
 }

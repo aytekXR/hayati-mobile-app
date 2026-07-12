@@ -1,9 +1,15 @@
-// Static, localized help-path + disclaimer copy for the M5.1 coach safety spine
-// (ADR-016 Decision 4). The help path is STATIC content, never model output — the
+// Static, localized help-path copy for the M5.1 coach safety spine (ADR-016
+// Decision 4). The help path is STATIC content, never model output — the
 // provider is never called on a crisis hit. Brandkit voice (frontend-brandkit.md
 // §8): warm, direct, a considerate friend — never clinical, never guilt ("we are
 // not therapy"). Localized TR/AR/EN with EN as the fallback for a junk/unknown
 // language field.
+//
+// The "not therapy" DISCLAIMER moved to the app's ARB files (ADR-017 Decision 4,
+// ADR-010 single-home spirit): the M5.2 UI is its only consumer, and two
+// AI-drafted homes for one safety string would drift through native review. The
+// `disclaimer()` export + DISCLAIMER table were removed in that same commit; the
+// no-phone-number hard rule survives app-side over the `coach*` ARB values.
 //
 // ⚠️ nativeReview: PENDING — this copy is AI-DRAFTED; founder native review is
 // flagged (same operator gate as the lexicon, ADR-016).
@@ -53,33 +59,10 @@ const HELP_RESPONSE: Readonly<Record<CoachLanguage, string>> = {
     'تحمل هذا وحدك.',
 };
 
-const DISCLAIMER: Readonly<Record<CoachLanguage, string>> = {
-  en:
-    'A gentle note: this coach is here for warmth and reflection, not for medical or ' +
-    'psychological care. It is not therapy and not a substitute for a professional. If ' +
-    'something feels serious, please reach out to a qualified person you trust.',
-  tr:
-    'Küçük bir not: bu koç sıcak bir sohbet ve üzerine düşünmek için burada; tıbbi ya da ' +
-    'psikolojik bir bakım için değil. Terapi değildir ve bir uzmanın yerini tutmaz. Bir ' +
-    'şey ciddi hissettiriyorsa lütfen güvendiğin, yetkin birine başvur.',
-  ar:
-    'ملاحظة لطيفة: هذا المدرّب موجود للدفء والتأمل، لا للرعاية الطبية أو النفسية. إنه ليس ' +
-    'علاجًا نفسيًا ولا بديلًا عن مختص. إذا شعرت بأن الأمر جادّ، أرجوك تواصل مع شخص مؤهل ' +
-    'تثق به.',
-};
-
 /**
  * The static help-path text for a (possibly junk) language field — the response
  * returned on ANY crisis hit (pre- or post-filter). EN on fallback.
  */
 export function helpResponse(language: unknown): string {
   return HELP_RESPONSE[resolveLanguage(language)];
-}
-
-/**
- * The static "not therapy" disclaimer copy (PRD F5 accept line), rendered by
- * M5.2's UI. EN on fallback.
- */
-export function disclaimer(language: unknown): string {
-  return DISCLAIMER[resolveLanguage(language)];
 }

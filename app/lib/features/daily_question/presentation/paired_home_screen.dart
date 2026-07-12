@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../coach/presentation/coach_screen.dart';
 import '../../entitlements/presentation/pack_selection_screen.dart';
+import '../../entitlements/presentation/premium_gate.dart';
 import '../../entitlements/presentation/state/entitlement_providers.dart';
 import '../domain/couple.dart';
 import '../domain/couple_answer.dart';
@@ -392,6 +394,21 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
                 // tile and their goldens stay byte-identical.
                 const SizedBox(height: SpacingTokens.x6),
                 _PacksTile(coupleId: widget.coupleId),
+                // The quiet coach affordance (ADR-017 Decision 1): the tile AND
+                // its inter-sibling spacer live INSIDE the gate's unlocked
+                // subtree, so a free couple renders literally nothing — no
+                // tile, no spacer, no pixel shift, and every existing free-tier
+                // paired-home golden stays byte-identical.
+                PremiumGate(
+                  coupleId: widget.coupleId,
+                  unlocked: Column(
+                    children: [
+                      const SizedBox(height: SpacingTokens.x6),
+                      _CoachTile(uid: widget.uid, coupleId: widget.coupleId),
+                    ],
+                  ),
+                  locked: const SizedBox.shrink(),
+                ),
               ],
             ),
           ),
@@ -455,6 +472,60 @@ class _PacksTile extends ConsumerWidget {
                 color: theme.colorScheme.secondary,
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The quiet coach entry point on the paired home (ADR-017 Decision 1): opens
+/// [CoachScreen] via the exported [showCoach] helper. Mounted INSIDE the gate's
+/// unlocked subtree only (see [_PairedQuestionView.build]) — a free couple never
+/// renders it, so the coach has zero free-tier surface. Mirrors the packs tile's
+/// visual structure without a lock badge (this tile exists only when premium).
+class _CoachTile extends StatelessWidget {
+  const _CoachTile({required this.uid, required this.coupleId});
+
+  final String uid;
+  final String coupleId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return InkWell(
+      onTap: () => showCoach(context, uid: uid, coupleId: coupleId),
+      borderRadius: RadiusTokens.cardRadius,
+      child: Container(
+        padding: const EdgeInsets.all(SpacingTokens.cardPadding),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: RadiusTokens.cardRadius,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.forum_outlined, color: theme.colorScheme.primary),
+            const SizedBox(width: SpacingTokens.x3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.coachTileTitle, style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: SpacingTokens.x1),
+                  Text(
+                    l10n.coachTileSubtitle,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: SpacingTokens.x2),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: theme.colorScheme.secondary,
+            ),
           ],
         ),
       ),

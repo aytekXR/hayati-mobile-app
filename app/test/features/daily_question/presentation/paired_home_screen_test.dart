@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/coach/domain/coach_repository_provider.dart';
+import 'package:hayati_app/features/coach/presentation/coach_screen.dart';
 import 'package:hayati_app/features/daily_question/domain/couple.dart';
 import 'package:hayati_app/features/daily_question/domain/couple_answer.dart';
 import 'package:hayati_app/features/daily_question/domain/couple_answers_repository_provider.dart';
@@ -17,13 +20,17 @@ import 'package:hayati_app/features/entitlements/domain/couple_entitlement.dart'
 import 'package:hayati_app/features/entitlements/domain/entitlement_repository_provider.dart';
 import 'package:hayati_app/features/entitlements/presentation/pack_selection_screen.dart';
 import 'package:hayati_app/features/entitlements/presentation/paywall_screen.dart';
+import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_coach_repository.dart';
 import '../../../support/fake_couple_answers_repository.dart';
 import '../../../support/fake_couple_day_repository.dart';
 import '../../../support/fake_couple_repository.dart';
 import '../../../support/fake_entitlement_repository.dart';
+import '../../../support/fake_local_flag_store.dart';
+import '../../../support/fake_profile_repository.dart';
 import '../../../support/fake_question_pack_repository.dart';
 import '../../../support/localized_app.dart';
 
@@ -177,6 +184,13 @@ void main() {
           entitlementRepositoryProvider.overrideWith((ref) => mirrors),
           authRepositoryProvider.overrideWith((ref) => auth),
           soloClockProvider.overrideWith((ref) => clockFn),
+          // The premium coach tile can push CoachScreen, which resolves the
+          // coach seams (inert for every non-coach test — the tile is gated).
+          localFlagStoreProvider.overrideWithValue(FakeLocalFlagStore()),
+          coachRepositoryProvider.overrideWith((ref) => FakeCoachRepository()),
+          profileRepositoryProvider.overrideWith(
+            (ref) => FakeProfileRepository(),
+          ),
         ],
       ),
     );
@@ -704,6 +718,105 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, en.pairedAnswerSave));
       await tester.pumpAndSettle();
       expect(find.byType(PaywallScreen), findsNothing);
+    });
+
+    testWidgets('NO CoachScreen is ever pushed while driving the full answer '
+        'flow (free-tier zero coach surface, ADR-017 D1)', (tester) async {
+      await pumpPaired(tester); // free
+      await tester.pumpAndSettle();
+      expect(find.byType(CoachScreen), findsNothing);
+      expect(find.text(en.coachTileTitle), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'A shared sunrise.');
+      await tester.pump();
+      expect(find.byType(CoachScreen), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, en.pairedAnswerSave));
+      await tester.pumpAndSettle();
+      expect(find.byType(CoachScreen), findsNothing);
+    });
+  });
+
+  group('coach tile (M5.2)', () {
+    Map<String, CoupleAnswer> bothAnswered() => {
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, ownUid):
+          ackedAnswer('My own thoughts.'),
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, partnerUid):
+          ackedAnswer('Partner reply here.'),
+    };
+
+    testWidgets('is ABSENT for a free couple — zero coach surface (no tile, no '
+        'spacer) anywhere in the question view', (tester) async {
+      await pumpPaired(tester, initialAnswers: bothAnswered());
+      await tester.pumpAndSettle();
+
+      // The question view is up (revealed) — but the coach renders nothing.
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      expect(find.text(en.coachTileTitle), findsNothing);
+      expect(find.text(en.coachTileSubtitle), findsNothing);
+      expect(find.byIcon(Icons.forum_outlined), findsNothing);
+    });
+
+    testWidgets('renders for a premium couple with its title + subtitle', (
+      tester,
+    ) async {
+      await pumpPaired(
+        tester,
+        entitlements: premiumMirror(),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.coachTileTitle), findsOneWidget);
+      expect(find.text(en.coachTileSubtitle), findsOneWidget);
+    });
+
+    testWidgets('tapping the coach tile pushes the coach screen', (
+      tester,
+    ) async {
+      await pumpPaired(
+        tester,
+        entitlements: premiumMirror(),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(en.coachTileTitle));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CoachScreen), findsOneWidget);
+    });
+
+    testWidgets('the live mirror flips the coach tile BOTH directions: free → '
+        'premium (tile appears) → past-expiry downgrade (tile disappears)', (
+      tester,
+    ) async {
+      final fakes = await pumpPaired(tester, initialAnswers: bothAnswered());
+      await tester.pumpAndSettle();
+      expect(find.text(en.coachTileTitle), findsNothing);
+
+      // The webhook writes an entitled, unexpired mirror → the tile appears.
+      fakes.entitlements.emit(
+        coupleId,
+        CoupleEntitlement(
+          entitled: true,
+          expiresAt: fixedNow.add(const Duration(days: 30)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(en.coachTileTitle), findsOneWidget);
+
+      // A delayed EXPIRATION (entitled:true, expiresAt past) downgrades through
+      // the real isPremium expiry check → the tile disappears again.
+      fakes.entitlements.emit(
+        coupleId,
+        CoupleEntitlement(
+          entitled: true,
+          expiresAt: fixedNow.subtract(const Duration(minutes: 1)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(en.coachTileTitle), findsNothing);
     });
   });
 }

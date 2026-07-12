@@ -13,9 +13,13 @@ part of 'paywall_purchase_controller.dart';
 /// dropped while one is in flight, and every await is followed by a
 /// `ref.mounted` guard (Riverpod 3). autoDispose + family by coupleId.
 ///
-/// On success the durable [PendingPurchase] flag is marked and the state returns
-/// to idle — a cancelled sheet returns to idle silently (not an error), a typed
-/// failure surfaces it, and a foreign error is mapped through the taxonomy.
+/// On success the durable [PendingPurchase] flag is marked — but only while the
+/// couple is still free: the flag bridges the not-yet-premium window and
+/// [PendingPurchase] clears it on the transition TO premium, so marking when
+/// already entitled would strand it set with nothing left to clear it. Then the
+/// state returns to idle — a cancelled sheet returns to idle silently (not an
+/// error), a typed failure surfaces it, and a foreign error is mapped through
+/// the taxonomy.
 
 @ProviderFor(PaywallPurchaseController)
 const paywallPurchaseControllerProvider = PaywallPurchaseControllerFamily._();
@@ -25,9 +29,13 @@ const paywallPurchaseControllerProvider = PaywallPurchaseControllerFamily._();
 /// dropped while one is in flight, and every await is followed by a
 /// `ref.mounted` guard (Riverpod 3). autoDispose + family by coupleId.
 ///
-/// On success the durable [PendingPurchase] flag is marked and the state returns
-/// to idle — a cancelled sheet returns to idle silently (not an error), a typed
-/// failure surfaces it, and a foreign error is mapped through the taxonomy.
+/// On success the durable [PendingPurchase] flag is marked — but only while the
+/// couple is still free: the flag bridges the not-yet-premium window and
+/// [PendingPurchase] clears it on the transition TO premium, so marking when
+/// already entitled would strand it set with nothing left to clear it. Then the
+/// state returns to idle — a cancelled sheet returns to idle silently (not an
+/// error), a typed failure surfaces it, and a foreign error is mapped through
+/// the taxonomy.
 final class PaywallPurchaseControllerProvider
     extends $NotifierProvider<PaywallPurchaseController, PaywallPurchaseState> {
   /// Drives [PurchasesRepository.purchase]/[PurchasesRepository.restore] with the
@@ -35,9 +43,13 @@ final class PaywallPurchaseControllerProvider
   /// dropped while one is in flight, and every await is followed by a
   /// `ref.mounted` guard (Riverpod 3). autoDispose + family by coupleId.
   ///
-  /// On success the durable [PendingPurchase] flag is marked and the state returns
-  /// to idle — a cancelled sheet returns to idle silently (not an error), a typed
-  /// failure surfaces it, and a foreign error is mapped through the taxonomy.
+  /// On success the durable [PendingPurchase] flag is marked — but only while the
+  /// couple is still free: the flag bridges the not-yet-premium window and
+  /// [PendingPurchase] clears it on the transition TO premium, so marking when
+  /// already entitled would strand it set with nothing left to clear it. Then the
+  /// state returns to idle — a cancelled sheet returns to idle silently (not an
+  /// error), a typed failure surfaces it, and a foreign error is mapped through
+  /// the taxonomy.
   const PaywallPurchaseControllerProvider._({
     required PaywallPurchaseControllerFamily super.from,
     required String super.argument,
@@ -84,16 +96,20 @@ final class PaywallPurchaseControllerProvider
 }
 
 String _$paywallPurchaseControllerHash() =>
-    r'84512a4f986257fdcbae921ea35ac88d7eb3da80';
+    r'eb2e3d4d48c2c91d4e50d96f8b4393646ea836dd';
 
 /// Drives [PurchasesRepository.purchase]/[PurchasesRepository.restore] with the
 /// same manual-op discipline as `SoloAnswerController`: re-entrant calls are
 /// dropped while one is in flight, and every await is followed by a
 /// `ref.mounted` guard (Riverpod 3). autoDispose + family by coupleId.
 ///
-/// On success the durable [PendingPurchase] flag is marked and the state returns
-/// to idle — a cancelled sheet returns to idle silently (not an error), a typed
-/// failure surfaces it, and a foreign error is mapped through the taxonomy.
+/// On success the durable [PendingPurchase] flag is marked — but only while the
+/// couple is still free: the flag bridges the not-yet-premium window and
+/// [PendingPurchase] clears it on the transition TO premium, so marking when
+/// already entitled would strand it set with nothing left to clear it. Then the
+/// state returns to idle — a cancelled sheet returns to idle silently (not an
+/// error), a typed failure surfaces it, and a foreign error is mapped through
+/// the taxonomy.
 
 final class PaywallPurchaseControllerFamily extends $Family
     with
@@ -118,9 +134,13 @@ final class PaywallPurchaseControllerFamily extends $Family
   /// dropped while one is in flight, and every await is followed by a
   /// `ref.mounted` guard (Riverpod 3). autoDispose + family by coupleId.
   ///
-  /// On success the durable [PendingPurchase] flag is marked and the state returns
-  /// to idle — a cancelled sheet returns to idle silently (not an error), a typed
-  /// failure surfaces it, and a foreign error is mapped through the taxonomy.
+  /// On success the durable [PendingPurchase] flag is marked — but only while the
+  /// couple is still free: the flag bridges the not-yet-premium window and
+  /// [PendingPurchase] clears it on the transition TO premium, so marking when
+  /// already entitled would strand it set with nothing left to clear it. Then the
+  /// state returns to idle — a cancelled sheet returns to idle silently (not an
+  /// error), a typed failure surfaces it, and a foreign error is mapped through
+  /// the taxonomy.
 
   PaywallPurchaseControllerProvider call({required String coupleId}) =>
       PaywallPurchaseControllerProvider._(argument: coupleId, from: this);
@@ -134,9 +154,13 @@ final class PaywallPurchaseControllerFamily extends $Family
 /// dropped while one is in flight, and every await is followed by a
 /// `ref.mounted` guard (Riverpod 3). autoDispose + family by coupleId.
 ///
-/// On success the durable [PendingPurchase] flag is marked and the state returns
-/// to idle — a cancelled sheet returns to idle silently (not an error), a typed
-/// failure surfaces it, and a foreign error is mapped through the taxonomy.
+/// On success the durable [PendingPurchase] flag is marked — but only while the
+/// couple is still free: the flag bridges the not-yet-premium window and
+/// [PendingPurchase] clears it on the transition TO premium, so marking when
+/// already entitled would strand it set with nothing left to clear it. Then the
+/// state returns to idle — a cancelled sheet returns to idle silently (not an
+/// error), a typed failure surfaces it, and a foreign error is mapped through
+/// the taxonomy.
 
 abstract class _$PaywallPurchaseController
     extends $Notifier<PaywallPurchaseState> {
