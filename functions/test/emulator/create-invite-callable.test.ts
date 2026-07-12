@@ -48,6 +48,16 @@ async function signUpUser(): Promise<{ idToken: string; localId: string }> {
   return body;
 }
 
+/** Since ADR-019, issuing requires the caller's profile to exist. */
+function seedProfile(uid: string): Promise<unknown> {
+  return db.collection('users').doc(uid).set({
+    status: 'married',
+    contentLanguage: 'tr',
+    register: 'respectful',
+    createdAt: Timestamp.now(),
+  });
+}
+
 function callCreateInvite(idToken?: string): Promise<Response> {
   return fetch(CALLABLE_URL, {
     method: 'POST',
@@ -101,6 +111,7 @@ describe('createInvite callable (functions emulator)', () => {
 
   it('issues a code for a signed-in caller and lands the invite in Firestore', async () => {
     const { idToken, localId } = await signUpUser();
+    await seedProfile(localId);
 
     const response = await callCreateInvite(idToken);
     expect(response.status).toBe(200);
@@ -118,7 +129,8 @@ describe('createInvite callable (functions emulator)', () => {
   });
 
   it('a second (even concurrent) call for the same caller returns the same code', async () => {
-    const { idToken } = await signUpUser();
+    const { idToken, localId } = await signUpUser();
+    await seedProfile(localId);
 
     const [first, second] = await Promise.all([
       callCreateInvite(idToken),

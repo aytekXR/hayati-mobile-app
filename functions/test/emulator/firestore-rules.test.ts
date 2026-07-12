@@ -244,6 +244,63 @@ describe('users/{uid}', () => {
       ),
     );
   });
+
+  // ADR-019 Decision 6/3: notificationPrivacy (the discreet override) and
+  // coupleEnded (the partner-notification tombstone) are server-owned and frozen
+  // against clients, exactly like coupleId.
+  it('a client may not mint notificationPrivacy on its own doc', async () => {
+    await seedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { notificationPrivacy: 'discreet' }),
+    );
+  });
+
+  it('a client may not clear a server-set notificationPrivacy', async () => {
+    await seed(`users/${ALICE}`, {
+      ...profileData,
+      notificationPrivacy: 'discreet',
+      createdAt: Timestamp.now(),
+    });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { notificationPrivacy: deleteField() }),
+    );
+  });
+
+  it('a client may not mint coupleEnded on its own doc', async () => {
+    await seedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { coupleEnded: { at: Timestamp.now() } }),
+    );
+  });
+
+  it('a client may not clear a server-set coupleEnded', async () => {
+    await seed(`users/${ALICE}`, {
+      ...profileData,
+      coupleEnded: { at: Timestamp.now() },
+      createdAt: Timestamp.now(),
+    });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { coupleEnded: deleteField() }),
+    );
+  });
+
+  it('ordinary own-doc edits still succeed alongside the new frozen fields (positive control)', async () => {
+    await seed(`users/${ALICE}`, {
+      ...profileData,
+      notificationPrivacy: 'discreet',
+      coupleEnded: { at: Timestamp.now() },
+      createdAt: Timestamp.now(),
+    });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    // A register edit that leaves both frozen fields untouched (post-merge equal).
+    await assertSucceeds(
+      setDoc(doc(alice, `users/${ALICE}`), { register: 'playful' }, { merge: true }),
+    );
+  });
 });
 
 describe('users/{uid}/soloAnswers/{dayKey}', () => {
@@ -262,6 +319,20 @@ describe('users/{uid}/soloAnswers/{dayKey}', () => {
       answeredAt: Timestamp.now(),
     });
   }
+
+  // ADR-019 Decision 2: soloAnswer writes now require the owner's profile to
+  // exist. Every Alice-based write test seeds her profile first; the orphan test
+  // deliberately uses Bob (no profile) to prove the exists() guard fires.
+  beforeEach(async () => {
+    await seedAliceProfile();
+  });
+
+  it('orphan write is denied when the owner has no profile (ADR-019 D2 token-window)', async () => {
+    const bob = env.authenticatedContext(BOB).firestore();
+    await assertFails(
+      setDoc(doc(bob, `users/${BOB}/soloAnswers/20260710`), validAnswer()),
+    );
+  });
 
   it('owner creates a server-stamped answer (the app write shape)', async () => {
     const alice = env.authenticatedContext(ALICE).firestore();
@@ -1133,8 +1204,13 @@ const MUTATIONS: Mutation[] = [
     name: 'weakening the soloAnswers write guard readmits cross-user writes',
     anchor: 'allow create, update: if isSelf(uid)\n          &&',
     replacement: 'allow create, update: if request.auth != null\n          &&',
-    demonstrate: (mutant) =>
-      setDoc(
+    demonstrate: async (mutant) => {
+      // ADR-019: soloAnswer writes require the owner's profile to exist, so the
+      // isolated clause under test is only reachable when users/{owner} is present.
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, createdAt: Timestamp.now() });
+      });
+      return setDoc(
         doc(
           mutant.authenticatedContext(CHARLIE).firestore(),
           `users/${ALICE}/soloAnswers/20260710`,
@@ -1144,14 +1220,18 @@ const MUTATIONS: Mutation[] = [
           text: 'Forged by Charlie.',
           answeredAt: serverTimestamp(),
         },
-      ),
+      );
+    },
   },
   {
     name: 'dropping the answeredAt server-stamp guard readmits client-clock stamps',
     anchor: '&& request.resource.data.answeredAt == request.time;',
     replacement: ';',
-    demonstrate: (mutant) =>
-      setDoc(
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, createdAt: Timestamp.now() });
+      });
+      return setDoc(
         doc(
           mutant.authenticatedContext(ALICE).firestore(),
           `users/${ALICE}/soloAnswers/20260710`,
@@ -1161,15 +1241,19 @@ const MUTATIONS: Mutation[] = [
           text: 'Backdated.',
           answeredAt: Timestamp.fromMillis(42),
         },
-      ),
+      );
+    },
   },
   {
     name: 'dropping the soloAnswers hasOnly guard readmits junk fields',
     anchor:
       "&& request.resource.data.keys().hasOnly(['questionId', 'text', 'answeredAt'])",
     replacement: '',
-    demonstrate: (mutant) =>
-      setDoc(
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, createdAt: Timestamp.now() });
+      });
+      return setDoc(
         doc(
           mutant.authenticatedContext(ALICE).firestore(),
           `users/${ALICE}/soloAnswers/20260710`,
@@ -1180,7 +1264,8 @@ const MUTATIONS: Mutation[] = [
           answeredAt: serverTimestamp(),
           mood: 'great',
         },
-      ),
+      );
+    },
   },
   {
     // M3.2 days: weakening membership on the day-doc read must readmit
@@ -1635,6 +1720,120 @@ const MUTATIONS: Mutation[] = [
       return getDoc(
         doc(mutant.authenticatedContext(BOB).firestore(), 'coachUsage/couple-1/daily/alice-uid'),
       );
+    },
+  },
+  {
+    // M6.2 (ADR-019 D6): the notificationPrivacy override is server-owned. Dropping
+    // its symmetric-absence freeze readmits a client minting it — the seeded
+    // profile has none, so a client write must succeed only under the mutant.
+    name: 'dropping the users notificationPrivacy freeze readmits client override writes',
+    anchor:
+      "\n        && request.resource.data.get('notificationPrivacy', null) == resource.data.get('notificationPrivacy', null)",
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+        });
+      });
+      return updateDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        { notificationPrivacy: 'discreet' },
+      );
+    },
+  },
+  {
+    // M6.2 (ADR-019 D3): the coupleEnded tombstone is server-owned. Dropping its
+    // freeze readmits a client forging (or clearing) it. Trailing anchor pins the
+    // last clause (the `;` stays after the notificationPrivacy line on removal).
+    name: 'dropping the users coupleEnded freeze readmits client tombstone writes',
+    anchor:
+      "\n        && request.resource.data.get('coupleEnded', null) == resource.data.get('coupleEnded', null)",
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+        });
+      });
+      return updateDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        { coupleEnded: { at: Timestamp.now() } },
+      );
+    },
+  },
+  {
+    // M6.2 (ADR-019 D2): soloAnswer writes require the owner's profile to exist —
+    // the deleted-user orphan-write guard. Dropping it readmits an orphan write by
+    // a caller with no users doc (Bob has none here).
+    name: 'dropping the soloAnswers profile-exists guard readmits orphan writes',
+    anchor: '\n          && exists(/databases/$(database)/documents/users/$(uid))',
+    replacement: '',
+    demonstrate: (mutant) =>
+      setDoc(
+        doc(mutant.authenticatedContext(BOB).firestore(), `users/${BOB}/soloAnswers/20260710`),
+        { questionId: 'solo_tr_003', text: 'orphan', answeredAt: serverTimestamp() },
+      ),
+  },
+  {
+    // M6.2 delete-deny coverage (the harness noted users lacked a delete mutant):
+    // swapping the users delete-deny for a self-allow readmits self-deletion —
+    // proving the deny is the net (the cascade deletes via the admin SDK only).
+    name: 'allowing self users deletes readmits client profile deletion',
+    anchor: 'documents (ADR-019).\n      allow delete: if false;',
+    replacement: 'documents (ADR-019).\n      allow delete: if isSelf(uid);',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+        });
+      });
+      return deleteDoc(doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`));
+    },
+  },
+  {
+    // M6.2 delete-deny coverage: soloAnswers self-delete mutant. The 8-space
+    // delete + 6-space closing brace pins the soloAnswers block (the users delete
+    // is 6-space, the answers delete carries a trailing comment).
+    name: 'allowing self soloAnswers deletes readmits client answer deletion',
+    anchor: '\n        allow delete: if false;\n      }',
+    replacement: '\n        allow delete: if isSelf(uid);\n      }',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+        });
+        await setDoc(doc(context.firestore(), `users/${ALICE}/soloAnswers/20260710`), {
+          questionId: 'solo_tr_003',
+          text: 'Seeded.',
+          answeredAt: Timestamp.now(),
+        });
+      });
+      return deleteDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}/soloAnswers/20260710`),
+      );
+    },
+  },
+  {
+    // M6.2 delete-deny coverage: couples member-delete mutant (the combined
+    // `create, delete: if false;` split so delete becomes member-allow).
+    name: 'allowing member couple deletes readmits client couple deletion',
+    anchor: 'allow create, delete: if false;',
+    replacement:
+      'allow create: if false;\n      allow delete: if request.auth != null && request.auth.uid in resource.data.memberUids;',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'couples/couple-1'), {
+          memberUids: [ALICE, BOB],
+          timezone: 'Europe/Istanbul',
+          createdAt: Timestamp.now(),
+        });
+      });
+      return deleteDoc(doc(mutant.authenticatedContext(ALICE).firestore(), 'couples/couple-1'));
     },
   },
 ];

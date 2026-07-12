@@ -11,6 +11,7 @@ import {
 } from '../../src/invites/invite-code';
 import {
   CreatorAlreadyPairedError,
+  CreatorProfileMissingError,
   INVITE_TTL_MS,
   InviteCodeSpaceExhaustedError,
   MAX_CODE_ATTEMPTS,
@@ -40,11 +41,36 @@ function riggedGenerator(codes: string[]): () => string {
   return () => codes[Math.min(i++, codes.length - 1)];
 }
 
+/** A creator profile (no coupleId) — since ADR-019, issuing requires one. */
+function seedCreatorProfile(uid = CREATOR): Promise<unknown> {
+  return users.doc(uid).set({
+    status: 'married',
+    contentLanguage: 'tr',
+    register: 'respectful',
+    createdAt: Timestamp.now(),
+  });
+}
+
 beforeEach(async () => {
   await clearFirestoreData();
 });
 
 describe('issueInvite', () => {
+  // ADR-019 Decision 2 (INVITE-1): issuing now requires the creator's profile to
+  // exist, so every issuing test seeds one first (the already-paired / absent-profile
+  // cases seed their own state).
+  beforeEach(async () => {
+    await seedCreatorProfile();
+  });
+
+  it('rejects a creator with no profile (ADR-019 INVITE-1, token-window closure)', async () => {
+    await expect(issueInvite(db, 'no-profile-uid')).rejects.toBeInstanceOf(
+      CreatorProfileMissingError,
+    );
+    const any = await invites.where('creatorUid', '==', 'no-profile-uid').get();
+    expect(any.empty).toBe(true);
+  });
+
   it('creates a pending invite with server-set expiry', async () => {
     const before = Date.now();
     const issued = await issueInvite(db, CREATOR);
@@ -148,8 +174,8 @@ describe('issueInvite', () => {
   });
 
   // M2.3 already-paired guard: coupleId on the creator's users doc blocks any
-  // new (or re-used) invite. A profile without coupleId, or no profile at all,
-  // keeps the M2.1 behavior (issue proceeds).
+  // new (or re-used) invite. A profile without coupleId issues; a MISSING profile
+  // now rejects (ADR-019 INVITE-1 — covered by its own test above).
   it('refuses to issue for an already-paired creator', async () => {
     await users.doc(CREATOR).set({ coupleId: 'existing-couple' });
     await expect(issueInvite(db, CREATOR)).rejects.toBeInstanceOf(

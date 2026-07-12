@@ -6,7 +6,11 @@ rules_version = '2';
 // that show the suite goes red if a guard here is weakened. Collections not
 // matched (questions, coach_sessions) stay denied until the milestone that
 // introduces them ships rules WITH tests; subscriptions has a block since M4.1
-// and coachUsage since M5.1 (ADR-016).
+// and coachUsage since M5.1 (ADR-016). M6.2 (ADR-019) adds two server-owned
+// freezes on the users update rule (notificationPrivacy, coupleEnded) and a
+// profile-exists guard on soloAnswers writes; the transient deletions/{uid}
+// cursor stays denied by the catch-all. No client delete is ever loosened —
+// the M6.2 KVKK/PDPL cascade deletes run entirely on the admin SDK.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSelf(uid) {
@@ -27,14 +31,20 @@ service cloud.firestore {
         && !('coupleId' in request.resource.data);
       // Updates may never move createdAt, nor set/change/delete coupleId: a
       // client must not pair (or re-pair) itself by writing the field the join
-      // Function owns. merge:true writes that omit these fields pass
-      // (request.resource.data is the post-merge document); get(...,null)
-      // compares the field or its absence on both sides symmetrically.
+      // Function owns. Since M6.2 (ADR-019) notificationPrivacy (the discreet
+      // override) and coupleEnded (the partner-notification tombstone) are frozen
+      // the same way — both are server-owned (the updateNotificationPrivacy
+      // callable and the deleteAccount cascade write them via the admin SDK), so a
+      // client may neither mint, change, nor clear either. merge:true writes that
+      // omit these fields pass (request.resource.data is the post-merge document);
+      // get(...,null) compares the field or its absence on both sides symmetrically.
       allow update: if isSelf(uid)
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.get('coupleId', null) == resource.data.get('coupleId', null);
-      // Hard delete is the M6 KVKK/PDPL cascade Function's job (admin SDK,
-      // bypasses rules); clients never delete profile documents.
+        && request.resource.data.get('coupleId', null) == resource.data.get('coupleId', null)
+        && request.resource.data.get('notificationPrivacy', null) == resource.data.get('notificationPrivacy', null)
+        && request.resource.data.get('coupleEnded', null) == resource.data.get('coupleEnded', null);
+      // Hard delete is the M6.2 KVKK/PDPL cascade Function's job (admin SDK,
+      // bypasses rules); clients never delete profile documents (ADR-019).
       allow delete: if false;
 
       // M2.4 solo mode: the user's own daily solo reflections
@@ -46,11 +56,15 @@ service cloud.firestore {
       // non-empty (2000 mirrors soloAnswerMaxLength in solo_answer.dart —
       // the entry field hard-caps there, so this bound is defense-in-depth).
       // Same-day overwrites are deliberate (the answer stays editable all
-      // day); client delete is denied — removal belongs to the M6 KVKK/PDPL
-      // cascade.
+      // day); client delete is denied — removal belongs to the M6.2 KVKK/PDPL
+      // cascade (ADR-019). Since M6.2 the write also requires the owner's profile
+      // to EXIST (the exists() guard): a just-deleted account's still-valid token
+      // must not re-create an orphan soloAnswer under a swept users doc (the
+      // deleted-user token-window, direct-write surface — ADR-019 D2/INVITE-1).
       match /soloAnswers/{dayKey} {
         allow read: if isSelf(uid);
         allow create, update: if isSelf(uid)
+          && exists(/databases/$(database)/documents/users/$(uid))
           && request.resource.data.keys().hasOnly(['questionId', 'text', 'answeredAt'])
           && request.resource.data.questionId is string
           && request.resource.data.questionId.size() > 0
@@ -64,7 +78,8 @@ service cloud.firestore {
 
     // Member-only skeleton (M2.1). Couple documents are CREATED only by the
     // M2.3 transactional-join Function (admin SDK, bypasses rules), so client
-    // create/delete stay denied. Members may read and update, but memberUids
+    // create/delete stay denied (the M6.2 deleteAccount cascade performs the
+    // delete via the admin SDK — ADR-019). Members may read and update, but memberUids
     // is frozen — membership changes are a Function-only operation. Since
     // M3.3 timezone and createdAt are frozen too: the stored timezone is
     // dayKey-load-bearing on BOTH sides (the rollover buckets by it, the app
@@ -206,6 +221,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // deletions/{uid} is a transient, client-invisible progress cursor written
+    // and removed by the M6.2 deleteAccount cascade (admin SDK, bypasses rules);
+    // like every unmatched collection it is denied to clients by this catch-all
+    // (ADR-019 Decision 2). No client match block exists or should.
     match /{document=**} {
       allow read, write: if false;
     }

@@ -33,7 +33,12 @@ import { logger } from 'firebase-functions';
 import { isQuietLocalHour, localHour } from '../notifications/local-hour';
 import type { MessagingPort } from '../notifications/messaging-port';
 import { PushKind, composePush } from '../notifications/payload-policy';
-import { contentLanguageOf, fcmTokensOf, resolveDiscreet } from '../notifications/recipients';
+import {
+  contentLanguageOf,
+  fcmTokensOf,
+  notificationPrivacyOf,
+  resolveDiscreet,
+} from '../notifications/recipients';
 import { StreakState, applyMutualDay, parseStreakChecked } from './streak';
 
 /** The three path params the trigger extracts from the answer doc that fired it. */
@@ -333,7 +338,11 @@ async function deliverPush(
     }
 
     const language = contentLanguageOf(userData);
-    const payload = composePush({ kind, language, discreet: resolveDiscreet(language) });
+    const payload = composePush({
+      kind,
+      language,
+      discreet: resolveDiscreet(language, notificationPrivacyOf(userData)),
+    });
 
     let sentCount = 0;
     let failedCount = 0;

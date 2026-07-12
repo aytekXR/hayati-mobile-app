@@ -8,6 +8,7 @@ import {
 
 import {
   CreatorAlreadyPairedError,
+  CreatorProfileMissingError,
   InviteCodeSpaceExhaustedError,
   IssuedInvite,
   issueInvite,
@@ -52,6 +53,15 @@ export function makeCreateInviteHandler(issue: typeof issueInvite = issueInvite)
         throw new HttpsError(
           'resource-exhausted',
           'No invite code could be allocated; please try again.',
+        );
+      }
+      if (error instanceof CreatorProfileMissingError) {
+        // ADR-019 Decision 2 (INVITE-1): a profile is required before issuing —
+        // closes the deleted-user token-window on the admin-SDK callable surface.
+        throw new HttpsError(
+          'failed-precondition',
+          'A profile is required before issuing an invite.',
+          { reason: 'profile-missing' },
         );
       }
       if (error instanceof CreatorAlreadyPairedError) {

@@ -18,7 +18,12 @@ import { parseStreak } from '../streak/streak';
 import { isQuietLocalHour, localHour } from './local-hour';
 import type { MessagingPort } from './messaging-port';
 import { composePush } from './payload-policy';
-import { contentLanguageOf, fcmTokensOf, resolveDiscreet } from './recipients';
+import {
+  contentLanguageOf,
+  fcmTokensOf,
+  notificationPrivacyOf,
+  resolveDiscreet,
+} from './recipients';
 
 // The couple-LOCAL wall-clock hour the at-risk push fires on (ADR-012 D3): once
 // per zone per day — only the sweep whose bucket-local hour reads 20 pushes. 20 is
@@ -97,7 +102,7 @@ export async function deliverAtRiskPush(
     const payload = composePush({
       kind: 'streakAtRisk',
       language,
-      discreet: resolveDiscreet(language),
+      discreet: resolveDiscreet(language, notificationPrivacyOf(userData)),
       streakCount,
     });
 
