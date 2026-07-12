@@ -11,7 +11,9 @@ import '../../../support/fake_pin_lock_store.dart';
 import '../../../support/golden/golden_harness.dart';
 import '../../../support/pin_lock_fixtures.dart';
 
-/// PIN setup, first phase. Same LTR-pinned pad as the lock screen — the AR/RTL
+/// PIN setup, BOTH phases (the ADR-018 Test-commitments pin: `enter`, `confirm`
+/// — the `confirm` set was missing until the post-implementation review caught it,
+/// findings SPEC-3 / DVUX-7). Same LTR-pinned pad as the lock screen — the AR/RTL
 /// cells pin that it does not mirror (review finding DVUX-6).
 final _now = DateTime.utc(2026, 7, 10, 9);
 
@@ -41,6 +43,29 @@ void main() {
       await expectLater(
         find.byType(PinSetupScreen),
         matchesGoldenFile(goldenFile('pin_setup_screen', 'enter', cell.suffix)),
+      );
+    });
+
+    testWidgets('confirm ${cell.suffix}', (tester) async {
+      // Phase two: the prompt changes from "choose a PIN" to "re-enter it", and
+      // the dots reset. Rendering only phase one would leave half the setup flow
+      // — including its RTL copy — unpinned.
+      await pumpGolden(
+        tester,
+        const PinSetupScreen(),
+        locale: cell.locale,
+        direction: cell.direction,
+        overrides: arrange(),
+      );
+      await tester.pumpAndSettle();
+      await enterPin(tester, kTestPin);
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(PinSetupScreen),
+        matchesGoldenFile(
+          goldenFile('pin_setup_screen', 'confirm', cell.suffix),
+        ),
       );
     });
   }
