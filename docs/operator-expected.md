@@ -7,62 +7,73 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-12, Session 018 close (M5.1 — the AI coach's crisis
-safety spine + `coachProxy` server seam; **on plan, 17/22 units, 77%**). The
-TestFlight runbook you asked for mid-session is merged and lives below._
+_Last refreshed: 2026-07-12, Session 019 close (M5.2 — the coach CHAT UI on
+the M5.1 spine + persona scaffolds + the private-thread decision; **on plan,
+18/22 units, 82%**). The TestFlight runbook lives below._
 
-## Expected from you right now: **nothing was blocked this session. Two NEW items exist (★ and 6 below); neither blocks the next session.**
+## Expected from you right now: **nothing was blocked this session — but item 6 (pick the AI provider) is now DUE: the next coach step (M5.3, going live) waits on it. One NEW decision joined the list (item 7, private-thread retention). Neither blocks Session 020 (it builds the app lock / discreet mode instead).**
 
-**Session 018 needed nothing from you mid-flight.** Per plan it built the
-first slice of the AI coach — the part that keeps a couple in crisis SAFE —
-entirely on recorded fixtures: no AI provider account, no API key, no cost.
-It also delivered your TestFlight runbook request the same hour you asked
-(merged separately as PR #43 so it reached `main` immediately).
+**Session 019 needed nothing from you mid-flight.** Per plan it built the
+couple-facing coach chat — the screen you two will actually talk to —
+entirely on recorded fixtures: still no AI account, no key, no cost.
 
 **What you should know from this session:**
 
-**1. The coach's safety net is built and aggressively proven.** If either of
-you ever types something that signals a crisis — self-harm, violence — in
-Turkish, Gulf Arabic, Arabizi (Arabic typed in Latin letters), or English,
-the coach will NEVER answer with its AI persona: it returns a warm, human
-help message urging real-world support, and the AI is never even called —
-regardless of paywall or usage limits. This was tested against every evasion
-we could engineer (missing Turkish accents, Arabic spelling variants,
-l33t-speak, spaced-out letters, lookalike characters, phrases split across
-messages) — the server suite is now 772 tests, built so that WEAKENING any
-protection turns CI red.
+**1. The coach now has its chat screen — and it only exists for Premium.**
+Three personas (Coach, Date Genie, Gift Genie — in Turkish "Perisi", in
+Arabic "ملهم": the literal genie word is cin/جنّي, which reads spooky-folkloric
+in both languages, so the drafts avoid it; your native review can overrule).
+A free user sees NO trace of the coach anywhere — not even a locked teaser
+(stricter than the packs tile, per your PRD). Before first use each of you
+sees the "this is not therapy" note once per device and confirms it.
 
-**2. Privacy went a step further than planned.** The pre-code adversarial
-review (4th session in a row it caught real design flaws before code) found
-that the usage counters would have let each partner see how often the OTHER
-uses the coach — surveillance fuel in a product that explicitly serves
-people in difficult relationships. Per-person counters are now readable only
-by that person. Also by construction and tested: no message text, no user
-id, and no "this couple hit the crisis filter" record ever appears in any
-log.
+**2. The safety net got a second, deeper layer.** The pre-code adversarial
+review — now FIVE sessions in a row catching real flaws before code — found
+that the "conversation pauses after a crisis" promise could silently expire
+(old messages scroll out of what the AI sees; some crisis replies never
+re-trigger the filter). Fixed: the pause is now enforced by the app itself
+the moment a help response arrives — the conversation stays paused, nothing
+more is sent from it, until you deliberately start a fresh one. A second
+review after implementation caught a subtle race where signing out mid-reply
+could leave a conversation remnant behind — also fixed and pinned by tests.
 
-**3. Until you pick an AI provider (new item 6), the coach honestly says
-it's unavailable.** Crisis protection works even in that state. The
-engineering never waits on your account decision — that's deliberate.
+**3. Conversations are deliberately ephemeral for now.** Nothing you type to
+the coach is stored anywhere — not on our servers (since M5.1), and now
+provably not on the phone either (a fresh app start = a fresh conversation;
+signing out wipes them instantly). Whether coach chats should ever be SAVED
+is your call to make — that's new item 7 below.
+
+**4. The coach still honestly says "unavailable" until item 6 is decided.**
+Crisis protection and the whole chat UI work regardless — but a real AI
+reply needs your provider choice + key. That decision is now the ONLY thing
+between the coach and its first live conversation.
 
 ## ★ NEW (Session 018): native review of the CRISIS content — the one gate before the coach runs on your phones
 
 - **What:** the crisis word-lists (TR / AR incl. Arabizi / EN), the
-  professional-help response, and the "not therapy" disclaimer are
-  AI-drafted and marked `nativeReview: PENDING`. **This review BLOCKS the
-  coach's first run on a real device** — an under-reading crisis filter is a
-  safety failure, and only native speakers can judge the lists. TR: you two
-  (~15 minutes of reading). AR incl. Arabizi: your Gulf reviewer.
+  professional-help response, the "not therapy" disclaimer, and — NEW since
+  Session 019 — **the safety lines of the coach's system-prompt preamble**
+  (the "you are not therapy / no medical or legal advice / never claim to be
+  human" instructions, written out in TR/AR/EN) are AI-drafted and marked
+  `nativeReview: PENDING`. **This review BLOCKS the coach's first run on a
+  real device** — an under-reading crisis filter is a safety failure, and
+  only native speakers can judge the lists. TR: you two (~15 minutes of
+  reading). AR incl. Arabizi: your Gulf reviewer.
 - **Also in this gate:** crisis-hotline phone numbers are deliberately NOT
   in the app — a wrong number is dangerous. When you review, choose the
-  TR/SA numbers you trust and a session wires them in.
+  TR/SA numbers you trust and a session wires them in. (A CI test now fails
+  if anyone adds a phone-number-shaped string to the coach copy without
+  going through this gate.)
 - **Where:** `functions/src/coach/crisis-lexicon.ts` +
-  `functions/src/coach/help-content.ts` — or just send corrections to a
-  session and it does the mechanics.
-- **When:** NOT blocking M5.2 (chat UI, still fixture-driven). Blocking the
-  first on-device coach use — which rides item 4's timeline anyway.
+  `functions/src/coach/help-content.ts` (help response) +
+  `functions/src/coach/persona-prompts.ts` (preamble safety lines); the
+  disclaimer moved in Session 019 to its single home in the app copy files
+  (`app/lib/core/l10n/arb/app_{tr,ar,en}.arb`, key `coachDisclaimerBody` —
+  same strings, new address). Or just send corrections to a session.
+- **When:** blocking the first on-device coach use — which rides item 4's
+  timeline anyway.
 
-## 6. NEW (Session 018): LLM provider decision + API key — becomes due at M5.2/M5.3
+## 6. **DUE NOW** (raised Session 018; due since Session 019): LLM provider decision + API key — M5.3 is waiting on exactly this
 
 - **What:** pick the AI provider for the coach and create an API key. The
   server seam is provider-agnostic; nothing in the code commits to anyone,
@@ -75,9 +86,32 @@ engineering never waits on your account decision — that's deliberate.
   at Sonnet pricing. Quality in Gulf Arabic + Turkish is the differentiator;
   OpenAI/Gemini are viable behind the same seam (their prices get pulled
   fresh when you decide — not quoted from memory).
-- **When:** the first LIVE coach call (M5.2 or M5.3). Until then everything
-  runs on recorded fixtures. The key goes into Secret Manager at deploy
-  (like the RC webhook token) — never into the repo.
+- **When:** **now-ish.** The chat UI is done (Session 019); M5.3 — the first
+  live coach conversation — is blocked on this decision alone and was
+  SKIPPED in the session ordering because of it (Session 020 builds the app
+  lock instead; M5.3 jumps back to the front the moment you answer). Until
+  then everything runs on recorded fixtures. The key goes into Secret
+  Manager at deploy (like the RC webhook token) — never into the repo.
+
+## 7. NEW (Session 019): should coach conversations ever be SAVED? — the private-thread retention decision
+
+- **What:** today, coach chats are deliberately ephemeral: nothing is stored
+  on the server (since M5.1) or on the phone (Session 019 — a fresh app
+  start is a fresh conversation; signing out wipes instantly). That is the
+  most protective posture for a product that serves people in difficult
+  relationships: a saved thread on a shared phone is readable by whoever
+  holds it, and the app's device lock doesn't exist yet (it's next session).
+  Whether to KEEP it that way is a privacy stance only you can set.
+- **The options, honestly:** (a) **ephemeral forever** — simplest, safest,
+  zero data anywhere; the cost is that a couple loses coach context whenever
+  the app restarts. (b) **a saved private thread per person**
+  (`coach_sessions`, auto-deleted after ~30 days) — more useful, but it
+  needs: your call on the retention window, rules guaranteeing a partner can
+  NEVER read the other's thread, inclusion in the M6 data-export and
+  delete-everything flows, and it should not ship before the device lock
+  exists. No engineering waits on this — ephemeral works fine indefinitely.
+- **When:** whenever you have a view; a session folds it in with rules +
+  tests in a day. Until then: ephemeral.
 
 ## ★ NEW (2026-07-12, Session 018): you have the iPhone 17 + Mac — the TestFlight runbook
 
@@ -280,8 +314,17 @@ instead of M5.2 — say so and it will be re-scoped.
   unreviewed by a native.
 - **NEW since M5.1 — the CRISIS-content review is tracked separately (the ★
   item near the top) because it is a SAFETY gate, not a polish gate:** the
-  crisis word-lists, help response, and disclaimer block the coach's first
-  on-device run, while everything in this item blocks only public launch.
+  crisis word-lists, help response, disclaimer, and (since M5.2) the
+  prompt-preamble safety lines block the coach's first on-device run, while
+  everything in this item blocks only public launch.
+- **NEW since M5.2 (standard gate):** the coach chat copy — 27 strings ×
+  TR/AR/EN in `app/lib/core/l10n/arb/` (keys starting `coach`): persona
+  names (incl. the Perisi/ملهم naming call), chat labels, quota captions,
+  every error message, and the paused-conversation copy — plus the persona
+  and register TONE blocks of the system prompts in
+  `functions/src/coach/persona-prompts.ts` (their SAFETY lines are in the ★
+  gate above). AI-drafted in the brandkit voice; same TR-by-you-two /
+  AR-by-your-Gulf-reviewer pass before public launch.
 
 ## 2. Blaze plan decision — **last call, optional bonus otherwise**
 
@@ -367,45 +410,51 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 018 close)
+## Progress & readiness snapshot (as of Session 019 close)
 
 - **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 engineering ✅ (sandbox
-  accept line open on item 0)** · **M5: 1/3 (the safety spine)** · M6 pending —
-  **17/22 session-units (77%) in 18 sessions; 5 planned session-units left to
-  the MVP** (M5: 2 · M6: 3; M6.5 Android sits outside the 22-unit MVP count).
-  On track; no plan or scope changes in Session 018 (M1's +1 session remains
-  the only slippage ever).
+  accept line open on item 0)** · **M5: 2/3 (spine + chat UI; M5.3 live
+  adapter is founder-blocked on item 6)** · M6 starting — **18/22
+  session-units (82%) in 19 sessions; 4 planned session-units left to the
+  MVP** (M5: 1, blocked · M6: 3; M6.5 Android sits outside the 22-unit MVP
+  count). On track; no plan or scope changes in Session 019 (M1's +1 session
+  remains the only slippage ever). Next session: M6.1, the device-privacy
+  layer (app lock + discreet icon) — deliberately re-ordered ahead of the
+  blocked M5.3.
 - **Readiness: pre-MVP, emulator/CI-proven, nothing deployed, nothing on a
-  phone.** Working and proven against emulators + CI: auth, profile + rules, the
-  whole pairing loop, the unpaired solo week, the content pipeline, the FULL
-  daily loop (server assignment → answer → server-gated mutual reveal → streak
-  with grace), the notification *logic*, the **entitlement backbone** (RC
-  webhook → couple mirror → app premium decision, replay/out-of-order/
+  phone.** Working and proven against emulators + CI: auth, profile + rules,
+  the whole pairing loop, the unpaired solo week, the content pipeline, the
+  FULL daily loop (server assignment → answer → server-gated mutual reveal →
+  streak with grace), the notification *logic*, the **entitlement backbone**
+  (RC webhook → couple mirror → app premium decision, replay/out-of-order/
   transfer-proven), the **paywall + premium gating** (annual-first paywall
   over a fully-faked store, the reusable premium gate, free tier
-  assertion-protected), and now the **coach safety spine** (crisis detector
+  assertion-protected), the **coach safety spine** (crisis detector
   TR/AR/Arabizi/EN proven against engineered evasions; `coachProxy` with
-  server-side premium gate, transactional caps, and a fail-closed provider
-  seam — zero live AI calls by design). **What "production-ready" is still
-  missing, honestly:** no deploy has ever happened (Spark plan — item 2), the
-  app has never run on a real device (Mac/enrollment — item 4), no real
-  purchase has ever been made (item 0), push notifications have no device
-  half (APNs — item 4), the coach has no chat UI and no live AI provider yet
-  (M5.2/M5.3 + item 6), and privacy/launch hardening (M6) is not built. Call
-  it **~77% of the MVP's engineering, 0% of its operational proof.**
+  server-side premium gate, transactional caps, fail-closed provider seam),
+  and now the **coach chat UI** (premium-only surface with three personas,
+  the help-sticky pause enforced app-side, per-device "not therapy" consent,
+  honest states for every server outcome, conversations ephemeral by design
+  and wiped on sign-out — 1,025 app tests / 773 server tests green). **What
+  "production-ready" is still missing, honestly:** no deploy has ever
+  happened (Spark plan — item 2), the app has never run on a real device
+  (Mac/enrollment — item 4), no real purchase has ever been made (item 0),
+  push notifications have no device half (APNs — item 4), the coach has no
+  live AI provider (item 6 — the ONLY gap left in M5), and privacy/launch
+  hardening (M6) starts next session. Call it **~82% of the MVP's
+  engineering, 0% of its operational proof.**
   Deferred loudly (nothing silent): seasonal question windows (issue #29), the
   schedule trigger + Eventarc retry + webhook Secret Manager binding
   (deploy-verified at first Blaze deploy), `users.fcmTokens` capture + APNs
-  (item 4), **RC-REST reconciliation** (the fix for three named transfer costs
-  *and* for webhooks dropped past RC's ~155-min retry budget — rides item 0 +
-  the deploy era), the RC identity-sync retry hardening (first live-key
-  session), private thread (M5.2 scope decision, with `coach_sessions`
-  persistence), the coach's live provider adapter + `LLM_API_KEY` (item 6),
-  the crisis-content native review + hotline numbers (★ item — blocks
-  coach-on-device only), Remote Config cap binding (deploy era; constants +
-  injectable seam today), the coach rate limiter's per-instance scope
-  (revisit at deploy hardening), `invitePreview.questionText`
-  (W9), Apple **Group Purchases** (WWDC26; no RevenueCat support yet — the only
-  thing that would reopen the gift decision), and two quarantined tests
+  (item 4), **RC-REST reconciliation** (rides item 0 + the deploy era), the
+  RC identity-sync retry hardening (first live-key session), the private
+  thread (item 7 — founder retention decision; ephemeral until then), the
+  coach's live provider adapter + `LLM_API_KEY` (item 6 — DUE), the
+  crisis-content native review + hotline numbers (★ — blocks coach-on-device
+  only), the OS app-switcher snapshot obscuring (M6.1, next session), Remote
+  Config cap binding (deploy era), the coach rate limiter's per-instance
+  scope (deploy hardening), a pre-first-message quota meter (needs the
+  `coachUsage` watch), `invitePreview.questionText` (W9), Apple **Group
+  Purchases** (WWDC26; no RevenueCat support yet), and two quarantined tests
   (ci-debt #36 reveal round-trip listener race, #15 phone-auth simulator
   crash — at the >2-forces-stabilization threshold, not over it).
