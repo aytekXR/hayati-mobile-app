@@ -15,6 +15,7 @@ import {
   decide,
   deriveSummary,
   gateTransfer,
+  isPremiumMirror,
   logProjection,
   parseRcEvent,
   planTransfer,
@@ -834,5 +835,32 @@ describe('logProjection on a TRANSFER', () => {
       decision: 'transfer-hold:internal',
     });
     expect(JSON.stringify(fields)).not.toContain('uid-a');
+  });
+});
+
+// --- server-side premium gate (ADR-013 D5, ADR-016 D6) ----------------------
+
+describe('isPremiumMirror — the shared server-side D5 check (ADR-016 coachProxy)', () => {
+  const now = 1_000;
+
+  it('entitled + non-expiring (null) → premium', () => {
+    expect(isPremiumMirror({ entitled: true, expiresAtMs: null }, now)).toBe(true);
+  });
+
+  it('entitled + future expiry → premium', () => {
+    expect(isPremiumMirror({ entitled: true, expiresAtMs: now + 1 }, now)).toBe(true);
+  });
+
+  it('entitled + PAST expiry → NOT premium (the delayed-EXPIRATION window D5 exists for)', () => {
+    expect(isPremiumMirror({ entitled: true, expiresAtMs: now - 1 }, now)).toBe(false);
+  });
+
+  it('entitled + expiry EXACTLY now → NOT premium (strict >, byte-consistent with the app)', () => {
+    expect(isPremiumMirror({ entitled: true, expiresAtMs: now }, now)).toBe(false);
+  });
+
+  it('not entitled → NOT premium regardless of expiry', () => {
+    expect(isPremiumMirror({ entitled: false, expiresAtMs: null }, now)).toBe(false);
+    expect(isPremiumMirror({ entitled: false, expiresAtMs: now + 10_000 }, now)).toBe(false);
   });
 });

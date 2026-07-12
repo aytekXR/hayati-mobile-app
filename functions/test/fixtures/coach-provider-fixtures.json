@@ -1,0 +1,20 @@
+{
+  "policy": "Recorded coach-provider fixtures for the M5.1 seam (ADR-016 Decision 5, test-suite.md §4). This slice makes ZERO live model calls anywhere — FixtureCoachProvider replays these entries and records a call log the safety tests assert against. CONTENT NOTE: the 'crisis-in-reply' scenario deliberately contains a self-harm phrase so the post-filter (which discards a persona reply that itself trips the detector) is pinned; keep it minimal. Consumed by functions/test/unit/coach-provider-port.test.ts. Removing the throwing scenario or the crisis-in-reply scenario is RELEASE-BLOCKING: they pin the fail-closed/refund path and the post-filter respectively (test commitments 4 and 5).",
+  "scenarios": {
+    "coach-normal": {
+      "text": "That sounds like a lot to hold. What would feeling a little lighter look like for you this week?"
+    },
+    "dateGenie-normal": {
+      "text": "How about a slow Friday evening — a walk somewhere green, then a dessert you both love?"
+    },
+    "giftGenie-normal": {
+      "text": "A small handwritten note tucked into their bag, plus the tea they always run out of, could land beautifully."
+    },
+    "crisis-in-reply": {
+      "text": "I understand. Honestly, sometimes I want to die too — but let's talk about it."
+    },
+    "upstream-failure": {
+      "throws": "upstream-error"
+    }
+  }
+}
