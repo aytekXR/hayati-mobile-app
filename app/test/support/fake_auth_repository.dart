@@ -29,6 +29,11 @@ class FakeAuthRepository implements AuthRepository {
   /// always explicit via [emit]).
   Future<void> Function()? onSignOut;
 
+  /// Optional override for [signOutAfterAccountDeletion] (ADR-019 D7 phase 2);
+  /// default clears [currentUser] silently. Set it to throw an [AuthException] to
+  /// drive the phase-2 self-heal path (AuthError + lock intact).
+  Future<void> Function()? onSignOutAfterAccountDeletion;
+
   /// Behaviour of the next [sendPhoneCode] call. Tests must set this before
   /// triggering the phone flow; the fake throws otherwise so a missing
   /// arrangement fails loudly instead of hanging.
@@ -45,6 +50,7 @@ class FakeAuthRepository implements AuthRepository {
   int signInCalls = 0;
   int signInWithAppleCalls = 0;
   int signOutCalls = 0;
+  int signOutAfterAccountDeletionCalls = 0;
   int sendPhoneCodeCalls = 0;
   int confirmPhoneCodeCalls = 0;
 
@@ -118,6 +124,17 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> signOut() {
     signOutCalls++;
     final handler = onSignOut;
+    if (handler != null) {
+      return handler();
+    }
+    _currentUser = null;
+    return Future<void>.value();
+  }
+
+  @override
+  Future<void> signOutAfterAccountDeletion() {
+    signOutAfterAccountDeletionCalls++;
+    final handler = onSignOutAfterAccountDeletion;
     if (handler != null) {
       return handler();
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/daily_question/domain/couple.dart';
@@ -11,6 +12,8 @@ import 'package:hayati_app/features/daily_question/domain/solo_answers_repositor
 import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/presentation/paired_home_screen.dart';
 import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
+import 'package:hayati_app/features/data_rights/presentation/couple_ended_notice_screen.dart';
+import 'package:hayati_app/features/data_rights/presentation/state/couple_ended_seen.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
@@ -28,6 +31,7 @@ import '../../../support/fake_couple_repository.dart';
 import '../../../support/fake_deep_link_source.dart';
 import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
+import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/fake_question_pack_repository.dart';
 import '../../../support/fake_solo_answers_repository.dart';
@@ -53,6 +57,7 @@ void main() {
     RelationshipProfile? profile,
     Uri? initialLink,
     Locale locale = const Locale('en'),
+    FakeLocalFlagStore? flags,
   }) async {
     final fake = FakeProfileRepository(initialProfiles: {user.uid: ?profile});
     final fakeAuth = FakeAuthRepository(initialUser: user);
@@ -111,6 +116,9 @@ void main() {
             (ref) => fakeCoupleAnswers,
           ),
           questionPackRepositoryProvider.overrideWith((ref) => fakeCouplePacks),
+          localFlagStoreProvider.overrideWithValue(
+            flags ?? FakeLocalFlagStore(),
+          ),
         ],
       ),
     );
@@ -214,6 +222,88 @@ void main() {
 
       expect(find.byType(PairedHomeScreen), findsOneWidget);
       expect(find.byType(SoloHomeScreen), findsNothing);
+    });
+  });
+
+  group('couple-ended morning-after notice (ADR-019 D3)', () {
+    final at1 = DateTime.fromMillisecondsSinceEpoch(1752000000000);
+    final at2 = DateTime.fromMillisecondsSinceEpoch(1752999999999);
+    RelationshipProfile endedProfile(DateTime at) => RelationshipProfile(
+      status: RelationshipStatus.married,
+      contentLanguage: ContentLanguage.tr,
+      register: ContentRegister.playful,
+      coupleEndedAt: at,
+    );
+
+    testWidgets('coupleId null + coupleEndedAt set + flag unset → the notice '
+        'renders (a gate-rendered child)', (tester) async {
+      await pumpGate(tester, profile: endedProfile(at1));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CoupleEndedNoticeScreen), findsOneWidget);
+      expect(find.byType(SoloHomeScreen), findsNothing);
+    });
+
+    testWidgets('Continue sets the event-keyed flag and routes to the solo '
+        'home', (tester) async {
+      final flags = FakeLocalFlagStore();
+      await pumpGate(tester, profile: endedProfile(at1), flags: flags);
+      await tester.pumpAndSettle();
+
+      final en = l10nFor(const Locale('en'));
+      await tester.tap(find.text(en.coupleEndedContinue));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
+      expect(find.byType(CoupleEndedNoticeScreen), findsNothing);
+      expect(flags.isSet(coupleEndedSeenKey(user.uid, at1)), isTrue);
+    });
+
+    testWidgets('a launch with the event flag already set goes straight to '
+        'solo (noticed exactly once per device)', (tester) async {
+      final flags = FakeLocalFlagStore(
+        initial: {coupleEndedSeenKey(user.uid, at1)},
+      );
+      await pumpGate(tester, profile: endedProfile(at1), flags: flags);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CoupleEndedNoticeScreen), findsNothing);
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
+    });
+
+    testWidgets('a SECOND coupleEnded with a different at renders the notice '
+        'again (event-keyed, NOTICE-1)', (tester) async {
+      // The first event was already acknowledged on this device…
+      final flags = FakeLocalFlagStore(
+        initial: {coupleEndedSeenKey(user.uid, at1)},
+      );
+      // …but a fresh ending (a new `at`) mints a new key, so it is noticed.
+      await pumpGate(tester, profile: endedProfile(at2), flags: flags);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CoupleEndedNoticeScreen), findsOneWidget);
+    });
+
+    testWidgets('the notice precedes the pending-invite branch — a deep-link '
+        'joiner sees the notice first (NOTICE-2)', (tester) async {
+      await pumpGate(
+        tester,
+        profile: endedProfile(at1),
+        initialLink: Uri.parse('hayati://invite/ABCD2345'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CoupleEndedNoticeScreen), findsOneWidget);
+      expect(find.byType(PartnerPreviewScreen), findsNothing);
+    });
+
+    testWidgets('absent coupleEnded → existing solo routing is byte-identical '
+        '(positive control)', (tester) async {
+      await pumpGate(tester, profile: existingProfile);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CoupleEndedNoticeScreen), findsNothing);
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
     });
   });
 

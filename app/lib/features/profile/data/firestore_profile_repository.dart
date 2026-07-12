@@ -34,13 +34,26 @@ class FirestoreProfileRepository implements ProfileRepository {
   /// Converts the wire types the pure mapper must not know about: `createdAt`
   /// arrives as a Firestore `Timestamp` (or null while the very first save's
   /// server stamp is pending) and crosses to the domain as a [DateTime]
-  /// (M2.4 — it anchors the solo day-N rotation). Non-Timestamp junk is left
-  /// as-is for `profileFromMap` to reject loudly.
+  /// (M2.4 — it anchors the solo day-N rotation); the NESTED `coupleEnded.at`
+  /// Timestamp is converted the same way (M6.2, ADR-019 D3 — the honest
+  /// morning-after notice reads off it). Non-Timestamp junk is left as-is for
+  /// `profileFromMap` to reject loudly.
   Map<String, dynamic> _domainReady(Map<String, dynamic> data) {
     final createdAt = data['createdAt'];
+    final coupleEnded = data['coupleEnded'];
     return {
       ...data,
       'createdAt': createdAt is Timestamp ? createdAt.toDate() : createdAt,
+      // A nested map crosses opaquely otherwise; convert its `at` in place so the
+      // pure mapper sees a DateTime, never a Firestore Timestamp (review finding
+      // APP-3). A non-map value is left untouched for the mapper to reject.
+      if (coupleEnded is Map)
+        'coupleEnded': {
+          ...coupleEnded,
+          'at': coupleEnded['at'] is Timestamp
+              ? (coupleEnded['at'] as Timestamp).toDate()
+              : coupleEnded['at'],
+        },
     };
   }
 

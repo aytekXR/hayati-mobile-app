@@ -115,5 +115,59 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('reads notificationPrivacy as an enum-safe boolean (M6.2, D6)', () {
+      expect(
+        profileFromMap({
+          ...profileToMap(profile),
+          'notificationPrivacy': 'discreet',
+        }).notificationPrivacyDiscreet,
+        isTrue,
+      );
+      // Absent → false; junk → false (never throws — a settings toggle must not
+      // brick the profile stream on a stray value).
+      expect(
+        profileFromMap(profileToMap(profile)).notificationPrivacyDiscreet,
+        isFalse,
+      );
+      expect(
+        profileFromMap({
+          ...profileToMap(profile),
+          'notificationPrivacy': 'nonsense',
+        }).notificationPrivacyDiscreet,
+        isFalse,
+      );
+    });
+
+    test('reads the boundary-converted nested coupleEnded.at READ-ONLY '
+        '(M6.2, D3)', () {
+      final data = {
+        ...profileToMap(profile),
+        'coupleEnded': {'at': DateTime.utc(2026, 7, 11)},
+      };
+      expect(profileFromMap(data).coupleEndedAt, DateTime.utc(2026, 7, 11));
+      // Absent coupleEnded → null (still paired / never-ended).
+      expect(profileFromMap(profileToMap(profile)).coupleEndedAt, isNull);
+    });
+
+    test('a raw Timestamp inside coupleEnded.at fails loudly (missed boundary '
+        'conversion)', () {
+      expect(
+        () => profileFromMap({
+          ...profileToMap(profile),
+          'coupleEnded': {
+            'at': Timestamp.fromMillisecondsSinceEpoch(1752000000000),
+          },
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('a non-map coupleEnded fails loudly', () {
+      expect(
+        () => profileFromMap({...profileToMap(profile), 'coupleEnded': 'x'}),
+        throwsFormatException,
+      );
+    });
   });
 }

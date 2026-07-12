@@ -757,5 +757,129 @@
   "settingsLockCooldown": "Too many attempts. Try again shortly.",
   "@settingsLockCooldown": {
     "description": "Shown in settings when a PIN op is refused because a cooldown is running — the PIN was never compared, so claiming it \"did not match\" would be a lie (review finding DVUX-4)."
+  },
+  "settingsNotificationPrivacyTitle": "Discreet notifications",
+  "@settingsNotificationPrivacyTitle": {
+    "description": "Settings toggle title for the per-user notification-privacy override (ADR-019 D6)"
+  },
+  "settingsNotificationPrivacySubtitle": "Hide message content in notifications, showing only that something new arrived.",
+  "@settingsNotificationPrivacySubtitle": {
+    "description": "Subtitle for the discreet-notifications toggle, non-Arabic content language"
+  },
+  "settingsNotificationPrivacySubtitleAr": "On by default for Arabic. You can keep it on even if you change your content language.",
+  "@settingsNotificationPrivacySubtitleAr": {
+    "description": "Subtitle shown when the content language is Arabic: the discreet default is already on and can't be turned off in v1 — the explicit toggle only preserves the posture across a later language change (ADR-019 D6)"
+  },
+  "settingsNotificationPrivacyFailed": "That setting couldn't be changed. Please try again.",
+  "@settingsNotificationPrivacyFailed": {
+    "description": "Honest failure line under the discreet-notifications toggle when the callable throws"
+  },
+  "dataRightsExportRowTitle": "Download my data",
+  "@dataRightsExportRowTitle": {
+    "description": "Settings row that opens the self-serve data export (ADR-019 D5)"
+  },
+  "dataRightsExportRowSubtitle": "See and copy the data Hayati holds for you.",
+  "@dataRightsExportRowSubtitle": {
+    "description": "Subtitle for the download-my-data settings row"
+  },
+  "dataRightsDeleteRowTitle": "Delete account & data",
+  "@dataRightsDeleteRowTitle": {
+    "description": "Settings row that opens the account-deletion flow (ADR-019 D7)"
+  },
+  "dataRightsDeleteRowSubtitle": "Permanently remove your account and everything in it.",
+  "@dataRightsDeleteRowSubtitle": {
+    "description": "Subtitle for the delete-account settings row"
+  },
+  "dataRightsExportTitle": "Your data",
+  "@dataRightsExportTitle": {
+    "description": "Title of the export screen. Says \"your data\" — no completeness over-claim (ADR-019 D5)"
+  },
+  "dataRightsExportIntro": "This is your data, as Hayati holds it. Copy it anywhere you like.",
+  "@dataRightsExportIntro": {
+    "description": "Intro line above the exported JSON document"
+  },
+  "dataRightsExportCopy": "Copy",
+  "@dataRightsExportCopy": {
+    "description": "Copy-to-clipboard action on the export screen"
+  },
+  "dataRightsExportCopied": "Copied to your clipboard.",
+  "@dataRightsExportCopied": {
+    "description": "Confirmation shown after the export document is copied"
+  },
+  "dataRightsExportError": "Your data couldn't be loaded. Please try again.",
+  "@dataRightsExportError": {
+    "description": "Honest error state on the export screen, with a retry"
+  },
+  "dataRightsDeleteTitle": "Delete account & data",
+  "@dataRightsDeleteTitle": {
+    "description": "Title of the delete-account screen"
+  },
+  "dataRightsDeleteIrreversible": "This can't be undone.",
+  "@dataRightsDeleteIrreversible": {
+    "description": "The irreversibility sentence on the delete-account screen (ADR-019 D7 copy pin)"
+  },
+  "dataRightsDeleteScope": "It permanently deletes your account, your private reflections, and the entire shared space — both sides of every answer.",
+  "@dataRightsDeleteScope": {
+    "description": "The both-sides scope sentence: deletion removes the whole couple thread, both authors (ADR-019 D1/D7 copy pin)"
+  },
+  "dataRightsDeletePartner": "Your partner will see that the shared space was closed, but not why.",
+  "@dataRightsDeletePartner": {
+    "description": "What the partner learns — no actor attribution (ADR-019 D3/D7)"
+  },
+  "dataRightsDeleteSubscription": "This does not cancel an App Store subscription. Manage that in your App Store settings.",
+  "@dataRightsDeleteSubscription": {
+    "description": "The subscription honesty sentence: deletion is not cancellation (ADR-019 D4/D7 copy pin)"
+  },
+  "dataRightsDeleteExportLink": "Download your data first?",
+  "@dataRightsDeleteExportLink": {
+    "description": "Link inside the delete flow to the export screen (ADR-019 D7)"
+  },
+  "dataRightsDeleteConfirmAction": "Delete permanently",
+  "@dataRightsDeleteConfirmAction": {
+    "description": "The primary destructive action on the delete-account screen"
+  },
+  "dataRightsDeleteDialogTitle": "Delete everything?",
+  "@dataRightsDeleteDialogTitle": {
+    "description": "Title of the plain destructive confirm dialog shown when no lock is set"
+  },
+  "dataRightsDeleteDialogBody": "Your account and all of its data will be deleted permanently. This can't be undone.",
+  "@dataRightsDeleteDialogBody": {
+    "description": "Body of the destructive confirm dialog — must contain \"permanently\" (ADR-019 D7)"
+  },
+  "dataRightsDeleteDialogConfirm": "Delete",
+  "@dataRightsDeleteDialogConfirm": {
+    "description": "Confirm button on the destructive delete dialog"
+  },
+  "dataRightsDeleteDialogCancel": "Cancel",
+  "@dataRightsDeleteDialogCancel": {
+    "description": "Cancel button on the destructive delete dialog"
+  },
+  "dataRightsDeleteCouldNotConfirm": "We couldn't confirm the deletion. Please try again.",
+  "@dataRightsDeleteCouldNotConfirm": {
+    "description": "In-place retry copy after a phase-1 cascade failure — never says \"failed\", because a lost ack may mean the deletion actually completed (ADR-019 D7/AUTH-3)"
+  },
+  "coupleEndedTitle": "Your shared space has closed",
+  "@coupleEndedTitle": {
+    "description": "Title of the partner morning-after notice (ADR-019 D3)"
+  },
+  "coupleEndedBody": "The shared space has been closed and its content permanently deleted.",
+  "@coupleEndedBody": {
+    "description": "The notice body — no actor attribution (ADR-019 D3/DV-2)"
+  },
+  "coupleEndedReflections": "Your own private reflections are untouched and remain yours.",
+  "@coupleEndedReflections": {
+    "description": "Reassurance that the survivor's solo space is intact (ADR-019 D3)"
+  },
+  "coupleEndedSubscription": "If you had a subscription, this doesn't cancel it — manage it in your App Store settings.",
+  "@coupleEndedSubscription": {
+    "description": "The static subscription note on the notice — reveals nothing about who paid (ADR-019 D4)"
+  },
+  "coupleEndedPairAgain": "You can pair again whenever you choose.",
+  "@coupleEndedPairAgain": {
+    "description": "The forward-looking line on the notice (ADR-019 D3)"
+  },
+  "coupleEndedContinue": "Continue",
+  "@coupleEndedContinue": {
+    "description": "The single primary action that acknowledges the notice and routes to the solo home (ADR-019 D3)"
   }
 }

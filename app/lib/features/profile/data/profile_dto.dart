@@ -17,6 +17,16 @@ import '../domain/relationship_profile.dart';
 /// BEFORE calling in; a still-`Timestamp` value here is therefore a missed
 /// boundary conversion and fails loudly. Null is legitimate: the local echo of
 /// the very first save carries a pending server timestamp.
+/// [notificationPrivacy] crosses READ-ONLY at M6.2 (ADR-019 D6): an enum-safe
+/// defensive read where only the exact string `'discreet'` counts — absent or any
+/// junk value reads false, never throws (a display/settings toggle must not brick
+/// the profile stream on a stray value). Never round-tripped by [profileToMap].
+///
+/// [coupleEndedAt] crosses READ-ONLY at M6.2 (ADR-019 D3) from the NESTED
+/// `coupleEnded: { at: Timestamp }` map. Like [createdAt], the repository converts
+/// the wire `Timestamp` to a [DateTime] at the Firestore boundary BEFORE calling
+/// in (keeping this mapper pure); a still-`Timestamp` inner value here is a missed
+/// boundary conversion and fails loudly. Absent `coupleEnded` → null.
 RelationshipProfile profileFromMap(Map<String, dynamic> data) =>
     RelationshipProfile(
       status: _enumField(data, 'status', RelationshipStatus.values),
@@ -28,6 +38,8 @@ RelationshipProfile profileFromMap(Map<String, dynamic> data) =>
       register: _enumField(data, 'register', ContentRegister.values),
       coupleId: _optionalString(data, 'coupleId'),
       createdAt: _optionalDateTime(data, 'createdAt'),
+      notificationPrivacyDiscreet: data['notificationPrivacy'] == 'discreet',
+      coupleEndedAt: _nestedDateTime(data, 'coupleEnded', 'at'),
     );
 
 /// Client-owned fields only: server-owned fields (createdAt, coupleId,
@@ -87,4 +99,33 @@ DateTime? _optionalDateTime(Map<String, dynamic> data, String field) {
     );
   }
   return raw;
+}
+
+/// Reads an optional NESTED timestamp — `data[outer][inner]` — that the
+/// repository has already converted to a [DateTime] at the Firestore boundary
+/// (ADR-019 D3's `coupleEnded.at`). Absent outer map → null; present but not a
+/// map → [FormatException]; absent inner → null; present inner non-DateTime →
+/// [FormatException]. The existing mapper does NOT convert nested maps by magic
+/// (review finding APP-3), so this is spelled out explicitly and loudly.
+DateTime? _nestedDateTime(
+  Map<String, dynamic> data,
+  String outer,
+  String inner,
+) {
+  final rawOuter = data[outer];
+  if (rawOuter == null) return null;
+  if (rawOuter is! Map) {
+    throw FormatException(
+      'users doc field "$outer": expected a map, got ${rawOuter.runtimeType}',
+    );
+  }
+  final rawInner = rawOuter[inner];
+  if (rawInner == null) return null;
+  if (rawInner is! DateTime) {
+    throw FormatException(
+      'users doc field "$outer.$inner": expected a DateTime, got '
+      '${rawInner.runtimeType}',
+    );
+  }
+  return rawInner;
 }

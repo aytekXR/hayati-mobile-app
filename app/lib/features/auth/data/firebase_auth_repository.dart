@@ -107,6 +107,22 @@ class FirebaseAuthRepository implements AuthRepository {
     await _auth.signOut();
   });
 
+  @override
+  Future<void> signOutAfterAccountDeletion() => _guarded(() async {
+    // Phase 2 of ADR-019 D7. The server cascade already deleted the Auth user;
+    // this only clears the local session. The Google half is best-effort: a live
+    // Google session for a deleted account is meaningless residue, and its
+    // failure must NOT block the Firebase sign-out that lands AuthSignedOut and
+    // fires the lock wipe. Only the Firebase sign-out's failure surfaces (as an
+    // AuthException via _guarded), driving the phase-2 self-heal path.
+    try {
+      await _google.signOut();
+    } catch (_) {
+      // Swallowed by decision (ADR-019 D7 phase 2). Never a protection to keep.
+    }
+    await _auth.signOut();
+  });
+
   /// Enforces the [AuthRepository] contract at the boundary: domain
   /// exceptions pass through, Firebase codes are mapped, and anything else
   /// (plugin `PlatformException`s, pigeon decode errors, …) is normalized —

@@ -7,8 +7,11 @@ import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_state.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/presentation/state/auth_controller.dart';
+import 'package:hayati_app/features/data_rights/domain/data_rights_exception.dart';
+import 'package:hayati_app/features/data_rights/domain/data_rights_repository_provider.dart';
 
 import '../../../../support/fake_auth_repository.dart';
+import '../../../../support/fake_data_rights_repository.dart';
 
 const testUser = AuthUser(uid: 'uid-1', displayName: 'Aytek');
 
@@ -23,6 +26,21 @@ void main() {
     addTearDown(container.dispose);
     addTearDown(fake.dispose);
     return (container, fake);
+  }
+
+  (ProviderContainer, FakeAuthRepository, FakeDataRightsRepository)
+  makeDeleteContainer() {
+    final auth = FakeAuthRepository(initialUser: testUser);
+    final dataRights = FakeDataRightsRepository();
+    final container = ProviderContainer(
+      overrides: [
+        authRepositoryProvider.overrideWith((ref) => auth),
+        dataRightsRepositoryProvider.overrideWith((ref) => dataRights),
+      ],
+    );
+    addTearDown(container.dispose);
+    addTearDown(auth.dispose);
+    return (container, auth, dataRights);
   }
 
   group('initial state', () {
@@ -311,5 +329,72 @@ void main() {
         const AuthError(AuthUnknownException(code: 'internal-error')),
       );
     });
+  });
+
+  group('deleteAccount (ADR-019 D7 phase model)', () {
+    test('phase-1 cascade failure leaves the state AuthSignedIn, rethrows the '
+        'typed exception, and never attempts teardown', () async {
+      final (container, auth, dataRights) = makeDeleteContainer();
+      dataRights.onDeleteAccount = () async =>
+          throw const DataRightsNetworkException();
+
+      // The typed exception propagates to the screen (it is NOT an
+      // AuthException, so the controller's `on AuthException` catch cannot eat
+      // it) — and nothing transitions, so nothing pops.
+      await expectLater(
+        container.read(authControllerProvider.notifier).deleteAccount(),
+        throwsA(isA<DataRightsNetworkException>()),
+      );
+
+      expect(
+        container.read(authControllerProvider),
+        const AuthSignedIn(testUser),
+      );
+      expect(dataRights.deleteAccountCalls, 1);
+      expect(auth.signOutAfterAccountDeletionCalls, 0);
+    });
+
+    test(
+      'success tears down the session and lands an explicit AuthSignedOut',
+      () async {
+        final (container, auth, dataRights) = makeDeleteContainer();
+
+        final states = <AuthState>[];
+        container.listen<AuthState>(
+          authControllerProvider,
+          (_, next) => states.add(next),
+        );
+
+        await container.read(authControllerProvider.notifier).deleteAccount();
+
+        expect(dataRights.deleteAccountCalls, 1);
+        expect(auth.signOutAfterAccountDeletionCalls, 1);
+        expect(container.read(authControllerProvider), const AuthSignedOut());
+        // A value-inequal AuthSignedIn → AuthSignedOut transition fired (the root
+        // listener's wipe rides exactly this notification).
+        expect(states, contains(const AuthSignedOut()));
+      },
+    );
+
+    test(
+      'a phase-2 sign-out throw surfaces as AuthError — protection stays, the '
+      'completed deletion self-heals later',
+      () async {
+        final (container, auth, dataRights) = makeDeleteContainer();
+        auth.onSignOutAfterAccountDeletion = () async =>
+            throw const AuthUnknownException(code: 'internal-error');
+
+        await container.read(authControllerProvider.notifier).deleteAccount();
+
+        // The server cascade DID run (deletion is complete); only the local
+        // teardown threw, so the state is AuthError and the lock (elsewhere)
+        // stays — never wiped on an AuthError.
+        expect(dataRights.deleteAccountCalls, 1);
+        expect(
+          container.read(authControllerProvider),
+          const AuthError(AuthUnknownException(code: 'internal-error')),
+        );
+      },
+    );
   });
 }
