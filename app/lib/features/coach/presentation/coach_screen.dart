@@ -364,7 +364,7 @@ class _CoachPersonaChips extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         SpacingTokens.screenGutter,
         SpacingTokens.x3,
         SpacingTokens.screenGutter,
@@ -567,7 +567,7 @@ class _CoachComposer extends StatelessWidget {
       minimumSize: const Size(0, 48),
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         SpacingTokens.screenGutter,
         SpacingTokens.x2,
         SpacingTokens.screenGutter,
@@ -669,7 +669,7 @@ class CoachPausedPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         SpacingTokens.screenGutter,
         SpacingTokens.x3,
         SpacingTokens.screenGutter,
