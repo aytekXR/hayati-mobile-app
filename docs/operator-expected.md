@@ -7,11 +7,35 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-12, Session 020 close (M6.1 — the device-privacy
-layer: app lock + discreet icon + snapshot shield + your first settings
-screen; **on plan, 19/22 units, 86%**). The TestFlight runbook lives below._
+_Last refreshed: 2026-07-12, **Session 021 interim (mid-session status update,
+founder-requested)** — M6.2 (KVKK/PDPL export + cascade delete + partner
+notification) is in flight: ADR-019 written, committed, and adversarially
+reviewed pre-code (2 blocking + 6 serious design defects caught and fixed
+before implementation — the seventh consecutive session that ordering paid
+for itself); the server half is being implemented now. The prior full
+refresh (Session 020 close, 19/22 units, 86%) stands below; the next full
+refresh lands at Session 021 close._
 
-## Expected from you right now: **NOTHING IS BLOCKING THIS SESSION'S WORK — no action was required and none was taken on your behalf.** Two decisions remain open and neither blocked Session 020: **item 6 (pick the AI provider — now OVERDUE, it is the only thing between the coach and its first live conversation)** and item 7 (should coach chats ever be saved?). Item 6 unblocks M5.3, which jumps to the front of the queue the moment you answer.
+## Expected from you right now: **NOTHING IS BLOCKING THIS SESSION'S WORK — no action was required and none was taken on your behalf.** Session 021 deliberately avoided creating a new operator item: the data **export is delivered in-app** (no email provider needed). Two decisions remain open and neither blocks anything mid-flight: **item 6 (pick the AI provider — still OVERDUE, the only thing between the coach and its first live conversation)** and item 7 (should coach chats ever be saved?). Item 6 unblocks M5.3, which jumps to the front of the queue the moment you answer.
+
+**Two Session 021 design calls you should know about (both yours to overturn
+with a word to a session — they are recorded loudly in ADR-019):**
+
+1. **What "delete my account" means for the shared thread.** When one partner
+   deletes, the ENTIRE shared space is permanently erased — both sides of
+   every answer, the streak, the subscription mirror — and the other partner
+   keeps only what was ever theirs alone (their profile, their solo
+   reflections). The alternative (each partner keeps their own half of the
+   thread) is recorded in ADR-019 with the honest costs of both options. The
+   chosen posture is the most protective for someone deleting to *escape* a
+   relationship — nothing they wrote survives anywhere the partner can read.
+2. **The partner gets NO push notification when a deletion happens.** They
+   learn the couple ended from an honest in-app notice the next time they
+   open Hayati. The review concluded a real-time "your space was closed" ping
+   to a possibly-abusive partner at the exact moment a victim cuts ties is a
+   safety risk with no upside — and nothing in the product spec requires a
+   push. If you ever want one, it is one decision away, with the analysis
+   already written.
 
 **Session 020 needed nothing from you mid-flight.** It built the app lock —
 the feature your PRD calls a headline, not a setting — and it is the last
