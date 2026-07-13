@@ -68,5 +68,26 @@ void main() {
         ),
       );
     });
+
+    testWidgets('change enter ${cell.suffix}', (tester) async {
+      // COLLECT mode (ADR-018 rev 4 — the change-PIN flow): the same LTR-pinned
+      // pad, but the title and first-phase prompt come from the change-PIN copy.
+      // A separate golden set so the enable (default-ctor) enter/confirm goldens
+      // do not move.
+      await pumpGolden(
+        tester,
+        const PinSetupScreen.collectNewPin(),
+        locale: cell.locale,
+        direction: cell.direction,
+        overrides: arrange(),
+      );
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(PinSetupScreen),
+        matchesGoldenFile(
+          goldenFile('pin_setup_screen', 'change_enter', cell.suffix),
+        ),
+      );
+    });
   }
 }

@@ -41,8 +41,10 @@ Future<void> showSettings(BuildContext context, {required String uid}) {
 ///
 /// M6.2 (ADR-019) extended this screen rather than inventing a surface — the KVKK
 /// export/delete rows and the notification-privacy toggle land HERE, as Decision 7
-/// reserved. Still deliberately NOT here in v1: a theme toggle (MVP OUT-list),
-/// change-PIN (disable→enable covers it), hotline content (founder-gated).
+/// reserved. M6.1's change-PIN gap is now closed too (ADR-018 rev 4 — the "Change
+/// PIN" row below verifies the current PIN first, exactly like disable). Still
+/// deliberately NOT here in v1: a theme toggle (MVP OUT-list), hotline content
+/// (founder-gated).
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key, required this.uid});
 
@@ -70,6 +72,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String Function(AppLocalizations)? _iconError;
   String Function(AppLocalizations)? _biometricError;
   String Function(AppLocalizations)? _lockError;
+  String Function(AppLocalizations)? _changePinError;
   String Function(AppLocalizations)? _notificationPrivacyError;
 
   @override
@@ -128,6 +131,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         PinLockAttemptWrong() => (l10n) => l10n.settingsLockDisableFailed,
         PinLockAttemptCooldown() => (l10n) => l10n.settingsLockCooldown,
         PinLockAttemptAccepted() || PinLockAttemptAborted() => null,
+      };
+    });
+  }
+
+  // ── Row 1b: change the PIN (ADR-018 rev 4) ───────────────────────────────
+
+  /// Verify-first PIN rotation (ADR-018 rev 4): the current PIN is proven through
+  /// the existing [PinVerifyDialog], then a new PIN is collected on a
+  /// [PinSetupScreen.collectNewPin], then `changePin` swaps them ATOMICALLY. The
+  /// flow is one `changePin` call, so a wrong CURRENT PIN is only reported after
+  /// the new PIN is entered — the accepted UX trade for keeping the state-neutral
+  /// `disableLock` semantics (a `verifyPin`-style early check would flip the lock
+  /// overlay over settings).
+  ///
+  /// A write-failure `Aborted` maps to `settingsChangePinSaveFailed` — a failed
+  /// change has no self-revealing row state (unlike disable, whose failed clear
+  /// leaves the lock visibly ON), so silence would read as success while the old
+  /// PIN stayed valid (Decision 8's harm). The wipe/sign-out `Aborted` cannot
+  /// misfire it: sign-out pops this route and the handler is `mounted`-guarded.
+  Future<void> _changePin() async {
+    setState(() => _changePinError = null);
+    final currentPin = await showDialog<String>(
+      context: context,
+      builder: (_) => const PinVerifyDialog(),
+    );
+    if (currentPin == null || !mounted) return;
+    final newPin = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const PinSetupScreen.collectNewPin()),
+    );
+    if (newPin == null || !mounted) return;
+    final result = await ref
+        .read(privacyLockControllerProvider.notifier)
+        .changePin(currentPin: currentPin, newPin: newPin);
+    if (!mounted) return;
+    setState(() {
+      _changePinError = switch (result) {
+        PinLockAttemptWrong() => (l10n) => l10n.settingsChangePinFailed,
+        PinLockAttemptCooldown() => (l10n) => l10n.settingsLockCooldown,
+        // A write failure reaches here as Aborted — report it, never silently
+        // claim a rotation that did not persist (Decision 8). The sign-out
+        // Aborted is filtered by the `mounted` guard above.
+        PinLockAttemptAborted() => (l10n) => l10n.settingsChangePinSaveFailed,
+        PinLockAttemptAccepted() => null,
       };
     });
   }
@@ -307,6 +353,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
             SettingsErrorLine(resolve: _lockError),
+            if (lockOn) ...[
+              ListTile(
+                title: Text(l10n.settingsChangePinTitle),
+                trailing: const Icon(Icons.password_outlined),
+                onTap: _changePin,
+              ),
+              SettingsErrorLine(resolve: _changePinError),
+            ],
             if (lockOn && _biometricAvailable) ...[
               SwitchListTile(
                 value: biometricOn,
