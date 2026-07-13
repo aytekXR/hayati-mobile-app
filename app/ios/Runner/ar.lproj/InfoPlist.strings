@@ -1,3 +1,4 @@
 /* InfoPlist.strings (ar) — localized user-facing Info.plist strings.
    AI-drafted; native review PENDING (operator item 1 gate). ADR-020 D7. */
 "NSFaceIDUsageDescription" = "افتح حياتي باستخدام Face ID.";
+"NSLocalNetworkUsageDescription" = "يتصل حياتي بمحاكيات Firebase على جهاز Mac الخاص بك للاختبار على الجهاز.";

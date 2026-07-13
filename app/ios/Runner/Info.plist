@@ -81,6 +81,16 @@
 	     ADR-018 D7's EN-only deferral (ADR-020 D7). -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock Hayati with Face ID.</string>
+	<!-- Local Network purpose string. In production the shipping app makes NO
+	     LAN connections (all traffic is HTTPS to Firebase + the coach proxy), so
+	     iOS never raises this prompt. It exists solely so the founder's on-device
+	     emulator rig (operator recipe Phase 5: the AUTH_EMULATOR_HOST dart-define
+	     pointing at the Mac's LAN IP) gets a proper Local-Network consent prompt
+	     under iOS 26's strict LAN privacy, instead of a silent connection failure.
+	     Harmless in prod; localized ×3 via the InfoPlist.strings variant group,
+	     same precedent as NSFaceIDUsageDescription (ADR-020 D7). Issue #55 rider. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Hayati connects to the Firebase emulators on your Mac for on-device testing.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
