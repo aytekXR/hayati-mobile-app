@@ -7,7 +7,14 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-13, Session 023 close (mvp item 12 — **the legal
+_Last refreshed: 2026-07-13, **operator interlude after the Session 023
+close** — docs-only: you asked how to test on your physical iPhone with the
+Mac, so the **★ direct-install on-device recipe** (no TestFlight, no
+enrollment, no deploy needed) was added below, right after the TestFlight
+runbook. No code changed; Session 024's objective (the hardening sweep) is
+staged and unchanged. The Session 023 close summary stands:_
+
+_Session 023 close (mvp item 12 — **the legal
 bundle's buildable half: the consent screen, the privacy policy and terms in
 three languages, and the processor inventory**: the app now asks each of you
 for one clear consent before the reflective features, the legal documents
@@ -17,7 +24,7 @@ that can be built without your input is now DONE; M5.3 is the only planned
 unit left and it waits on item 6 alone**). The TestFlight runbook lives
 below._
 
-## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** The finish line is still yours: **item 6 (pick the AI provider — OVERDUE since Session 019; M5.3 is the ONLY planned session-unit left, and it waits on this alone)** and **item 4 (the Apple Developer enrollment — the release lane is BUILT and waiting)**. Session 023 created ONE new founder gate: **item 9 below — the legal bundle needs your eyes (and your lawyer's) before public launch**: six drafted documents to review, three blanks only you can fill, three recorded lawyer questions, and one real legal action (a signed data-transfer contract with Google, filed with the Turkish authority within 5 business days of signing). None of it blocks the next engineering session. Items 7 (coach-chat retention) and 8 (store-listing decisions) stay open, non-blocking.
+## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** _(Interlude 2026-07-13: you said you'll test on the physical iPhone — the ★ direct-install recipe below is the lane that works TODAY, before the enrollment lands.)_ The finish line is still yours: **item 6 (pick the AI provider — OVERDUE since Session 019; M5.3 is the ONLY planned session-unit left, and it waits on this alone)** and **item 4 (the Apple Developer enrollment — the release lane is BUILT and waiting)**. Session 023 created ONE new founder gate: **item 9 below — the legal bundle needs your eyes (and your lawyer's) before public launch**: six drafted documents to review, three blanks only you can fill, three recorded lawyer questions, and one real legal action (a signed data-transfer contract with Google, filed with the Turkish authority within 5 business days of signing). None of it blocks the next engineering session. Items 7 (coach-chat retention) and 8 (store-listing decisions) stay open, non-blocking.
 
 **Session 023 needed nothing from you mid-flight.** It built the consent
 screen, wrote the privacy policy and terms in Turkish, Arabic, and English,
@@ -353,10 +360,12 @@ until M6 — so your first upload goes through Xcode/Transporter by hand).
   Apple sign-in provider in the Firebase console (**item 3, ~5 minutes —
   do it before the first launch or sign-in will fail**).
 - **Needs item 2 (Blaze + first deploy) first:** pairing, the daily loop,
-  reveal, streaks, entitlements — all six Cloud Functions have **never been
+  reveal, streaks, entitlements — all seven Cloud Functions have **never been
   deployed** (Spark plan). A session scripts the first deploy the moment you
   flip Blaze; without it the app on your phone is a beautiful shell around a
-  missing backend.
+  missing backend. **(That bound holds for the TestFlight/prod lane only —
+  the ★ direct-install recipe below runs the FULL loop on your phone today
+  against the Mac's emulators, as a dev rig, with nothing deployed.)**
 - **Needs item 0:** any real paywall content and the sandbox purchase (M4's
   accept line). TestFlight builds hit the sandbox store automatically once
   RevenueCat + the subscription products exist.
@@ -368,6 +377,154 @@ enrollment); flip Blaze (item 2) + enable providers (item 3) next; then let a
 session run the first deploy; then Phases C–E for the physical test. If you
 want, the next session can be re-pointed at the deploy + TestFlight slice
 instead of M5.2 — say so and it will be re-scoped.
+
+## ★ NEW (2026-07-13, operator interlude): test Hayati on your iPhone TODAY — the direct-install recipe (iPhone on iOS 26 + Mac on macOS 26 / Xcode 26; cable; no TestFlight, no enrollment, no deploy)
+
+You asked for the recipe to test on the physical iPhone with the Mac. The
+TestFlight runbook above is the *distribution* lane and waits on the
+enrollment; **this is the *developer* lane — Xcode installs the app straight
+onto your own phone over a cable, and it works before the enrollment lands.**
+Verified against this repo's actual configuration: the app already ships a
+LAN host override built for exactly this (`AUTH_EMULATOR_HOST` in
+`app/lib/core/firebase/firebase_bootstrap.dart` — one IP steers all three
+emulators), automatic signing with no team pinned, entrypoint flavors
+(`lib/main_dev.dart` / `lib/main_prod.dart`, no `--flavor` schemes), and no
+Podfile (SwiftPM — skip anything the internet tells you about `pod install`).
+
+**Two modes — use Mode 1.**
+- **Mode 1, the full-loop rig (recommended):** dev flavor on the phone, the
+  Firebase **emulators running on the Mac**, phone → Mac over your home
+  Wi-Fi. This runs the ENTIRE product loop on real hardware — sign-in,
+  consent, solo week, pairing by deep link, the daily loop with mutual
+  reveal and streaks, the lock layer, export/delete — the first time the
+  whole loop exists outside CI. It is a dev rig: the data is throwaway and
+  evaporates when you stop the emulators. It is NOT the production proof
+  (items 2/3/4 still own that).
+- **Mode 2, the prod shell:** `lib/main_prod.dart`, no emulators. Honest
+  bound: sign-in FAILS until you enable the providers (item 3), and behind
+  sign-in there is no backend until the first deploy (item 2). Only useful
+  for eyeballing the prod boot/branding.
+
+### Phase 1 — Mac setup (once)
+
+1. **Xcode 26** (Mac App Store). Launch once, accept the license, let
+   components install. Xcode → Settings → Accounts → **+** → your Apple ID.
+2. **Flutter** (stable channel) + this repo cloned; `cd app && flutter pub
+   get`; `flutter doctor` and clear any iOS-section complaint.
+3. **The emulator toolchain:** Node (`brew install node` — the functions
+   declare Node 20; a newer local Node only prints an engine warning in this
+   rig), a **Java 21+** runtime on PATH (`brew install openjdk@21`, then the
+   one `sudo ln -sfn` line brew prints; check `java -version`), and
+   `npm install -g firebase-tools@15.22.4` (the exact version every emulator
+   proof in this repo ran on).
+4. Build the functions once per pull (the emulator never compiles TS):
+   `cd functions && npm ci && npm run build`.
+
+### Phase 2 — iPhone prep (once)
+
+1. Cable the iPhone to the Mac → tap **Trust** on the phone.
+2. Settings → Privacy & Security → **Developer Mode** → on → restart. (If
+   the toggle isn't visible, open Xcode → Window → Devices and Simulators
+   with the phone attached, then look again.)
+
+### Phase 3 — signing (the one fork in the road)
+
+- **If the enrollment is ACTIVE:** open `app/ios/Runner.xcworkspace` →
+  Runner target → Signing & Capabilities → tick **Automatically manage
+  signing** → Team: your paid team. Done — everything below works,
+  including the Apple sign-in button.
+- **If the enrollment has NOT landed yet:** a **free personal team** (just
+  your Apple ID in Xcode) can still install on your own phone, with three
+  honest costs: **(a)** Sign in with Apple is a paid-program capability —
+  Xcode will refuse to sign until you remove it: delete the
+  `com.apple.developer.applesignin` key+array from
+  `app/ios/Runner/Runner.entitlements` **locally**, and revert before
+  anything is committed (`git checkout -- app/ios/Runner/Runner.entitlements`).
+  The phone-number sign-in lane below never touches it. **(b)** The install
+  expires after **7 days** — re-run from the Mac to renew. **(c)** First
+  launch: approve yourself under Settings → General → VPN & Device
+  Management on the phone.
+
+### Phase 4 — the emulator rig (each test day, ~2 minutes)
+
+1. **Local, throwaway edit** so the phone can reach the emulators: in
+   `firebase.json`, change all three `"host": "127.0.0.1"` entries (auth,
+   firestore, functions) to `"0.0.0.0"`. **Never commit this** — revert in
+   Phase 8.
+2. From the repo root:
+   `firebase emulators:start --only auth,firestore,functions --project demo-hayati`.
+   macOS will ask to allow `java`/`node` to accept incoming connections —
+   **Allow**. Keep this terminal visible: **the phone sign-in codes print
+   here** (the emulator UI is disabled in this repo's config).
+3. The Mac's Wi-Fi IP: `ipconfig getifaddr en0`. Phone and Mac must be on
+   the **same Wi-Fi**.
+
+### Phase 5 — install and run
+
+```sh
+cd app
+flutter run --release -t lib/main_dev.dart \
+  --dart-define=USE_AUTH_EMULATOR=true \
+  --dart-define=USE_FIRESTORE_EMULATOR=true \
+  --dart-define=USE_FUNCTIONS_EMULATOR=true \
+  --dart-define=AUTH_EMULATOR_HOST=<the-IP-from-Phase-4>
+```
+
+(If Flutter lists several devices: `flutter devices`, then add `-d <id>`.)
+`--release` gives the honest feel and leaves the app installed — afterwards
+it relaunches from the home-screen icon with the same defines baked in. Drop
+`--release` when you want hot reload instead. On first backend contact iOS
+asks for **Local Network** permission — **Allow** (missed it? Settings →
+Privacy & Security → Local Network → Hayati App).
+
+### Phase 6 — the partner is the Mac
+
+Your second tester is the iOS **Simulator** on the Mac (`open -a Simulator`,
+ships with Xcode): run the same command with **no** `--release` and **no**
+`AUTH_EMULATOR_HOST` line (the simulator reaches the emulators on localhost),
+`-d` the simulator. Sign in there as the second user, create the invite,
+then on the iPhone open **`hayati://invite/<CODE>`** typed into Safari's
+address bar. Do it twice: once with Hayati running (warm) and once after
+force-quitting it (cold) — **that pair is an item-4 checkbox.**
+
+### Phase 7 — what to test (in rough order of value)
+
+1. **Phone sign-in:** any test number (e.g. `+90 555 000 00 01`); the
+   6-digit code prints in the emulator terminal — no real SMS, no APNs
+   needed (the emulator disables app verification). If sign-in crashes
+   natively, you've just reproduced issue #15 on real hardware — capture
+   the log (Xcode → Window → Devices → Open Console); that's an item-4
+   checkbox with a bounty on it.
+2. **The consent screen (Session 023)** — you two are the first humans to
+   see it live: one clear button, and the three escapes (sign out /
+   export / delete) all reachable from a decline.
+3. **The full loop:** solo week → invite → the deep-link pairing (Phase 6)
+   → both sides answer → the server-gated mutual reveal → the streak.
+   First time this exists anywhere but CI.
+4. **The four M6.1 lock checks** from item 4's sub-list (Keychain
+   reinstall persistence, Face ID self-revocation, discreet icon,
+   app-switcher blank card) — they were built FOR this moment. Note for
+   the reinstall check on a free team: "reinstall" = re-run from the Mac.
+5. **Settings → Privacy & Terms** (the six Session-023 documents render
+   in-app), **Download my data**, and the **delete-account cascade** —
+   emulator data is throwaway, so delete fearlessly.
+6. **TR/AR/EN + RTL** rendering on real hardware.
+7. **Honest non-features on this rig — don't chase these as bugs:** pushes
+   can't fire (APNs is item 4); the paywall shows "store unavailable" (no
+   RevenueCat key — fail-closed by design, item 0); the coach shows its
+   honest "not configured" state (item 6); the Apple sign-in button needs
+   the paid team (Phase 3). And the item-4 **cold-start stopwatch** number
+   should NOT be taken from this rig — that measurement belongs to the
+   prod TestFlight build.
+
+### Phase 8 — teardown ritual (IMPORTANT)
+
+Ctrl-C stops the emulators (the test data evaporates — expected). Then, in
+the Mac clone, `git status` must come back **clean**: revert the two local
+edits if they show (`git checkout -- firebase.json
+app/ios/Runner/Runner.entitlements`). Neither may ever reach a commit — one
+opens the emulator hosts to the network, the other strips a shipping
+entitlement.
 
 ## 0. **BLOCKING — the only thing left in M4:** RevenueCat account + App Store Connect app record
 
@@ -476,9 +633,10 @@ instead of M5.2 — say so and it will be re-scoped.
 
 - **What:** upgrading `hayatiapp-dev`/`hayatiapp-prod` from Spark (free) to
   **Blaze** (pay-as-you-go) — deploying Cloud Functions requires it.
-- **Status:** six Functions now (`createInvite`, `invitePreview`,
+- **Status:** seven Functions now (`createInvite`, `invitePreview`,
   `joinInvite`, the scheduled `questionRollover`, the Firestore-triggered
-  `answerReveal`, and since M4.1 the **`revenueCatWebhook`**), all
+  `answerReveal`, since M4.1 the **`revenueCatWebhook`**, and since
+  Session 023 the consent-recording **`recordConsent`**), all
   emulator-proven; **nothing deployed yet.** Deploy-verified-only pieces: the
   rollover's *schedule trigger* (Cloud Scheduler), `answerReveal`'s
   production retry (Eventarc redelivery), and now the webhook's **Secret
@@ -762,3 +920,8 @@ secret**, then rework/land the branch.
   (022): the M6 milestone itself — store metadata TR/EN drafted + CI-linted,
   the release lane built and proven fail-closed at its secrets boundary, the
   performance pass, and ADR-018 D7's Info.plist localization deferral.
+  **Interlude (2026-07-13, docs-only, after the 023 close):** the ★
+  direct-install on-device recipe added above at the founder's request — no
+  code changed, no session-unit consumed, Session 024's objective unchanged;
+  the founder's on-device findings (the four M6.1 checks, the deep-link
+  pair, a possible #15 crash log) become triage input for the next session.
