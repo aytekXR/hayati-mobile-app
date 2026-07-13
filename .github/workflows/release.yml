@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -104,7 +104,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -113,13 +113,13 @@ jobs:
       # firestore emulator needs Java 21+. macos-15 already defaults to Temurin
       # 21; pin it so a future image default-bump can't silently regress the
       # emulator (the JDK is cached on the image, so this step is ~5-10s).
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
       # M2.2: the functions emulator serves the createInvite callable this
       # suite exercises. Node 20 matches functions/package.json engines.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -141,7 +141,7 @@ jobs:
       # auth emulator ships inside firebase-tools). Same key as ci.yml so the two
       # workflows share the cache; a pin bump re-fetches, a miss just re-downloads.
       - name: Cache Firebase emulator jars
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/firebase/emulators
           key: firebase-emulators-macos-fbtools-15.22.4
@@ -205,7 +205,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -233,7 +233,7 @@ jobs:
       - name: build size budget (<= 200 MB uncompressed .app)
         run: dart tool/build_size_report.dart --max-mb 200 app/build/size-analysis
       - name: upload size analysis JSON
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ios-size-analysis
           path: app/build/size-analysis/ios-code-size-analysis.json
@@ -311,7 +311,7 @@ jobs:
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           cp "$RUNNER_TEMP/AuthKey.p8" "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
           chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
