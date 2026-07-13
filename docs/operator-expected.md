@@ -7,22 +7,66 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-13, Session 022 close + post-merge proof round
-(M6.3 — **store metadata TR/EN + the release lane + the performance pass**:
-the App Store listing text exists in two languages, the tag-to-TestFlight
-pipeline is built AND its missing-secrets boundary was executed and proven
-loud (pre-signing stages green, honest red exactly at the gate), and the
-app's cold start got structurally faster with the bootstrap shape pinned by
-a test; **21/22 units, 95% — the MVP engineering plan is COMPLETE except the
-halves only you can unblock**). The TestFlight runbook lives below._
+_Last refreshed: 2026-07-13, Session 023 close (mvp item 12 — **the legal
+bundle's buildable half: the consent screen, the privacy policy and terms in
+three languages, and the processor inventory**: the app now asks each of you
+for one clear consent before the reflective features, the legal documents
+exist and are readable inside the app itself, and every company that touches
+your data is written down in one table — **every line of MVP engineering
+that can be built without your input is now DONE; M5.3 is the only planned
+unit left and it waits on item 6 alone**). The TestFlight runbook lives
+below._
 
-## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** But the finish line is now genuinely yours: **item 6 (pick the AI provider — OVERDUE since Session 019; M5.3 is the ONLY planned session-unit left in the whole MVP, and it waits on this alone)** and **item 4 (the Apple Developer enrollment, promised 2026-07-08 — the release lane is BUILT and waiting: the day you enroll and add three copy-paste secrets, a git tag produces a signed TestFlight build)**. Session 022 also surfaced a small set of **new, non-blocking founder decisions for the store listing** — the store name, the label under the discreet icon, and the missing privacy/support web pages — all listed under the NEW item 8 below. Item 7 (should coach chats ever be saved?) stays open, non-blocking.
+## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** The finish line is still yours: **item 6 (pick the AI provider — OVERDUE since Session 019; M5.3 is the ONLY planned session-unit left, and it waits on this alone)** and **item 4 (the Apple Developer enrollment — the release lane is BUILT and waiting)**. Session 023 created ONE new founder gate: **item 9 below — the legal bundle needs your eyes (and your lawyer's) before public launch**: six drafted documents to review, three blanks only you can fill, three recorded lawyer questions, and one real legal action (a signed data-transfer contract with Google, filed with the Turkish authority within 5 business days of signing). None of it blocks the next engineering session. Items 7 (coach-chat retention) and 8 (store-listing decisions) stay open, non-blocking.
 
-**Session 022 needed nothing from you mid-flight.** It wrote the App Store
-listing (Turkish and English), built the pipeline that will carry Hayati to
-TestFlight, and made the app start faster.
+**Session 023 needed nothing from you mid-flight.** It built the consent
+screen, wrote the privacy policy and terms in Turkish, Arabic, and English,
+and produced the processor inventory — and recorded precisely what only you
+and a lawyer can finish.
 
 **What you should know from this session:**
+
+**0.a. The app now asks for consent — once, honestly, with every exit open.**
+Before the daily questions and the coach, each signed-in person sees one
+screen: what Hayati stores (your reflections and shared answers — in the EU),
+what it only processes in the moment (coach messages — never saved), why
+consent is required (this content IS the service), and one clear button. No
+pre-ticked boxes, no bundled extras — there is nothing else to consent to,
+because analytics and marketing simply don't exist in the app. Anyone who
+declines can still sign out, download their data, or delete their account
+from that same screen. You two will see it once on your next sign-in — one
+tap, then everything is as before. The consent is recorded on the server
+with a version and timestamp (that's what makes it provable under KVKK),
+it appears in your data export, and it dies with your account.
+
+**0.b. The privacy policy and terms now EXIST — drafted, honest, and waiting
+for review (item 9).** They live in the app itself (Settings → Privacy &
+Terms, also linked from the sign-in screen and the paywall), which satisfies
+Apple's in-app requirement with no website needed yet. Every sentence was
+written against what the code actually does and then adversarially reviewed
+against it — including catching and fixing a draft line that claimed coach
+messages are stored (they are not; the fixed text says "processed in the
+moment, without being saved"). The store's URL field stays honestly empty
+until you host these texts (item 8(c) — the missing content now exists).
+
+**0.c. Withdrawing consent does NOT delete your data — deliberately, and the
+app says so.** Withdrawal (Settings → Privacy & Terms) stops the reflective
+features; your stored reflections stay until YOU delete them, with the
+delete button offered right there. The reasoning is the same domestic-violence
+doctrine as the lock: a one-confirm action must never destroy data — an
+auto-erasing withdraw would hand a destruction button to whoever briefly
+holds the phone. Whether the law requires more than this is lawyer question
+C in item 9.
+
+**0.d. Two review passes, eleven-for-eleven.** The design review before any
+code found 10 real defects (including two blocking: consent needed a
+server-side enforcement mechanism, not just a screen; and a decliner would
+have been trapped without delete/export). The post-build review found 6 more
+(including the gate's own safety-net state re-creating the trap it guarded
+against, and the coach-storage over-claim above). All fixed before merge.
+Tests now: 1,390 app-side / 870 server-side, all green.
+
+**(Retained from the Session 022 close — still current:)**
 
 **0.1. The App Store listing text now exists — and it needs your eyes (TR) before launch.** `fastlane/metadata/` holds the store name, subtitle, description, and keywords in Turkish and English, written in the brand voice and deliberately claiming nothing the app can't do (the privacy paragraph uses the settings screen's own honest wording). It joins item 1's native-review gate. Two decisions inside it are provisional and YOURS (see item 8): the store name "Hayati" (trademark check pending) and whether the on-device label stays "Hayati App".
 
@@ -85,6 +129,48 @@ app's content language).
 **6. Nothing changed for the daily loop or the lock** — proven by the same
 kind of tests as always (1,300 app-side now, 848 server-side, all green,
 both review passes run and their findings fixed before merge).
+
+## 9. NEW (Session 023): the legal bundle — your review, three blanks, three lawyer questions, one filing
+
+The six documents at `docs/legal/` (privacy policy + terms, each in TR/AR/EN
+— also readable in the app under Settings → Privacy & Terms) are AI-drafted
+against the shipped code and marked **review-PENDING**. Before public launch:
+
+- **(a) Native + legal review of the six documents.** TR: you two (the
+  policy is ~5 minutes of reading; it doubles as the KVKK aydınlatma metni).
+  AR: your Gulf reviewer. Legal: your lawyer, against the code if they wish —
+  every sentence was written to be checkable. Edits go to `docs/legal/` (a
+  session handles the mechanics; the app copies are byte-synced under a CI
+  test, and a MATERIAL change means a version bump that re-asks everyone's
+  consent — also session mechanics).
+- **(b) Three blanks only you can fill** (bracketed in every document):
+  the controller's legal identity (your name or a company), a contact
+  address, and the governing law (your lawyer's call).
+- **(c) Three recorded lawyer questions** (written out in
+  `docs/legal/README.md` and ADR-023): **A** — is the relationship-content
+  processing special-category under KVKK Art 6 / PDPL (we implemented the
+  conservative YES)? **B** — may the one consent be required to use the
+  reflective features (we implemented the careful version: required, but
+  with sign-out/export/delete always open)? **C** — must consent withdrawal
+  erase the stored reflections, or does stop-collecting + self-serve
+  deletion suffice (we implemented the latter, for the DV reason in 0.c)?
+- **(d) One real legal action — the KVKK data-transfer filing.** Hosting TR
+  users' data on Google's EU servers is a cross-border transfer under the
+  amended Art 9. The compliant path: sign Google's Kurul-approved standard
+  contract and **file it with the Kurum within 5 business days of signing**
+  (missing the filing window carries its own fine band). This is a
+  founder/lawyer action a session cannot do; the evidence and links are in
+  `docs/dpa-inventory.md`. Needed before PUBLIC launch, not for TestFlight.
+- **(e) Also recorded there, none urgent:** the Kurul "adequate measures"
+  question for special-category data (whether our minimization-first posture
+  suffices or key-management/audit-logging must be added at the deploy era);
+  the seven PDPL items that bind only before the first Saudi user; a GDPR
+  flag for the Phase-4 EU-diaspora channel; İYS registration before any
+  promotional push ever fires (rides item 4's APNs).
+- **Hosting (item 8(c)) is unchanged but now unblocked from the content
+  side:** the policy text exists; the day you pick a domain and host it, a
+  session drops the store lint's `--allow-empty-urls` flag and the gap can
+  never reopen.
 
 ## ★ NEW (Session 018): native review of the CRISIS content — the one gate before the coach runs on your phones
 
@@ -512,9 +598,10 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
 - **(c) Privacy policy + support page URLs do not exist** — the store
   listing ships EMPTY URL fields behind a loud CI warning (never a fake URL).
   Apple requires both at submission. Needs: your domain choice (the same
-  decision universal links have been waiting on) + a hosted privacy policy
-  TR/AR/EN. **The next session drafts the policy TEXT** (see resume-prompt);
-  hosting stays yours. When the URLs exist, a session drops the lint's
+  decision universal links have been waiting on) + hosting. **The policy
+  TEXT now exists (Session 023 — see item 9)**; the in-app requirement is
+  already satisfied by the in-app documents, so only the store's URL fields
+  wait on your domain. When the URLs exist, a session drops the lint's
   `--allow-empty-urls` flag and the gap can never reopen.
 - **(d) Age rating: verify at first submission.** Spice mode is out of the
   MVP precisely to keep the rating standard-tier, but whether Apple's
@@ -549,23 +636,26 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 022 close)
+## Progress & readiness snapshot (as of Session 023 close)
 
 - **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 engineering ✅ (sandbox
   accept line open on item 0)** · **M5: 2/3 (spine + chat UI; M5.3 live
-  adapter is founder-blocked on item 6)** · **M6: 3/3 ✅ (M6.1 device-privacy,
-  M6.2 data rights, M6.3 store metadata + release lane + perf pass — the
-  signed-build/TestFlight half of the M6 accept line is proven fail-closed
-  and waits on YOUR item 4 enrollment)** — **21/22 session-units (95%) in 22
-  sessions; ONE planned session-unit left to the MVP: M5.3, blocked on item 6
-  alone** (M6.5 Android sits outside the 22-unit count and its timing is your
-  Gate-3 call). On track; no plan or scope changes in Session 022 (M1's +1
-  session remains the only slippage ever). Next session: **the mvp item-12
-  legal bundle's buildable half — consent surface + privacy-policy/terms
-  drafts TR/AR/EN + the DPA inventory** (also produces the policy text that
-  item 8(c)'s missing URL needs), unless you answer item 6 (**M5.3
-  preempts**), flip Blaze (**the first-deploy slice preempts**), or
-  green-light Android timing (**M6.5**).
+  adapter is founder-blocked on item 6)** · **M6: 3/3 ✅** · **mvp item 12
+  legal bundle: buildable half ✅ (Session 023 — consent surface + legal
+  drafts + DPA inventory; the founder/legal review half is item 9)** —
+  **21/22 session-units + the item-12 buildable half, in 23 sessions; ONE
+  planned session-unit left to the MVP: M5.3, blocked on item 6 alone.
+  Every line of MVP engineering that can be built without your input is now
+  DONE.** (M6.5 Android sits outside the 22-unit count; its timing is your
+  Gate-3 call.) On track; the only scope change in Session 023 was
+  review-adjudicated: the iOS privacy manifest moved OUT to issue #55 (a
+  future hardening slice) rather than riding the legal session. Next
+  session: **the hardening sweep (ci-debt #36 + the change-PIN flow + the
+  #55 privacy manifest + the #39 CI runtime bump)**, unless you answer
+  item 6 (**M5.3 preempts — and it now carries a recorded re-consent
+  trigger: the consent version bumps and everyone re-consents to a notice
+  naming the provider**), flip Blaze (**the first-deploy slice preempts**),
+  or green-light Android timing (**M6.5**).
 - **Readiness: pre-MVP, emulator/CI-proven, nothing deployed, nothing on a
   phone.** Working and proven against emulators + CI: auth, profile + rules,
   the whole pairing loop, the unpaired solo week, the content pipeline, the
@@ -602,8 +692,17 @@ secret**, then rework/land the branch.
   export-compliance pre-answered in Info.plist; the store's language row
   fixed to TR/AR/EN with the Face ID prompt localized; the cold-start path
   audited and shortened with the pre-frame bootstrap shape pinned by a
-  mutation-checked test — 1,305 app tests green, both adversarial review
-  passes run, every confirmed finding fixed before merge).
+  mutation-checked test), and now the **consent & legal layer** (Session 023,
+  ADR-023: one explicit, server-recorded, version-stamped consent gating the
+  reflective features — provable, exportable, erasable, withdrawable, and
+  enforced at the database rules on the answer writes; the privacy policy
+  (doubling as the KVKK aydınlatma metni) + terms in TR/AR/EN readable inside
+  the app with no website needed; the notice on every sign-in surface
+  including the invite deep-link path; paywall Terms/Privacy links per
+  Apple's subscription rules; the processor inventory at
+  `docs/dpa-inventory.md` with honest per-service regions — **1,390 app
+  tests / 870 server tests green**, both adversarial review passes run
+  (eleven-for-eleven), every confirmed finding fixed before merge).
   **What "production-ready" is still missing, honestly:** no deploy has ever
   happened (Spark plan — item 2), the app has never run on a real device
   (Mac/enrollment — item 4), no real purchase has ever been made (item 0),
@@ -638,10 +737,17 @@ secret**, then rework/land the branch.
   currently literal), export rate-limiting (deploy hardening, rides the
   existing limiter note), the AR discreet-default opt-out (a recorded product
   decision — the enum leaves the door open), `coach_sessions` export/cascade
-  coverage (contingent on your item 7), and consent screens + the DPA
-  inventory (the mvp item-12 legal bundle, pre-launch — architecture §8 now
-  says "unbuilt" honestly instead of asserting them; **the next session's
-  objective**). **New from M6.3 (ADR-020/021/022):** the store-listing E2E
+  coverage (contingent on your item 7). **The mvp item-12 consent screens +
+  DPA inventory shipped in Session 023** — what remains of the legal bundle
+  is YOURS (item 9: the six-document review, three placeholders, lawyer
+  questions A/B/C, the SCC + 5-day Kurum filing) plus hosting (item 8(c)).
+  **New from S023 (ADR-023), deferred loudly:** the Kurul adequate-measures
+  question (key-management/audit-logging — lawyer, deploy era), İYS
+  registration before any promotional push (rides item 4's APNs), the PDPL
+  seven-item set (binds before the first KSA user), the GDPR forward flag
+  (Phase-4 diaspora), the privacy manifest (issue #55, next hardening
+  sweep), and the M5.3 re-consent trigger (binding: the live LLM bumps the
+  legal version and re-gates everyone). **New from M6.3 (ADR-020/021/022):** the store-listing E2E
   matrix enters `release.yml` when the E2E scenarios can honestly run
   (sandbox = items 0+4; recorded in test-suite.md), the `Gemfile.lock` debt
   survives until the signing job first runs bundler, the 200 MB size cap
@@ -649,9 +755,10 @@ secret**, then rework/land the branch.
   drops when item 8(c)'s URLs exist, screenshots are Mac-era, and the
   first-real-run signing checklist (item 4's update) carries the two
   recorded likely fixes.
-  **Closed this session:** the M6 milestone itself — store metadata TR/EN
-  drafted + CI-linted, the release lane built and proven fail-closed at its
-  secrets boundary (the last M6 accept line's buildable half; the signed
-  half is item 4's), the performance pass (bootstrap audited + shortened +
-  sentinel-pinned, build-size cap live, crash-free posture audited), and
-  ADR-018 D7's Info.plist localization deferral.
+  **Closed this session (023):** mvp item 12's buildable half — the consent
+  surface (gate + server record + rules enforcement), the six legal-document
+  drafts TR/AR/EN (review-PENDING, item 9), the DPA inventory, and the
+  architecture honesty flip from "unbuilt" to shipped. Previously closed
+  (022): the M6 milestone itself — store metadata TR/EN drafted + CI-linted,
+  the release lane built and proven fail-closed at its secrets boundary, the
+  performance pass, and ADR-018 D7's Info.plist localization deferral.
