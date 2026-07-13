@@ -1,8 +1,13 @@
-# Fastfile — Hayati release automation. SKELETON (M0.2).
+# Fastfile — Hayati release automation.
 #
-# Scope today: iOS lane stubs only. `build_debug` mirrors the ci.yml iOS build
-# smoke so the skeleton is runnable with zero signing secrets; `beta` reserves
-# the TestFlight path for M6.
+# Scope (M6.3): iOS lanes only. `build_debug` mirrors the ci.yml iOS build
+# smoke and runs with zero signing secrets. `beta` (TestFlight) and
+# `store_metadata` (App Store copy) are implemented up to the App Store Connect
+# secrets boundary — both FAIL CLOSED with a doc-pointing message when the
+# three ASC_* inputs are absent (ADR-021 D4), rather than skip and look green.
+# The signing/upload half is UNVERIFIABLE from this Linux dev box (no Ruby, no
+# secrets, no Mac); the first real run after Apple Developer enrollment may
+# need a Mac-era fix (ADR-021 D5, honesty bound).
 #
 # iOS-first (ADR-006): there is deliberately NO `platform :android` block in
 # this file. Android lanes (Play internal/production tracks, Play app signing)
@@ -15,6 +20,28 @@
 
 default_platform(:ios)
 
+# The three App Store Connect API-key inputs the signing + upload + metadata
+# lanes share. In CI they arrive as GitHub `release` environment secrets
+# (ADR-021 D4); locally they come from the founder's shell. Missing any one
+# fails CLOSED with a message that names exactly what is absent and why —
+# never a silent skip, never an opaque xcodebuild stack trace (ADR-021 D5).
+def ensure_asc_credentials!
+  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_PATH]
+  missing = required.select { |key| (ENV[key] || "").strip.empty? }
+  return if missing.empty?
+
+  UI.user_error!(
+    "App Store Connect signing is not configured: #{missing.join(', ')} " \
+    "#{missing.length == 1 ? 'is' : 'are'} unset.\n" \
+    "The signed-build + TestFlight upload half of M6 is operator-blocked on " \
+    "Apple Developer enrollment (operator-expected item 4). Once enrolled, " \
+    "create an App Store Connect API key and provide ASC_KEY_ID, " \
+    "ASC_ISSUER_ID, and ASC_KEY_P8_PATH (the path to AuthKey_<KEY_ID>.p8). " \
+    "In CI these are the `release` environment secrets (architecture.md §9); " \
+    "see the TestFlight runbook in docs/operator-expected.md (item 4)."
+  )
+end
+
 platform :ios do
   desc "Build iOS unsigned (debug) — mirrors the ci.yml build smoke; no signing required"
   lane :build_debug do
@@ -22,13 +49,61 @@ platform :ios do
     sh("cd ../app && flutter build ios --no-codesign --debug")
   end
 
-  desc "Build + upload to TestFlight — NOT YET IMPLEMENTED (lands in M6)"
+  desc "Build + upload to TestFlight (closed beta) — App Store Connect API-key cloud signing"
   lane :beta do
+    ensure_asc_credentials!
+
+    # API-key auth for BOTH the archive's cloud signing and the TestFlight
+    # upload. `flutter build ipa` already passes `-allowProvisioningUpdates` to
+    # xcodebuild's archive + export steps unconditionally, and xcodebuild
+    # auto-discovers the key at ~/.appstoreconnect/private_keys/
+    # AuthKey_<KEY_ID>.p8 — so cloud signing needs no xcargs plumbing here
+    # (ADR-021 D5, rev 2). The release.yml `sign-upload` job is responsible for
+    # placing the .p8 at that auto-discovery path and exporting ASC_KEY_P8_PATH.
+    app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_filepath: ENV["ASC_KEY_P8_PATH"],
+    )
+
+    # Prod flavor: TestFlight builds carry prod config (operator runbook).
+    sh("cd ../app && flutter build ipa --release -t lib/main_prod.dart")
+
+    # The ipa path must be explicit: the build ran through raw `sh` (not gym),
+    # so lane_context carries no IPA_OUTPUT_PATH and pilot's fallback globs
+    # fastlane's OWN working directory — which never contains the Flutter
+    # output at ../app/build/ios/ipa/ (post-implementation review, Session 022).
+    # Fail closed with a pointed message rather than pilot's generic one.
+    ipa_path = Dir["../app/build/ios/ipa/*.ipa"].first
     UI.user_error!(
-      "TestFlight distribution is not wired up yet.\n" \
-      "Signed builds + TestFlight upload land in M6 (release hardening), driven " \
-      "by release.yml with signing credentials from GitHub environment secrets " \
-      "(architecture.md §9). See docs/implementation-plan.md (M6)."
+      "No .ipa found under app/build/ios/ipa/ — `flutter build ipa` did not " \
+      "produce its output where this lane expects it (ADR-021 D5)."
+    ) if ipa_path.nil?
+    upload_to_testflight(
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+  desc "Push App Store metadata (no binary) from fastlane/metadata — App Store Connect API key"
+  lane :store_metadata do
+    ensure_asc_credentials!
+
+    app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_filepath: ENV["ASC_KEY_P8_PATH"],
+    )
+
+    # Metadata only — the binary rides the `beta` lane. `force: true` skips the
+    # interactive HTML preview (there is no TTY in CI). Copy is native-review
+    # PENDING (fastlane/README.md) but that gate is a human step, not a deliver
+    # flag. The store-metadata lint (tool/store_metadata_lint.dart) guards the
+    # files' shape before they ever reach here.
+    deliver(
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      force: true,
     )
   end
 end

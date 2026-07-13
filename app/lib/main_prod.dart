@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseFirestore;
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
-import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
+import 'package:flutter/widgets.dart'
+    show WidgetsBinding, WidgetsFlutterBinding;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,6 +10,7 @@ import 'core/config/app_config.dart';
 import 'core/firebase/app_check_bootstrap.dart';
 import 'core/firebase/firebase_bootstrap.dart';
 import 'core/firebase/google_sign_in_config.dart';
+import 'core/observability/boot_trace.dart';
 import 'core/observability/crashlytics_bootstrap.dart';
 import 'core/storage/local_flag_store.dart';
 import 'core/storage/pin_lock_store.dart';
@@ -57,40 +59,53 @@ import 'features/settings/domain/app_icon_switcher.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  BootTrace.mark(BootTrace.stageMain);
   const config = AppConfig(flavor: AppFlavor.prod);
   await initializeFirebase(config);
-  // Both must follow initializeFirebase (they resolve the default FirebaseApp)
-  // and must stay out of initializeFirebase itself: each drives a platform
-  // channel that throws in the plain test VM, where the bootstrap is unit-tested
-  // (docs/architecture.md §2). Prod attests via App Attest and reports crashes.
-  await activateAppCheck(config);
-  final crashReporter = await initializeCrashlytics(config);
+  BootTrace.mark(BootTrace.stageFirebaseReady);
+  // App Check and Crashlytics both resolve the default FirebaseApp, depend on
+  // each other for nothing, and each drives a platform channel that throws in
+  // the plain test VM — so they stay out of initializeFirebase (unit-tested,
+  // docs/architecture.md §2) and OVERLAP here via the record `.wait` (ADR-022
+  // Decision 1). App Check stays PRE-FRAME deliberately: a warm signed-in boot
+  // opens the profile Firestore listen at first-frame build, so activation must
+  // precede frame one for cold AND warm boots (ADR-022 review finding PERF-1).
+  // Prod attests via App Attest and reports crashes.
+  final (_, crashReporter) = await (
+    activateAppCheck(config),
+    initializeCrashlytics(config),
+  ).wait;
+  BootTrace.mark(BootTrace.stageAppCheckCrashlyticsReady);
   // Configure RevenueCat when the dart-define key is present (ADR-014
   // Decision 2). A no-op without a key — the paywall then renders the honest
   // unavailable state — and, like App Check, kept off any test-reachable path
-  // (it drives a platform channel).
+  // (it drives a platform channel). NOT deferred past the first frame despite
+  // being a no-op today: doing so plants a warm-boot identity-sync landmine for
+  // the first live-key session (ADR-022 Decision 3 — that session owns
+  // re-sequencing this call with the RC identity-sync retry hardening).
   await RcPurchasesRepository.configureIfKeyed();
-  // Before the first frame: the paired home computes the couple dayKey from
-  // the STORED timezone (ADR-011) and needs the tz database loaded (also
-  // lazily guarded inside coupleDayKey — this just front-loads the parse).
-  ensureCoupleTimeZonesInitialized();
-  // The local-flag store (ADR-017 Decision 4) is the app's first local
-  // persistence: await SharedPreferences once here so the disclaimer gate reads
-  // its ack SYNCHRONOUSLY off the in-memory cache getInstance() populates, and
-  // bind it BY VALUE below.
-  final prefs = await SharedPreferences.getInstance();
-  // The device-lock record (ADR-018 Decision 2) — awaited BEFORE the first
-  // frame, exactly like SharedPreferences above. The gate must decide frame one:
-  // an async lock check would flash couple content, and the OS would snapshot
-  // that flash. A read that THROWS yields a DEGRADED snapshot (fail open for one
-  // launch, self-healed by the controller's re-read on the first resume) rather
-  // than a permanent brick behind a lock screen that can verify nothing.
+  BootTrace.mark(BootTrace.stageRcConfigured);
+  // Two independent platform-channel round-trips that both must complete before
+  // frame one, OVERLAPPED via the record `.wait` (ADR-022 Decision 1):
+  //  - SharedPreferences (ADR-017 Decision 4), the app's first local
+  //    persistence — awaited once so the disclaimer gate reads its ack
+  //    SYNCHRONOUSLY off the in-memory cache getInstance() populates, bound BY
+  //    VALUE below.
+  //  - the device-lock record (ADR-018 Decision 2): the gate must decide frame
+  //    one — an async lock check would flash couple content and the OS would
+  //    snapshot that flash. A read that THROWS yields a DEGRADED snapshot (fail
+  //    open for one launch, self-healed by the controller's re-read on first
+  //    resume) rather than a permanent brick behind a lock that can verify
+  //    nothing. readInitialLockSnapshot catches internally, so `.wait` cannot
+  //    raise ParallelWaitError on it — degraded semantics are byte-unchanged.
   const pinLockStore = SecureStoragePinLockStore();
-  final lockSnapshot = await readInitialLockSnapshot(
-    pinLockStore,
-    reporter: crashReporter,
-  );
+  final (prefs, lockSnapshot) = await (
+    SharedPreferences.getInstance(),
+    readInitialLockSnapshot(pinLockStore, reporter: crashReporter),
+  ).wait;
+  BootTrace.mark(BootTrace.stageLocalStateReady);
   final googleConfig = googleSignInConfigFor(config.flavor);
+  BootTrace.mark(BootTrace.stageRunApp);
   runHayati(
     config,
     crashReporter: crashReporter,
@@ -173,4 +188,12 @@ Future<void> main() async {
       appIconSwitcherProvider.overrideWithValue(const ChannelAppIconSwitcher()),
     ],
   );
+  // Post-frame warm-up (ADR-022 Decision 1): the couple dayKey parse of the
+  // 10-year tz database (ADR-011) is not needed by the first frame — that frame
+  // is SignInScreen — so it runs AFTER first frame, deterministically, via
+  // addPostFrameCallback rather than racing the first vsync. coupleDayKey's own
+  // lazy guard stays the correctness backstop; this call is purely a warm-up.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    ensureCoupleTimeZonesInitialized();
+  });
 }

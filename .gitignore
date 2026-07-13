@@ -13,3 +13,8 @@ firestore-debug.log
 
 # Stray tool caches at repo root (packages live in functions/ and app/)
 node_modules/
+
+# Fastlane runtime artifacts — regenerated on every real lane run; metadata/ stays tracked (ADR-021 D6)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output/

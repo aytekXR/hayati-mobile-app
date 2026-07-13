@@ -7,19 +7,27 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-13, Session 021 close (M6.2 — **KVKK/PDPL data
-rights**: self-serve export + hard cascade delete with partner notification +
-the discreet-notification override; the last legally-required MVP feature;
-**on plan, 20/22 units, 91%**). The TestFlight runbook lives below._
+_Last refreshed: 2026-07-13, Session 022 close (M6.3 — **store metadata TR/EN
++ the release lane + the performance pass**: the App Store listing text exists
+in two languages, the tag-to-TestFlight pipeline is built and proves its own
+missing-secrets boundary loudly, and the app's cold start got structurally
+faster with the bootstrap shape now pinned by a test; **21/22 units, 95% —
+the MVP engineering plan is COMPLETE except the halves only you can unblock**).
+The TestFlight runbook lives below._
 
-## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** Session 021 deliberately created **no new operator item** (the data export is delivered in-app, so no email provider was needed). But the queue ahead is now genuinely shaped by your two pending items: **item 6 (pick the AI provider — OVERDUE since Session 019; the only thing between the coach and its first live conversation, and it PREEMPTS the next session's plan the moment you answer)** and **item 4 (the Apple Developer enrollment, promised 2026-07-08 — the next session, M6.3, builds the release lane and store metadata, and the signed-build/TestFlight half of the LAST M6 accept line is blocked on exactly this enrollment)**. Item 7 (should coach chats ever be saved?) stays open, non-blocking.
+## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** But the finish line is now genuinely yours: **item 6 (pick the AI provider — OVERDUE since Session 019; M5.3 is the ONLY planned session-unit left in the whole MVP, and it waits on this alone)** and **item 4 (the Apple Developer enrollment, promised 2026-07-08 — the release lane is BUILT and waiting: the day you enroll and add three copy-paste secrets, a git tag produces a signed TestFlight build)**. Session 022 also surfaced a small set of **new, non-blocking founder decisions for the store listing** — the store name, the label under the discreet icon, and the missing privacy/support web pages — all listed under the NEW item 8 below. Item 7 (should coach chats ever be saved?) stays open, non-blocking.
 
-**Session 021 needed nothing from you mid-flight.** It built the feature the
-law requires before anyone but you two can use the app: your data can now be
-downloaded, and your account — and everything it touches — can be deleted,
-by you, from inside the app.
+**Session 022 needed nothing from you mid-flight.** It wrote the App Store
+listing (Turkish and English), built the pipeline that will carry Hayati to
+TestFlight, and made the app start faster.
 
 **What you should know from this session:**
+
+**0.1. The App Store listing text now exists — and it needs your eyes (TR) before launch.** `fastlane/metadata/` holds the store name, subtitle, description, and keywords in Turkish and English, written in the brand voice and deliberately claiming nothing the app can't do (the privacy paragraph uses the settings screen's own honest wording). It joins item 1's native-review gate. Two decisions inside it are provisional and YOURS (see item 8): the store name "Hayati" (trademark check pending) and whether the on-device label stays "Hayati App".
+
+**0.2. The release pipeline exists and is honest about what it can't do yet.** Pushing a version tag now runs: metadata lint → the full emulator integration suite → a real release build with a size report → and then a signing step that **deliberately fails with a clear message** telling you exactly which secrets are missing and where they go. That red is truthful — the moment your enrollment lands and you add the three App Store Connect keys (item 4), the same pipeline signs and uploads to TestFlight. Nothing pretends; nothing silently skips.
+
+**0.3. The app starts faster, provably.** The startup path was audited step by step: a timezone-database parse moved off the critical path, two pairs of independent reads now run simultaneously, and a test now pins the exact set of things allowed to run before the first frame — so no future change can quietly slow the boot. What did NOT change: the privacy lock still decides the very first frame (that is a security guarantee, not an optimization target). The honest cold-start numbers still need a real device — that check is on item 4's on-device list.
 
 **1. "Delete my account" now exists, and it means it.** Settings → Delete
 account & data. It asks twice (and for your PIN if the lock is on), tells you
@@ -226,10 +234,11 @@ until M6 — so your first upload goes through Xcode/Transporter by hand).
    in → drag the `.ipa` in → **Deliver**. Alternative: `flutter build ipa`
    also produced `app/build/ios/archive/Runner.xcarchive` — open it in Xcode
    (Window → Organizer) → **Distribute App** → App Store Connect → Upload.
-2. First upload asks the **export compliance** question: Hayati uses only
-   standard TLS/HTTPS — answer that it uses **only exempt/standard
-   encryption**. (Ask a session to add `ITSAppUsesNonExemptEncryption=false`
-   to Info.plist so the question never comes back.)
+2. ~~First upload asks the **export compliance** question~~ — **already
+   handled (Session 022):** `ITSAppUsesNonExemptEncryption=false` now ships in
+   Info.plist (Hayati uses only standard TLS/HTTPS), so Apple will NOT show
+   the export-compliance prompt at upload. If it appears anyway, answer
+   "only exempt/standard encryption" and tell a session.
 3. Processing takes ~5–30 minutes; the build then appears in App Store
    Connect → Hayati → **TestFlight** tab (answer the "Missing Compliance"
    prompt there if it asks again).
@@ -412,6 +421,32 @@ the only remaining gate on this whole slice is the enrollment itself. The
 TestFlight runbook above covers the registration + first-install path; the
 checkboxes below remain the on-device verification backlog.**
 
+**Update 2026-07-13 (Session 022): the automated release lane now exists and
+waits on exactly this item.** The day the enrollment lands:
+
+1. **Create one App Store Connect API key** (App Store Connect → Users and
+   Access → Integrations → Keys → generate; role App Manager is enough) and
+   put its three values into GitHub: repo **Settings → Environments →
+   `release`** (the environment already exists/auto-creates) → add secrets
+   **`ASC_KEY_ID`**, **`ASC_ISSUER_ID`**, **`ASC_API_KEY_P8`** (the .p8 file's
+   full text). They must go in the `release` ENVIRONMENT, not the plain
+   repository secrets — the pipeline reads only the environment (ADR-021).
+2. From then on, a session (or you) pushing a tag `vX.Y.Z` that matches
+   `app/pubspec.yaml`'s version produces a signed TestFlight build
+   automatically. Until then the pipeline's signing step fails with a clear
+   message — that red is expected and honest.
+3. **First-real-run checklist (recorded, expected to need one Mac-era fix):**
+   the likeliest fixes a session may need are the automatic-signing
+   `DEVELOPMENT_TEAM` build setting (no secret carries your team id yet) —
+   and after the first `deliver` metadata push, eyeball the App Store Connect
+   URL fields (the empty privacy/support URLs must not have clobbered
+   anything; item 8 owns filling them).
+4. **NEW on-device check (Session 022):** the cold-start stopwatch — time a
+   cold launch of the prod build on the iPhone 17 (airplane-mode and normal
+   runs). CI deliberately does not assert the <2s number (a shared debug
+   simulator would produce theater); your phone is where the honest number
+   comes from.
+
 Everything here needs your Mac and/or the Apple Developer enrollment:
 
 - **App Attest**: entitlement + console registration, then on-device
@@ -455,6 +490,41 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
   M2.2; upgrade path documented in `architecture.md` §4.
 - First **real-device pairing test** (pairs with item 2: deploy first).
 
+## 8. NEW (Session 022): four store-listing decisions + the missing web pages — none blocking, all pre-submission
+
+- **(a) The store name "Hayati" is provisional.** The brandkit records a
+  known collision risk (an unrelated vape brand uses "Hayati" in some
+  markets). Before public launch: run the trademark/store-name search you
+  already planned; if it fails, the vetted alternates are in the brandkit and
+  ADR-020 (İkimiz, Baynana, Mawadda, Roohi) and the rename costs one metadata
+  line. Apple may also reject the name as taken at Phase B — same fallback.
+- **(b) The label under the discreet icon — your call, deliberately not made
+  for you (ADR-020 D2).** The home-screen label is "Hayati App" today and the
+  discreet icon cannot change it (that honest bound ships in the app's own
+  settings copy). Options, all drafted: keep "Hayati App" (current), rename
+  to "Hayati" (cleaner, equally identifying), or a genuinely neutral label
+  (a real product-identity decision with store-review risk — not drafted as
+  a default). Whichever you pick, the session that changes it must re-audit
+  the discreet-icon copy in the same commit.
+- **(c) Privacy policy + support page URLs do not exist** — the store
+  listing ships EMPTY URL fields behind a loud CI warning (never a fake URL).
+  Apple requires both at submission. Needs: your domain choice (the same
+  decision universal links have been waiting on) + a hosted privacy policy
+  TR/AR/EN. **The next session drafts the policy TEXT** (see resume-prompt);
+  hosting stays yours. When the URLs exist, a session drops the lint's
+  `--allow-empty-urls` flag and the gap can never reopen.
+- **(d) Age rating: verify at first submission.** Spice mode is out of the
+  MVP precisely to keep the rating standard-tier, but whether Apple's
+  questionnaire treats the AI coach chat as a maturity factor is only
+  provable in App Store Connect. If it forces a higher tier, the choice
+  (constrain the surface vs accept the tier) is yours — the honest answer
+  either way is the guardrail description (server-side crisis spine,
+  not-therapy disclaimer, premium-gated).
+- **Also in item 1's native-review gate since this session:** the full store
+  listing copy ×2 locales (`fastlane/metadata/{tr,en-US}` — name, subtitle,
+  description, keywords, promotional text) and the localized Face ID
+  purpose string (`app/ios/Runner/{en,tr,ar}.lproj/InfoPlist.strings`).
+
 ## Parked (cross-project): Unhooked panic-button verification (reported 2026-07-11)
 
 > Not a Hayati item — parked here because this is the checklist you read.
@@ -476,20 +546,23 @@ The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
 webhook in Slack (treat it as leaked), store the new one as a **repository
 secret**, then rework/land the branch.
 
-## Progress & readiness snapshot (as of Session 021 close)
+## Progress & readiness snapshot (as of Session 022 close)
 
 - **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 engineering ✅ (sandbox
   accept line open on item 0)** · **M5: 2/3 (spine + chat UI; M5.3 live
-  adapter is founder-blocked on item 6)** · **M6: 2/3 (M6.1 device-privacy ✅,
-  M6.2 data rights ✅)** — **20/22 session-units (91%) in 21 sessions; 2
-  planned session-units left to the MVP** (M5.3, blocked on item 6 · M6.3;
-  M6.5 Android sits outside the 22-unit MVP count). On track; no plan or
-  scope changes in Session 021 (M1's +1 session remains the only slippage
-  ever). Next session: **M6.3 — store metadata TR/EN via Fastlane + the
-  performance pass + the closed-beta release lane** (its signed-build half is
-  blocked on YOUR item 4 enrollment), unless you answer item 6, in which case
-  **M5.3 (the coach going live) takes precedence** and M6.3 slides one
-  session.
+  adapter is founder-blocked on item 6)** · **M6: 3/3 ✅ (M6.1 device-privacy,
+  M6.2 data rights, M6.3 store metadata + release lane + perf pass — the
+  signed-build/TestFlight half of the M6 accept line is proven fail-closed
+  and waits on YOUR item 4 enrollment)** — **21/22 session-units (95%) in 22
+  sessions; ONE planned session-unit left to the MVP: M5.3, blocked on item 6
+  alone** (M6.5 Android sits outside the 22-unit count and its timing is your
+  Gate-3 call). On track; no plan or scope changes in Session 022 (M1's +1
+  session remains the only slippage ever). Next session: **the mvp item-12
+  legal bundle's buildable half — consent surface + privacy-policy/terms
+  drafts TR/AR/EN + the DPA inventory** (also produces the policy text that
+  item 8(c)'s missing URL needs), unless you answer item 6 (**M5.3
+  preempts**), flip Blaze (**the first-deploy slice preempts**), or
+  green-light Android timing (**M6.5**).
 - **Readiness: pre-MVP, emulator/CI-proven, nothing deployed, nothing on a
   phone.** Working and proven against emulators + CI: auth, profile + rules,
   the whole pairing loop, the unpaired solo week, the content pipeline, the
@@ -517,16 +590,26 @@ secret**, then rework/land the branch.
   honest in-app notice with deliberately no push; the entitlement mirror
   dying with the couple; the per-user discreet-notification override — 1,300
   app tests / 848 server tests green, both adversarial review passes run and
-  every confirmed finding fixed before merge).
+  every confirmed finding fixed before merge), and now the **release
+  readiness layer** (M6.3, ADR-020/021/022: the App Store listing TR/EN in
+  `fastlane/metadata` under a CI lint that enforces Apple's limits; the
+  tag-triggered `release.yml` — metadata lint → the full emulator integration
+  suite → a real prod release build with a 200 MB size cap → a signing step
+  that fails CLOSED with a message naming exactly the missing secrets;
+  export-compliance pre-answered in Info.plist; the store's language row
+  fixed to TR/AR/EN with the Face ID prompt localized; the cold-start path
+  audited and shortened with the pre-frame bootstrap shape pinned by a
+  mutation-checked test — 1,305 app tests green, both adversarial review
+  passes run, every confirmed finding fixed before merge).
   **What "production-ready" is still missing, honestly:** no deploy has ever
   happened (Spark plan — item 2), the app has never run on a real device
   (Mac/enrollment — item 4), no real purchase has ever been made (item 0),
   push notifications have no device half (APNs — item 4), the coach has no
-  live AI provider (item 6 — the ONLY gap left in M5), and the privacy
-  layer's four on-device checks (item 4's sub-list) are unverified on real
-  hardware. The release lane + store metadata land next (M6.3); its
-  signed-build half waits on item 4. Call it **~91% of the MVP's
-  engineering, 0% of its operational proof.**
+  live AI provider (item 6 — the ONLY gap left in M5, and the only planned
+  MVP unit left at all), the privacy layer's four on-device checks (item 4's
+  sub-list) are unverified on real hardware, and the signed-build/TestFlight
+  half of the release lane waits on item 4's enrollment + secrets. Call it
+  **~95% of the MVP's engineering, 0% of its operational proof.**
   Deferred loudly (nothing silent): seasonal question windows (issue #29), the
   schedule trigger + Eventarc retry + webhook Secret Manager binding
   (deploy-verified at first Blaze deploy), `users.fcmTokens` capture + APNs
@@ -554,8 +637,18 @@ secret**, then rework/land the branch.
   decision — the enum leaves the door open), `coach_sessions` export/cascade
   coverage (contingent on your item 7), and consent screens + the DPA
   inventory (the mvp item-12 legal bundle, pre-launch — architecture §8 now
-  says "unbuilt" honestly instead of asserting them).
-  **Closed this session:** the per-user neutral-notification override (was
-  M6.1's deferral — shipped as the Settings toggle + `users` field through
-  the documented resolver seam), and the KVKK/PDPL export + delete
-  self-serve rights themselves — the last legally-required MVP feature.
+  says "unbuilt" honestly instead of asserting them; **the next session's
+  objective**). **New from M6.3 (ADR-020/021/022):** the store-listing E2E
+  matrix enters `release.yml` when the E2E scenarios can honestly run
+  (sandbox = items 0+4; recorded in test-suite.md), the `Gemfile.lock` debt
+  survives until the signing job first runs bundler, the 200 MB size cap
+  ratchets once real measurements exist, the `--allow-empty-urls` lint flag
+  drops when item 8(c)'s URLs exist, screenshots are Mac-era, and the
+  first-real-run signing checklist (item 4's update) carries the two
+  recorded likely fixes.
+  **Closed this session:** the M6 milestone itself — store metadata TR/EN
+  drafted + CI-linted, the release lane built and proven fail-closed at its
+  secrets boundary (the last M6 accept line's buildable half; the signed
+  half is item 4's), the performance pass (bootstrap audited + shortened +
+  sentinel-pinned, build-size cap live, crash-free posture audited), and
+  ADR-018 D7's Info.plist localization deferral.
