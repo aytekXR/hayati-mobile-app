@@ -488,22 +488,13 @@ flutter run --release -t lib/main_dev.dart \
 `--release` gives the honest feel and leaves the app installed — afterwards
 it relaunches from the home-screen icon with the same defines baked in. Drop
 `--release` when you want hot reload instead. On first backend contact iOS
-should ask for **Local Network** permission — **Allow**. One honest caveat
-the review of this recipe flagged: the app doesn't carry the
-`NSLocalNetworkUsageDescription` nicety yet, and iOS 26 is strict about
-local-network privacy — if the prompt never appears and the app can't reach
-the Mac, first check Settings → Privacy & Security → Local Network → Hayati
-App; if it isn't listed there either, add the key **locally** to
-`app/ios/Runner/Info.plist` (inside the top-level `<dict>`):
-
-```xml
-<key>NSLocalNetworkUsageDescription</key>
-<string>Hayati connects to the Firebase emulators on your Mac for on-device testing.</string>
-```
-
-rebuild, and revert the file with the rest of Phase 8. (Landing the key
-permanently is queued for the next hardening session — it is harmless in
-prod.)
+should ask for **Local Network** permission — **Allow**. _(Updated Session
+024: the `NSLocalNetworkUsageDescription` purpose string now ships in the
+app permanently, localized ×3 — issue #55's rider — so the prompt appears
+properly under iOS 26's strict LAN privacy and you never edit
+`Info.plist` locally.)_ If the prompt never appears and the app can't reach
+the Mac, check Settings → Privacy & Security → Local Network → Hayati App
+and flip it on.
 
 ### Phase 6 — the partner is the Mac
 
@@ -569,10 +560,10 @@ CI project id while this rig (necessarily — Phase 4) runs under
 Ctrl-C stops the emulators (the test data evaporates — expected). Then, in
 the Mac clone, `git status` must come back **clean**: revert the local
 edits if they show (`git checkout -- firebase.json
-app/ios/Runner/Runner.entitlements app/ios/Runner/Info.plist`). None may
-ever reach a commit — one opens the emulator hosts to the network, one
-strips a shipping entitlement, and the Info.plist key (if you added it in
-Phase 5) belongs in a reviewed session diff, not a rig edit.
+app/ios/Runner/Runner.entitlements`). Neither may ever reach a commit —
+one opens the emulator hosts to the network, the other strips a shipping
+entitlement. _(The Info.plist local edit is gone from this ritual: the
+Local-Network key ships in the app since Session 024.)_
 
 ### Want the FULL couple loop on this rig? It is one small session away.
 
@@ -837,6 +828,9 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
   listing copy ×2 locales (`fastlane/metadata/{tr,en-US}` — name, subtitle,
   description, keywords, promotional text) and the localized Face ID
   purpose string (`app/ios/Runner/{en,tr,ar}.lproj/InfoPlist.strings`).
+  _Session 024 added to the same files:_ the localized **Local Network**
+  purpose string (the on-device emulator-rig prompt, issue #55's rider) —
+  same AI-drafted / native-review-PENDING status.
 
 ## Parked (cross-project): Unhooked panic-button verification (reported 2026-07-11)
 
