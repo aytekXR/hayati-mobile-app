@@ -69,7 +69,20 @@ platform :ios do
     # Prod flavor: TestFlight builds carry prod config (operator runbook).
     sh("cd ../app && flutter build ipa --release -t lib/main_prod.dart")
 
-    upload_to_testflight(skip_waiting_for_build_processing: true)
+    # The ipa path must be explicit: the build ran through raw `sh` (not gym),
+    # so lane_context carries no IPA_OUTPUT_PATH and pilot's fallback globs
+    # fastlane's OWN working directory — which never contains the Flutter
+    # output at ../app/build/ios/ipa/ (post-implementation review, Session 022).
+    # Fail closed with a pointed message rather than pilot's generic one.
+    ipa_path = Dir["../app/build/ios/ipa/*.ipa"].first
+    UI.user_error!(
+      "No .ipa found under app/build/ios/ipa/ — `flutter build ipa` did not " \
+      "produce its output where this lane expects it (ADR-021 D5)."
+    ) if ipa_path.nil?
+    upload_to_testflight(
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true,
+    )
   end
 
   desc "Push App Store metadata (no binary) from fastlane/metadata — App Store Connect API key"
