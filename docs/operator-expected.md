@@ -360,12 +360,14 @@ until M6 — so your first upload goes through Xcode/Transporter by hand).
   Apple sign-in provider in the Firebase console (**item 3, ~5 minutes —
   do it before the first launch or sign-in will fail**).
 - **Needs item 2 (Blaze + first deploy) first:** pairing, the daily loop,
-  reveal, streaks, entitlements — all seven Cloud Functions have **never been
-  deployed** (Spark plan). A session scripts the first deploy the moment you
-  flip Blaze; without it the app on your phone is a beautiful shell around a
-  missing backend. **(That bound holds for the TestFlight/prod lane only —
-  the ★ direct-install recipe below runs the FULL loop on your phone today
-  against the Mac's emulators, as a dev rig, with nothing deployed.)**
+  reveal, streaks, entitlements — all **eleven** Cloud Functions have **never
+  been deployed** (Spark plan). A session scripts the first deploy the moment
+  you flip Blaze; without it the app on your phone is a beautiful shell
+  around a missing backend. **(That bound holds for the TestFlight/prod lane
+  only — the ★ direct-install recipe below runs most of the product on your
+  phone today against the Mac's emulators, as a dev rig with nothing
+  deployed; its two honest bounds and the one-session lever that lifts them
+  are recorded there.)**
 - **Needs item 0:** any real paywall content and the sandbox purchase (M4's
   accept line). TestFlight builds hit the sandbox store automatically once
   RevenueCat + the subscription products exist.
@@ -392,14 +394,16 @@ emulators), automatic signing with no team pinned, entrypoint flavors
 Podfile (SwiftPM — skip anything the internet tells you about `pod install`).
 
 **Two modes — use Mode 1.**
-- **Mode 1, the full-loop rig (recommended):** dev flavor on the phone, the
+- **Mode 1, the emulator rig (recommended):** dev flavor on the phone, the
   Firebase **emulators running on the Mac**, phone → Mac over your home
-  Wi-Fi. This runs the ENTIRE product loop on real hardware — sign-in,
-  consent, solo week, pairing by deep link, the daily loop with mutual
-  reveal and streaks, the lock layer, export/delete — the first time the
-  whole loop exists outside CI. It is a dev rig: the data is throwaway and
-  evaporates when you stop the emulators. It is NOT the production proof
-  (items 2/3/4 still own that).
+  Wi-Fi. This runs MOST of the product on real hardware — sign-in, the
+  consent screen, the whole solo week, invite creation + deep-link
+  delivery, the lock layer, export and the delete cascade, the in-app
+  legal documents — with **two honest, code-pinned bounds** (the final
+  join step and the couple daily loop — spelled out in Phase 7 #3, with
+  the one-session lever that lifts both if you want it). It is a dev rig:
+  the data is throwaway and evaporates when you stop the emulators. It is
+  NOT the production proof (items 2/3/4 still own that).
 - **Mode 2, the prod shell:** `lib/main_prod.dart`, no emulators. Honest
   bound: sign-in FAILS until you enable the providers (item 3), and behind
   sign-in there is no backend until the first deploy (item 2). Only useful
@@ -416,7 +420,9 @@ Podfile (SwiftPM — skip anything the internet tells you about `pod install`).
    rig), a **Java 21+** runtime on PATH (`brew install openjdk@21`, then the
    one `sudo ln -sfn` line brew prints; check `java -version`), and
    `npm install -g firebase-tools@15.22.4` (the exact version every emulator
-   proof in this repo ran on).
+   proof in this repo ran on). Then `firebase login` once — the rig runs the
+   emulators under the real dev project id (Phase 4 explains why), and a
+   logged-in CLI keeps that fully offline.
 4. Build the functions once per pull (the emulator never compiles TS):
    `cd functions && npm ci && npm run build`.
 
@@ -452,7 +458,15 @@ Podfile (SwiftPM — skip anything the internet tells you about `pod install`).
    firestore, functions) to `"0.0.0.0"`. **Never commit this** — revert in
    Phase 8.
 2. From the repo root:
-   `firebase emulators:start --only auth,firestore,functions --project demo-hayati`.
+   `firebase emulators:start --only auth,firestore,functions --project hayatiapp-dev`.
+   **The project id matters and it is NOT the CI one:** the functions
+   emulator serves callables only under its `--project` id, and the app you
+   installed carries `hayatiapp-dev` baked into its dev config — started
+   under CI's `demo-hayati`, every callable (consent, invites, join,
+   export, delete) would 404 and the rig would die at the consent screen
+   (this repo's own PR-#23 lesson; the adversarial review of this recipe
+   caught it before you did). Expect one harmless startup warning about
+   `RC_WEBHOOK_TOKEN` (the webhook isn't part of this rig and fail-closes).
    macOS will ask to allow `java`/`node` to accept incoming connections —
    **Allow**. Keep this terminal visible: **the phone sign-in codes print
    here** (the emulator UI is disabled in this repo's config).
@@ -474,18 +488,40 @@ flutter run --release -t lib/main_dev.dart \
 `--release` gives the honest feel and leaves the app installed — afterwards
 it relaunches from the home-screen icon with the same defines baked in. Drop
 `--release` when you want hot reload instead. On first backend contact iOS
-asks for **Local Network** permission — **Allow** (missed it? Settings →
-Privacy & Security → Local Network → Hayati App).
+should ask for **Local Network** permission — **Allow**. One honest caveat
+the review of this recipe flagged: the app doesn't carry the
+`NSLocalNetworkUsageDescription` nicety yet, and iOS 26 is strict about
+local-network privacy — if the prompt never appears and the app can't reach
+the Mac, first check Settings → Privacy & Security → Local Network → Hayati
+App; if it isn't listed there either, add the key **locally** to
+`app/ios/Runner/Info.plist` (inside the top-level `<dict>`):
+
+```xml
+<key>NSLocalNetworkUsageDescription</key>
+<string>Hayati connects to the Firebase emulators on your Mac for on-device testing.</string>
+```
+
+rebuild, and revert the file with the rest of Phase 8. (Landing the key
+permanently is queued for the next hardening session — it is harmless in
+prod.)
 
 ### Phase 6 — the partner is the Mac
 
 Your second tester is the iOS **Simulator** on the Mac (`open -a Simulator`,
 ships with Xcode): run the same command with **no** `--release` and **no**
 `AUTH_EMULATOR_HOST` line (the simulator reaches the emulators on localhost),
-`-d` the simulator. Sign in there as the second user, create the invite,
-then on the iPhone open **`hayati://invite/<CODE>`** typed into Safari's
-address bar. Do it twice: once with Hayati running (warm) and once after
-force-quitting it (cold) — **that pair is an item-4 checkbox.**
+`-d` the simulator. Sign the simulator user in with **Google** — phone
+sign-in on the *simulator* is the known issue-#15 native crash (phone is for
+the real phone), and Apple sign-in is off on the free-team path (Phase 3).
+Create the invite there, then on the iPhone open
+**`hayati://invite/<CODE>`** typed into Safari's address bar. Do it twice:
+once with Hayati running (warm) and once after force-quitting it (cold) —
+**the OS→app delivery pair is an item-4 checkbox**, and it is proven the
+moment the preview screen mounts holding your code. **Honest bound: the
+join itself stops there on this rig** — the preview card will show its
+retry/error state, because the zero-auth preview URL is code-pinned to the
+CI project id while this rig (necessarily — Phase 4) runs under
+`hayatiapp-dev`. Lifting that is the dev-rig slice below.
 
 ### Phase 7 — what to test (in rough order of value)
 
@@ -498,9 +534,19 @@ force-quitting it (cold) — **that pair is an item-4 checkbox.**
 2. **The consent screen (Session 023)** — you two are the first humans to
    see it live: one clear button, and the three escapes (sign out /
    export / delete) all reachable from a decline.
-3. **The full loop:** solo week → invite → the deep-link pairing (Phase 6)
-   → both sides answer → the server-gated mutual reveal → the streak.
-   First time this exists anywhere but CI.
+3. **The loop, with its two honest bounds:** the solo week runs end to end
+   (bundled questions, consent-gated answers, history). Invite creation +
+   the share sheet + deep-link **delivery** run (Phase 6). What this rig
+   canNOT honestly run — both caught by the adversarial review of this
+   very recipe, both code-level, neither a bug: **(a) the final join tap**
+   (the joiner's preview URL is code-pinned to the CI project id — the
+   preview card errors on this rig, and the join CTA lives behind it);
+   **(b) the couple daily loop** (the day's question doc is written ONLY
+   by the scheduled `questionRollover`, and the emulator never fires
+   schedules — the repo's own recorded deploy-verified-only bound; with
+   no day doc, couple-answer writes fail closed at the rules). Both lift
+   together with the **dev-rig slice** below, or with the first real
+   deploy (item 2).
 4. **The four M6.1 lock checks** from item 4's sub-list (Keychain
    reinstall persistence, Face ID self-revocation, discreet icon,
    app-switcher blank card) — they were built FOR this moment. Note for
@@ -511,20 +557,35 @@ force-quitting it (cold) — **that pair is an item-4 checkbox.**
 6. **TR/AR/EN + RTL** rendering on real hardware.
 7. **Honest non-features on this rig — don't chase these as bugs:** pushes
    can't fire (APNs is item 4); the paywall shows "store unavailable" (no
-   RevenueCat key — fail-closed by design, item 0); the coach shows its
-   honest "not configured" state (item 6); the Apple sign-in button needs
-   the paid team (Phase 3). And the item-4 **cold-start stopwatch** number
-   should NOT be taken from this rig — that measurement belongs to the
-   prod TestFlight build.
+   RevenueCat key — fail-closed by design, item 0), which also keeps the
+   coach behind its premium gate (and even with premium it would answer
+   with the honest "not configured" state — item 6); the Apple sign-in
+   button needs the paid team (Phase 3). And the item-4 **cold-start
+   stopwatch** number should NOT be taken from this rig — that measurement
+   belongs to the prod TestFlight build.
 
 ### Phase 8 — teardown ritual (IMPORTANT)
 
 Ctrl-C stops the emulators (the test data evaporates — expected). Then, in
-the Mac clone, `git status` must come back **clean**: revert the two local
+the Mac clone, `git status` must come back **clean**: revert the local
 edits if they show (`git checkout -- firebase.json
-app/ios/Runner/Runner.entitlements`). Neither may ever reach a commit — one
-opens the emulator hosts to the network, the other strips a shipping
-entitlement.
+app/ios/Runner/Runner.entitlements app/ios/Runner/Info.plist`). None may
+ever reach a commit — one opens the emulator hosts to the network, one
+strips a shipping entitlement, and the Info.plist key (if you added it in
+Phase 5) belongs in a reviewed session diff, not a rig edit.
+
+### Want the FULL couple loop on this rig? It is one small session away.
+
+The two Phase-7 bounds share one lever, recorded here as the **dev-rig
+slice**: a session adds a `lib/main_demo.dart` entrypoint that boots the
+app with the CI project's options (`demo-hayati` — the exact bootstrap the
+repo's own integration tests already prove on the iOS simulator every
+merge, which aligns the callables, the preview URL, and the Firestore
+triggers under one project id) plus a tiny seeding tool that plays the
+scheduled rollover's role on demand. With those two files, the join, the
+couple daily loop, the mutual reveal, and the streak all run on your phone
+against the Mac — still throwaway data, still no deploy. **Say "build the
+dev-rig slice" and the next session folds it in or re-scopes to it.**
 
 ## 0. **BLOCKING — the only thing left in M4:** RevenueCat account + App Store Connect app record
 
@@ -633,11 +694,15 @@ entitlement.
 
 - **What:** upgrading `hayatiapp-dev`/`hayatiapp-prod` from Spark (free) to
   **Blaze** (pay-as-you-go) — deploying Cloud Functions requires it.
-- **Status:** seven Functions now (`createInvite`, `invitePreview`,
-  `joinInvite`, the scheduled `questionRollover`, the Firestore-triggered
-  `answerReveal`, since M4.1 the **`revenueCatWebhook`**, and since
-  Session 023 the consent-recording **`recordConsent`**), all
-  emulator-proven; **nothing deployed yet.** Deploy-verified-only pieces: the
+- **Status:** eleven Functions now — the five loop/invite units
+  (`createInvite`, `invitePreview`, `joinInvite`, the scheduled
+  `questionRollover`, the Firestore-triggered `answerReveal`), since M4.1
+  the **`revenueCatWebhook`**, since M5.1 the **`coachProxy`**, and since
+  M6.2/S023 the four data-rights callables (**`deleteAccount`**,
+  **`exportData`**, **`updateNotificationPrivacy`**, **`recordConsent`**) —
+  all emulator-proven; **nothing deployed yet.** (The count was recorded as
+  "six" here for three sessions — the 2026-07-13 interlude review corrected
+  it against `functions/src/index.ts`.) Deploy-verified-only pieces: the
   rollover's *schedule trigger* (Cloud Scheduler), `answerReveal`'s
   production retry (Eventarc redelivery), and now the webhook's **Secret
   Manager binding** (`RC_WEBHOOK_TOKEN`) + its public URL for the RC
@@ -924,4 +989,14 @@ secret**, then rework/land the branch.
   direct-install on-device recipe added above at the founder's request — no
   code changed, no session-unit consumed, Session 024's objective unchanged;
   the founder's on-device findings (the four M6.1 checks, the deep-link
-  pair, a possible #15 crash log) become triage input for the next session.
+  delivery pair, a possible #15 crash log) become triage input for the next
+  session. The recipe itself went through the standing adversarial-review
+  discipline (5 lenses × refuting skeptics — the TWELFTH consecutive pass
+  to find real defects): 2 BLOCKING (the emulator project-id 404 trap; the
+  couple-daily-loop over-claim against the schedule-never-fires bound) + 1
+  SERIOUS (the missing `NSLocalNetworkUsageDescription` risk) + 2 MINOR
+  (the Functions count — eleven, not seven; Google-not-phone for the
+  simulator partner) — all folded in before merge. Two new small items now
+  recorded: the **dev-rig slice** (founder-triggered, see the recipe) and
+  the `NSLocalNetworkUsageDescription` key riding the next hardening
+  sweep's Info.plist work.
