@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:hayati_app/features/daily_question/data/asset_solo_question_pack_repository.dart';
+import 'package:hayati_app/features/legal/domain/legal_document.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 
 /// Serves canned strings as assets, completing without any platform-channel
@@ -45,4 +46,17 @@ StaticAssetBundle shippedSoloPackBundle() => StaticAssetBundle({
     AssetSoloQuestionPackRepository.assetPathFor(language): File(
       AssetSoloQuestionPackRepository.assetPathFor(language),
     ).readAsStringSync(),
+});
+
+/// The REAL shipped legal documents (`app/assets/legal/<doc>.<locale>.md`,
+/// ADR-023 D5), read synchronously off disk into a [StaticAssetBundle] — the
+/// injected-bundle seam the document screen and its goldens use so a real
+/// `rootBundle` load never wedges `pumpAndSettle`. Keyed by every shipped
+/// locale so a golden can render any resolved locale.
+StaticAssetBundle shippedLegalBundle() => StaticAssetBundle({
+  for (final document in LegalDocument.values)
+    for (final languageCode in const ['tr', 'ar', 'en'])
+      legalAssetPath(document, languageCode): File(
+        legalAssetPath(document, languageCode),
+      ).readAsStringSync(),
 });

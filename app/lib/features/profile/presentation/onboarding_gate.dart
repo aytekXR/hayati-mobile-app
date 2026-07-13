@@ -9,6 +9,8 @@ import '../../daily_question/presentation/paired_home_screen.dart';
 import '../../daily_question/presentation/solo_home_screen.dart';
 import '../../data_rights/presentation/couple_ended_notice_screen.dart';
 import '../../data_rights/presentation/state/couple_ended_seen.dart';
+import '../../legal/domain/consent_status.dart';
+import '../../legal/presentation/consent_gate_screen.dart';
 import '../../pairing/presentation/partner_preview_screen.dart';
 import '../../pairing/presentation/state/pending_invite.dart';
 import '../domain/profile_exception.dart';
@@ -22,17 +24,23 @@ import 'state/profile_providers.dart';
 /// precedence, in order:
 ///
 ///  1. profile == null            → capture (onboarding isn't done);
-///  2. profile.coupleId != null   → the paired home (M3 slot) — the terminal
+///  2. !hasCurrentConsent(profile) → the special-category consent gate
+///     (ADR-023 D3), evaluated immediately after capture and BEFORE every home
+///     and notice: profile fields (status/contentLanguage/register) are ordinary
+///     contract-basis data needed to render the gate in the right language and
+///     register, but the reflective content the gate protects begins at the
+///     homes, so consent is a precondition on all of them;
+///  3. profile.coupleId != null   → the paired home (M3 slot) — the terminal
 ///     state wins over everything, so a just-joined user re-routes here the
 ///     moment `joinInvite` stamps the couple, whichever screen they came from;
-///  3. coupleId == null && coupleEndedAt != null && !seen → the honest terminal
+///  4. coupleId == null && coupleEndedAt != null && !seen → the honest terminal
 ///     notice (ADR-019 D3), evaluated BEFORE the pending-invite branch (review
 ///     finding NOTICE-2 — a joiner arriving by deep link with `coupleEnded` set
 ///     must see the notice first; the invite flow continues after Continue);
-///  4. pendingInvite != null      → the partner preview / join screen — an
+///  5. pendingInvite != null      → the partner preview / join screen — an
 ///     onboarded-but-solo user who arrived on a `hayati://invite/<code>` link
 ///     sees who invited them and can accept;
-///  5. otherwise                  → the solo home (M2.4): the day-N solo
+///  6. otherwise                  → the solo home (M2.4): the day-N solo
 ///     reflection question with the persistent invite nudge — the share flow
 ///     stays one tap away behind the nudge.
 class OnboardingGate extends ConsumerWidget {
@@ -64,6 +72,13 @@ class OnboardingGate extends ConsumerWidget {
     final value = profile.value;
     if (value == null) {
       return ProfileCaptureScreen(uid: user.uid);
+    }
+    // The special-category consent gate (ADR-023 D3): evaluated immediately
+    // after capture and BEFORE every home/notice branch. `hasCurrentConsent` is
+    // fail-closed (a null/junk/stale-version consent gates), so this holds the
+    // reflective surfaces until the server-stamped consent arrives on the stream.
+    if (!hasCurrentConsent(value)) {
+      return ConsentGateScreen(uid: user.uid);
     }
     // coupleId (paired) beats a still-pending invite: once paired, the invite
     // is spent and the pending code is stale.

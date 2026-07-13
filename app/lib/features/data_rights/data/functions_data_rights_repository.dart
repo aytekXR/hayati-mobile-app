@@ -69,6 +69,20 @@ class FunctionsDataRightsRepository implements DataRightsRepository {
       throw mapDataRightsFailure(failure);
     }
   }
+
+  @override
+  Future<void> recordConsent({required bool withdraw}) async {
+    try {
+      // The client sends ONLY `{withdraw}` — the server stamps its own
+      // CURRENT_LEGAL_VERSION on a grant (ADR-023 D4), so there is no
+      // client-claimed version to send or to mismatch.
+      await _functions.httpsCallable('recordConsent').call<Object?>({
+        'withdraw': withdraw,
+      });
+    } catch (failure) {
+      throw mapDataRightsFailure(failure);
+    }
+  }
 }
 
 /// Decodes the `exportData` payload into a [DataExport], converting a parse

@@ -12,6 +12,7 @@ import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_answers_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
+import 'package:hayati_app/features/legal/domain/legal_version.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
@@ -37,6 +38,8 @@ const testProfile = RelationshipProfile(
   status: RelationshipStatus.married,
   contentLanguage: ContentLanguage.tr,
   register: ContentRegister.playful,
+  // ADR-023: consented so the flow routes past the consent gate to the home.
+  consent: Consent(version: currentLegalVersion),
 );
 
 void main() {

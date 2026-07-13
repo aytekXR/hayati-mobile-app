@@ -186,6 +186,24 @@ void main() {
         );
       }
     });
+
+    testWidgets(
+      'carries the Terms + Privacy links row (Apple 3.1.2, ADR-023)',
+      (tester) async {
+        final env = arrange();
+        await pumpPaywall(tester, env.overrides);
+        await tester.pumpAndSettle();
+
+        expect(
+          find.widgetWithText(TextButton, en.legalLinkTerms),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(TextButton, en.legalLinkPrivacy),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('entitled', () {

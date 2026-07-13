@@ -881,5 +881,128 @@
   "coupleEndedContinue": "Continue",
   "@coupleEndedContinue": {
     "description": "The single primary action that acknowledges the notice and routes to the solo home (ADR-019 D3)"
+  },
+  "legalLinkPrivacy": "Privacy Policy",
+  "@legalLinkPrivacy": {
+    "description": "Text-link label opening the privacy policy document (sign-in footer, consent gate, paywall, legal hub). ADR-023 D5. TR/AR use the RESPECTFUL register on all legal surfaces (ADR-020 D8 precedent)."
+  },
+  "legalLinkTerms": "Terms",
+  "@legalLinkTerms": {
+    "description": "Text-link label opening the terms document (sign-in footer, consent gate, paywall, legal hub). ADR-023 D5. TR/AR respectful register."
+  },
+  "legalPrivacyTitle": "Privacy Policy",
+  "@legalPrivacyTitle": {
+    "description": "App-bar title of the privacy policy document screen and its legal-hub tile (ADR-023 D5). TR/AR respectful register."
+  },
+  "legalTermsTitle": "Terms of Use",
+  "@legalTermsTitle": {
+    "description": "App-bar title of the terms document screen and its legal-hub tile (ADR-023 D5). TR/AR respectful register."
+  },
+  "legalDocumentError": "This document couldn't be loaded. Please try again.",
+  "@legalDocumentError": {
+    "description": "Shown when a bundled legal asset fails to load in the document screen (ADR-023 D5). TR/AR respectful register."
+  },
+  "legalFooterLine": "By continuing you accept our Terms and acknowledge our Privacy Policy.",
+  "@legalFooterLine": {
+    "description": "The one-line legal footer riding the sign-in ProviderActions (ADR-023 D2), above the two document links. Availability-before-collection notice, no checkbox. TR/AR respectful register."
+  },
+  "legalHubTitle": "Privacy & Terms",
+  "@legalHubTitle": {
+    "description": "App-bar title of the Settings-reached legal hub — the ONE surface carrying consent status + withdraw (ADR-023 D5). TR/AR respectful register."
+  },
+  "legalSettingsRowTitle": "Privacy & Terms",
+  "@legalSettingsRowTitle": {
+    "description": "The Settings ListTile (between Export and Delete) that opens the legal hub (ADR-023 D5/D9). TR/AR respectful register."
+  },
+  "legalSettingsRowSubtitle": "Read the documents, see your consent, or withdraw it.",
+  "@legalSettingsRowSubtitle": {
+    "description": "Subtitle of the Settings legal tile (ADR-023 D5). TR/AR respectful register."
+  },
+  "legalConsentStatus": "Consented on {date}, version {version}.",
+  "@legalConsentStatus": {
+    "description": "Consent status line on the legal hub when a consent with a timestamp is recorded (ADR-023 D5). TR/AR respectful register.",
+    "placeholders": {
+      "date": {
+        "type": "DateTime",
+        "format": "d MMM y",
+        "isCustomDateFormat": "true"
+      },
+      "version": {
+        "type": "int"
+      }
+    }
+  },
+  "legalConsentStatusNoDate": "Consented, version {version}.",
+  "@legalConsentStatusNoDate": {
+    "description": "Consent status line when a consent is recorded but carries no valid timestamp — absent-safe fallback (ADR-023 D5). TR/AR respectful register.",
+    "placeholders": {
+      "version": {
+        "type": "int"
+      }
+    }
+  },
+  "legalConsentStatusNone": "No consent is currently recorded.",
+  "@legalConsentStatusNone": {
+    "description": "Consent status line on the legal hub when no valid consent is stored (ADR-023 D5, absent-safe). TR/AR respectful register."
+  },
+  "legalWithdrawTitle": "Withdraw consent",
+  "@legalWithdrawTitle": {
+    "description": "The withdraw-consent action tile on the legal hub (ADR-023 D4/D5). TR/AR respectful register."
+  },
+  "legalWithdrawSubtitle": "Pause the reflective features. Your stored reflections stay until you delete them.",
+  "@legalWithdrawSubtitle": {
+    "description": "Subtitle of the withdraw tile — states the prospective reading plainly (ADR-023 D4; stored data remains). TR/AR respectful register."
+  },
+  "legalWithdrawDialogTitle": "Withdraw your consent?",
+  "@legalWithdrawDialogTitle": {
+    "description": "Title of the single withdraw confirm dialog (ADR-023 D4). TR/AR respectful register."
+  },
+  "legalWithdrawDialogBody": "The reflective features will pause, and you'll be asked to consent again to use them. Your stored reflections and shared answers remain stored until you delete them — withdrawing erases nothing. To remove that content, use Delete account & data.",
+  "@legalWithdrawDialogBody": {
+    "description": "Body of the withdraw confirm dialog — states plainly that stored data REMAINS stored (ADR-023 D4, findings legal-1/honesty-2); offers nothing destructive itself. TR/AR respectful register."
+  },
+  "legalWithdrawDialogConfirm": "Withdraw",
+  "@legalWithdrawDialogConfirm": {
+    "description": "Confirm action of the withdraw dialog (ADR-023 D4). TR/AR respectful register."
+  },
+  "legalWithdrawError": "This couldn't be completed. Please try again.",
+  "@legalWithdrawError": {
+    "description": "Honest failure line after a failed withdraw call (ADR-023 D4). TR/AR respectful register."
+  },
+  "consentTitle": "Before you begin",
+  "@consentTitle": {
+    "description": "Title of the special-category consent gate (ADR-023 D3). TR/AR use the RESPECTFUL register on legal surfaces (ADR-020 D8 precedent)."
+  },
+  "consentIntro": "Hayati stores the reflections you write, the answers you share with your partner, and your messages with the coach. We treat this as sensitive and ask for your clear consent before these features begin — it is required because this content is the heart of the app.",
+  "@consentIntro": {
+    "description": "Consent gate paragraph — what is processed and why (the special-category bundle, ADR-023 D1/D3). Consistent with docs/legal/privacy-policy. TR/AR respectful register."
+  },
+  "consentDataLocation": "Your relationship content is stored in the European Union. Some service data — your sign-in details and crash reports — is processed by Google outside the European Union. We do not claim all of your data sits in Europe, because it does not.",
+  "@consentDataLocation": {
+    "description": "Consent gate paragraph — the honest data-location split (ADR-023 Context/D3, finding honesty-1). No 'all your data in the EU' over-claim. TR/AR respectful register."
+  },
+  "consentProcessors": "Google runs sign-in, storage, and crash reporting on our instructions. Apple handles the App Store and Sign in with Apple. There is no advertising or tracking in Hayati, and the coach reaches no outside AI provider today.",
+  "@consentProcessors": {
+    "description": "Consent gate paragraph — the processors, honest to the shipped reality (ADR-023 D3/D6). TR/AR respectful register."
+  },
+  "consentRights": "You can download or delete your data at any time in Settings, and you can withdraw this consent from the legal screen in Settings.",
+  "@consentRights": {
+    "description": "Consent gate paragraph — rights and the withdrawal path both live in Settings (ADR-023 D3). TR/AR respectful register."
+  },
+  "consentAgeStatement": "Hayati is for adults. By continuing you also confirm that you are 18 or older — a condition of the Terms, separate from your consent above.",
+  "@consentAgeStatement": {
+    "description": "Consent gate 18+ eligibility statement — framed as a Terms condition, its OWN paragraph, deliberately NOT part of the consent-button sentence (ADR-023 D3, finding legal-5). TR/AR respectful register."
+  },
+  "consentCta": "I consent and continue",
+  "@consentCta": {
+    "description": "The single affirmative consent CTA (ADR-023 D3) — a deliberate action, never a pre-ticked box. TR/AR respectful register."
+  },
+  "consentError": "This couldn't be completed. Please try again.",
+  "@consentError": {
+    "description": "Transient failure line after a failed consent grant (offline / callable error) — retry offered (ADR-023 D3/D9). TR/AR respectful register."
+  },
+  "consentStaleError": "This couldn't be completed right now. Please try again later.",
+  "@consentStaleError": {
+    "description": "The persistent stale-after-accept error (ADR-023 D3, finding appflow-3): the grant succeeded but the streamed consent still fails the gate; the CTA is NOT re-offered. TR/AR respectful register."
   }
 }

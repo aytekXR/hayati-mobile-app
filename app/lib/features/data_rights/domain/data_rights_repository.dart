@@ -19,4 +19,12 @@ abstract interface class DataRightsRepository {
   /// `true` writes `notificationPrivacy: 'discreet'`, `false` deletes it. Throws
   /// only [DataRightsException].
   Future<void> updateNotificationPrivacy({required bool discreet});
+
+  /// Records or withdraws the special-category consent (ADR-023 Decision 4) via
+  /// the `recordConsent` callable. `withdraw: false` GRANTS — the server stamps
+  /// its own `CURRENT_LEGAL_VERSION`, `acceptedAt`, and `ageAttested` (the client
+  /// sends no version). `withdraw: true` CLEARS the stored consent. The gate/hub
+  /// react only to the streamed `users/{uid}.consent` field this write produces —
+  /// there is no optimistic local grant. Throws only [DataRightsException].
+  Future<void> recordConsent({required bool withdraw});
 }

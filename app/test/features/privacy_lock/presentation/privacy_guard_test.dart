@@ -23,6 +23,7 @@ import 'package:hayati_app/features/daily_question/domain/solo_clock.dart';
 import 'package:hayati_app/features/daily_question/presentation/paired_home_screen.dart';
 import 'package:hayati_app/features/entitlements/domain/entitlement_repository_provider.dart';
 import 'package:hayati_app/features/entitlements/domain/purchases_repository_provider.dart';
+import 'package:hayati_app/features/legal/domain/legal_version.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.dart';
@@ -110,17 +111,20 @@ const _assignment = CoupleDayAssignment(
   packVersion: 3,
 );
 
+// ADR-023: consented so the guarded flow routes to the home, not the gate.
 const _pairedProfile = RelationshipProfile(
   status: RelationshipStatus.married,
   contentLanguage: ContentLanguage.en,
   register: ContentRegister.respectful,
   coupleId: _coupleId,
+  consent: Consent(version: currentLegalVersion),
 );
 
 const _soloProfile = RelationshipProfile(
   status: RelationshipStatus.dating,
   contentLanguage: ContentLanguage.en,
   register: ContentRegister.respectful,
+  consent: Consent(version: currentLegalVersion),
 );
 
 /// Is [finder]'s render box actually reachable by a pointer at its own centre?

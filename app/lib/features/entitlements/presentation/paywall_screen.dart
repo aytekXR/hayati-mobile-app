@@ -8,6 +8,8 @@ import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
+import '../../legal/domain/legal_document.dart';
+import '../../legal/presentation/legal_document_screen.dart';
 import '../domain/paywall_offering.dart';
 import '../domain/purchase_exception.dart';
 import 'state/entitlement_providers.dart';
@@ -305,11 +307,41 @@ class _PaywallLoadedViewState extends ConsumerState<_PaywallLoadedView> {
                   onPressed: inFlight ? null : _restore,
                   child: Text(l10n.paywallRestore),
                 ),
+                // Terms + Privacy links (Apple 3.1.2 / Schedule 2), opening the
+                // in-app documents directly — no consent controls here (ADR-023
+                // D5, the reached-from-Settings discriminator).
+                const _PaywallLegalLinks(),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The paywall's Terms + Privacy links row (ADR-023 D5). A shared widget so the
+/// loaded view carries it in the restore/footer area; documents only.
+class _PaywallLegalLinks extends StatelessWidget {
+  const _PaywallLegalLinks();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: SpacingTokens.x2,
+      children: [
+        TextButton(
+          onPressed: () => pushLegalDocument(context, LegalDocument.terms),
+          child: Text(l10n.legalLinkTerms),
+        ),
+        TextButton(
+          onPressed: () =>
+              pushLegalDocument(context, LegalDocument.privacyPolicy),
+          child: Text(l10n.legalLinkPrivacy),
+        ),
+      ],
     );
   }
 }
