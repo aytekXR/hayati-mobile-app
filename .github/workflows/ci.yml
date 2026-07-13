@@ -88,6 +88,15 @@ jobs:
         run: dart content/validator/validate_test.dart
       - name: validate question packs
         run: dart content/validator/validate.dart
+      # M6.3 store-metadata enforcement (ADR-020 D6): lint self-tests, then the
+      # credential-free precheck lint over fastlane/metadata — Apple char limits,
+      # required files per locale, unknown-filename hard fail. --allow-empty-urls
+      # is the ratchet: drop it once the founder supplies the privacy/support URLs
+      # (ADR-020 D5, operator-expected). Plain dart:-only, so pre-pub-get.
+      - name: store metadata lint self-tests
+        run: dart tool/store_metadata_lint_test.dart
+      - name: store metadata lint
+        run: dart tool/store_metadata_lint.dart --allow-empty-urls tr en-US
       - name: pub get
         working-directory: app
         run: flutter pub get
@@ -206,6 +215,23 @@ jobs:
         # Explicit --target: the scaffold has no lib/main.dart — flavors are
         # Dart entrypoints (main_dev.dart / main_prod.dart, Session 001).
         run: flutter build ios --no-codesign --debug --target lib/main_dev.dart
+      # ADR-020 D7 rev 2 (the S020 "native/asset config can fail silently green"
+      # class): a compiling pbxproj does NOT prove the localized InfoPlist.strings
+      # actually bundle — a variant group missing its Resources-build-phase entry
+      # builds green and ships an EN-only Face ID prompt on TR/AR devices. Assert
+      # the mechanism, not the green: the built .app must carry all three .lproj
+      # copies (Xcode compiles .strings in place, same path inside the bundle).
+      - name: assert localized InfoPlist.strings bundled
+        working-directory: app
+        run: |
+          for locale in en tr ar; do
+            f="build/ios/iphoneos/Runner.app/$locale.lproj/InfoPlist.strings"
+            if [ ! -f "$f" ]; then
+              echo "::error file=app/ios/Runner.xcodeproj/project.pbxproj::$f missing from the built bundle — the InfoPlist.strings variant group is not reaching the Resources build phase (ADR-020 D7 rev 2)." >&2
+              exit 1
+            fi
+          done
+          echo "en/tr/ar InfoPlist.strings all present in Runner.app."
 
   integration-emulator:
     name: integration-emulator
