@@ -133,6 +133,17 @@ void main() {
         return auth.currentUser!.uid;
       }
 
+      // ADR-023 D4a: soloAnswers/couple-answers writes now require the writer to
+      // carry a consent record. Record it via the real recordConsent callable
+      // (the server stamps version + acceptedAt onto users/{uid}) for the
+      // currently signed-in user — the same server-owned-state seeding the
+      // day-doc admin seed below uses, but through the production consent path.
+      Future<void> recordConsent() async {
+        await FirebaseFunctions.instanceFor(region: kFunctionsRegion)
+            .httpsCallable('recordConsent')
+            .call<Object?>(<String, Object?>{'withdraw': false});
+      }
+
       const profile = RelationshipProfile(
         status: RelationshipStatus.married,
         contentLanguage: ContentLanguage.tr,
@@ -146,6 +157,7 @@ void main() {
         'email': 'daily-creator@example.com',
       });
       await profiles.saveProfile(creatorUid, profile);
+      await recordConsent(); // ADR-023 D4a precondition on answer writes
       final code = (await invites.createInvite()).code;
 
       final joinerUid = await switchTo({
@@ -153,6 +165,7 @@ void main() {
         'email': 'daily-joiner@example.com',
       });
       await profiles.saveProfile(joinerUid, profile);
+      await recordConsent(); // ADR-023 D4a precondition on answer writes
       final coupleId = await invites.joinInvite(code);
 
       final couple = (await couples.watchCouple(coupleId).first)!;

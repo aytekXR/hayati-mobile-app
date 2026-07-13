@@ -14,6 +14,8 @@ import 'package:hayati_app/features/daily_question/presentation/paired_home_scre
 import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
 import 'package:hayati_app/features/data_rights/presentation/couple_ended_notice_screen.dart';
 import 'package:hayati_app/features/data_rights/presentation/state/couple_ended_seen.dart';
+import 'package:hayati_app/features/legal/domain/legal_version.dart';
+import 'package:hayati_app/features/legal/presentation/consent_gate_screen.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
@@ -39,16 +41,22 @@ import '../../../support/fake_solo_question_pack_repository.dart';
 import '../../../support/localized_app.dart';
 
 const user = AuthUser(uid: 'uid-1', displayName: 'Aytek');
+// ADR-023: a profile must carry a current consent to route PAST the consent
+// gate, so every routing fixture below is consented — the consent branch itself
+// is exercised by the dedicated group at the bottom.
+const currentConsent = Consent(version: currentLegalVersion);
 const existingProfile = RelationshipProfile(
   status: RelationshipStatus.married,
   contentLanguage: ContentLanguage.tr,
   register: ContentRegister.playful,
+  consent: currentConsent,
 );
 const pairedProfile = RelationshipProfile(
   status: RelationshipStatus.married,
   contentLanguage: ContentLanguage.tr,
   register: ContentRegister.playful,
   coupleId: 'couple-42',
+  consent: currentConsent,
 );
 
 void main() {
@@ -233,6 +241,7 @@ void main() {
       contentLanguage: ContentLanguage.tr,
       register: ContentRegister.playful,
       coupleEndedAt: at,
+      consent: currentConsent,
     );
 
     testWidgets('coupleId null + coupleEndedAt set + flag unset → the notice '
@@ -306,6 +315,117 @@ void main() {
       expect(find.byType(SoloHomeScreen), findsOneWidget);
     });
   });
+
+  group(
+    'consent gate (ADR-023 D3) — after profile-null, before every home',
+    () {
+      RelationshipProfile unconsented({
+        String? coupleId,
+        DateTime? coupleEndedAt,
+        Consent? consent,
+      }) => RelationshipProfile(
+        status: RelationshipStatus.married,
+        contentLanguage: ContentLanguage.tr,
+        register: ContentRegister.playful,
+        coupleId: coupleId,
+        coupleEndedAt: coupleEndedAt,
+        consent: consent,
+      );
+
+      testWidgets('a profile with NO consent gates to the consent screen', (
+        tester,
+      ) async {
+        await pumpGate(tester, profile: unconsented());
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ConsentGateScreen), findsOneWidget);
+        expect(find.byType(SoloHomeScreen), findsNothing);
+        expect(find.byType(ProfileCaptureScreen), findsNothing);
+      });
+
+      testWidgets('a STALE consent (version below the current const) gates', (
+        tester,
+      ) async {
+        await pumpGate(
+          tester,
+          profile: unconsented(
+            consent: const Consent(version: currentLegalVersion - 1),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ConsentGateScreen), findsOneWidget);
+        expect(find.byType(SoloHomeScreen), findsNothing);
+      });
+
+      testWidgets(
+        'a current consent routes to the solo home (positive control)',
+        (tester) async {
+          await pumpGate(tester, profile: unconsented(consent: currentConsent));
+          await tester.pumpAndSettle();
+
+          expect(find.byType(ConsentGateScreen), findsNothing);
+          expect(find.byType(SoloHomeScreen), findsOneWidget);
+        },
+      );
+
+      testWidgets('the consent gate PRECEDES the coupleId (paired) branch', (
+        tester,
+      ) async {
+        await pumpGate(tester, profile: unconsented(coupleId: 'couple-42'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ConsentGateScreen), findsOneWidget);
+        expect(find.byType(PairedHomeScreen), findsNothing);
+      });
+
+      testWidgets('the consent gate PRECEDES the coupleEnded notice branch', (
+        tester,
+      ) async {
+        await pumpGate(
+          tester,
+          profile: unconsented(
+            coupleEndedAt: DateTime.fromMillisecondsSinceEpoch(1752000000000),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ConsentGateScreen), findsOneWidget);
+        expect(find.byType(CoupleEndedNoticeScreen), findsNothing);
+      });
+
+      testWidgets('the consent gate PRECEDES the pending-invite branch', (
+        tester,
+      ) async {
+        await pumpGate(
+          tester,
+          profile: unconsented(),
+          initialLink: Uri.parse('hayati://invite/ABCD2345'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ConsentGateScreen), findsOneWidget);
+        expect(find.byType(PartnerPreviewScreen), findsNothing);
+      });
+
+      testWidgets('migration: an existing profile with no consent field gates '
+          'once, then routes on when the streamed consent arrives', (
+        tester,
+      ) async {
+        final fake = await pumpGate(tester, profile: unconsented());
+        await tester.pumpAndSettle();
+        expect(find.byType(ConsentGateScreen), findsOneWidget);
+
+        // The recordConsent write lands → the streamed profile carries a valid
+        // consent → the gate clears (no local optimistic grant).
+        fake.emitProfile(user.uid, unconsented(consent: currentConsent));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ConsentGateScreen), findsNothing);
+        expect(find.byType(SoloHomeScreen), findsOneWidget);
+      });
+    },
+  );
 
   group('error state', () {
     testWidgets('a stream failure shows the retry affordance and retrying '

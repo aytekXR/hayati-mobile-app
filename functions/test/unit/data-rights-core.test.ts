@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CURRENT_LEGAL_VERSION,
   DELETE_CONFIRM,
   EXPORT_QUESTION_NOTE,
   FORMAT_VERSION,
@@ -14,6 +15,7 @@ import {
   projectSubscription,
   validateDeleteRequest,
   validateNotificationPrivacyRequest,
+  validateRecordConsentRequest,
 } from '../../src/data-rights/data-rights-core';
 
 // Pure decision core for M6.2 data-rights (ADR-019 D2/D5/D6). Exhaustively
@@ -53,6 +55,26 @@ describe('validateNotificationPrivacyRequest', () => {
     expect(validateNotificationPrivacyRequest({ discreet: 1 }).ok).toBe(false);
     expect(validateNotificationPrivacyRequest(null).ok).toBe(false);
     expect(validateNotificationPrivacyRequest('discreet').ok).toBe(false);
+  });
+});
+
+describe('validateRecordConsentRequest', () => {
+  it('accepts a boolean withdraw (grant and withdraw)', () => {
+    expect(validateRecordConsentRequest({ withdraw: false })).toEqual({ ok: true, withdraw: false });
+    expect(validateRecordConsentRequest({ withdraw: true })).toEqual({ ok: true, withdraw: true });
+  });
+
+  it('rejects a missing / non-boolean withdraw, a non-object body, and extra-typed shapes', () => {
+    expect(validateRecordConsentRequest({}).ok).toBe(false);
+    expect(validateRecordConsentRequest({ withdraw: 'true' }).ok).toBe(false);
+    expect(validateRecordConsentRequest({ withdraw: 1 }).ok).toBe(false);
+    expect(validateRecordConsentRequest({ withdraw: null }).ok).toBe(false);
+    // The client never sends a version — a version-carrying shape is not accepted
+    // as a grant; only the boolean withdraw is read.
+    expect(validateRecordConsentRequest({ version: 1 }).ok).toBe(false);
+    expect(validateRecordConsentRequest(null).ok).toBe(false);
+    expect(validateRecordConsentRequest('withdraw').ok).toBe(false);
+    expect(validateRecordConsentRequest([true]).ok).toBe(false);
   });
 });
 
@@ -104,6 +126,59 @@ describe('projectProfile', () => {
     expect(profile.email).toBeNull();
     expect(profile.photoURL).toBeNull();
     expect(profile.createdAtMs).toBeNull();
+  });
+
+  it('carries the consent lane when the stored field has a valid shape (ADR-023 D4)', () => {
+    const profile = projectProfile(
+      {
+        status: 'married',
+        consent: { version: 1, acceptedAt: { toMillis: () => 4242 }, ageAttested: true },
+      },
+      null,
+    );
+    expect(profile.consent).toEqual({ version: 1, acceptedAtMs: 4242, ageAttested: true });
+  });
+
+  it('omits the consent lane on junk shapes (fail-closed, iff-set)', () => {
+    // non-map
+    expect(projectProfile({ consent: 'granted' }, null).consent).toBeUndefined();
+    expect(projectProfile({ consent: 42 }, null).consent).toBeUndefined();
+    expect(projectProfile({ consent: [1, 2] }, null).consent).toBeUndefined();
+    // string / non-int version
+    expect(
+      projectProfile(
+        { consent: { version: '1', acceptedAt: { toMillis: () => 1 }, ageAttested: true } },
+        null,
+      ).consent,
+    ).toBeUndefined();
+    expect(
+      projectProfile(
+        { consent: { version: 1.5, acceptedAt: { toMillis: () => 1 }, ageAttested: true } },
+        null,
+      ).consent,
+    ).toBeUndefined();
+    // missing / non-Timestamp acceptedAt
+    expect(
+      projectProfile({ consent: { version: 1, ageAttested: true } }, null).consent,
+    ).toBeUndefined();
+    expect(
+      projectProfile(
+        { consent: { version: 1, acceptedAt: 'yesterday', ageAttested: true } },
+        null,
+      ).consent,
+    ).toBeUndefined();
+    // missing / non-boolean ageAttested
+    expect(
+      projectProfile({ consent: { version: 1, acceptedAt: { toMillis: () => 1 } } }, null).consent,
+    ).toBeUndefined();
+    expect(
+      projectProfile(
+        { consent: { version: 1, acceptedAt: { toMillis: () => 1 }, ageAttested: 'yes' } },
+        null,
+      ).consent,
+    ).toBeUndefined();
+    // absent entirely
+    expect(projectProfile({ status: 'dating' }, null).consent).toBeUndefined();
   });
 });
 
@@ -208,7 +283,8 @@ describe('projectInvite (counterpart uid scrubbed)', () => {
 describe('projectDailyLane / constants', () => {
   it('projects the daily lane and exposes the format version + note', () => {
     expect(projectDailyLane({ dayKey: '20260712', count: 4 })).toEqual({ dayKey: '20260712', count: 4 });
-    expect(FORMAT_VERSION).toBe(1);
+    expect(FORMAT_VERSION).toBe(2);
+    expect(CURRENT_LEGAL_VERSION).toBe(1);
     expect(EXPORT_QUESTION_NOTE).toContain('questionId');
   });
 });

@@ -8,6 +8,7 @@ import 'package:hayati_app/features/data_rights/domain/data_rights_exception.dar
 import 'package:hayati_app/features/data_rights/domain/data_rights_repository_provider.dart';
 import 'package:hayati_app/features/data_rights/presentation/delete_account_screen.dart';
 import 'package:hayati_app/features/data_rights/presentation/export_screen.dart';
+import 'package:hayati_app/features/legal/presentation/legal_screen.dart';
 import 'package:hayati_app/features/privacy_lock/domain/biometric_authenticator.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
@@ -457,6 +458,26 @@ void main() {
       await tester.tap(find.text(en.dataRightsDeleteRowTitle));
       await tester.pumpAndSettle();
       expect(find.byType(DeleteAccountScreen), findsOneWidget);
+    });
+
+    testWidgets('the Privacy & Terms row sits between Export and Delete and '
+        'pushes the legal hub (ADR-023 D5/D9)', (tester) async {
+      final env = arrange(profile: soloProfile);
+      await pumpSettings(tester, env.overrides);
+
+      final exportY = tester
+          .getCenter(find.text(en.dataRightsExportRowTitle))
+          .dy;
+      final legalY = tester.getCenter(find.text(en.legalSettingsRowTitle)).dy;
+      final deleteY = tester
+          .getCenter(find.text(en.dataRightsDeleteRowTitle))
+          .dy;
+      expect(exportY, lessThan(legalY));
+      expect(legalY, lessThan(deleteY));
+
+      await tester.tap(find.text(en.legalSettingsRowTitle));
+      await tester.pumpAndSettle();
+      expect(find.byType(LegalScreen), findsOneWidget);
     });
   });
 }

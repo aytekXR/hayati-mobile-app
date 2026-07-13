@@ -51,6 +51,9 @@ flutter:
   # authoring/validation under content/ and syncs into this directory.
   assets:
     - assets/content/
+    # ADR-023: the six in-app legal documents (privacy policy + terms ×
+    # tr/ar/en), byte-synced from docs/legal/ and pinned by the drift test.
+    - assets/legal/
   fonts:
     - family: Rubik
       fonts:

@@ -21,7 +21,9 @@ import {
   logDataRightsEvent,
   validateDeleteRequest,
   validateNotificationPrivacyRequest,
+  validateRecordConsentRequest,
 } from './data-rights-core';
+import { setConsent } from './consent-service';
 import { DeletionDeps, deleteAccountCascade } from './deletion-service';
 import { ExportDeps, buildExportDocument } from './export-service';
 import { setNotificationPrivacy } from './notification-privacy-service';
@@ -33,6 +35,9 @@ export interface DeleteAccountResponse {
   status: 'deleted';
 }
 export interface UpdateNotificationPrivacyResponse {
+  status: 'ok';
+}
+export interface RecordConsentResponse {
   status: 'ok';
 }
 
@@ -202,6 +207,65 @@ export function makeUpdateNotificationPrivacyHandler(
   };
 }
 
+// --- recordConsent (ADR-023 Decision 4) -------------------------------------
+
+export interface RecordConsentDeps {
+  db?: () => Firestore;
+  now?: () => number;
+  setConsentFn?: (
+    db: Firestore,
+    uid: string,
+    withdraw: boolean,
+  ) => Promise<{ kind: 'ok' } | { kind: 'profile-missing' }>;
+}
+
+export function makeRecordConsentHandler(deps: RecordConsentDeps = {}) {
+  const now = deps.now ?? Date.now;
+  const resolveDb = deps.db ?? getFirestore;
+  const setConsentFn = deps.setConsentFn ?? setConsent;
+
+  return async (request: CallableRequest): Promise<RecordConsentResponse> => {
+    const startedAt = now();
+    const emit = (outcome: DataRightsOutcome): void => {
+      logger.info(
+        'recordConsent',
+        logDataRightsEvent({
+          op: 'recordConsent',
+          outcome,
+          latencyMs: now() - startedAt,
+        }),
+      );
+    };
+    try {
+      const uid = requireUid(request, 'recordConsent');
+
+      const validation = validateRecordConsentRequest(request.data);
+      if (!validation.ok) {
+        emit('invalid');
+        throw new HttpsError('invalid-argument', 'recordConsent request is malformed.', {
+          reason: 'bad-request',
+        });
+      }
+
+      const result = await setConsentFn(resolveDb(), uid, validation.withdraw);
+      if (result.kind === 'profile-missing') {
+        emit('profile-missing');
+        throw new HttpsError('failed-precondition', 'No profile to update.', {
+          reason: 'profile-missing',
+        });
+      }
+      emit('updated');
+      return { status: 'ok' };
+    } catch (error) {
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      emit('internal');
+      throw new HttpsError('internal', 'The consent could not be recorded.');
+    }
+  };
+}
+
 // --- deployed callables (europe-west1, App Check OFF — the repo-wide posture) ---
 
 export const deleteAccount = onCall(
@@ -227,4 +291,12 @@ export const updateNotificationPrivacy = onCall(
     enforceAppCheck: false,
   },
   makeUpdateNotificationPrivacyHandler(),
+);
+
+export const recordConsent = onCall(
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: false,
+  },
+  makeRecordConsentHandler(),
 );

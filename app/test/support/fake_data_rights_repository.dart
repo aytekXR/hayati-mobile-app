@@ -16,11 +16,17 @@ class FakeDataRightsRepository implements DataRightsRepository {
   /// Behaviour of the next [updateNotificationPrivacy]; default returns normally.
   Future<void> Function(bool discreet)? onUpdateNotificationPrivacy;
 
+  /// Behaviour of the next [recordConsent]; default returns normally (success).
+  Future<void> Function(bool withdraw)? onRecordConsent;
+
   int deleteAccountCalls = 0;
   int exportDataCalls = 0;
 
   /// The ordered `discreet` arguments passed to [updateNotificationPrivacy].
   final List<bool> notificationPrivacyCalls = [];
+
+  /// The ordered `withdraw` arguments passed to [recordConsent].
+  final List<bool> recordConsentCalls = [];
 
   /// A minimal, valid export document for the happy path.
   static const DataExport cannedExport = DataExport(
@@ -55,6 +61,14 @@ class FakeDataRightsRepository implements DataRightsRepository {
     notificationPrivacyCalls.add(discreet);
     final handler = onUpdateNotificationPrivacy;
     if (handler != null) return handler(discreet);
+    return Future<void>.value();
+  }
+
+  @override
+  Future<void> recordConsent({required bool withdraw}) {
+    recordConsentCalls.add(withdraw);
+    final handler = onRecordConsent;
+    if (handler != null) return handler(withdraw);
     return Future<void>.value();
   }
 }

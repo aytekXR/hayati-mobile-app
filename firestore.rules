@@ -27,29 +27,37 @@ service cloud.firestore {
       // ONLY by the M2.3 join Function (admin SDK), so a client may never
       // introduce it at create. Since M6.2 (ADR-019) coupleEnded (the partner-
       // notification tombstone) and notificationPrivacy (the discreet override)
-      // are server-owned too, and — like coupleId — the freeze must span BOTH
-      // create AND update: the update freeze below is worthless if a client can
-      // simply mint the field on a fresh (or post-deletion re-created) self-doc.
-      // So a client may never introduce EITHER at create.
+      // are server-owned too, and since S023 (ADR-023) consent (the KVKK/PDPL
+      // special-category consent record: version + server acceptedAt + ageAttested,
+      // written ONLY by the recordConsent callable via the admin SDK) joins them —
+      // and, like coupleId, each freeze must span BOTH create AND update: the
+      // update freeze below is worthless if a client can simply mint the field on
+      // a fresh (or post-deletion re-created) self-doc. So a client may never
+      // introduce ANY of these server-owned fields at create.
       allow create: if isSelf(uid)
         && request.resource.data.createdAt == request.time
         && !('coupleId' in request.resource.data)
         && !('coupleEnded' in request.resource.data)
-        && !('notificationPrivacy' in request.resource.data);
+        && !('notificationPrivacy' in request.resource.data)
+        && !('consent' in request.resource.data);
       // Updates may never move createdAt, nor set/change/delete coupleId: a
       // client must not pair (or re-pair) itself by writing the field the join
       // Function owns. Since M6.2 (ADR-019) notificationPrivacy (the discreet
       // override) and coupleEnded (the partner-notification tombstone) are frozen
       // the same way — both are server-owned (the updateNotificationPrivacy
       // callable and the deleteAccount cascade write them via the admin SDK), so a
-      // client may neither mint, change, nor clear either. merge:true writes that
-      // omit these fields pass (request.resource.data is the post-merge document);
-      // get(...,null) compares the field or its absence on both sides symmetrically.
+      // client may neither mint, change, nor clear either. Since S023 (ADR-023)
+      // consent (the special-category consent record) is frozen the same way — its
+      // sole writer is the recordConsent callable via the admin SDK. merge:true
+      // writes that omit these fields pass (request.resource.data is the post-merge
+      // document); get(...,null) compares the field or its absence on both sides
+      // symmetrically.
       allow update: if isSelf(uid)
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.get('coupleId', null) == resource.data.get('coupleId', null)
         && request.resource.data.get('notificationPrivacy', null) == resource.data.get('notificationPrivacy', null)
-        && request.resource.data.get('coupleEnded', null) == resource.data.get('coupleEnded', null);
+        && request.resource.data.get('coupleEnded', null) == resource.data.get('coupleEnded', null)
+        && request.resource.data.get('consent', null) == resource.data.get('consent', null);
       // Hard delete is the M6.2 KVKK/PDPL cascade Function's job (admin SDK,
       // bypasses rules); clients never delete profile documents (ADR-019).
       allow delete: if false;
@@ -68,6 +76,12 @@ service cloud.firestore {
       // to EXIST (the exists() guard): a just-deleted account's still-valid token
       // must not re-create an orphan soloAnswer under a swept users doc (the
       // deleted-user token-window, direct-write surface — ADR-019 D2/INVITE-1).
+      // Since S023 (ADR-023 D4a) the write also requires the writer to have a
+      // consent record — the special-category KVKK/PDPL precondition on the
+      // reflective corpus. This bound is presence-only, version-blind: rules
+      // cannot read the version constants; the app gate owns version currency
+      // (ADR-023 D4a). (hasConsent subsumes the exists() guard for the
+      // profile-missing case; exists() stays as the ADR-019 invariant.)
       match /soloAnswers/{dayKey} {
         allow read: if isSelf(uid);
         allow create, update: if isSelf(uid)
@@ -78,6 +92,7 @@ service cloud.firestore {
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 2000
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('consent', null) != null
           && request.resource.data.answeredAt == request.time;
         allow delete: if false;
       }
@@ -154,6 +169,13 @@ service cloud.firestore {
           function hasAnswered(uid) {
             return exists(/databases/$(database)/documents/couples/$(coupleId)/days/$(dayKey)/answers/$(uid));
           }
+          // S023 (ADR-023 D4a): the writer must carry a consent record before any
+          // special-category reflective content lands. Presence-only, version-blind:
+          // rules cannot read the version constants; the app gate owns version
+          // currency (ADR-023 D4a). The full-parity claim is deliberately NOT made.
+          function hasConsent() {
+            return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('consent', null) != null;
+          }
           function answerSurfaceOk() {
             return request.resource.data.keys().hasOnly(['questionId', 'text', 'answeredAt'])
               && request.resource.data.questionId is string
@@ -168,11 +190,13 @@ service cloud.firestore {
             && (request.auth.uid == authorUid || hasAnswered(request.auth.uid));
           allow create: if isSelf(authorUid)
             && request.auth.uid in memberUids()
-            && answerSurfaceOk();
+            && answerSurfaceOk()
+            && hasConsent();
           allow update: if isSelf(authorUid)
             && request.auth.uid in memberUids()
             && !(hasAnswered(memberUids()[0]) && hasAnswered(memberUids()[1]))
-            && answerSurfaceOk();
+            && answerSurfaceOk()
+            && hasConsent();
           allow delete: if false; // answers: reveal gate is one-way (M6 cascade deletes)
         }
       }

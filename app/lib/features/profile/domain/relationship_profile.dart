@@ -12,6 +12,44 @@ enum ContentLanguage { tr, ar, en }
 /// Turkish and stores the default otherwise (pack resolution is M3).
 enum ContentRegister { playful, respectful }
 
+/// The subject's recorded special-category consent (ADR-023 Decision 4), read
+/// back from `users/{uid}.consent`. Server-owned: written ONLY by the
+/// `recordConsent` callable (the server stamps [version] from its own
+/// `CURRENT_LEGAL_VERSION`), never by the client — so, like [coupleId], it is
+/// never emitted by `profileToMap` and never a `copyWith` parameter.
+///
+/// [acceptedAt] is nullable so the `Consented on {date}, version N` status line
+/// can degrade gracefully (version only) rather than crash if the timestamp is
+/// ever absent — the parse treats a MISSING `acceptedAt` as a present consent
+/// with a null timestamp, but a PRESENT-but-wrong-type `acceptedAt` as junk (the
+/// whole consent reads absent, fail-closed — the gate shows). The `ageAttested`
+/// flag the server also stores is not surfaced here: no client UI decision reads
+/// it (it lives in the provable server record and the subject's export).
+class Consent {
+  const Consent({required this.version, this.acceptedAt});
+
+  /// The legal-bundle version the server stamped when this consent was granted.
+  /// The gate compares it against `currentLegalVersion` via `hasCurrentConsent`.
+  final int version;
+
+  /// When the consent was granted (the server clock), or null if the stored
+  /// field carried no valid timestamp. Rendered in the Settings legal hub.
+  final DateTime? acceptedAt;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Consent &&
+          other.version == version &&
+          other.acceptedAt == acceptedAt;
+
+  @override
+  int get hashCode => Object.hash(version, acceptedAt);
+
+  @override
+  String toString() => 'Consent(version: $version, acceptedAt: $acceptedAt)';
+}
+
 /// The couple-member profile captured at onboarding. Pure Dart, keyed
 /// externally by uid (`users/{uid}` — docs/architecture.md §3).
 ///
@@ -32,6 +70,7 @@ class RelationshipProfile {
     this.createdAt,
     this.notificationPrivacyDiscreet = false,
     this.coupleEndedAt,
+    this.consent,
   });
 
   final RelationshipStatus status;
@@ -69,6 +108,13 @@ class RelationshipProfile {
   /// never writes it. Carried THROUGH copyWith, not a parameter.
   final DateTime? coupleEndedAt;
 
+  /// The subject's recorded special-category consent (ADR-023 D4), or null when
+  /// no valid consent is stored yet — which is what the `OnboardingGate` consent
+  /// branch reads through `hasCurrentConsent`. Server-owned READ-ONLY like
+  /// [coupleId]: written only by the `recordConsent` callable, never emitted by
+  /// `profileToMap`, not a [copyWith] parameter, carried THROUGH copyWith.
+  final Consent? consent;
+
   RelationshipProfile copyWith({
     RelationshipStatus? status,
     ContentLanguage? contentLanguage,
@@ -81,6 +127,7 @@ class RelationshipProfile {
     createdAt: createdAt,
     notificationPrivacyDiscreet: notificationPrivacyDiscreet,
     coupleEndedAt: coupleEndedAt,
+    consent: consent,
   );
 
   @override
@@ -93,7 +140,8 @@ class RelationshipProfile {
           other.coupleId == coupleId &&
           other.createdAt == createdAt &&
           other.notificationPrivacyDiscreet == notificationPrivacyDiscreet &&
-          other.coupleEndedAt == coupleEndedAt;
+          other.coupleEndedAt == coupleEndedAt &&
+          other.consent == consent;
 
   @override
   int get hashCode => Object.hash(
@@ -104,6 +152,7 @@ class RelationshipProfile {
     createdAt,
     notificationPrivacyDiscreet,
     coupleEndedAt,
+    consent,
   );
 
   @override
@@ -111,5 +160,6 @@ class RelationshipProfile {
       'RelationshipProfile(status: $status, contentLanguage: '
       '$contentLanguage, register: $register, coupleId: $coupleId, '
       'createdAt: $createdAt, notificationPrivacyDiscreet: '
-      '$notificationPrivacyDiscreet, coupleEndedAt: $coupleEndedAt)';
+      '$notificationPrivacyDiscreet, coupleEndedAt: $coupleEndedAt, '
+      'consent: $consent)';
 }

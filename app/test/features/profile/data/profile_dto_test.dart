@@ -170,4 +170,105 @@ void main() {
       );
     });
   });
+
+  // ADR-023 D4: the consent field is parsed JUNK-SAFELY (fail-CLOSED, never
+  // loud). Every junk shape reads as ABSENT so `hasCurrentConsent` is false and
+  // the gate shows — the parse must never THROW (that would hit the gate's
+  // error view instead of re-offering consent). This matrix is mutation-checked
+  // by hand (invert the junk guard to coerce junk → present; these `isNull`
+  // cases go red — see the session report).
+  group('profileFromMap consent (ADR-023 D4, junk-safe / fail-closed)', () {
+    final dt = DateTime.utc(2026, 7, 12, 9);
+    Map<String, dynamic> withConsent(Object? consent) => {
+      ...profileToMap(profile),
+      'consent': consent,
+    };
+
+    test('a valid map → present (version + boundary-converted acceptedAt; '
+        'ageAttested is ignored by the client)', () {
+      final result = profileFromMap(
+        withConsent({'version': 1, 'acceptedAt': dt, 'ageAttested': true}),
+      ).consent;
+      expect(result, isNotNull);
+      expect(result?.version, 1);
+      expect(result?.acceptedAt, dt);
+    });
+
+    test(
+      'a MISSING acceptedAt → absent (fail closed — an un-timestamped '
+      'consent is unprovable; mirrors the server projectConsent, ADR-023 D4)',
+      () {
+        expect(profileFromMap(withConsent({'version': 1})).consent, isNull);
+      },
+    );
+
+    test('absent consent → null', () {
+      expect(profileFromMap(profileToMap(profile)).consent, isNull);
+    });
+
+    test('a non-map consent → absent (String)', () {
+      expect(profileFromMap(withConsent('yes')).consent, isNull);
+    });
+
+    test('a non-map consent → absent (List)', () {
+      expect(profileFromMap(withConsent([1, 2])).consent, isNull);
+    });
+
+    test('a missing version → absent', () {
+      expect(profileFromMap(withConsent({'acceptedAt': dt})).consent, isNull);
+    });
+
+    test('a non-int version → absent (String)', () {
+      expect(
+        profileFromMap(withConsent({'version': '1', 'acceptedAt': dt})).consent,
+        isNull,
+      );
+    });
+
+    test('a non-int version → absent (double)', () {
+      expect(
+        profileFromMap(withConsent({'version': 1.0, 'acceptedAt': dt})).consent,
+        isNull,
+      );
+    });
+
+    test(
+      'a present-but-wrong-type acceptedAt → absent (whole record voided)',
+      () {
+        expect(
+          profileFromMap(
+            withConsent({'version': 1, 'acceptedAt': 'soon'}),
+          ).consent,
+          isNull,
+        );
+      },
+    );
+
+    test(
+      'a raw Timestamp acceptedAt reads as ABSENT — fail-closed, NOT loud '
+      '(unlike createdAt: a missed consent boundary re-gates, never bricks)',
+      () {
+        expect(
+          profileFromMap(
+            withConsent({
+              'version': 1,
+              'acceptedAt': Timestamp.fromMillisecondsSinceEpoch(1752000000000),
+            }),
+          ).consent,
+          isNull,
+        );
+      },
+    );
+
+    test('profileToMap NEVER emits consent (the users-doc freeze depends on '
+        'omission)', () {
+      const consented = RelationshipProfile(
+        status: RelationshipStatus.engaged,
+        contentLanguage: ContentLanguage.tr,
+        register: ContentRegister.playful,
+        consent: Consent(version: 1),
+      );
+      expect(profileToMap(consented).keys, isNot(contains('consent')));
+    });
+  });
 }

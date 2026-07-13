@@ -9,6 +9,7 @@ export { coachProxy } from './coach/coach-proxy';
 export {
   deleteAccount,
   exportData,
+  recordConsent,
   updateNotificationPrivacy,
 } from './data-rights/data-rights';
 export { revenueCatWebhook } from './entitlements/revenuecat-webhook';

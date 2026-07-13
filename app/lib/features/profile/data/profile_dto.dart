@@ -40,19 +40,55 @@ RelationshipProfile profileFromMap(Map<String, dynamic> data) =>
       createdAt: _optionalDateTime(data, 'createdAt'),
       notificationPrivacyDiscreet: data['notificationPrivacy'] == 'discreet',
       coupleEndedAt: _nestedDateTime(data, 'coupleEnded', 'at'),
+      consent: _consentField(data),
     );
 
-/// Client-owned fields only: server-owned fields (createdAt, coupleId,
+/// Client-owned fields only: server-owned fields (createdAt, coupleId, consent,
 /// fcmTokens — future milestones) are managed by the repository/Functions
 /// and must never be emitted from here — [coupleId] is read back but NEVER
 /// written, so a profile edit merges without touching the server's pairing.
-/// Typed `Map<String, dynamic>` to match Firestore's API surface exactly
-/// (keeps `set<T>` inference stable).
+/// [Consent] is likewise READ-ONLY: omitting it here is load-bearing — the
+/// users-doc update rule FREEZES `consent`, so a merge-write that DID emit it
+/// would be denied (ADR-023 D4). Typed `Map<String, dynamic>` to match
+/// Firestore's API surface exactly (keeps `set<T>` inference stable).
 Map<String, dynamic> profileToMap(RelationshipProfile profile) => {
   'status': profile.status.name,
   'contentLanguage': profile.contentLanguage.name,
   'register': profile.register.name,
 };
+
+/// Parses the server-owned `consent` map (ADR-023 D4) JUNK-SAFELY — the
+/// deliberate departure from the loud [_enumField] / [_optionalDateTime] style:
+/// consent must fail CLOSED (a junk shape reads as ABSENT ⇒ `hasCurrentConsent`
+/// is false ⇒ the gate shows and the user re-consents), never THROW (a throw
+/// hits the gate's `_GateErrorView`, which would let a corrupt consent field
+/// brick the whole profile stream on a spinner/retry — the wrong failure mode).
+///
+/// The matrix, pinned by the malformed-shape test and mutation-checked:
+///  - absent, or non-map                       → null (absent);
+///  - `version` missing, or not an int         → null (absent);
+///  - int `version`, `acceptedAt` MISSING      → present, acceptedAt null
+///    (the status line degrades to version-only; [Consent.acceptedAt] is
+///    nullable exactly for this);
+///  - int `version`, `acceptedAt` a DateTime    → present (the repository has
+///    already converted the wire `Timestamp` to a DateTime at the boundary,
+///    like `createdAt` / `coupleEnded.at`);
+///  - int `version`, `acceptedAt` missing or not-a-DateTime → null (absent):
+///    an un-timestamped or corrupt record voids the whole consent,
+///    fail-closed — mirroring the server's projectConsent, which omits the
+///    export lane for the identical shape (ADR-023 D4).
+Consent? _consentField(Map<String, dynamic> data) {
+  final raw = data['consent'];
+  if (raw is! Map) return null;
+  final version = raw['version'];
+  if (version is! int) return null;
+  final acceptedAtRaw = raw['acceptedAt'];
+  // Missing OR wrong-typed acceptedAt voids the whole record (fail-closed,
+  // ADR-023 D4: a consent the server would not export — projectConsent omits
+  // the lane for this same shape — must not satisfy the gate either).
+  if (acceptedAtRaw is! DateTime) return null;
+  return Consent(version: version, acceptedAt: acceptedAtRaw);
+}
 
 T _enumField<T extends Enum>(
   Map<String, dynamic> data,

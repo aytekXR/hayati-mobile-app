@@ -9,6 +9,7 @@ import '../../data_rights/domain/data_rights_exception.dart';
 import '../../data_rights/domain/data_rights_repository_provider.dart';
 import '../../data_rights/presentation/delete_account_screen.dart';
 import '../../data_rights/presentation/export_screen.dart';
+import '../../legal/presentation/legal_screen.dart';
 import '../../privacy_lock/domain/biometric_authenticator.dart';
 import '../../privacy_lock/domain/pin_lock_attempt_result.dart';
 import '../../privacy_lock/presentation/state/privacy_lock_controller.dart';
@@ -250,6 +251,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     context,
   ).push(MaterialPageRoute<void>(builder: (_) => const ExportScreen()));
 
+  Future<void> _openLegal() => showLegal(context, uid: widget.uid);
+
   Future<void> _openDelete() => Navigator.of(
     context,
   ).push(MaterialPageRoute<void>(builder: (_) => const DeleteAccountScreen()));
@@ -343,6 +346,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: Text(l10n.dataRightsExportRowSubtitle),
               trailing: const Icon(Icons.download_outlined),
               onTap: _openExport,
+            ),
+            // The legal hub (ADR-023 D5) — the ONE surface that carries the
+            // consent status + Withdraw action, deliberately in the data-rights
+            // cluster between Export and Delete.
+            ListTile(
+              title: Text(l10n.legalSettingsRowTitle),
+              subtitle: Text(l10n.legalSettingsRowSubtitle),
+              trailing: const Icon(Icons.gavel_outlined),
+              onTap: _openLegal,
             ),
             ListTile(
               title: Text(l10n.dataRightsDeleteRowTitle),

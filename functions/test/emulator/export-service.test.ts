@@ -68,7 +68,7 @@ async function seedPaired(): Promise<void> {
   await db.collection('invites').doc('BBBB3333').set({ creatorUid: B, joinerUid: A, status: 'joined', coupleId: CID, joinedAt: Timestamp.now(), createdAt: Timestamp.now() });
   await db.collection('invites').doc('CCCC4444').set({ creatorUid: B, status: 'pending', expiresAt: Timestamp.fromMillis(Date.now() + 60_000), createdAt: Timestamp.now() });
 
-  await db.collection('users').doc(A).set({ status: 'married', contentLanguage: 'tr', register: 'respectful', coupleId: CID, notificationPrivacy: 'discreet', createdAt: Timestamp.now() });
+  await db.collection('users').doc(A).set({ status: 'married', contentLanguage: 'tr', register: 'respectful', coupleId: CID, notificationPrivacy: 'discreet', consent: { version: 1, acceptedAt: Timestamp.fromMillis(1_699_000_000_000), ageAttested: true }, createdAt: Timestamp.now() });
   await db.collection('users').doc(B).set({ status: 'married', contentLanguage: 'ar', register: 'respectful', coupleId: CID, createdAt: Timestamp.now() });
   await db.collection('users').doc(A).collection('soloAnswers').doc('20260701').set({ questionId: 'solo_tr_9', text: 'A solo reflection', answeredAt: Timestamp.now() });
   await db.collection('users').doc(B).collection('soloAnswers').doc('20260701').set({ questionId: 'solo_tr_9', text: 'B solo reflection', answeredAt: Timestamp.now() });
@@ -79,23 +79,29 @@ beforeEach(async () => {
 });
 
 describe('buildExportDocument — envelope + positive per section', () => {
-  it('produces a formatVersion-1 envelope with every A-authored section present', async () => {
+  it('produces a formatVersion-2 envelope with every A-authored section present', async () => {
     await seedPaired();
     const result = await buildExportDocument(db, A, deps);
     expect(result.kind).toBe('ok');
     if (result.kind !== 'ok') return;
     const doc = result.document;
 
-    expect(doc.formatVersion).toBe(1);
+    expect(doc.formatVersion).toBe(2);
     expect(doc.uid).toBe(A);
     expect(doc.generatedAt).toBe(new Date(FIXED_NOW).toISOString());
 
-    // profile: client fields + Auth record + notificationPrivacy.
+    // profile: client fields + Auth record + notificationPrivacy + consent lane.
     expect(doc.data.profile.status).toBe('married');
     expect(doc.data.profile.contentLanguage).toBe('tr');
     expect(doc.data.profile.displayName).toBe('Aytek');
     expect(doc.data.profile.email).toBe('a@example.com');
     expect(doc.data.profile.notificationPrivacy).toBe('discreet');
+    // ADR-023 D4: the subject's consent record crosses in their own export.
+    expect(doc.data.profile.consent).toEqual({
+      version: 1,
+      acceptedAtMs: 1_699_000_000_000,
+      ageAttested: true,
+    });
 
     // soloAnswers, couple context, A's couple answers, coach lane, subscription, invites.
     expect(doc.data.soloAnswers.map((s) => s.text)).toContain('A solo reflection');
@@ -143,6 +149,23 @@ describe('buildExportDocument — unpaired, free tier, missing profile', () => {
     expect(result.document.data.coachUsage.daily).toBeNull();
     expect(result.document.data.soloAnswers).toHaveLength(1);
     expect(result.document.data.invites).toHaveLength(1);
+    // ADR-023 D4: iff-set — this user never consented, so no lane crosses.
+    expect(result.document.data.profile.consent).toBeUndefined();
+  });
+
+  it('omits the consent lane for a junk-shaped stored consent (iff-set, fail-closed)', async () => {
+    await db.collection('users').doc(A).set({
+      status: 'married', contentLanguage: 'tr', register: 'respectful',
+      // A malformed stored shape (string version) must not cross as a consent lane.
+      consent: { version: 'one', acceptedAt: Timestamp.now(), ageAttested: true },
+      createdAt: Timestamp.now(),
+    });
+
+    const result = await buildExportDocument(db, A, deps);
+    expect(result.kind).toBe('ok');
+    if (result.kind !== 'ok') return;
+    expect(result.document.formatVersion).toBe(2);
+    expect(result.document.data.profile.consent).toBeUndefined();
   });
 
   it('a free-tier (no subscription doc) paired caller still exports — no premium gate', async () => {

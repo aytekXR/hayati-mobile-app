@@ -35,12 +35,14 @@ class FirestoreProfileRepository implements ProfileRepository {
   /// arrives as a Firestore `Timestamp` (or null while the very first save's
   /// server stamp is pending) and crosses to the domain as a [DateTime]
   /// (M2.4 — it anchors the solo day-N rotation); the NESTED `coupleEnded.at`
-  /// Timestamp is converted the same way (M6.2, ADR-019 D3 — the honest
-  /// morning-after notice reads off it). Non-Timestamp junk is left as-is for
-  /// `profileFromMap` to reject loudly.
+  /// and `consent.acceptedAt` Timestamps are converted the same way (M6.2,
+  /// ADR-019 D3; ADR-023 D4). Non-Timestamp junk is left as-is — the loud
+  /// mappers reject it (`createdAt`/`coupleEnded.at`), or the junk-safe consent
+  /// mapper reads it as absent (fail-closed, the gate shows).
   Map<String, dynamic> _domainReady(Map<String, dynamic> data) {
     final createdAt = data['createdAt'];
     final coupleEnded = data['coupleEnded'];
+    final consent = data['consent'];
     return {
       ...data,
       'createdAt': createdAt is Timestamp ? createdAt.toDate() : createdAt,
@@ -53,6 +55,17 @@ class FirestoreProfileRepository implements ProfileRepository {
           'at': coupleEnded['at'] is Timestamp
               ? (coupleEnded['at'] as Timestamp).toDate()
               : coupleEnded['at'],
+        },
+      // The nested `consent.acceptedAt` Timestamp crosses as a DateTime too, so
+      // the junk-safe consent mapper's `is DateTime` check accepts a real grant
+      // (a still-Timestamp would read as junk → absent → a needless re-gate). A
+      // non-map `consent` is left untouched for the mapper to read as absent.
+      if (consent is Map)
+        'consent': {
+          ...consent,
+          'acceptedAt': consent['acceptedAt'] is Timestamp
+              ? (consent['acceptedAt'] as Timestamp).toDate()
+              : consent['acceptedAt'],
         },
     };
   }
