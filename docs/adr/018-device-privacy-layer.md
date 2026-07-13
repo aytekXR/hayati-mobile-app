@@ -644,6 +644,7 @@ where they arise.
 | Wrong-attempt write races the sign-out wipe | write ABORTED by the generation guard | `ref.mounted` cannot catch an in-place wipe on a keepAlive controller (D1) |
 | Icon channel fails | toggle reverts + honest copy | never display a state the OS refused (D7) |
 | Lock record write fails on enable | setup reports failure, lock NOT shown as on | never claim protection that didn't persist |
+| New-PIN write fails on change-PIN (rev 4) | settings reports failure; OLD PIN stays in force in memory and store | never claim a rotation that didn't persist — a survivor rotating a compromised PIN must learn it is still the old one (the change row has no self-revealing state, unlike disable) |
 | Sign-out wipe write fails | overlay still lock-state-driven; recovery idempotent | orphaned record is escapable, not a brick (D1, D4) |
 | App killed between wrong attempt and verdict | attempt already persisted (increment-before-verdict) | restart is not a retry reset (D4) |
 | Device clock set FORWARD | grace + cooldown deadlines elapse — bound degrades to manual-entry speed | no persistent monotonic clock; stated, not hidden (D3, D4) |
@@ -925,6 +926,32 @@ the lock is on). Design decisions, each deliberate:
   used by `verifyPin`'s wrong-attempt path protects an *increment* against a
   refund race; the change-success path *resets* the count, where a refund is a
   no-op — so write-first is the correct ordering here.)
+- **A failed write is REPORTED, not silent (pre-code review S024, findings
+  0/9 — skeptic and adjudicator both confirmed):** unlike disable, whose
+  failed clear leaves the lock visibly ON in the settings row, a failed
+  change has no self-revealing row state — silence would read as success
+  while the old, possibly-compromised PIN stayed valid (the exact D8 harm: a
+  survivor believing a rotation took when it didn't; next unlock then burns
+  attempt budget on the NEW pin while the OLD one silently remains the
+  credential). Settings therefore maps the write-failure `Aborted` to a
+  save-failed line (`settingsChangePinSaveFailed` — "couldn't save; your old
+  PIN is still in place"), mirroring the enable path's
+  `settingsPinSaveFailed`, and the D8 fail-direction table gains the
+  change-PIN row. The wipe/sign-out `Aborted` cannot misfire this message:
+  the sign-out listener pops settings and the handler is `mounted`-guarded.
+- **Recorded residual — the mid-flow handoff window (pre-code review S024,
+  finding 1, skeptic-corrected):** between the current-PIN dialog and the
+  new-PIN screen's confirm, the raw current PIN is held in a local while a
+  second screen runs. An owner who types their current PIN and then hands
+  over the phone mid-flow lets the holder set a PIN of their choosing without
+  knowing the current one — stealthy persistent access (session intact; only
+  the changed PIN reveals it). Bounded, not a brick: ADR-018 D4's
+  always-visible "Forgot PIN? Sign out" recovery IS the reset, and the window
+  requires owner cooperation (initiate + verify + walk away mid-flow) — no
+  worse than the accepted disable→enable baseline it replaces, which leaves
+  the lock fully OFF in its window. Kept current-PIN-first because it matches
+  every other verify-then-act flow in the app; recorded so a future editor
+  weighs the reorder (new-PIN-first, verify-last) with open eyes.
 - **Generation-guarded after EVERY await (invariant 2):** the entry generation
   is captured, `_persistWrongAttempt` re-checks internally, and the new-PIN
   `_store.write` is bracketed by re-checks before and after; on mismatch the
@@ -947,9 +974,9 @@ the lock is on). Design decisions, each deliberate:
   PIN via `PinSetupScreen` gaining a named `collectNewPin` constructor that
   pops the confirmed PIN instead of calling `enableLock` (the default-ctor
   enable path stays byte-identical, so its tests/goldens do not move). Three
-  new ARB keys ×3 locales (`settingsChangePinTitle`, `settingsChangePinEnterPrompt`,
-  `settingsChangePinFailed`); reuses `settingsPinConfirmPrompt`,
-  `settingsPinMismatch`, `settingsLockCooldown`.
+  new ARB keys ×4 ×3 locales (`settingsChangePinTitle`, `settingsChangePinEnterPrompt`,
+  `settingsChangePinFailed`, `settingsChangePinSaveFailed`); reuses
+  `settingsPinConfirmPrompt`, `settingsPinMismatch`, `settingsLockCooldown`.
 - **Recorded UX trade:** the user learns a wrong *current* PIN only after
   entering the new PIN (one atomic `changePin` call). Early feedback would
   need either `verifyPin` (unacceptable — state flip) or a new state-neutral
