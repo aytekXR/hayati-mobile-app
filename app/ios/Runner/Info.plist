@@ -14,6 +14,16 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<!-- The store "Languages" row and the per-app language picker derive from
+	     the binary's declared localizations: the app ships TR/AR/EN + RTL, so
+	     the listing must not honestly claim EN-only (ADR-020 D7). Kept in sync
+	     with the pbxproj knownRegions + the InfoPlist.strings variant group. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>tr</string>
+		<string>ar</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>hayati_app</string>
 	<key>CFBundlePackageType</key>
@@ -55,13 +65,20 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Export compliance: the app uses only standard TLS (HTTPS to Firebase +
+	     the coach proxy), no proprietary or non-exempt cryptography. Declaring
+	     this here answers Apple's export-compliance question at build time so it
+	     never blocks a TestFlight/App Store upload (operator runbook + ADR-020 D7). -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<!-- The Face ID prompt's purpose string (ADR-018 Decision 7). Biometric is
 	     only ever an ACCELERATOR for the app PIN, never the credential, and the
 	     seam pins `biometricOnly: true` so the device passcode is never a
-	     fallback. EN-only in v1: Info.plist localization rides the M6.3
-	     store-metadata pass. -->
+	     fallback. This string here is the development-region (en) value; the
+	     localized overrides live in {en,tr,ar}.lproj/InfoPlist.strings, closing
+	     ADR-018 D7's EN-only deferral (ADR-020 D7). -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock Hayati with Face ID.</string>
 	<key>UIApplicationSceneManifest</key>

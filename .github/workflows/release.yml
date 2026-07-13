@@ -1,0 +1,353 @@
+# release — tag-triggered iOS build / sign / TestFlight lane (ADR-021,
+# docs/architecture.md §9). ci.yml (quality + iOS build smoke) is the per-PR merge
+# gate; this is the release path. The pre-signing stages (preflight / integration /
+# build-report) are proven green; the sign-upload boundary FAILS CLOSED — loudly, at
+# a named step — until the founder's Apple Developer enrollment + the three ASC_*
+# environment secrets exist (operator-expected item 4). A dispatch without secrets is
+# EXPECTED to end red at that boundary; that red is the honest state of the M6 accept
+# line, proven not asserted (never a silent skip that looks green).
+name: release
+
+on:
+  # Release path: a vX.Y.Z tag push (agent-workflows.md W7). workflow_dispatch
+  # proves the lane end-to-the-boundary without cutting a tag — but GitHub only
+  # registers workflow_dispatch once the file lives on the default branch, so a
+  # first-time release.yml cannot be dispatched from its own feature branch; the
+  # acceptance dispatch runs post-merge as `gh workflow run release.yml --ref main`
+  # (ADR-021 D1 rev 2). Later edits, with the workflow already on main, can use
+  # branch dispatches like ci.yml.
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+# Serialize releases on the ref, but NEVER cancel an in-flight one: a half-cancelled
+# TestFlight upload or metadata deliver is worse than a queued run (ADR-021 D2).
+# Contrast ci.yml, which cancels superseded PR runs to save billed minutes.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Least-privilege token: every job only checks out and builds. Signing/upload
+# credentials come from environment secrets (job `sign-upload`), never the token.
+permissions:
+  contents: read
+
+env:
+  # Single pin, shared with ci.yml (past-prompts.md Session 001).
+  FLUTTER_VERSION: "3.44.5"
+
+jobs:
+  preflight:
+    name: preflight
+    # Cheap ubuntu gate, fails fast before any 10x-billed macOS minute: store
+    # metadata must lint clean and, on a tag run, the tag must agree with pubspec.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # Same repo-local, credential-free lint ci.yml's quality job runs (ADR-020
+      # D6): Apple char limits + required files per locale. --allow-empty-urls is
+      # the ratchet flag — the empty privacy/support URL files warn+count instead
+      # of hard-failing until the founder supplies a domain (ADR-020 D5).
+      - name: store metadata lint
+        run: dart tool/store_metadata_lint.dart --allow-empty-urls tr en-US
+      - name: tag ↔ pubspec version consistency
+        # One step with NO step-level if: — it always runs, so a dispatch shows an
+        # honest "checked: tag-only" line rather than a skipped step that reads
+        # grey-green (W4). On a vX.Y.Z tag it hard-fails when the tag's X.Y.Z
+        # disagrees with app/pubspec.yaml's version X.Y.Z: one source of truth
+        # (ADR-021 D3); the build number after the `+` is pubspec's and is never
+        # synthesized in CI.
+        run: |
+          pubspec_version="$(sed -n 's/^version:[[:space:]]*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' app/pubspec.yaml)"
+          if [ -z "$pubspec_version" ]; then
+            echo "Could not read an X.Y.Z version from app/pubspec.yaml." >&2
+            exit 1
+          fi
+          case "$GITHUB_REF" in
+            refs/tags/*)
+              tag="${GITHUB_REF#refs/tags/}"
+              tag_version="${tag#v}"
+              if [ "$tag_version" != "$pubspec_version" ]; then
+                echo "Tag/pubspec version mismatch (ADR-021 D3):" >&2
+                echo "  tag:     $tag  (X.Y.Z = $tag_version)" >&2
+                echo "  pubspec: $pubspec_version" >&2
+                echo "Retag or bump app/pubspec.yaml so they agree." >&2
+                exit 1
+              fi
+              echo "tag $tag matches app/pubspec.yaml version $pubspec_version."
+              ;;
+            *)
+              echo "Not a tag ref ($GITHUB_REF); version consistency is checked tag-only (ADR-021 D3). pubspec version is $pubspec_version."
+              ;;
+          esac
+
+  integration:
+    name: integration
+    # The strongest release signal that exists today: the integration_test/ suites
+    # against the auth/firestore/functions emulators, reusing ci.yml's
+    # integration-emulator recipe (same Xcode 16.4 pin, fresh-sim lowest-runtime
+    # boot, serialized suites, issue-#15 quarantine) with NO code_changed gate —
+    # a release always runs it. The promised E2E simulator matrix (current-1/current
+    # with E2E-1/2/3) does NOT exist and is NOT faked: E2E-2 (sandbox purchase)
+    # needs operator items 0+4. That deferral is recorded in docs/test-suite.md;
+    # the matrix enters when the scenarios can honestly run (ADR-021 D2).
+    needs: preflight
+    runs-on: macos-15
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # firestore emulator needs Java 21+. macos-15 already defaults to Temurin
+      # 21; pin it so a future image default-bump can't silently regress the
+      # emulator (the JDK is cached on the image, so this step is ~5-10s).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      # M2.2: the functions emulator serves the createInvite callable this
+      # suite exercises. Node 20 matches functions/package.json engines.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: npm ci (functions)
+        working-directory: functions
+        run: npm ci
+      # The functions emulator never compiles TS — it require()s package.json
+      # "main" (lib/index.js), so the build must land before emulators:exec.
+      - name: build functions
+        working-directory: functions
+        run: npm run build
+      - name: pub get
+        working-directory: app
+        run: flutter pub get
+      - name: install firebase-tools (pinned to dev-box version)
+        run: npm install -g firebase-tools@15.22.4
+      # Cache the firestore emulator JAR (~138 MB, the only large download; the
+      # auth emulator ships inside firebase-tools). Same key as ci.yml so the two
+      # workflows share the cache; a pin bump re-fetches, a miss just re-downloads.
+      - name: Cache Firebase emulator jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-macos-fbtools-15.22.4
+      - name: Pre-fetch firestore emulator jar
+        run: firebase setup:emulators:firestore
+      # Deterministic sim boot: pin Xcode 16.4, create a FRESH device on the
+      # lowest available iOS runtime (18.x pairs with 16.4; the image's 26.x
+      # runtimes need Xcode 26), and block until booted (no sleep). Explicit
+      # -d $DEVICE_ID is required — the runner exposes macOS-desktop + the sim,
+      # so flutter test cannot auto-pick.
+      - name: Boot iOS simulator
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app
+          RUNTIME=$(xcrun simctl list runtimes ios --json | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runtimes'] if x.get('isAvailable')]; r.sort(key=lambda x:[int(n) for n in x['version'].split('.')]); print(r[0]['identifier'])")
+          echo "runtime=$RUNTIME"
+          DEVICE_ID=$(xcrun simctl create hayati-ci 'iPhone 16' "$RUNTIME")
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+      # emulators:exec starts auth+firestore+functions, WAITS for readiness, runs
+      # the script, tears the emulators down, and propagates the exit code — one
+      # deterministic pass/fail, no orphans (W4: no silent retries, no `|| true`).
+      # demo-hayati is credential-free (no secrets). Runs from repo root
+      # (firebase.json lives here). --timeout none keeps the long first-run sim
+      # compile from tripping the per-test timeout (the job timeout is the real
+      # bound); -r expanded streams progress so a wedge shows. One `flutter test`
+      # invocation PER SUITE, sequentially: passing the whole integration_test/
+      # directory lets flutter_tools run suites concurrently against the one
+      # simulator, where they fight over the shared com.hayati.app bundle.
+      # DEVICE_ID reaches the inner shell through GITHUB_ENV. phone_auth_emulator_test
+      # is QUARANTINED, not silently dropped: it crashes the app process natively
+      # inside verifyPhoneNumber on the simulator (issue #15). The ::warning:: keeps
+      # it visible every run so it cannot rot (W4). The phone flow stays covered by
+      # VM unit tests with fakes.
+      - name: Integration tests (auth + firestore + functions emulators)
+        run: |
+          firebase emulators:exec --only auth,firestore,functions --project demo-hayati \
+            'cd app && for suite in integration_test/*_test.dart; do
+               case "$suite" in
+                 */phone_auth_emulator_test.dart)
+                   echo "::warning file=app/$suite::Quarantined from CI — crashes the app natively in verifyPhoneNumber on the iOS simulator (issue #15). Covered by VM unit tests."
+                   continue;;
+               esac
+               echo "::group::$suite"
+               flutter test "$suite" \
+                 --dart-define=USE_AUTH_EMULATOR=true \
+                 --dart-define=USE_FIRESTORE_EMULATOR=true \
+                 --dart-define=USE_FUNCTIONS_EMULATOR=true \
+                 -d "$DEVICE_ID" -r expanded --timeout none || exit 1
+               echo "::endgroup::"
+             done'
+
+  build-report:
+    name: build-report
+    # Parallel with integration (it needs no emulators): a real prod-flavor release
+    # build with size analysis. Prod entrypoint deliberately — TestFlight builds
+    # carry prod config, so the size that matters is prod's (ADR-021 D2). The size
+    # gate is an exact, stable number with a generous 200 MB pathology cap (ADR-022
+    # D4); a missing/unparseable analysis is a hard fail, never a green "couldn't
+    # measure".
+    needs: preflight
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: pub get
+        working-directory: app
+        run: flutter pub get
+      - name: build ios (release, no codesign) + analyze size
+        working-directory: app
+        # --analyze-size writes the raw snapshot.<arch>.json / trace.<arch>.json
+        # intermediates into --code-size-directory, but the full-bundle treemap
+        # (the number the cap cares about) lands in $HOME/.flutter-devtools
+        # (verified against flutter_tools build_ios.dart). Stage that treemap next
+        # to the intermediates so the gate + artifact use one stable path; a
+        # missing file fails the step (no `|| true`) — a build that didn't analyze
+        # must not slip through green (W4 / ADR-022 D4). du -sh is the independent
+        # whole-.app cross-check, printed even if the gate later fails.
+        run: |
+          flutter build ios --release --no-codesign -t lib/main_prod.dart \
+            --analyze-size --code-size-directory=build/size-analysis
+          cp "$HOME/.flutter-devtools/"ios-code-size-analysis_*.json \
+            build/size-analysis/ios-code-size-analysis.json
+          du -sh build/ios/iphoneos/Runner.app
+      - name: build size budget (<= 200 MB uncompressed .app)
+        run: dart tool/build_size_report.dart --max-mb 200 app/build/size-analysis
+      - name: upload size analysis JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-size-analysis
+          path: app/build/size-analysis/ios-code-size-analysis.json
+          if-no-files-found: error
+          retention-days: 30
+
+  sign-upload:
+    name: sign-upload
+    # THE boundary job. `environment: release` is load-bearing, not decorative:
+    # architecture.md §9 designates GitHub *environment* secrets, and GitHub only
+    # exposes environment secrets to a job that declares the binding. Without it
+    # `secrets.ASC_*` would silently resolve against repository secrets and read
+    # empty even after the founder configures the environment — a configured lane
+    # stuck permanently boundary-red with a misleading "missing secrets" message
+    # (ADR-021 D4 rev 2, REL-2). Referencing a not-yet-existing environment is safe
+    # (GitHub auto-creates it; with no secrets the gate fails closed as designed).
+    needs: [preflight, integration, build-report]
+    runs-on: macos-15
+    timeout-minutes: 45
+    environment: release
+    steps:
+      - name: signing secrets gate
+        # FIRST step, and an ordinary (non-if:) step BY DESIGN: a step skipped by an
+        # `if:` renders grey-green in the Actions UI — exactly the silent-green a
+        # release lane must never show (ADR-021 D4). This step FAILS; everything
+        # after it simply never runs. It reports the FULL missing set at once (a
+        # partial secret set must not reach fastlane to die on an opaque auth error)
+        # and never echoes a secret VALUE, only names.
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          missing=()
+          [ -n "$ASC_KEY_ID" ] || missing+=("ASC_KEY_ID")
+          [ -n "$ASC_ISSUER_ID" ] || missing+=("ASC_ISSUER_ID")
+          [ -n "$ASC_API_KEY_P8" ] || missing+=("ASC_API_KEY_P8")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Signing is fail-closed — missing App Store Connect secret(s): ${missing[*]}"
+            {
+              echo "======================================================================"
+              echo "  SIGNING IS FAIL-CLOSED. Missing environment secret(s):"
+              for name in "${missing[@]}"; do echo "    - $name"; done
+              echo ""
+              echo "  The signed-build + TestFlight upload half of M6 is operator-blocked"
+              echo "  on the founder's Apple Developer enrollment (operator-expected"
+              echo "  item 4). Add the three App Store Connect API-key secrets in:"
+              echo ""
+              echo "      Settings -> Environments -> release"
+              echo ""
+              echo "  (ASC_KEY_ID, ASC_ISSUER_ID, ASC_API_KEY_P8 — all copy-paste from"
+              echo "  one App Store Connect > Users and Access > Integrations > Keys page.)"
+              echo "  How-to: fastlane/README.md and docs/adr/021-release-lane-fail-closed-signing-boundary.md."
+              echo ""
+              echo "  This red is the honest state of the M6 accept line, not a lane bug."
+              echo "======================================================================"
+            } >&2
+            exit 1
+          fi
+          echo "All three ASC_* signing secrets are present."
+      - name: write App Store Connect API key
+        # Post-gate only, NO if: (a skipped signing step reads grey-green, ADR-021
+        # D4). The .p8 reaches disk here from the secret, never committed
+        # (architecture.md §9 "zero keys in repo"), to two places: $RUNNER_TEMP for
+        # the fastlane lane, and xcodebuild's documented auto-discovery path
+        # ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8 so cloud signing finds
+        # it during the archive (ADR-021 D5). umask 077 + chmod 600 — key hygiene.
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          umask 077
+          printf '%s' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          cp "$RUNNER_TEMP/AuthKey.p8" "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: bundle install
+        # Gemfile pins fastlane ~> 2.225 (repo root). Gemfile.lock is documented
+        # debt (fastlane/README.md, ADR-021 D6): no Ruby on the dev box means no
+        # faithful lock until the first real lane run, so bundler resolves fresh
+        # here and there is no lock to key a bundler-cache on.
+        run: bundle install
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: pub get
+        working-directory: app
+        run: flutter pub get
+      - name: fastlane beta (cloud sign + TestFlight)
+        # `flutter build ipa` cloud signing + upload_to_testflight + deliver, all
+        # authenticated by the one ASC API key. UNVERIFIABLE from a Linux session
+        # with zero secrets — the first real tag run after enrollment may need a
+        # Mac-era fix (likeliest: the automatic-signing DEVELOPMENT_TEAM build
+        # setting no secret currently carries). Accepted and recorded (ADR-021 D5);
+        # the fail-closed gate above guarantees the failure mode stays loud.
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_PATH: ${{ runner.temp }}/AuthKey.p8
+        run: bundle exec fastlane ios beta
+      - name: fastlane store_metadata (deliver per locale)
+        # Pushes fastlane/metadata TR/EN via deliver(skip_binary_upload). Gated
+        # behind the same boundary, so store copy cannot reach App Store Connect
+        # from CI until enrollment — consistent with the copy being native-review-
+        # gated anyway (ADR-020 D8 / ADR-021 D2).
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_PATH: ${{ runner.temp }}/AuthKey.p8
+        run: bundle exec fastlane ios store_metadata

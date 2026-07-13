@@ -1,0 +1,3 @@
+/* InfoPlist.strings (en) — localized user-facing Info.plist strings.
+   AI-drafted; native review PENDING (operator item 1 gate). ADR-020 D7. */
+"NSFaceIDUsageDescription" = "Unlock Hayati with Face ID.";
