@@ -115,6 +115,25 @@ void main() {
   ) async {
     final repository = FunctionsInviteRepository();
 
+    // M6.2 (ADR-019 cascade invariant): createInvite fail-closes when the
+    // caller has no profile doc — the deleted-profile guard that kills the
+    // intra-cascade mint window. A live profile is therefore a precondition
+    // of issuing, exactly like the pairing test below seeds for its users.
+    // (Session 022 fix: this suite is main-only/macOS-only, so the M6.2
+    // precondition landed with its functions-side proofs while this
+    // app-side caller kept issuing profileless — the documented
+    // post-merge-signal trade-off.)
+    await FirestoreProfileRepository(
+      firestore: FirebaseFirestore.instance,
+    ).saveProfile(
+      FirebaseAuth.instance.currentUser!.uid,
+      const RelationshipProfile(
+        status: RelationshipStatus.married,
+        contentLanguage: ContentLanguage.tr,
+        register: ContentRegister.respectful,
+      ),
+    );
+
     final first = await repository.createInvite();
     expect(first.code, matches(_codePattern));
     expect(first.reused, isFalse);
