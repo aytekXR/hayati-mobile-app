@@ -76,6 +76,26 @@ async function seedAliceProfile(): Promise<void> {
   });
 }
 
+/** The valid consent-record shape the recordConsent callable stamps (ADR-023 D4). */
+const consentField = () => ({
+  version: 1,
+  acceptedAt: Timestamp.now(),
+  ageAttested: true,
+});
+
+/**
+ * Seeds a profile carrying a valid consent record (owner context) — the ADR-023
+ * D4a precondition on soloAnswer/couple-answer writes. Answer-writing tests use
+ * this so the write exercises the shape guards, not the consent gate.
+ */
+async function seedConsentedProfile(uid: string): Promise<void> {
+  await seed(`users/${uid}`, {
+    ...profileData,
+    consent: consentField(),
+    createdAt: Timestamp.now(),
+  });
+}
+
 /** A real-shaped couple: exactly what the M2.3 join Function writes. */
 async function seedCouple(): Promise<void> {
   await seed('couples/couple-1', {
@@ -338,6 +358,55 @@ describe('users/{uid}', () => {
       setDoc(doc(alice, `users/${ALICE}`), { register: 'playful' }, { merge: true }),
     );
   });
+
+  // ADR-023 Decision 4: consent (the special-category consent record) is
+  // server-owned — written ONLY by the recordConsent callable (admin SDK). Like
+  // coupleId/coupleEnded/notificationPrivacy it needs a matched create-forbid +
+  // update-freeze so a client can neither mint it at create nor mint/change/clear
+  // it via update.
+  it('create is denied when the client includes consent (server-owned)', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, `users/${ALICE}`), {
+        ...profileData,
+        createdAt: serverTimestamp(),
+        consent: consentField(),
+      }),
+    );
+  });
+
+  it('a client may not mint consent on its own doc', async () => {
+    await seedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { consent: consentField() }),
+    );
+  });
+
+  it('a client may not clear a server-set consent', async () => {
+    await seed(`users/${ALICE}`, {
+      ...profileData,
+      consent: consentField(),
+      createdAt: Timestamp.now(),
+    });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { consent: deleteField() }),
+    );
+  });
+
+  it('an ordinary own-doc edit succeeds alongside a server-set consent (positive control)', async () => {
+    await seed(`users/${ALICE}`, {
+      ...profileData,
+      consent: consentField(),
+      createdAt: Timestamp.now(),
+    });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    // A register edit that leaves consent untouched (post-merge equal) passes.
+    await assertSucceeds(
+      setDoc(doc(alice, `users/${ALICE}`), { register: 'playful' }, { merge: true }),
+    );
+  });
 });
 
 describe('users/{uid}/soloAnswers/{dayKey}', () => {
@@ -357,11 +426,14 @@ describe('users/{uid}/soloAnswers/{dayKey}', () => {
     });
   }
 
-  // ADR-019 Decision 2: soloAnswer writes now require the owner's profile to
-  // exist. Every Alice-based write test seeds her profile first; the orphan test
-  // deliberately uses Bob (no profile) to prove the exists() guard fires.
+  // ADR-019 Decision 2: soloAnswer writes require the owner's profile to exist.
+  // ADR-023 Decision 4a: they ALSO require the writer to carry a consent record.
+  // Every Alice-based write test seeds her CONSENTED profile first; the orphan
+  // test deliberately uses Bob (no profile) — denied by both exists() AND the
+  // consent gate — and the D4a-negative test below overwrites Alice's profile
+  // with a consentless one to isolate the consent predicate.
   beforeEach(async () => {
-    await seedAliceProfile();
+    await seedConsentedProfile(ALICE);
   });
 
   it('orphan write is denied when the owner has no profile (ADR-019 D2 token-window)', async () => {
@@ -369,6 +441,21 @@ describe('users/{uid}/soloAnswers/{dayKey}', () => {
     await assertFails(
       setDoc(doc(bob, `users/${BOB}/soloAnswers/20260710`), validAnswer()),
     );
+  });
+
+  // ADR-023 D4a: the consent predicate on the soloAnswers write, isolated.
+  it('a consented owner writes their answer (D4a positive)', async () => {
+    // beforeEach seeded ALICE with consent.
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(setDoc(doc(alice, ANSWER_PATH), validAnswer()));
+  });
+
+  it('an owner with a profile but NO consent is denied (D4a negative)', async () => {
+    // Overwrite the consented profile with a consentless one — exists() passes,
+    // only the consent predicate should now deny.
+    await seedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(setDoc(doc(alice, ANSWER_PATH), validAnswer()));
   });
 
   it('owner creates a server-stamped answer (the app write shape)', async () => {
@@ -653,6 +740,12 @@ describe('couples/{coupleId}/days/{dayKey}/answers/{authorUid}', () => {
       packVersion: 1,
       assignedAt: Timestamp.now(),
     });
+    // ADR-023 D4a: a couple-answer write requires the writer to carry a consent
+    // record. Seed both members consented so the answer tests exercise the
+    // reveal/shape invariants, not the consent gate (the D4a-negative test below
+    // overwrites Alice with a consentless profile to isolate the predicate).
+    await seedConsentedProfile(ALICE);
+    await seedConsentedProfile(BOB);
   }
 
   /** Seeds an already-committed answer (owner context, real stamp). */
@@ -668,6 +761,22 @@ describe('couples/{coupleId}/days/{dayKey}/answers/{authorUid}', () => {
     await seedCoupleDay();
     const alice = env.authenticatedContext(ALICE).firestore();
     await assertSucceeds(setDoc(doc(alice, answerPath(ALICE)), answerWrite()));
+  });
+
+  // ADR-023 D4a: the consent predicate on the couple-answer write, isolated.
+  it('a consented member writes their answer (D4a positive)', async () => {
+    await seedCoupleDay(); // seeds ALICE + BOB consented
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(setDoc(doc(alice, answerPath(ALICE)), answerWrite()));
+  });
+
+  it('a member with a profile but NO consent is denied (D4a negative)', async () => {
+    await seedCoupleDay();
+    // Overwrite ALICE's profile with a consentless one; couple + day stay intact,
+    // so only the consent predicate should now deny the otherwise-valid write.
+    await seed(`users/${ALICE}`, { ...profileData, createdAt: Timestamp.now() });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(setDoc(doc(alice, answerPath(ALICE)), answerWrite()));
   });
 
   it('client-clock answeredAt is rejected (server stamp only)', async () => {
@@ -1069,6 +1178,20 @@ async function seedMutantCoupleDay(mutant: RulesTestEnvironment): Promise<void> 
       packVersion: 1,
       assignedAt: Timestamp.now(),
     });
+    // ADR-023 D4a: answer writes require the writer's consent record. Seed both
+    // members consented so a write-mutant demonstration isolates the guard under
+    // test rather than tripping the (separate) consent predicate.
+    const consent = { version: 1, acceptedAt: Timestamp.now(), ageAttested: true };
+    await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+      ...profileData,
+      consent,
+      createdAt: Timestamp.now(),
+    });
+    await setDoc(doc(context.firestore(), `users/${BOB}`), {
+      ...profileData,
+      consent,
+      createdAt: Timestamp.now(),
+    });
   });
 }
 
@@ -1244,8 +1367,13 @@ const MUTATIONS: Mutation[] = [
     demonstrate: async (mutant) => {
       // ADR-019: soloAnswer writes require the owner's profile to exist, so the
       // isolated clause under test is only reachable when users/{owner} is present.
+      // ADR-023 D4a: the consent predicate checks the WRITER (request.auth.uid =
+      // Charlie), so seed Charlie consented too — otherwise the consent gate, not
+      // the isSelf clause under test, would deny.
       await mutant.withSecurityRulesDisabled(async (context) => {
-        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, createdAt: Timestamp.now() });
+        const consent = { version: 1, acceptedAt: Timestamp.now(), ageAttested: true };
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, consent, createdAt: Timestamp.now() });
+        await setDoc(doc(context.firestore(), `users/${CHARLIE}`), { ...profileData, consent, createdAt: Timestamp.now() });
       });
       return setDoc(
         doc(
@@ -1266,7 +1394,7 @@ const MUTATIONS: Mutation[] = [
     replacement: ';',
     demonstrate: async (mutant) => {
       await mutant.withSecurityRulesDisabled(async (context) => {
-        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, createdAt: Timestamp.now() });
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, consent: { version: 1, acceptedAt: Timestamp.now(), ageAttested: true }, createdAt: Timestamp.now() });
       });
       return setDoc(
         doc(
@@ -1288,7 +1416,7 @@ const MUTATIONS: Mutation[] = [
     replacement: '',
     demonstrate: async (mutant) => {
       await mutant.withSecurityRulesDisabled(async (context) => {
-        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, createdAt: Timestamp.now() });
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), { ...profileData, consent: { version: 1, acceptedAt: Timestamp.now(), ageAttested: true }, createdAt: Timestamp.now() });
       });
       return setDoc(
         doc(
@@ -1412,6 +1540,15 @@ const MUTATIONS: Mutation[] = [
     replacement: 'allow create: if isSelf(authorUid)',
     demonstrate: async (mutant) => {
       await seedMutantCoupleDay(mutant);
+      // ADR-023 D4a: seed the non-member writer's consent so the ONLY thing the
+      // real rules use to deny him is the membership clause under test.
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${CHARLIE}`), {
+          ...profileData,
+          consent: { version: 1, acceptedAt: Timestamp.now(), ageAttested: true },
+          createdAt: Timestamp.now(),
+        });
+      });
       return setDoc(
         doc(
           mutant.authenticatedContext(CHARLIE).firestore(),
@@ -1843,11 +1980,28 @@ const MUTATIONS: Mutation[] = [
     name: 'dropping the soloAnswers profile-exists guard readmits orphan writes',
     anchor: '\n          && exists(/databases/$(database)/documents/users/$(uid))',
     replacement: '',
-    demonstrate: (mutant) =>
-      setDoc(
+    demonstrate: async (mutant) => {
+      // ADR-023 D4a interaction, recorded honestly: hasConsent() reads the writer's
+      // users doc and so ALSO fails-closed when that doc is missing — it SUBSUMES
+      // exists() for the profile-missing case. A truly profile-less Bob is now
+      // denied by BOTH guards, so dropping exists() alone can no longer flip a
+      // profile-less write to success. Per ADR-023 (answer-writers carry consent)
+      // Bob is seeded consented; this mutant is retained to guard the exists()
+      // ANCHOR from rotting and to exercise the exists()-removed path. The
+      // profile-missing DENIAL invariant itself stays proven by the positive
+      // 'orphan write is denied when the owner has no profile' test above.
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${BOB}`), {
+          ...profileData,
+          consent: { version: 1, acceptedAt: Timestamp.now(), ageAttested: true },
+          createdAt: Timestamp.now(),
+        });
+      });
+      return setDoc(
         doc(mutant.authenticatedContext(BOB).firestore(), `users/${BOB}/soloAnswers/20260710`),
         { questionId: 'solo_tr_003', text: 'orphan', answeredAt: serverTimestamp() },
-      ),
+      );
+    },
   },
   {
     // M6.2 delete-deny coverage (the harness noted users lacked a delete mutant):
@@ -1906,6 +2060,94 @@ const MUTATIONS: Mutation[] = [
         });
       });
       return deleteDoc(doc(mutant.authenticatedContext(ALICE).firestore(), 'couples/couple-1'));
+    },
+  },
+  {
+    // S023 (ADR-023 D4): consent is server-owned on the CREATE path. Dropping the
+    // create block readmits a client minting the consent record on a fresh
+    // self-create (matching the coupleEnded/notificationPrivacy create-mint-gap).
+    name: 'dropping the users consent create block readmits client-minted consent at create',
+    anchor: "\n        && !('consent' in request.resource.data)",
+    replacement: '',
+    demonstrate: (mutant) =>
+      setDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        {
+          ...profileData,
+          createdAt: serverTimestamp(),
+          consent: { version: 1, acceptedAt: Timestamp.now(), ageAttested: true },
+        },
+      ),
+  },
+  {
+    // S023 (ADR-023 D4): consent is frozen on UPDATE (symmetric absence). Dropping
+    // the freeze readmits a client minting it — the seeded profile carries none, so
+    // the client write succeeds only under the mutant.
+    name: 'dropping the users consent freeze readmits client consent writes',
+    anchor:
+      "\n        && request.resource.data.get('consent', null) == resource.data.get('consent', null)",
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+        });
+      });
+      return updateDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        { consent: { version: 1, acceptedAt: Timestamp.now(), ageAttested: true } },
+      );
+    },
+  },
+  {
+    // S023 (ADR-023 D4a): the soloAnswers consent predicate. Dropping it readmits a
+    // consentless write by an owner whose profile EXISTS but carries no consent
+    // (exists() passes; only the consent predicate denied under real rules).
+    name: 'dropping the soloAnswers consent predicate readmits consentless answer writes',
+    anchor:
+      "\n          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('consent', null) != null",
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+        });
+      });
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `users/${ALICE}/soloAnswers/20260710`,
+        ),
+        { questionId: 'solo_tr_003', text: 'no consent yet', answeredAt: serverTimestamp() },
+      );
+    },
+  },
+  {
+    // S023 (ADR-023 D4a): the couple-answers consent predicate (the hasConsent()
+    // helper, shared by create+update). Weakening it to `return true` readmits a
+    // consentless member's answer write — the writer's profile carries no consent.
+    name: 'weakening the answers consent predicate readmits consentless answer writes',
+    anchor:
+      "return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('consent', null) != null",
+    replacement: 'return true',
+    demonstrate: async (mutant) => {
+      await seedMutantCoupleDay(mutant);
+      // Overwrite ALICE with a consentless profile (couple + day stay intact).
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+        });
+      });
+      return setDoc(
+        doc(
+          mutant.authenticatedContext(ALICE).firestore(),
+          `${MUTANT_DAY_PATH}/answers/${ALICE}`,
+        ),
+        mutantAnswerWrite(),
+      );
     },
   },
 ];

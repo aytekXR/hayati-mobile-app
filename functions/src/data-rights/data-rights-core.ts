@@ -7,8 +7,22 @@
 // module owns WHAT the rules are: exactly what leaves in an export, and exactly
 // what a deletion event may (never) log.
 
-/** The export document version (Decision 5). A shape change bumps this. */
-export const FORMAT_VERSION = 1;
+/**
+ * The export document version (Decision 5). A shape change bumps this.
+ * v2: added the optional profile consent lane (ADR-023).
+ */
+export const FORMAT_VERSION = 2;
+
+/**
+ * The current legal-bundle version the server stamps onto a granted consent
+ * (ADR-023 Decision 4). The server owns this constant — the client sends no
+ * version — so a grant always records the version the deployed backend serves.
+ *
+ * Pinned by the app-side three-way source-sentinel against the app/lib legal
+ * version const and the docs/legal/README.md `version:` line; the bump procedure
+ * lives in docs/legal/README.md. A bump here must be same-diff with both.
+ */
+export const CURRENT_LEGAL_VERSION = 1;
 
 /**
  * The wire-level literal the app sends on the deleteAccount request (Decision 2).
@@ -92,6 +106,27 @@ export function validateNotificationPrivacyRequest(
   return { ok: true, discreet: body.discreet };
 }
 
+// --- recordConsent request validation (ADR-023 Decision 4) ------------------
+
+export type RecordConsentValidation =
+  | { ok: true; withdraw: boolean }
+  | { ok: false };
+
+/**
+ * The consent request body: `{ withdraw: boolean }`, nothing else accepted
+ * (ADR-023 Decision 4). The client sends NO version — the server stamps its own
+ * `CURRENT_LEGAL_VERSION` on a grant — so there is no client-claimed-version
+ * surface to validate. `withdraw:false` grants, `withdraw:true` clears.
+ */
+export function validateRecordConsentRequest(
+  body: unknown,
+): RecordConsentValidation {
+  if (!isRecord(body) || typeof body.withdraw !== 'boolean') {
+    return { ok: false };
+  }
+  return { ok: true, withdraw: body.withdraw };
+}
+
 // --- cascade steps (Decision 2) ---------------------------------------------
 
 /**
@@ -115,7 +150,8 @@ export type CascadeStep =
 export type DataRightsOp =
   | 'deleteAccount'
   | 'exportData'
-  | 'updateNotificationPrivacy';
+  | 'updateNotificationPrivacy'
+  | 'recordConsent';
 
 export type DataRightsOutcome =
   | 'deleted'
@@ -167,12 +203,25 @@ export interface AuthProfile {
   photoURL: string | null;
 }
 
+/**
+ * The subject's consent record (ADR-023 D4), carried in the export iff the
+ * stored field has a valid shape. `ageAttested` crosses because the Terms lean
+ * on the 18+ posture — the attestation must live in the provable record and the
+ * subject's export, not in unversioned screen copy.
+ */
+export interface ExportConsent {
+  version: number;
+  acceptedAtMs: number;
+  ageAttested: boolean;
+}
+
 export interface ExportProfile {
   status: string | null;
   contentLanguage: string | null;
   register: string | null;
   createdAtMs: number | null;
   notificationPrivacy?: string;
+  consent?: ExportConsent;
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
@@ -269,7 +318,34 @@ export interface ExportEnvelope {
   data: ExportData;
 }
 
-/** users/{A} client fields + the Auth record + notificationPrivacy if set. */
+/**
+ * Projects the stored `users/{A}.consent` map to the export lane IFF it has a
+ * valid shape (ADR-023 D4): a map carrying an int `version`, a Timestamp
+ * `acceptedAt` (duck-typed via toMillis), and a boolean `ageAttested`. Any junk
+ * shape — non-map, non-int version, missing/absent acceptedAt, missing
+ * ageAttested — omits the lane, mirroring the notificationPrivacy iff-set style.
+ */
+function projectConsent(raw: unknown): ExportConsent | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  if (!Number.isInteger(raw.version)) {
+    return undefined;
+  }
+  const acceptedAtMs = toMillis(raw.acceptedAt);
+  if (acceptedAtMs === null) {
+    return undefined;
+  }
+  if (typeof raw.ageAttested !== 'boolean') {
+    return undefined;
+  }
+  return { version: raw.version as number, acceptedAtMs, ageAttested: raw.ageAttested };
+}
+
+/**
+ * users/{A} client fields + the Auth record + notificationPrivacy if set +
+ * the consent lane if set (ADR-023 D4).
+ */
 export function projectProfile(
   userData: Record<string, unknown>,
   auth: AuthProfile | null,
@@ -285,6 +361,10 @@ export function projectProfile(
   };
   if (typeof userData.notificationPrivacy === 'string') {
     profile.notificationPrivacy = userData.notificationPrivacy;
+  }
+  const consent = projectConsent(userData.consent);
+  if (consent !== undefined) {
+    profile.consent = consent;
   }
   return profile;
 }

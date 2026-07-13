@@ -4,13 +4,16 @@
 // with an absent profile → typed failure, no write). Exercised against the
 // firestore + auth emulators; the default admin app binds to demo-hayati.
 import { getAuth } from 'firebase-admin/auth';
+import { Timestamp } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { CURRENT_LEGAL_VERSION } from '../../src/data-rights/data-rights-core';
 import {
   makeDeleteAccountHandler,
   makeExportDataHandler,
+  makeRecordConsentHandler,
   makeUpdateNotificationPrivacyHandler,
 } from '../../src/data-rights/data-rights';
 import { adminFirestore, clearFirestoreData } from '../support/admin';
@@ -102,13 +105,13 @@ describe('exportData handler', () => {
     expect((await db.collection('users').doc(UID).get()).exists).toBe(false);
   });
 
-  it('returns a formatVersion-1 envelope for a live profile', async () => {
+  it('returns a formatVersion-2 envelope for a live profile', async () => {
     await seedProfile(UID);
     const handler = makeExportDataHandler({
       authLookup: async () => ({ displayName: 'Aytek', email: 'a@x.com', photoURL: null }),
     });
     const doc = await handler(req(UID, {}));
-    expect(doc.formatVersion).toBe(1);
+    expect(doc.formatVersion).toBe(2);
     expect(doc.uid).toBe(UID);
     expect(doc.data.profile.displayName).toBe('Aytek');
   });
@@ -138,5 +141,69 @@ describe('updateNotificationPrivacy handler', () => {
 
     expect(await handler(req(UID, { discreet: false }))).toEqual({ status: 'ok' });
     expect((await db.collection('users').doc(UID).get()).get('notificationPrivacy')).toBeUndefined();
+  });
+});
+
+describe('recordConsent handler', () => {
+  it('rejects unauthenticated and malformed requests', async () => {
+    const handler = makeRecordConsentHandler();
+    await expectHttpsError(handler(req(undefined, { withdraw: false })), 'unauthenticated');
+    const error = await expectHttpsError(handler(req(UID, { withdraw: 'yes' })), 'invalid-argument');
+    expect(error.details).toEqual({ reason: 'bad-request' });
+  });
+
+  it('maps an absent profile to failed-precondition (profile-missing), no write', async () => {
+    const handler = makeRecordConsentHandler();
+    const error = await expectHttpsError(handler(req(UID, { withdraw: false })), 'failed-precondition');
+    expect(error.details).toEqual({ reason: 'profile-missing' });
+    expect((await db.collection('users').doc(UID).get()).exists).toBe(false);
+  });
+
+  it('grants: server-stamps version + acceptedAt + ageAttested onto the users doc', async () => {
+    await seedProfile(UID);
+    const handler = makeRecordConsentHandler();
+
+    expect(await handler(req(UID, { withdraw: false }))).toEqual({ status: 'ok' });
+
+    const consent = (await db.collection('users').doc(UID).get()).get('consent') as {
+      version: number;
+      acceptedAt: Timestamp;
+      ageAttested: boolean;
+    };
+    expect(consent.version).toBe(CURRENT_LEGAL_VERSION);
+    expect(consent.ageAttested).toBe(true);
+    // The client sends no timestamp: acceptedAt is a real server-stamped Timestamp.
+    expect(consent.acceptedAt).toBeInstanceOf(Timestamp);
+    expect(consent.acceptedAt.toMillis()).toBeGreaterThan(0);
+  });
+
+  it('withdraws: clears the consent field on the existing profile doc', async () => {
+    await seedProfile(UID);
+    const handler = makeRecordConsentHandler();
+
+    await handler(req(UID, { withdraw: false }));
+    expect((await db.collection('users').doc(UID).get()).get('consent')).toBeDefined();
+
+    expect(await handler(req(UID, { withdraw: true }))).toEqual({ status: 'ok' });
+    expect((await db.collection('users').doc(UID).get()).get('consent')).toBeUndefined();
+  });
+
+  it('a re-grant overwrites acceptedAt (and the stored version) — idempotent, latest-only', async () => {
+    await seedProfile(UID);
+    // Simulate a stale prior grant: an old acceptedAt and an old version.
+    await db.collection('users').doc(UID).update({
+      consent: { version: 0, acceptedAt: Timestamp.fromMillis(1000), ageAttested: true },
+    });
+
+    expect(await makeRecordConsentHandler()(req(UID, { withdraw: false }))).toEqual({ status: 'ok' });
+
+    const consent = (await db.collection('users').doc(UID).get()).get('consent') as {
+      version: number;
+      acceptedAt: Timestamp;
+      ageAttested: boolean;
+    };
+    expect(consent.version).toBe(CURRENT_LEGAL_VERSION);
+    expect(consent.acceptedAt.toMillis()).toBeGreaterThan(1000);
+    expect(consent.ageAttested).toBe(true);
   });
 });
