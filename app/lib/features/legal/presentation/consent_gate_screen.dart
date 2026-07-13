@@ -109,6 +109,10 @@ class _ConsentGateScreenState extends ConsumerState<ConsentGateScreen> {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final busy = _submitting || _accepted;
+    // The escapes re-enable in the terminal stale state: a user held at the
+    // gate by an app-ahead-of-server skew must keep sign-out/export/delete
+    // (post-impl review finding `xcut-2` — the appflow-1 trap re-created).
+    final escapesBusy = _submitting || (_accepted && !_stale);
 
     return Scaffold(
       body: SafeArea(
@@ -184,18 +188,19 @@ class _ConsentGateScreenState extends ConsumerState<ConsentGateScreen> {
               ],
               const SizedBox(height: SpacingTokens.x5),
               // The three escape affordances — a decliner keeps every right
-              // (finding `appflow-1`). Disabled while a grant is confirming so a
-              // double-path can't race the gate.
+              // (finding `appflow-1`). Disabled only while a grant is in
+              // flight or confirming; the terminal stale state keeps them
+              // live (finding `xcut-2`).
               TextButton(
-                onPressed: busy ? null : _signOut,
+                onPressed: escapesBusy ? null : _signOut,
                 child: Text(l10n.settingsSignOut),
               ),
               TextButton(
-                onPressed: busy ? null : _openExport,
+                onPressed: escapesBusy ? null : _openExport,
                 child: Text(l10n.dataRightsExportRowTitle),
               ),
               TextButton(
-                onPressed: busy ? null : _openDelete,
+                onPressed: escapesBusy ? null : _openDelete,
                 child: Text(l10n.dataRightsDeleteRowTitle),
               ),
             ],

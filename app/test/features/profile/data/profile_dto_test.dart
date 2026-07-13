@@ -194,13 +194,13 @@ void main() {
       expect(result?.acceptedAt, dt);
     });
 
-    test('a MISSING acceptedAt → present with a null timestamp (the nullable '
-        'field; absent-safe status line)', () {
-      final result = profileFromMap(withConsent({'version': 1})).consent;
-      expect(result, isNotNull);
-      expect(result?.version, 1);
-      expect(result?.acceptedAt, isNull);
-    });
+    test(
+      'a MISSING acceptedAt → absent (fail closed — an un-timestamped '
+      'consent is unprovable; mirrors the server projectConsent, ADR-023 D4)',
+      () {
+        expect(profileFromMap(withConsent({'version': 1})).consent, isNull);
+      },
+    );
 
     test('absent consent → null', () {
       expect(profileFromMap(profileToMap(profile)).consent, isNull);

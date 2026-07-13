@@ -12,6 +12,8 @@ You can reach us about privacy at [CONTACT ADDRESS — to be completed by the fo
 
 ## What we collect, and where it is kept
 
+We collect your data electronically, by automated and partly automated means, as you use the app.
+
 Your relationship content lives in Google Cloud Firestore, in a European Union multi-region. This includes:
 
 - your free-text reflections and the answers you share with your partner (up to 2000 characters each)
@@ -36,7 +38,7 @@ Your content is encrypted while stored (Firestore's default at-rest encryption, 
 We state a legal basis for each purpose, because a notice that hides the basis is not a real notice.
 
 - To run the service you signed up for — sign in, your profile, pairing with your partner, streaks, and your subscription status — our basis is that this processing is necessary to perform our agreement with you. We do not wrap this in a consent request, because asking consent for something the service cannot exist without would mislead you.
-- To store and show your reflections, the answers you share, and your coach messages — the intimate heart of the app — our basis is your explicit consent. We treat this content as sensitive, take the careful reading, and ask for one clear consent before these features begin. It is required because this content is the service itself; without it there is nothing to reflect on together. If you decline, you can still sign out, download your data, or delete your account, directly and at once.
+- To store and show your reflections and the answers you share, and to process your coach messages in the moment — the intimate heart of the app — our basis is your explicit consent. We treat this content as sensitive, take the careful reading, and ask for one clear consent before these features begin. It is required because this content is the service itself; without it there is nothing to reflect on together. If you decline, you can still sign out, download your data, or delete your account, directly and at once.
 - To host your data on Google's European infrastructure, which is a cross-border transfer under Turkish law, our basis is contract necessity together with a standard contract filed with the authority. This transfer is disclosed to you as a notice. It is not based on your consent, and withdrawing your consent to the reflective features does not stop this hosting.
 
 ## Who else is involved
@@ -67,7 +69,7 @@ Nothing in Hayati expires on a timer. Your reflections and answers stay until yo
 
 ## Your rights
 
-Under Turkish data protection law you may: learn whether we process your data; ask what we hold and why; learn who it is shared with, at home and abroad; ask us to correct anything wrong; ask us to erase it; and seek redress if it was processed unlawfully. Two of these rights are built directly into the app:
+Under Turkish data protection law you may: learn whether we process your data; ask what we hold and why; learn who it is shared with, at home and abroad; ask us to correct anything wrong; ask us to erase it; ask that any correction or erasure be notified to those your data was shared with; object to a result that affects you adversely and was produced solely by automated analysis; and seek redress if it was processed unlawfully. Two of these rights are built directly into the app:
 
 - Download my data, in Settings, gives you a copy of your own data, inside the app, with nothing sent by email. It is strictly your own data — it never includes what your partner wrote.
 - Delete account and data, in Settings, permanently removes your account, your private reflections, and the entire shared space with your partner — both sides of every answer. This cannot be undone. It does not cancel an App Store subscription; you manage that in your App Store settings. It cannot un-reveal what your partner has already read or remembers. Your partner will see, calmly and inside the app the next time they open it, that the shared space was closed — not why, and with no push notification sent to them.

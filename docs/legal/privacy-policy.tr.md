@@ -12,6 +12,8 @@ Gizlilikle ilgili konularda bize [İLETİŞİM ADRESİ — kurucu tarafından do
 
 ## Neyi topluyoruz ve nerede tutuluyor
 
+Kişisel verileriniz, uygulamayı kullanmanız sırasında elektronik ortamda, otomatik ve kısmen otomatik yöntemlerle toplanır.
+
 İlişkinize dair içeriğiniz, Google Cloud Firestore üzerinde, Avrupa Birliği çoklu bölgesinde tutulur. Bu içerik şunları kapsar:
 
 - serbest metinle yazdığınız yansımalarınız ve partnerinizle paylaştığınız cevaplar (her biri en fazla 2000 karakter)
@@ -36,7 +38,7 @@ Bazı hizmet verileri Avrupa Birliği'nde tutulmaz. Her şeyin tek bir yerde old
 Her amaç için hukuki sebebi ayrıca belirtiyoruz, çünkü hukuki sebebi gizleyen bir metin gerçek bir aydınlatma değildir.
 
 - Kaydolduğunuz hizmeti yürütmek için — giriş, profiliniz, partnerinizle eşleşme, seriler ve abonelik durumunuz — hukuki sebebimiz, bu işlemenin sizinle olan sözleşmemizi ifa etmek için gerekli olmasıdır. Bunu bir açık rıza talebine sarmayız; hizmetin varlığı için zorunlu olan bir şey için rıza istemek sizi yanıltır.
-- Yansımalarınızı, paylaştığınız cevapları ve koç mesajlarınızı — uygulamanın mahrem çekirdeğini — saklamak ve göstermek için hukuki sebebimiz açık rızanızdır. Bu içeriği hassas kabul eder, ihtiyatlı yorumu benimser ve bu özellikler başlamadan önce tek ve açık bir rıza isteriz. Bu rıza gereklidir, çünkü bu içerik hizmetin ta kendisidir; o olmadan birlikte üzerine düşünülecek bir şey kalmaz. Rıza vermezseniz yine de çıkış yapabilir, verilerinizi indirebilir veya hesabınızı doğrudan ve anında silebilirsiniz.
+- Yansımalarınızı ve paylaştığınız cevapları saklamak ve göstermek, koç mesajlarınızı ise kaydetmeden anlık olarak işlemek için — uygulamanın mahrem çekirdeği — hukuki sebebimiz açık rızanızdır. Bu içeriği hassas kabul eder, ihtiyatlı yorumu benimser ve bu özellikler başlamadan önce tek ve açık bir rıza isteriz. Bu rıza gereklidir, çünkü bu içerik hizmetin ta kendisidir; o olmadan birlikte üzerine düşünülecek bir şey kalmaz. Rıza vermezseniz yine de çıkış yapabilir, verilerinizi indirebilir veya hesabınızı doğrudan ve anında silebilirsiniz.
 - Verilerinizi Google'ın Avrupa altyapısında barındırmak — ki bu, Türk hukuku kapsamında bir yurt dışına aktarımdır — için hukuki sebebimiz, sözleşmenin ifası için gereklilik ile Kurum'a bildirilen bir standart sözleşmedir. Bu aktarım size bir bildirim olarak sunulur. Açık rızanıza dayanmaz ve mahrem özelliklere ilişkin rızanızı geri almanız bu barındırmayı durdurmaz.
 
 ## Verileriniz kimlerle paylaşılır

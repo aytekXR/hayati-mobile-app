@@ -201,6 +201,27 @@ void main() {
 
     expect(find.text(en.consentStaleError), findsOneWidget);
     expect(find.text(en.consentCta), findsNothing);
+
+    // The escapes stay LIVE in the terminal stale state — a user held at the
+    // gate by an app-ahead-of-server skew keeps every right (xcut-2: the
+    // appflow-1 trap must not be re-created by the stale latch).
+    await tapText(tester, en.dataRightsDeleteRowTitle);
+    await tester.pumpAndSettle();
+    expect(find.byType(DeleteAccountScreen), findsOneWidget);
+  });
+
+  testWidgets('stale-after-accept: sign out remains tappable', (tester) async {
+    final env = arrange();
+    await pump(tester, env.overrides);
+    await tapText(tester, en.consentCta);
+    await tester.pump();
+    await tester.pump();
+    env.profiles.emitProfile(_uid, _staleConsented);
+    await tester.pumpAndSettle();
+
+    await tapText(tester, en.settingsSignOut);
+    await tester.pumpAndSettle();
+    expect(env.auth.signOutCalls, 1);
   });
 
   testWidgets('sign out routes through the auth controller', (tester) async {

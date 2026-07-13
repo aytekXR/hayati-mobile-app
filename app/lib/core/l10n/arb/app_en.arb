@@ -973,7 +973,7 @@
   "@consentTitle": {
     "description": "Title of the special-category consent gate (ADR-023 D3). TR/AR use the RESPECTFUL register on legal surfaces (ADR-020 D8 precedent)."
   },
-  "consentIntro": "Hayati stores the reflections you write, the answers you share with your partner, and your messages with the coach. We treat this as sensitive and ask for your clear consent before these features begin — it is required because this content is the heart of the app.",
+  "consentIntro": "Hayati stores the reflections you write and the answers you share with your partner, and processes your messages with the coach in the moment, without saving them. We treat this as sensitive and ask for your clear consent before these features begin — it is required because this content is the heart of the app.",
   "@consentIntro": {
     "description": "Consent gate paragraph — what is processed and why (the special-category bundle, ADR-023 D1/D3). Consistent with docs/legal/privacy-policy. TR/AR respectful register."
   },

@@ -73,15 +73,19 @@ Map<String, dynamic> profileToMap(RelationshipProfile profile) => {
 ///  - int `version`, `acceptedAt` a DateTime    → present (the repository has
 ///    already converted the wire `Timestamp` to a DateTime at the boundary,
 ///    like `createdAt` / `coupleEnded.at`);
-///  - int `version`, `acceptedAt` PRESENT-but-not-a-DateTime → null (absent):
-///    a corrupt timestamp voids the whole record, fail-closed.
+///  - int `version`, `acceptedAt` missing or not-a-DateTime → null (absent):
+///    an un-timestamped or corrupt record voids the whole consent,
+///    fail-closed — mirroring the server's projectConsent, which omits the
+///    export lane for the identical shape (ADR-023 D4).
 Consent? _consentField(Map<String, dynamic> data) {
   final raw = data['consent'];
   if (raw is! Map) return null;
   final version = raw['version'];
   if (version is! int) return null;
   final acceptedAtRaw = raw['acceptedAt'];
-  if (acceptedAtRaw == null) return Consent(version: version);
+  // Missing OR wrong-typed acceptedAt voids the whole record (fail-closed,
+  // ADR-023 D4: a consent the server would not export — projectConsent omits
+  // the lane for this same shape — must not satisfy the gate either).
   if (acceptedAtRaw is! DateTime) return null;
   return Consent(version: version, acceptedAt: acceptedAtRaw);
 }
