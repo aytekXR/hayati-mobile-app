@@ -7,13 +7,14 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-13, Session 022 close (M6.3 — **store metadata TR/EN
-+ the release lane + the performance pass**: the App Store listing text exists
-in two languages, the tag-to-TestFlight pipeline is built and proves its own
-missing-secrets boundary loudly, and the app's cold start got structurally
-faster with the bootstrap shape now pinned by a test; **21/22 units, 95% —
-the MVP engineering plan is COMPLETE except the halves only you can unblock**).
-The TestFlight runbook lives below._
+_Last refreshed: 2026-07-13, Session 022 close + post-merge proof round
+(M6.3 — **store metadata TR/EN + the release lane + the performance pass**:
+the App Store listing text exists in two languages, the tag-to-TestFlight
+pipeline is built AND its missing-secrets boundary was executed and proven
+loud (pre-signing stages green, honest red exactly at the gate), and the
+app's cold start got structurally faster with the bootstrap shape pinned by
+a test; **21/22 units, 95% — the MVP engineering plan is COMPLETE except the
+halves only you can unblock**). The TestFlight runbook lives below._
 
 ## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** But the finish line is now genuinely yours: **item 6 (pick the AI provider — OVERDUE since Session 019; M5.3 is the ONLY planned session-unit left in the whole MVP, and it waits on this alone)** and **item 4 (the Apple Developer enrollment, promised 2026-07-08 — the release lane is BUILT and waiting: the day you enroll and add three copy-paste secrets, a git tag produces a signed TestFlight build)**. Session 022 also surfaced a small set of **new, non-blocking founder decisions for the store listing** — the store name, the label under the discreet icon, and the missing privacy/support web pages — all listed under the NEW item 8 below. Item 7 (should coach chats ever be saved?) stays open, non-blocking.
 
@@ -25,9 +26,11 @@ TestFlight, and made the app start faster.
 
 **0.1. The App Store listing text now exists — and it needs your eyes (TR) before launch.** `fastlane/metadata/` holds the store name, subtitle, description, and keywords in Turkish and English, written in the brand voice and deliberately claiming nothing the app can't do (the privacy paragraph uses the settings screen's own honest wording). It joins item 1's native-review gate. Two decisions inside it are provisional and YOURS (see item 8): the store name "Hayati" (trademark check pending) and whether the on-device label stays "Hayati App".
 
-**0.2. The release pipeline exists and is honest about what it can't do yet.** Pushing a version tag now runs: metadata lint → the full emulator integration suite → a real release build with a size report → and then a signing step that **deliberately fails with a clear message** telling you exactly which secrets are missing and where they go. That red is truthful — the moment your enrollment lands and you add the three App Store Connect keys (item 4), the same pipeline signs and uploads to TestFlight. Nothing pretends; nothing silently skips.
+**0.2. The release pipeline exists, is honest about what it can't do yet — and has now PROVEN it.** Pushing a version tag runs: metadata lint → the full emulator integration suite → a real release build with a size report → and then a signing step that **deliberately fails with a clear message** telling you exactly which secrets are missing and where they go. The proof run happened at session close: every pre-signing stage green on the first real execution, then the honest red at exactly the signing gate, naming the three missing secrets and pointing at item 4. The moment your enrollment lands and you add the three App Store Connect keys, the same pipeline signs and uploads to TestFlight. Nothing pretends; nothing silently skips. First real measurement from that run: **the app is 64 MB uncompressed** — comfortably small.
 
-**0.3. The app starts faster, provably.** The startup path was audited step by step: a timezone-database parse moved off the critical path, two pairs of independent reads now run simultaneously, and a test now pins the exact set of things allowed to run before the first frame — so no future change can quietly slow the boot. What did NOT change: the privacy lock still decides the very first frame (that is a security guarantee, not an optimization target). The honest cold-start numbers still need a real device — that check is on item 4's on-device list.
+**0.3. The app starts faster, provably.** The startup path was audited step by step: a timezone-database parse moved off the critical path, two pairs of independent reads now run simultaneously, and a test now pins the exact set of things allowed to run before the first frame — so no future change can quietly slow the boot. First measured numbers (CI simulator, debug build — diagnostics, not the real thing): app boot work ~435 ms, first frame at ~874 ms. What did NOT change: the privacy lock still decides the very first frame (that is a security guarantee, not an optimization target). The honest cold-start numbers still need a real device — that check is on item 4's on-device list.
+
+**0.4. Two small bugs were caught and fixed in the same session, both by the proof runs, not by luck:** a test broken since yesterday's merge (it predates this session and had gone unnoticed — main is green again), and a size-checker that would have silently passed any app size (it now refuses to pass anything it cannot actually measure).
 
 **1. "Delete my account" now exists, and it means it.** Settings → Delete
 account & data. It asks twice (and for your PIN if the lock is on), tells you
