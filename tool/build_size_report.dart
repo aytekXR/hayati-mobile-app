@@ -100,16 +100,6 @@ void main(List<String> args) {
     return;
   }
 
-  final total = _nodeBytes(decoded);
-  if (total == null) {
-    stderr.writeln(
-      'build_size_report: ${file.path} has no size total (expected node keys '
-      '`value`/`children`). A tree that cannot be measured cannot pass.',
-    );
-    exitCode = _exitUsage;
-    return;
-  }
-
   stdout.writeln('build_size_report: source ${file.path}');
 
   final children = decoded['children'];
@@ -125,6 +115,25 @@ void main(List<String> args) {
     }
   }
   rows.sort((a, b) => b.value.compareTo(a.value));
+
+  // The real flutter treemap root carries `value: 0` with the bundle under
+  // children (observed on the first live build-report run, Session 022) — a
+  // root-value read alone reported "total 0 bytes" and PASSED, the exact
+  // fail-open ADR-022 D4 forbids. Prefer the children sum whenever the root
+  // value is non-positive, and refuse to gate on a non-positive total at all
+  // (the coverage-gate 0/0 precedent).
+  final rootValue = _nodeBytes(decoded) ?? 0;
+  final childrenSum = rows.fold<int>(0, (sum, row) => sum + row.value);
+  final total = rootValue > 0 ? rootValue : childrenSum;
+  if (total <= 0) {
+    stderr.writeln(
+      'build_size_report: ${file.path} yields a zero-byte total (root value '
+      '$rootValue, children sum $childrenSum). A tree that cannot be measured '
+      'cannot pass the budget.',
+    );
+    exitCode = _exitUsage;
+    return;
+  }
 
   stdout.writeln('build_size_report: top-level breakdown (uncompressed):');
   for (final row in rows) {
