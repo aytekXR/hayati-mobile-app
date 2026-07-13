@@ -221,9 +221,7 @@ int runStoreMetadataLint(
           );
         }
         if (content.trim().contains('\n')) {
-          violations.add(
-            '$where: internal newline in a single-line field.',
-          );
+          violations.add('$where: internal newline in a single-line field.');
         }
       }
 
@@ -263,8 +261,9 @@ int runStoreMetadataLint(
 
   final scope = locales.join(', ');
   if (violations.isNotEmpty) {
-    final withWarnings =
-        warnings.isEmpty ? '' : ' (${warnings.length} warning(s))';
+    final withWarnings = warnings.isEmpty
+        ? ''
+        : ' (${warnings.length} warning(s))';
     err.writeln(
       'store_metadata_lint: FAIL — ${violations.length} violation(s) across '
       '$scope$withWarnings.',
@@ -272,14 +271,17 @@ int runStoreMetadataLint(
     return 1;
   }
 
-  final withWarnings =
-      warnings.isEmpty ? '' : ', ${warnings.length} warning(s)';
+  final withWarnings = warnings.isEmpty
+      ? ''
+      : ', ${warnings.length} warning(s)';
   out.writeln('store_metadata_lint: PASS — $scope validated$withWarnings.');
   return 0;
 }
 
 String _baseName(String path) {
-  final trimmed = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+  final trimmed = path.endsWith('/')
+      ? path.substring(0, path.length - 1)
+      : path;
   final slash = trimmed.lastIndexOf('/');
   return slash == -1 ? trimmed : trimmed.substring(slash + 1);
 }

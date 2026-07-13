@@ -126,7 +126,10 @@ void main() {
     _writeLocale(root, 'en-US', overrides: {'keywords': 'couples,Couples'});
     (code, out, err) = _run(root, ['--allow-empty-urls', 'en-US']);
     _check('duplicate keyword exits 1', code == 1);
-    _check('duplicate keyword is named', err.contains('duplicate keyword term'));
+    _check(
+      'duplicate keyword is named',
+      err.contains('duplicate keyword term'),
+    );
 
     // Empty keyword term (a stray comma).
     _reset(root);
