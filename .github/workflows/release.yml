@@ -351,3 +351,36 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_PATH: ${{ runner.temp }}/AuthKey.p8
         run: bundle exec fastlane ios store_metadata
+
+  slack-notify:
+    name: slack-notify
+    # ADR-024, same shape and same script as ci.yml's terminal job (D1: one
+    # tested source, not four drifting copies — the reference repo already has
+    # two copies reporting the NOTIFIER's own job name instead of what broke).
+    #
+    # Deliberately NO `environment: release` (ADR-024 D4). `sign-upload` binds it
+    # for the ASC_* secrets, but this job must post on failures from ANY job —
+    # including a `sign-upload` that fail-closed BECAUSE that environment has no
+    # secrets yet. Binding the notifier to the same environment would be circular.
+    # Hence SLACK_WEBHOOK_URL is a REPOSITORY secret; the S022 lesson runs the
+    # other way here, and getting it backwards is the silently-green failure mode
+    # this repo has already paid for once.
+    #
+    # A release notifies on success too (unlike a PR): a release build is always
+    # worth a line.
+    needs: [preflight, integration, build-report, sign-upload]
+    if: always()
+    continue-on-error: true          # D3: the notifier has no vote on the build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: notify slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+          COMMIT_TITLE: ${{ github.event.head_commit.message || '' }}
+          HEAD_SHA: ${{ github.sha }}
+        run: bash tool/ci/slack_notify.sh
