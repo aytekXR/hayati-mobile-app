@@ -124,9 +124,28 @@ jobs_line="$(printf '%s' "$needs_json" | jq -r '
 failed_jobs="$(printf '%s' "$needs_json" | jq -r '
   [to_entries[] | select(.value.result == "failure") | .key] | join(", ")')"
 
+# Slack mrkdwn escaping. `jq --arg` makes a value safe as JSON and safe from the
+# shell — it does NOT make it safe from Slack's RENDERER, which runs client-side
+# after delivery. Slack's own guidance: escape &, < and > in `text`. Without
+# this, a branch literally named `feat/<!channel>` (a valid git ref — GitHub
+# permits < and >) renders as an active @channel mention in the founder's
+# channel, and `<url|label>` renders as a hyperlink whose label can disagree with
+# its target — i.e. a message from CI that can lie about where it points.
+# Order matters: & first, or the escapes get double-escaped.
+slack_escape() {
+  printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+}
+
 # First line only, CR stripped (a commit body must not become a Slack essay).
 subject="$(printf '%s' "${COMMIT_TITLE:-}" | tr -d '\r' | head -n 1)"
 [ -n "$subject" ] || subject="(no commit subject)"
+
+# The three attacker-influenced free-text fields. (repo/workflow/job names come
+# from our own YAML; the SHA is hex; the failed-job list is derived from job
+# names — none of them are attacker-authored.)
+subject="$(slack_escape "$subject")"
+branch="$(slack_escape "${GITHUB_REF_NAME:-}")"
+actor="$(slack_escape "${GITHUB_ACTOR:-}")"
 
 sha="${HEAD_SHA:-${GITHUB_SHA:-}}"
 short_sha="${sha:0:7}"
@@ -150,8 +169,8 @@ fi
 
 text="$(printf '%s — %s / %s\n\nBranch: %s\nCommit: %s — %s\nActor: %s\nJobs: %s' \
   "$headline" "$repo_name" "${GITHUB_WORKFLOW:-}" \
-  "${GITHUB_REF_NAME:-}" "$short_sha" "$subject" \
-  "${GITHUB_ACTOR:-}" "$jobs_line")"
+  "$branch" "$short_sha" "$subject" \
+  "$actor" "$jobs_line")"
 
 if [ "$outcome" = "failure" ] && [ -n "$failed_jobs" ]; then
   text="$(printf '%s\nFailed: %s' "$text" "$failed_jobs")"
@@ -194,8 +213,13 @@ fi
 # the total. (--retry covers transient 5xx/429/timeouts; a connection-refused is
 # not retried, which is what makes the dead-port self-test hermetic and fast.)
 # -f => a 4xx/5xx is a non-zero exit with no body echoed; -s => no progress noise.
-# The URL is passed last and never echoed; the payload arrives on stdin (--data @-)
-# so it cannot land in a process listing either.
+# `>/dev/null 2>&1` keeps curl's own output and error text out of the build log.
+# The PAYLOAD travels on stdin (--data @-), so it never enters the argument
+# vector. The URL, being a positional argument, IS visible in `ps` and
+# /proc/<pid>/cmdline for as long as curl runs — stating otherwise would be a
+# comment claiming a guarantee the code does not deliver. That exposure is
+# accepted: a GitHub-hosted runner is a single-tenant ephemeral VM with no
+# co-tenant process to observe it.
 if printf '%s' "$payload" \
   | curl -sf -X POST \
       -H 'Content-Type: application/json' \

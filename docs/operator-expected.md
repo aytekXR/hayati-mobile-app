@@ -867,12 +867,72 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
 > (4) let an unhooked Mac session commit via its ritual + run the UI-test
 > lane. Optional: gstack 1.39 → 1.60 (`/gstack-upgrade`).
 
-## 5. Slack webhook rotation (from Session 005, still open)
+## 5. **ACTION NEEDED (Session 025): rotate the leaked Slack webhook, then turn CI notifications on with one command**
 
-The local branch `chore/slack-notifications` holds commit `13f1e6d` with a
-**live incoming-webhook URL**; GitHub push protection rejects it. Rotate the
-webhook in Slack (treat it as leaked), store the new one as a **repository
-secret**, then rework/land the branch.
+You asked Session 025 to wire Slack into CI (modelled on ams-pulse). **The
+wiring is built, tested and merged — and it is deliberately SILENT until you
+do the four steps below.** It will never spam you, never warn, and never turn
+a build red while the secret is missing; a repo with no webhook is simply a
+repo with no webhook.
+
+**First, the security part — this has been open since Session 005 and is still
+not done.** The local branch `chore/slack-notifications` (commit `13f1e6d`)
+has a **live Slack webhook URL written in plain text inside a workflow file**.
+It never reached GitHub (push protection blocked it), but a credential sitting
+in a git commit is a leaked credential. Anyone holding that URL can post
+messages into your Slack channel.
+
+1. **Revoke the old webhook** in Slack: api.slack.com/apps → the app that owns
+   it → *Incoming Webhooks* → remove that webhook. **Do not push, merge, or
+   "finish" the `chore/slack-notifications` branch** — Session 025 shipped what
+   it was for, correctly, and its old instruction to "land the branch" was
+   wrong and is now deleted. (A session did not delete the branch for you: it
+   is the evidence of *which* webhook to revoke, and it is not ours to destroy.
+   Once you've revoked, `git branch -D chore/slack-notifications` is safe.)
+2. **Create a fresh Incoming Webhook.** api.slack.com/apps → *Create New App*
+   (if you have none) → *From scratch* → name it e.g. `Hayati CI` → pick your
+   workspace → *Create App*. Then **Features → Incoming Webhooks → toggle
+   Activate ON → Add New Webhook to Workspace** → choose the channel → *Allow*
+   → copy the URL (it looks like `https://hooks.slack.com/services/T…/B…/…`).
+   **It must be an *Incoming Webhook*, NOT a Workflow-Builder webhook** — the
+   latter validates the body against its own schema and would reject our
+   messages with a silent 400.
+3. **Store it — as a REPOSITORY secret. This is the one place it is easy to go
+   wrong:**
+
+   ```sh
+   gh secret set SLACK_WEBHOOK_URL --body 'https://hooks.slack.com/services/…'
+   ```
+
+   **Do NOT put it in the `release` environment.** The only other secrets in
+   this repo (the three `ASC_*` signing keys, item 4) *do* live there, so the
+   natural instinct is to copy that — but the notifier deliberately has no
+   environment binding (it has to be able to report a *failing* signing job,
+   which would be circular). An environment secret would be **invisible** to
+   it, and the failure looks exactly like "no webhook configured": silence,
+   forever, with nothing red to tell you why.
+4. **Confirm it worked.** The next push to `main` posts the first message. If
+   it doesn't, open that run's `slack-notify` job log: it says why in one line
+   — `notification delivered` (working), a `::notice::` (the secret isn't
+   visible → you're in step 3's trap), or a `::warning::` (the webhook was
+   rejected → likely a Workflow-Builder webhook, step 2).
+
+**What you'll get, and what you won't** (the noise policy is deliberate — a
+channel that pings for everything gets muted, and a muted channel swallows the
+one message that matters): **failures always**, on PRs and on `main`.
+**Successes only on `main`, on a manual re-run, and on releases** — never for
+the routine PR pushes a session makes, because the session is already watching
+those itself. The message carries the branch, commit, actor, run link and a
+per-job line (`quality ✅ · integration-emulator ⏭`), and **never any log
+content**.
+
+**Why this matters more than it sounds:** the one CI event in this project with
+**no reader at all** is a failing `integration-emulator` on `main` — it runs
+only *after* a merge (macOS minutes bill at 10×, so it can't run on every PR),
+which is after the session has moved on. That is the message this exists to
+deliver. Session 025 also found and fixed a bug where that run was being
+*cancelled* by the session's own closing commit — so the verdict was being
+destroyed before anyone could read it.
 
 ## Progress & readiness snapshot (as of Session 023 close)
 

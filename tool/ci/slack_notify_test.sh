@@ -198,6 +198,44 @@ else
   ok "noise policy: cancelled runs are silent"
 fi
 
+# workflow_dispatch is the LAST row of D2's table, and it is the row that matters
+# when something has already gone wrong: hand-firing `gh workflow run ci.yml
+# --ref main` is how a session recovers a verdict (the S023 recovery). Without
+# this case, widening the suppression guard to also swallow workflow_dispatch
+# successes passes all the other tests — the very "policy protected by nothing"
+# failure that moved the policy into the script in the first place.
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=workflow_dispatch
+if ! jq -e '.text' >/dev/null 2>&1 <<<"$STDOUT"; then
+  bad "noise policy: workflow_dispatch success MUST notify — a dispatch is a deliberate question and deserves its answer (D2)" "stdout=$STDOUT"
+else
+  ok "noise policy: workflow_dispatch success notifies (the verdict-recovery path)"
+fi
+
+# ---------------------------------------------------------------------------
+# 6b. SLACK MRKDWN ESCAPING. `jq --arg` makes a value safe as JSON and safe from
+#     the shell; it does NOTHING about Slack's renderer, which runs client-side
+#     after delivery. `feat/<!channel>` is a VALID git branch name, and Slack
+#     renders `<!channel>` as a live @channel mention — a CI notifier that can be
+#     made to ping everyone by naming a branch. `<url|label>` is worse: it renders
+#     a hyperlink whose visible label can disagree with its target, so a message
+#     from CI could point somewhere it does not claim to.
+# ---------------------------------------------------------------------------
+run SLACK_DRY_RUN=1 NEEDS_JSON="$QUALITY_RED" GITHUB_EVENT_NAME=push \
+    GITHUB_REF_NAME='feat/<!channel>' GITHUB_ACTOR='<https://evil.test|github>' \
+    COMMIT_TITLE='subject with <tag> & ampersand'
+text="$(jq -r '.text' <<<"$STDOUT" 2>/dev/null)"
+if grep -qF '<!channel>' <<<"$text"; then
+  bad "mrkdwn: a branch named 'feat/<!channel>' must NOT render as a live @channel mention" "text=$text"
+elif grep -qF '<https://evil.test|github>' <<<"$text"; then
+  bad "mrkdwn: an actor string must NOT render as a label-spoofing hyperlink" "text=$text"
+elif ! grep -qF '&lt;!channel&gt;' <<<"$text"; then
+  bad "mrkdwn: the branch name must survive as ESCAPED literal text" "text=$text"
+elif ! grep -qF '&amp;' <<<"$text"; then
+  bad "mrkdwn: '&' must be escaped first (or the other escapes get double-escaped)" "text=$text"
+else
+  ok "mrkdwn escaping: <, > and & are escaped — no @channel mention, no spoofed link"
+fi
+
 # ---------------------------------------------------------------------------
 # 7. The PR-event SHA is the branch head, not the ephemeral merge commit. (D5)
 #    GITHUB_SHA on a pull_request run points at a commit that exists in no
@@ -283,9 +321,12 @@ if [ "$CODE" -ne 0 ]; then
 elif ! grep -q '::warning::' <<<"$STDOUT"; then
   bad "POST failure: emits ::warning:: (visible, never fatal)" "stdout=$STDOUT"
 elif assert_no_leak "failed-POST path"; then
-  # curl's own error text is the classic leak vector here — it is happy to echo
-  # the URL it could not reach.
-  ok "POST failure => ::warning:: + exit 0, and the URL does not leak via curl's error output"
+  # The real leak vector on this path is the SCRIPT's own warn()/info() text — a
+  # future edit that helpfully wrote "POST to $SLACK_WEBHOOK_URL failed" would
+  # surface right here. (Not curl: `curl -sf` emits zero bytes on a refused
+  # connection, and its output is redirected to /dev/null regardless — claiming
+  # otherwise would be a comment that misattributes what this test protects.)
+  ok "POST failure => ::warning:: + exit 0, and the script's own diagnostics never print the URL"
 fi
 
 # ---------------------------------------------------------------------------
