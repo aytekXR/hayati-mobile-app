@@ -19,9 +19,24 @@ on:
   workflow_dispatch:
 
 # Cancel a superseded run on the same ref (rapid re-push / force-push) to save
-# billed minutes.
+# billed minutes — but NEVER across two distinct commits on main (ADR-024 D8).
+#
+# Ref-keying alone was destroying the very signal this repo relies on: the
+# session merges a PR (main run A starts, integration-emulator boots for ~25-50
+# min), then pushes its close commit ~15 min later (session-rules §3.4). Run B
+# CANCELLED run A — and run B, being docs-only, SKIPS integration-emulator
+# (code_changed=false, ci-debt #17). The merged code's only post-merge verdict
+# was silently lost. Two of the five main runs before this change are
+# `cancelled` (3407f03, e6144ab); S023 had to hand-fire a workflow_dispatch to
+# recover the verdict.
+#
+# So: push events key on the COMMIT (each main commit gets its own group and is
+# never cancelled by the next one); everything else keys on the ref, so PR
+# re-pushes still cancel their predecessor and the Session-004 billing
+# protection is untouched. The extra surviving run is the docs-only one, which
+# skips both 10x-billed macOS jobs by construction.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'ref' }}
   cancel-in-progress: true
 
 # Least-privilege token: every job only checks out and builds — none writes to
@@ -97,6 +112,18 @@ jobs:
         run: dart tool/store_metadata_lint_test.dart
       - name: store metadata lint
         run: dart tool/store_metadata_lint.dart --allow-empty-urls tr en-US
+      # ADR-024 D1: the Slack notifier is bash, and bash gets neither
+      # `dart format` (it silently ignores *.sh) nor `dart analyze`. shellcheck
+      # is the static half of that gate (SC2086-class unquoted expansions); the
+      # self-test is the behavioural half — it pins the noise policy, the
+      # injection defence, the anti-leak sentinel, and the fail-open invariant
+      # (a notifier that can red a green build is a worse defect than a missed
+      # message). Both are needed; neither subsumes the other. bash+jq+python3
+      # only, so they sit here with the other pre-pub-get self-tests.
+      - name: shellcheck (ci scripts)
+        run: shellcheck tool/ci/*.sh
+      - name: slack notifier self-tests
+        run: bash tool/ci/slack_notify_test.sh
       - name: pub get
         working-directory: app
         run: flutter pub get
@@ -380,3 +407,53 @@ jobs:
                  -d "$DEVICE_ID" -r expanded --timeout none || exit 1
                echo "::endgroup::"
              done'
+
+  slack-notify:
+    name: slack-notify
+    # ADR-024. The terminal fan-in: ONE message per run, never one per job.
+    # It exists for a single event — the post-merge `integration-emulator` red,
+    # which by cost design lands on main AFTER the session's attention has moved
+    # on, and today has no reader at all.
+    #
+    # `if: always()` so it also runs when an upstream job failed or was skipped
+    # (skipped != failed, and this repo skips constantly by design).
+    #
+    # `continue-on-error: true` is LOAD-BEARING, not decoration (ADR-024 D3): the
+    # script's own exit-0 paths cannot cover a failure that happens BEFORE it
+    # starts — a transient checkout error, a dead runner, the job timeout. Any of
+    # those would red this job and, through it, the whole workflow run — and
+    # project-rules #7 ("every push must pass the entire pipeline") would then
+    # stop a session over a notifier hiccup on a perfectly green build. The
+    # invariant is that this job has NO VOTE on whether the build passed.
+    # It is NOT `|| true` in disguise: a failure still renders red in the Actions
+    # UI and in `gh run view --log-failed`; only the cascade to the run's
+    # conclusion is blocked.
+    needs: [quality, functions-rules, ios-build-smoke, integration-emulator]
+    if: always()
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # The script lives in the repo (ADR-024 D1 — one tested source, not four
+      # drifting copies), so this job checks out. ~5s on ubuntu.
+      - uses: actions/checkout@v5
+      # ONE step, no `if:`. All outcome logic (success / failure / cancelled) and
+      # the noise policy live INSIDE the script, where the self-test can see them
+      # (ADR-024 D2). A YAML `if:` expression is invisible to bash, so a policy
+      # kept there is a policy protected by nothing.
+      - name: notify slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+          # Attacker-influenced text NEVER reaches a `run:` block through `${{ }}`.
+          # On pull_request, head_commit does not exist — an implementer who wires
+          # only the commit subject finds it blank on PRs and reaches for an
+          # inline ${{ github.event.pull_request.title }}, which is the injection
+          # hole. Both shapes are covered here so there is no decision left.
+          COMMIT_TITLE: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
+          # On a PR, github.sha is the EPHEMERAL merge commit: it appears in no
+          # branch and no git log the founder can run. Report the branch head.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash tool/ci/slack_notify.sh

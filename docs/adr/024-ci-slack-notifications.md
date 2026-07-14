@@ -48,7 +48,8 @@ Hayati extracts the notifier into **`tool/ci/slack_notify.sh`**, invoked from bo
 - only the **first line** of a multi-line commit subject is sent, and multibyte TR/AR subjects survive intact;
 - the failure payload names the **failed jobs and ONLY the failed jobs** — the fixture has `quality=failure` with the rest `skipped`, and the test asserts `quality` **is** present *and* that a skipped job name is **absent**. (A one-sided "is quality there?" assertion passes an implementation that dropped `select(.value.result == "failure")` and lists every job — which is precisely the ams-pulse drift bug this decision exists to prevent.)
 - the **PR-event SHA** is the branch head, not the ephemeral merge commit (D5);
-- **the noise policy itself** — `NOTIFY_MODE=success` + `GITHUB_EVENT_NAME=pull_request` → silent; `push`/`workflow_dispatch` → payload (D2 lives in the script precisely so this line exists);
+- **the outcome derivation** — `failure` when any need failed (even alongside a `skipped` cascade), `cancelled` when any need was cancelled and none failed, `success` otherwise;
+- **the noise policy itself** — a successful `pull_request` run → silent, no POST; the same needs on a `push` → payload; a `cancelled` run → silent (D2 lives in the script precisely so these lines exist);
 - **anti-leak sentinel:** with a webhook set, the webhook value appears in neither stdout nor stderr — the notifier is the one script in the repo that holds a secret in a variable, so "it never prints it" is a guarantee that gets a test, not a promise (the S020 *assert the mechanism* rule);
 - **`jq` missing → `::warning::` + exit 0** (PATH-shadow fixture), so D3's tool-missing invariant is pinned rather than merely asserted;
 - a POST failure (connection refused against a dead port — hermetic, no network) → `::warning::` + **exit 0**, never a red (D3);
@@ -66,7 +67,9 @@ ams-pulse notifies on **every** run of every workflow, success included — PRs 
 | `release.yml` (tag or dispatch) | **notify** — a release build is always worth a line | **notify** (incl. the `sign-upload` fail-closed secrets gate, ADR-021) |
 | **cancelled** (any) | **never** | **never** — a superseded run is not an event. **D8 is what makes this safe:** before D8, the run most likely to be cancelled was the one carrying the `integration-emulator` verdict. |
 
-**Where the policy lives is itself a decision (rev 2).** Rev 1 put the event allowlist in the YAML step's `if:` — which the shell self-test *cannot see*. A one-line edit dropping `github.event_name != 'pull_request'` would have re-enabled PR-success spam with all self-tests still green: a noise policy whose entire justification is channel-health, protected by nothing. So the policy moves **into the script**, driven by `NOTIFY_MODE` (`success`|`failure`, set by the step) and `GITHUB_EVENT_NAME` — and D1's suite pins it. The YAML keeps only outcome routing.
+**Where the policy lives is itself a decision (rev 2).** Rev 1 put the event allowlist in the YAML step's `if:` — which the shell self-test *cannot see*. A one-line edit dropping `github.event_name != 'pull_request'` would have re-enabled PR-success spam with all self-tests still green: a noise policy whose entire justification is channel-health, protected by nothing.
+
+So **the whole policy moves into the script**, and the YAML keeps *no* outcome logic at all — not even the success/failure split. The script reads `NEEDS_JSON` (`toJson(needs)`) and derives the outcome itself: **failure** if any need failed, else **cancelled** if any was cancelled, else **success**; then it applies the PR-success suppression. This is why there is **one** notifier step with **no** `if:` condition, rather than the reference's success/failure pair. The alternative — two steps whose `if:` expressions carry `contains(needs.*.result, 'cancelled')` — would leave the *cancelled* rule sitting in YAML, untestable, which is the identical defect this decision exists to close. Every branch of the table above is now a line in D1's suite.
 
 It remains a **one-line flip**: to get ams-pulse's every-run behaviour, delete the pull-request guard *in the script* — a deletion the self-test fails on immediately, which is the point. Recorded as a revisit trigger, not a permanent verdict.
 
@@ -126,16 +129,17 @@ Message content is **repo metadata only** — no log excerpts, ever: CI logs in 
 - **`release.yml`:** `needs: [preflight, integration, build-report, sign-upload]`, same shape.
 - **`quality` gains two pre-`pub get` steps** — `shellcheck tool/ci/*.sh` and `bash tool/ci/slack_notify_test.sh`. **This is the mechanism that makes D1's "runs in `quality`" true.** Rev 1 specified the new job but never said to touch `quality`; an implementer reading D6 as the wiring spec would have shipped a test file that CI never executes, leaving every "pinned" property in D1 un-pinned.
 
-The step's `env:` stanza, verbatim (the injection rule of the Context section, made executable):
+The notifier job holds **one step with no `if:`** (D2: all outcome logic lives in the script). Its `env:` stanza, verbatim — the injection rule of the Context section, made executable:
 
 ```yaml
 env:
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  NOTIFY_MODE: <success|failure>                      # D2 lives in the script
-  NEEDS_JSON: ${{ toJson(needs) }}
+  NEEDS_JSON:   ${{ toJson(needs) }}                  # the script derives success/failure/cancelled
   COMMIT_TITLE: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
   HEAD_SHA:     ${{ github.event.pull_request.head.sha || github.sha }}
 ```
+
+Everything else the payload needs (`GITHUB_REPOSITORY`, `GITHUB_WORKFLOW`, `GITHUB_REF_NAME`, `GITHUB_ACTOR`, `GITHUB_RUN_ID`, `GITHUB_SERVER_URL`, `GITHUB_EVENT_NAME`) is already in the runner's default environment — no `${{ }}` needed, so none is written.
 
 **Skipped ≠ failed**, and this repo skips jobs constantly by design (`ios-build-smoke` on drafts and docs-only pushes; `integration-emulator` on every PR; `sign-upload` never skips — it fails closed). `contains(needs.*.result, 'failure')` reads `skipped` as what it is, so a PR run whose `integration-emulator` never ran still reports success — and a run where `quality` failed and everything downstream went `skipped` still reports **failure**, naming `quality`. Both are pinned by the self-test's fixture payloads.
 
