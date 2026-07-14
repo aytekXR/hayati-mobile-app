@@ -7,12 +7,22 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-13, **operator interlude after the Session 023
-close** — docs-only: you asked how to test on your physical iPhone with the
-Mac, so the **★ direct-install on-device recipe** (no TestFlight, no
-enrollment, no deploy needed) was added below, right after the TestFlight
-runbook. No code changed; Session 024's objective (the hardening sweep) is
-staged and unchanged. The Session 023 close summary stands:_
+_Last refreshed: 2026-07-14, **Session 025 close** (CI → Slack notifications,
+your directive today). **One new thing is expected from you, and part of it is
+a security action: item 5 below — rotate the leaked Slack webhook, then turn
+the notifications on with one command.** The wiring is built, tested and
+merged; it is deliberately **silent** until you do that, and its silence is by
+design, not a fault. Session 025 also fixed a CI bug worth knowing about: the
+session's own closing commit was **cancelling** the post-merge test run that
+carries the only full end-to-end verdict — so that verdict was being destroyed
+before anyone could read it. And it repaired Session 024's close, which never
+ran (its work had merged and gone green; its paperwork and one issue were left
+open)._
+
+_Nothing about the product changed this session — no app code was touched.
+Session 024's summary (the hardening sweep: the change-PIN flow, the iOS
+privacy manifest, a de-quarantined test, CI runtime bumps) and Session 023's
+before it (the consent surface + legal bundle) both stand:_
 
 _Session 023 close (mvp item 12 — **the legal
 bundle's buildable half: the consent screen, the privacy policy and terms in
@@ -24,7 +34,27 @@ that can be built without your input is now DONE; M5.3 is the only planned
 unit left and it waits on item 6 alone**). The TestFlight runbook lives
 below._
 
-## Expected from you right now: **NOTHING IS BLOCKING — no action was required this session and none was taken on your behalf.** _(Interlude 2026-07-13: you said you'll test on the physical iPhone — the ★ direct-install recipe below is the lane that works TODAY, before the enrollment lands.)_ The finish line is still yours: **item 6 (pick the AI provider — OVERDUE since Session 019; M5.3 is the ONLY planned session-unit left, and it waits on this alone)** and **item 4 (the Apple Developer enrollment — the release lane is BUILT and waiting)**. Session 023 created ONE new founder gate: **item 9 below — the legal bundle needs your eyes (and your lawyer's) before public launch**: six drafted documents to review, three blanks only you can fill, three recorded lawyer questions, and one real legal action (a signed data-transfer contract with Google, filed with the Turkish authority within 5 business days of signing). None of it blocks the next engineering session. Items 7 (coach-chat retention) and 8 (store-listing decisions) stay open, non-blocking.
+## Expected from you right now: **nothing BLOCKS the next engineering session — but item 5 is a SECURITY action that has been open since Session 005 and is still not done.**
+
+**Do this one first (10 minutes): item 5 — rotate the leaked Slack webhook.** A
+live webhook URL is sitting in plain text inside a commit on an old local
+branch. It never reached GitHub, but a credential in a git commit is a leaked
+credential, and it has been sitting there for roughly twenty sessions because
+the checklist entry describing it was **wrong** — it told you to "land the
+branch," i.e. to push the credential. That entry is now rewritten as four
+concrete steps (revoke → mint a fresh webhook → one `gh secret set` command →
+confirm). Doing it also switches your new CI notifications on.
+
+The finish line is still yours: **item 6 (pick the AI provider — OVERDUE since
+Session 019; M5.3 is the ONLY planned session-unit left, and it waits on this
+alone)** and **item 4 (the Apple Developer enrollment — the release lane is
+BUILT and waiting)**. Item 9 (the legal bundle — six documents, three blanks,
+three lawyer questions, one KVKK filing) stays open before public launch, and
+items 7 (coach-chat retention) and 8 (store-listing decisions) stay open,
+non-blocking. **Your two directives from today are both handled:** Slack→CI
+shipped this session; the **UI/UX Pro Max refactor** is recorded in the roadmap
+and is the next session's work (a scoping ADR first — no pixels move until the
+plan and its safety boundaries are written down).
 
 **Session 023 needed nothing from you mid-flight.** It built the consent
 screen, wrote the privacy policy and terms in Turkish, Arabic, and English,
@@ -934,7 +964,27 @@ deliver. Session 025 also found and fixed a bug where that run was being
 *cancelled* by the session's own closing commit — so the verdict was being
 destroyed before anyone could read it.
 
-## Progress & readiness snapshot (as of Session 023 close)
+## Progress & readiness snapshot (as of Session 025 close)
+
+**The one-paragraph version.** Every line of MVP engineering that can be built
+**without you** is done. **One planned unit remains — M5.3, the live AI coach —
+and it waits on item 6 alone.** Engineering is ~95% of the MVP; **operational
+proof is still 0%**: nothing has ever been deployed (item 2), the app has never
+run on a real phone against a real backend (items 3+4), and no real purchase
+has ever happened (item 0). That gap is not an engineering gap — it is four
+account/billing decisions that only you can make. Sessions 024 and 025 were
+**hardening**, not features: S024 shipped the change-PIN flow, the iOS privacy
+manifest and CI runtime bumps; S025 shipped CI→Slack notifications (your
+directive) and, along the way, **fixed a CI bug that was silently destroying
+the post-merge test verdict** — the session's own closing commit was cancelling
+the run that carries it. Two of the five main runs before the fix were being
+cancelled exactly that way. **Next session: the UI/UX Pro Max refactor scoping
+ADR** (your other directive today) — design only, no pixels move, because the
+refactor has to be told in writing which surfaces it may not touch (the lock
+screen, the consent copy, the crisis copy — all of which are *safety* surfaces
+whose wording was matched sentence-by-sentence against the code).
+
+### The older detail (as of Session 023 close, still accurate for the product itself)
 
 - **Plan progress:** M0 ✅ · M1 ✅ · M2 ✅ · M3 ✅ · **M4 engineering ✅ (sandbox
   accept line open on item 0)** · **M5: 2/3 (spine + chat UI; M5.3 live
@@ -946,14 +996,20 @@ destroyed before anyone could read it.
   Every line of MVP engineering that can be built without your input is now
   DONE.** (M6.5 Android sits outside the 22-unit count; its timing is your
   Gate-3 call.) On track; the only scope change in Session 023 was
-  review-adjudicated: the iOS privacy manifest moved OUT to issue #55 (a
-  future hardening slice) rather than riding the legal session. Next
-  session: **the hardening sweep (ci-debt #36 + the change-PIN flow + the
-  #55 privacy manifest + the #39 CI runtime bump)**, unless you answer
-  item 6 (**M5.3 preempts — and it now carries a recorded re-consent
-  trigger: the consent version bumps and everyone re-consents to a notice
-  naming the provider**), flip Blaze (**the first-deploy slice preempts**),
-  or green-light Android timing (**M6.5**).
+  review-adjudicated: the iOS privacy manifest moved OUT to issue #55 — and it
+  **shipped in Session 024**, alongside the change-PIN flow, the de-quarantined
+  reveal test (#36) and the CI runtime bumps (#39). **Session 025 shipped
+  CI→Slack (your directive) and fixed the concurrency bug that was cancelling
+  the post-merge verdict.** Next session: **the UI/UX Pro Max refactor SCOPING
+  ADR** (your other 2026-07-14 directive — design only; the roadmap places it
+  ahead of the remaining backlog, e.g. seasonal windows #29), unless you answer
+  item 6 (**M5.3 preempts — and it carries a recorded re-consent trigger: the
+  consent version bumps and everyone re-consents to a notice naming the
+  provider**), flip Blaze (**the first-deploy slice preempts**), green-light
+  Android timing (**M6.5**), report an on-device defect from the ★ recipe
+  (**triage preempts**), or say **"build the dev-rig slice"** — which would let
+  the **full couple loop** (join → daily question → mutual reveal → streak) run
+  on your iPhone against the Mac, with nothing deployed.
 - **Readiness: pre-MVP, emulator/CI-proven, nothing deployed, nothing on a
   phone.** Working and proven against emulators + CI: auth, profile + rules,
   the whole pairing loop, the unpaired solo week, the content pipeline, the
