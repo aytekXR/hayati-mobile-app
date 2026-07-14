@@ -824,6 +824,27 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
   (constrain the surface vs accept the tier) is yours — the honest answer
   either way is the guardrail description (server-side crisis spine,
   not-therapy disclaimer, premium-gated).
+- **(e) NEW (Session 024): the privacy manifest shipped — four recorded
+  checks when you answer the App Privacy questionnaire at submission.** The
+  app now carries `app/ios/Runner/PrivacyInfo.xcprivacy` (issue #55; CI
+  asserts it lands in every build). Judgment calls deliberately RECORDED,
+  not resolved — resolve them against the questionnaire with your
+  lawyer-adjacent hat on: **(i)** the App Privacy label answers you give in
+  App Store Connect must match the manifest's declared types (contact info,
+  User ID, Other User Content, Purchase History, Crash Data — all
+  non-tracking); **(ii)** whether couples' free-text + coach content
+  warrants Apple's **"Sensitive Info"** category — the manifest deliberately
+  omits it with the reasoning in an XML comment (ADR-023 takes the KVKK
+  special-category-conservative stance, but Apple's label taxonomy is a
+  separate regime); **(iii)** Crash Data is declared **not linked** to
+  identity (Crashlytics installation IDs, content-free by the sentinel-pinned
+  logging rules) — confirm against the questionnaire's linking definition;
+  **(iv)** the **Local Network purpose string** ships in the prod binary for
+  the dev rig (prod makes no LAN connections, so iOS never prompts) — at
+  submission, decide whether to keep, reword, or strip it (an unused
+  permission declaration is a plausible App-Review question). Full
+  validation (Xcode privacy report, ASC ingestion) is Mac-era and rides
+  item 4.
 - **Also in item 1's native-review gate since this session:** the full store
   listing copy ×2 locales (`fastlane/metadata/{tr,en-US}` — name, subtitle,
   description, keywords, promotional text) and the localized Face ID

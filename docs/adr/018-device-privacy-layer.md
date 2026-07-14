@@ -973,8 +973,8 @@ the lock is on). Design decisions, each deliberate:
   `PinVerifyDialog` (pushed INSIDE the Navigator per D7 — legal there); new
   PIN via `PinSetupScreen` gaining a named `collectNewPin` constructor that
   pops the confirmed PIN instead of calling `enableLock` (the default-ctor
-  enable path stays byte-identical, so its tests/goldens do not move). Three
-  new ARB keys ×4 ×3 locales (`settingsChangePinTitle`, `settingsChangePinEnterPrompt`,
+  enable path stays byte-identical, so its tests/goldens do not move). Four
+  new ARB keys ×3 locales (`settingsChangePinTitle`, `settingsChangePinEnterPrompt`,
   `settingsChangePinFailed`, `settingsChangePinSaveFailed`); reuses
   `settingsPinConfirmPrompt`, `settingsPinMismatch`, `settingsLockCooldown`.
 - **Recorded UX trade:** the user learns a wrong *current* PIN only after

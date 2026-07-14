@@ -447,11 +447,25 @@ void main() {
       expect(
         store.record,
         isNull,
-        reason: 'MUTATION-CHECK (Invariant 2): dropping the post-write gen '
-            're-check resurrects the rotated record after the clear',
+        reason: 'the wipe cleared the store; the parked write must not '
+            'reappear behind it',
       );
       expect(stateOf(container), const PrivacyLockDisabled());
       expect(store.callLog.last, 'clear', reason: 'no write after the clear');
+
+      // MUTATION-CHECK (Invariant 2): the store-level assert above cannot see
+      // the post-write gen re-check (the FIFO fake serializes write-then-clear
+      // either way) — what that re-check protects is the IN-MEMORY commit.
+      // Without it, `_record = updated` lands after the wipe and the rotated
+      // record resurrects in memory: the new PIN would then verify against a
+      // lock the wipe already destroyed (post-diff review S024, finding 2).
+      expect(
+        await controller.verifyPin(newPin),
+        const PinLockAttemptAborted(),
+        reason: 'MUTATION-CHECK (Invariant 2): dropping the post-write gen '
+            're-check resurrects the rotated record in memory — the new PIN '
+            'must NOT verify after the wipe',
+      );
     });
   });
 
