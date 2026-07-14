@@ -37,6 +37,35 @@ Gates from `feasibility-report.md` §10 govern phase transitions. Dates are rela
 - AR store listings (KSA, UAE, KW, QA, BH, OM + EG for volume); Gulf creator UGC scale-up; SAR/AED premium pricing live; diaspora targeting (DE/UK/FR/US Arabic+Turkish communities); RTL polish pass from beta feedback; Apple Search Ads *only if* Gate-3 economics support it.
 - KPI: GCC+diaspora ≥35% of new MRR by end of phase (path to the 50% month-12 target).
 
+## UI/UX refactor with UI/UX Pro Max ("uipro") — founder directive 2026-07-14
+
+The founder installed the **UI/UX Pro Max** skill tooling (`uipro` CLI v2.11.0,
+npm `ui-ux-pro-max-cli`, global on the dev box) and directed that the app's
+whole UI/UX be refactored through it. Recorded as a roadmap unit, honestly
+scoped:
+
+- **What:** a full UI/UX pass over every app surface, driven by the UI/UX Pro
+  Max skill (the first refactor session runs `uipro init` in the repo to
+  install the project-level skill — it is not project-installed yet — then
+  works surface-by-surface).
+- **Binding constraints (from the standing project record):** (1) **brandkit
+  v1.0 stays the visual constitution** — the skill proposes, the brandkit's
+  tokens/assets decide; the refactor is expressed through brandkit tokens, it
+  does not replace them. (2) The **security surfaces keep their invariants**:
+  the lock screen's no-dialog/no-Overlay constraint (ADR-018 D3), the privacy
+  shield, the consent screen (whose copy is a guarantee surface, ADR-023) —
+  any refactor touching them re-runs the relevant invariant audits in the
+  same diff. (3) Copy under the **native-review gate** (operator item 1) is
+  not reworded by a refactor session without flagging it back into that gate.
+  (4) Goldens ×3 locales + RTL remain the acceptance harness — every
+  refactored screen regenerates them intentionally, never blind-accepts.
+- **Sequencing:** needs its own scoping ADR (surface inventory, skill-output →
+  brandkit mapping, session slicing) before any pixels move; sized as a
+  multi-session arc. It enters the next-session queue behind the standing
+  preemptions (item 6 → M5.3; Blaze → first deploy; Gate 3 → M6.5) and ahead
+  of the AI-chosen backlog (e.g. seasonal windows #29) — the founder can
+  re-order it to the front by saying so.
+
 ## v1.5 (months 6–9)
 
 Quizzes + WhatsApp/IG share cards → Spice mode (18+, both-partner opt-in, region flags) → Bucket list + memories timeline (Hijri+Gregorian dates) → **Ramadan mode** (calendar-driven priority) → referral rewards → break-even checkpoint (~500–550 paying couples; if trending short, cut content spend before cutting price).

@@ -1,3 +1,4 @@
 /* InfoPlist.strings (en) — localized user-facing Info.plist strings.
    AI-drafted; native review PENDING (operator item 1 gate). ADR-020 D7. */
 "NSFaceIDUsageDescription" = "Unlock Hayati with Face ID.";
+"NSLocalNetworkUsageDescription" = "Hayati connects to the Firebase emulators on your Mac for on-device testing.";

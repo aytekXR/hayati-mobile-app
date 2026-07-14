@@ -17,7 +17,15 @@ import '../../privacy_lock/presentation/widgets/pin_keypad.dart';
 /// and leaves the lock OFF (Decision 8: never claim protection that did not
 /// persist). No PIN digit reaches any string, log, or exception.
 class PinSetupScreen extends ConsumerStatefulWidget {
-  const PinSetupScreen({super.key});
+  const PinSetupScreen({super.key}) : _collect = false;
+
+  /// COLLECT mode (ADR-018 rev 4 — the change-PIN flow): the same enter → confirm
+  /// → mismatch machinery, but instead of calling `enableLock` the screen POPS the
+  /// confirmed PIN string back to the caller (settings' `changePin`). The default
+  /// (enable) path is byte-identical, so its tests and goldens do not move.
+  const PinSetupScreen.collectNewPin({super.key}) : _collect = true;
+
+  final bool _collect;
 
   @override
   ConsumerState<PinSetupScreen> createState() => _PinSetupScreenState();
@@ -71,6 +79,12 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
   }
 
   Future<void> _save(String pin) async {
+    if (widget._collect) {
+      // Collect mode hands the confirmed PIN back to the caller — the constant-
+      // time verify and the write both live in `changePin`, not here.
+      Navigator.of(context).pop(pin);
+      return;
+    }
     setState(() => _saving = true);
     final ok = await ref
         .read(privacyLockControllerProvider.notifier)
@@ -94,7 +108,13 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
     final l10n = AppLocalizations.of(context);
     final error = _error;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsPinSetupTitle)),
+      appBar: AppBar(
+        title: Text(
+          widget._collect
+              ? l10n.settingsChangePinTitle
+              : l10n.settingsPinSetupTitle,
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -107,7 +127,9 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
               children: [
                 Text(
                   _first == null
-                      ? l10n.settingsPinEnterPrompt
+                      ? (widget._collect
+                            ? l10n.settingsChangePinEnterPrompt
+                            : l10n.settingsPinEnterPrompt)
                       : l10n.settingsPinConfirmPrompt,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleMedium,

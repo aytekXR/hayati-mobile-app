@@ -10,6 +10,11 @@ const String kTestPin = '123456';
 /// A different, equally valid PIN — the wrong-attempt fixture.
 const String kWrongPin = '654321';
 
+/// A third distinct 6-digit PIN — the NEW pin the change-PIN flow rotates to
+/// (ADR-018 rev 4). Distinct from [kTestPin] and [kWrongPin] so a change can be
+/// told apart from a no-op.
+const String kNewPin = '135790';
+
 /// A fixed salt, so records are reproducible across a "relaunch" (a fresh
 /// container over the same [FakePinLockStore] contents). Real records use
 /// `generateSalt()`; the hash math is unit-tested separately.

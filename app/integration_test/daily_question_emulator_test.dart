@@ -12,8 +12,10 @@
 //     is DENIED pre-answer, streams post-answer, and both docs freeze once
 //     both exist (the M3 accept line, live).
 //
-// "Two devices" is approximated as two users signed in SEQUENTIALLY in one
-// process (the pairing suite's pattern): the reveal is a server-side fact.
+// "Two devices" is modeled as two users each on their OWN FirebaseApp instance
+// (per-user Auth + Firestore + Functions wired to the emulators) — a truer
+// two-devices shape than a mid-test auth switch, and the structural fix for
+// ci-debt #36 (no signOut ever runs; see the note above the test body).
 // The day doc is seeded through the firestore emulator's REST surface with the
 // owner bearer token — the same rules bypass the admin SDK gives the rollover
 // Function (client writes to days/ are rules-denied BY DESIGN, so the app
@@ -32,6 +34,7 @@
 //
 // CI runs this suite on the main-only `integration-emulator` job (macOS
 // runner; POST-MERGE signal — run locally before merging when possible).
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -63,6 +66,10 @@ import 'package:integration_test/integration_test.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
+  // The joiner's isolated FirebaseApp (user B). The default app is the creator
+  // (user A). Bootstrapped in setUpAll, read in the test body, deleted last.
+  late final FirebaseApp appB;
+
   setUpAll(() async {
     if (!kUseAuthEmulator || !kUseFirestoreEmulator || !kUseFunctionsEmulator) {
       fail(
@@ -76,6 +83,8 @@ void main() {
     // the EMULATOR project id (the functions emulator serves only demo-hayati)
     // and every dummy value must keep a natively-valid SHAPE.
     try {
+      // --- User A (creator): the DEFAULT app. Its emulator wiring is what the
+      // USE_*_EMULATOR dart-defines would steer, but this suite wires by hand.
       await Firebase.initializeApp(
         options: const FirebaseOptions(
           apiKey: 'AIzaSyD-demo-hayati-emulator-0000000000',
@@ -96,52 +105,153 @@ void main() {
       FirebaseFunctions.instanceFor(
         region: kFunctionsRegion,
       ).useFunctionsEmulator(kAuthEmulatorHost, kFunctionsEmulatorPort);
+
+      // --- User B (joiner): a NAMED secondary app. The dart-defines steer only
+      // the default instance, so B's Auth + Firestore + Functions must be wired
+      // to the emulators by hand — and BEFORE the test body touches instance B
+      // (cloud_firestore 6.6.0 snapshots settings on first use, per-instance;
+      // see firebase_bootstrap.dart). Guard against a duplicate-app on a re-run
+      // in the same process (Firebase.initializeApp(name:) throws otherwise).
+      if (Firebase.apps.any((app) => app.name == 'partnerB')) {
+        appB = Firebase.app('partnerB');
+      } else {
+        appB = await Firebase.initializeApp(
+          name: 'partnerB',
+          options: const FirebaseOptions(
+            apiKey: 'AIzaSyD-demo-hayati-emulator-0000000000',
+            appId: '1:870954957461:ios:0000000000000000000000',
+            messagingSenderId: '870954957461',
+            projectId: 'demo-hayati',
+            iosBundleId: 'com.hayati.app',
+          ),
+        );
+        await FirebaseAuth.instanceFor(
+          app: appB,
+        ).useAuthEmulator(kAuthEmulatorHost, kAuthEmulatorPort);
+        FirebaseFirestore.instanceFor(
+          app: appB,
+        ).useFirestoreEmulator(kAuthEmulatorHost, kFirestoreEmulatorPort);
+        FirebaseFunctions.instanceFor(
+          app: appB,
+          region: kFunctionsRegion,
+        ).useFunctionsEmulator(kAuthEmulatorHost, kFunctionsEmulatorPort);
+      }
     } catch (error, stack) {
       fail('emulator bootstrap failed: $error\n$stack');
     }
   });
 
+  // Awaits the first [stream] event satisfying [matches], then CANCELS the
+  // subscription — the emitsThrough equivalent, but managed so no rules-checked
+  // Firestore listen outlives its assertion into teardown (the ci-debt #36
+  // hygiene invariant; a StreamQueue would pull in package:async, which is only
+  // a transitive dep — depend_on_referenced_packages — so this uses a raw
+  // StreamSubscription off dart:async instead).
+  Future<void> expectEmitsThrough(
+    Stream<Object?> stream,
+    bool Function(Object? value) matches,
+    String description, {
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    final completer = Completer<void>();
+    final subscription = stream.listen(
+      (value) {
+        if (!completer.isCompleted && matches(value)) completer.complete();
+      },
+      onError: (Object error, StackTrace stack) {
+        if (!completer.isCompleted) completer.completeError(error, stack);
+      },
+      onDone: () {
+        if (!completer.isCompleted) {
+          completer.completeError(
+            StateError('stream closed before emitting $description'),
+          );
+        }
+      },
+    );
+    try {
+      await completer.future.timeout(timeout);
+    } finally {
+      await subscription.cancel();
+    }
+  }
+
   testWidgets(
     'answer → mutual reveal round trip: dayKey-addressed day doc, '
     'real question rendered, partner listen denied pre-answer, revealed '
     'post-answer, frozen once both exist',
-    // QUARANTINED (ci-debt #36): deterministically red on main since the
-    // M3.4 answerReveal trigger landed — the mid-test switchTo (signOut on
-    // the shared Auth instance) denies a still-open answers listen and the
-    // watchAnswer async* rethrow lands unhandled. Two settle-based fixes
-    // (#34 pump-loop — live-binding pump never sleeps; #35 real 2s delay —
-    // failure just shifted by the delay) proved it is not a cancel-flush
-    // race. Structural fix per the issue: per-user FirebaseApp instances
-    // instead of mid-test signOut. The invariant itself stays proven per-PR
-    // (rules mutation suite + the functions race/e2e suites).
-    skip:
-        true, // ci-debt #36: unhandled listener denial at mid-test auth switch
+    // De-quarantined (ci-debt #36 resolved): the round trip now runs as two
+    // ISOLATED FirebaseApp instances — one user per app (creator on the default
+    // app, joiner on the named 'partnerB' app), each with its own Auth +
+    // Firestore + Functions. That is the structural fix the issue's diagnosis
+    // recorded: with no mid-test signOut on a shared instance, no still-open
+    // answers listen is ever re-evaluated as unauthenticated, so the
+    // watchAnswer async* rethrow that used to land unhandled cannot occur. The
+    // invariant itself also stays proven per-PR (rules mutation suite + the
+    // functions race/e2e suites).
     (tester) async {
-      final auth = FirebaseAuth.instance;
-      final firestore = FirebaseFirestore.instance;
-      final profiles = FirestoreProfileRepository(firestore: firestore);
-      final invites = FunctionsInviteRepository();
-      final couples = FirestoreCoupleRepository(firestore: firestore);
-      final days = FirestoreCoupleDayRepository(firestore: firestore);
-      final answers = FirestoreCoupleAnswersRepository(firestore: firestore);
+      // Delete the joiner app LAST (registered first → runs last under LIFO):
+      // terminate its Firestore, then tear the app down, after every other
+      // teardown (the http client below) has run.
+      addTearDown(() async {
+        await FirebaseFirestore.instanceFor(app: appB).terminate();
+        await appB.delete();
+      });
 
-      Future<String> switchTo(Map<String, Object?> claims) async {
-        await auth.signOut();
-        await auth.signInWithCredential(
+      // Two auth sessions, one per app — NEVER a mid-test signOut on either
+      // instance: each user holds its own FirebaseApp for the whole test, so no
+      // rules-checked listen is ever re-evaluated as unauthenticated. A signOut
+      // on A or B would resurrect the exact ci-debt #36 hazard (a denied
+      // still-open answers listen rethrowing unhandled out of watchAnswer's
+      // async*).
+      final authA = FirebaseAuth.instance; // creator — default app
+      final authB = FirebaseAuth.instanceFor(app: appB); // joiner — partnerB
+      final firestoreA = FirebaseFirestore.instance;
+      final firestoreB = FirebaseFirestore.instanceFor(app: appB);
+      final functionsA = FirebaseFunctions.instanceFor(
+        region: kFunctionsRegion,
+      );
+      final functionsB = FirebaseFunctions.instanceFor(
+        app: appB,
+        region: kFunctionsRegion,
+      );
+
+      // Creator repos bind to instance A; joiner repos to instance B. Each user
+      // signs in ONCE on its own instance and stays signed in for the whole
+      // test (a fresh instance needs no prior signOut).
+      final profilesA = FirestoreProfileRepository(firestore: firestoreA);
+      final invitesA = FunctionsInviteRepository(); // default app resolves to A
+      final answersA = FirestoreCoupleAnswersRepository(firestore: firestoreA);
+
+      final profilesB = FirestoreProfileRepository(firestore: firestoreB);
+      final invitesB = FunctionsInviteRepository(functions: functionsB);
+      final couplesB = FirestoreCoupleRepository(firestore: firestoreB);
+      final daysB = FirestoreCoupleDayRepository(firestore: firestoreB);
+      final answersB = FirestoreCoupleAnswersRepository(firestore: firestoreB);
+
+      Future<String> signInA(Map<String, Object?> claims) async {
+        await authA.signInWithCredential(
           GoogleAuthProvider.credential(idToken: jsonEncode(claims)),
         );
-        return auth.currentUser!.uid;
+        return authA.currentUser!.uid;
+      }
+
+      Future<String> signInB(Map<String, Object?> claims) async {
+        await authB.signInWithCredential(
+          GoogleAuthProvider.credential(idToken: jsonEncode(claims)),
+        );
+        return authB.currentUser!.uid;
       }
 
       // ADR-023 D4a: soloAnswers/couple-answers writes now require the writer to
       // carry a consent record. Record it via the real recordConsent callable
       // (the server stamps version + acceptedAt onto users/{uid}) for the
-      // currently signed-in user — the same server-owned-state seeding the
-      // day-doc admin seed below uses, but through the production consent path.
-      Future<void> recordConsent() async {
-        await FirebaseFunctions.instanceFor(region: kFunctionsRegion)
-            .httpsCallable('recordConsent')
-            .call<Object?>(<String, Object?>{'withdraw': false});
+      // signed-in user — parameterized by the Functions instance so creator and
+      // joiner each stamp consent as THEMSELVES on their own app.
+      Future<void> recordConsent(FirebaseFunctions functions) async {
+        await functions.httpsCallable('recordConsent').call<Object?>(
+          <String, Object?>{'withdraw': false},
+        );
       }
 
       const profile = RelationshipProfile(
@@ -151,24 +261,25 @@ void main() {
       );
 
       // --- Pair A and B through the real join flow (the couple doc carries the
-      // server-defaulted timezone the dayKey must key off).
-      final creatorUid = await switchTo({
+      // server-defaulted timezone the dayKey must key off). The creator signs
+      // in once on instance A; the joiner once on instance B.
+      final creatorUid = await signInA({
         'sub': 'daily-creator-uid',
         'email': 'daily-creator@example.com',
       });
-      await profiles.saveProfile(creatorUid, profile);
-      await recordConsent(); // ADR-023 D4a precondition on answer writes
-      final code = (await invites.createInvite()).code;
+      await profilesA.saveProfile(creatorUid, profile);
+      await recordConsent(functionsA); // ADR-023 D4a precondition on answers
+      final code = (await invitesA.createInvite()).code;
 
-      final joinerUid = await switchTo({
+      final joinerUid = await signInB({
         'sub': 'daily-joiner-uid',
         'email': 'daily-joiner@example.com',
       });
-      await profiles.saveProfile(joinerUid, profile);
-      await recordConsent(); // ADR-023 D4a precondition on answer writes
-      final coupleId = await invites.joinInvite(code);
+      await profilesB.saveProfile(joinerUid, profile);
+      await recordConsent(functionsB); // ADR-023 D4a precondition on answers
+      final coupleId = await invitesB.joinInvite(code);
 
-      final couple = (await couples.watchCouple(coupleId).first)!;
+      final couple = (await couplesB.watchCouple(coupleId).first)!;
       expect(couple.memberUids, [creatorUid, joinerUid]);
       expect(couple.timezone, 'Europe/Istanbul'); // M2.3 join default
 
@@ -179,13 +290,13 @@ void main() {
       final dayKey = coupleDayKey(DateTime.now(), couple.timezone);
 
       // No day doc yet: the watch streams the honest null.
-      expect(await days.watchDay(coupleId, dayKey).first, isNull);
+      expect(await daysB.watchDay(coupleId, dayKey).first, isNull);
 
       // --- Rollover-shaped ADMIN seed through the emulator's REST surface
       // (owner bearer = the admin-SDK rules bypass; client writes to days/ are
-      // rules-denied by design — asserted below).
+      // rules-denied by design — asserted below on instance B, a couple member).
       await expectLater(
-        firestore
+        firestoreB
             .collection('couples')
             .doc(coupleId)
             .collection('days')
@@ -223,18 +334,15 @@ void main() {
       );
 
       // The member watch streams the assignment in (settled-state pattern —
-      // never a one-shot racing the write).
-      await expectLater(
-        days.watchDay(coupleId, dayKey),
-        emitsThrough(
-          predicate<Object?>(
-            (day) =>
-                day != null &&
-                (day as dynamic).questionId == 'solo_tr_001' &&
-                (day as dynamic).packId == 'solo_tr',
-            'the seeded solo_tr_001 assignment',
-          ),
-        ),
+      // never a one-shot racing the write; managed subscription, cancelled
+      // once matched).
+      await expectEmitsThrough(
+        daysB.watchDay(coupleId, dayKey),
+        (day) =>
+            day != null &&
+            (day as dynamic).questionId == 'solo_tr_001' &&
+            (day as dynamic).packId == 'solo_tr',
+        'the seeded solo_tr_001 assignment',
       );
 
       // The REAL question text this assignment resolves to (rootBundle works in
@@ -247,47 +355,42 @@ void main() {
       // --- THE INVARIANT, live: B has not answered, so B's listen on A's
       // (even-nonexistent) answer doc is DENIED by the rules.
       await expectLater(
-        answers.watchAnswer(coupleId, dayKey, creatorUid).first,
+        answersB.watchAnswer(coupleId, dayKey, creatorUid).first,
         throwsA(isA<CoupleDataPermissionException>()),
         reason: 'partner answer must be unreadable before own answer exists',
       );
 
       // --- B answers through the real write path (server-stamped answeredAt;
       // the rules accept exactly this shape).
-      await answers.saveAnswer(
+      await answersB.saveAnswer(
         coupleId,
         dayKey,
         authorUid: joinerUid,
         questionId: 'solo_tr_001',
         text: 'Sabah kahvaltısında birlikte gülmemiz.',
       );
-      await expectLater(
-        answers.watchAnswer(coupleId, dayKey, joinerUid),
-        emitsThrough(
-          predicate<Object?>(
-            (answer) =>
-                answer != null && (answer as dynamic).answeredAt != null,
-            'own answer server-acked',
-          ),
-        ),
+      await expectEmitsThrough(
+        answersB.watchAnswer(coupleId, dayKey, joinerUid),
+        (answer) => answer != null && (answer as dynamic).answeredAt != null,
+        'own answer server-acked',
       );
 
       // Post-answer, the same partner read is permitted — and honestly null
       // (A has not answered).
       expect(
-        await answers.watchAnswer(coupleId, dayKey, creatorUid).first,
+        await answersB.watchAnswer(coupleId, dayKey, creatorUid).first,
         isNull,
       );
 
-      // --- The paired-home UI end-to-end over the REAL repositories: the
-      // assigned question text renders, B's saved answer seeds the entry, and
-      // the partner slot shows the waiting state.
+      // --- The paired-home UI end-to-end over the REAL joiner (instance B)
+      // repositories: the assigned question text renders, B's saved answer
+      // seeds the entry, and the partner slot shows the waiting state.
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            coupleRepositoryProvider.overrideWith((ref) => couples),
-            coupleDayRepositoryProvider.overrideWith((ref) => days),
-            coupleAnswersRepositoryProvider.overrideWith((ref) => answers),
+            coupleRepositoryProvider.overrideWith((ref) => couplesB),
+            coupleDayRepositoryProvider.overrideWith((ref) => daysB),
+            coupleAnswersRepositoryProvider.overrideWith((ref) => answersB),
             questionPackRepositoryProvider.overrideWith((ref) => packs),
           ],
           child: MaterialApp(
@@ -320,55 +423,37 @@ void main() {
         findsOneWidget,
         reason: "B's persisted answer seeds the entry",
       );
-      // Tear the screen down BEFORE switching auth users: its live watches hold
-      // rules-checked listeners that would otherwise error mid-switch.
+      // Unmount the screen deterministically so its live B-instance watches are
+      // cancelled here (autodispose providers tear down on unmount), not left
+      // dangling into teardown. No auth switch follows, so no settle/delay is
+      // needed — the old signOut-race dance (ci-debt #36) is gone.
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
-      // The pump above only SCHEDULES the listen cancels — they must reach the
-      // emulator before switchTo's signOut re-auths every still-open listen as
-      // unauthenticated (denied → the async* rethrow in watchAnswer has no
-      // consumer left → unhandled). With the M3.4 answerReveal trigger live on
-      // the same emulator pair, the trigger invocation right after the save
-      // occupies the emulator exactly when these cancels arrive, and the race
-      // turned deterministic-red (post-merge main runs, Session 014). NOTE the
-      // settle must be a REAL delay: under the integration (live) binding,
-      // tester.pump(duration) does NOT sleep wall-clock — it just schedules the
-      // next frame — which is why a pump-loop "settle" changed nothing. This
-      // file runs real async (it awaits real HTTP/Firestore futures), so
-      // Future.delayed genuinely waits here.
-      await Future<void>.delayed(const Duration(seconds: 2));
-      await tester.pump();
 
-      // --- A answers too: the reveal streams in for A immediately (A's own
-      // answer exists, so A may watch B's doc).
-      await switchTo({
-        'sub': 'daily-creator-uid',
-        'email': 'daily-creator@example.com',
-      });
-      await answers.saveAnswer(
+      // --- A answers too: A is already signed in on instance A (no switch),
+      // and once A's own answer exists A may watch B's doc — the reveal streams
+      // in for A immediately.
+      await answersA.saveAnswer(
         coupleId,
         dayKey,
         authorUid: creatorUid,
         questionId: 'solo_tr_001',
         text: 'Akşam yürüyüşümüz.',
       );
-      await expectLater(
-        answers.watchAnswer(coupleId, dayKey, joinerUid),
-        emitsThrough(
-          predicate<Object?>(
-            (answer) =>
-                answer != null &&
-                (answer as dynamic).text ==
-                    'Sabah kahvaltısında birlikte gülmemiz.',
-            "the partner's revealed answer text",
-          ),
-        ),
-        reason: 'post-answer the partner doc streams (mutual reveal)',
+      await expectEmitsThrough(
+        answersA.watchAnswer(coupleId, dayKey, joinerUid),
+        (answer) =>
+            answer != null &&
+            (answer as dynamic).text ==
+                'Sabah kahvaltısında birlikte gülmemiz.',
+        "the partner's revealed answer text",
       );
 
       // --- Both exist: the rules freeze the pair — no post-reveal rewrites.
+      // Issued as the writer (A) with A's own answer present, so the freeze is
+      // hit for the right reason (commit-before-see).
       await expectLater(
-        answers.saveAnswer(
+        answersA.saveAnswer(
           coupleId,
           dayKey,
           authorUid: creatorUid,

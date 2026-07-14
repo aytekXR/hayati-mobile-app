@@ -685,6 +685,22 @@
   "@settingsPinSaveFailed": {
     "description": "Honest error when the lock record write fails — never claim protection that did not persist (ADR-018 D8)"
   },
+  "settingsChangePinTitle": "Change PIN",
+  "@settingsChangePinTitle": {
+    "description": "Row 1b label AND the collect-mode PIN-screen title for the change-PIN flow (ADR-018 rev 4)"
+  },
+  "settingsChangePinEnterPrompt": "Choose a new 6-digit PIN",
+  "@settingsChangePinEnterPrompt": {
+    "description": "Prompt on the first phase of the new-PIN screen in the change-PIN flow"
+  },
+  "settingsChangePinFailed": "That PIN didn't match. Your PIN is unchanged.",
+  "@settingsChangePinFailed": {
+    "description": "Honest failure when the CURRENT PIN was wrong (changePin returned Wrong) — the PIN is unchanged"
+  },
+  "settingsChangePinSaveFailed": "Couldn't save your new PIN. Your old PIN is still in place.",
+  "@settingsChangePinSaveFailed": {
+    "description": "Honest failure when the new-PIN write fails (changePin returned Aborted) — the old PIN is still in force (ADR-018 D8)"
+  },
   "lockTitle": "Hayati is locked",
   "@lockTitle": {
     "description": "Title on the lock screen overlay"

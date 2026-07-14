@@ -17,6 +17,7 @@ import '../../../../support/fake_pin_lock_store.dart';
 void main() {
   const correctPin = '123456';
   const wrongPin = '000000';
+  const newPin = '135790';
   const reason = 'Unlock Hayati';
 
   /// A fixed, recognisable salt — so the no-content sentinel below can search a
@@ -404,6 +405,70 @@ void main() {
         );
       },
     );
+
+    test('a gated new-PIN write racing the wipe is ABORTED — no old/new pinHash '
+        'resurrection, state Disabled, no write after the clear', () async {
+      final store = FakePinLockStore(initial: aRecord());
+      final container = boot(store: store);
+      final controller = controllerOf(container);
+      await controller.verifyPin(correctPin); // clean unlock into settings
+
+      final gate = Completer<void>();
+      store.writeGate = gate;
+
+      final change = controller.changePin(
+        currentPin: correctPin,
+        newPin: newPin,
+      );
+      await pumpEventQueue();
+      expect(
+        store.callLog.last,
+        'write:set',
+        reason: 'the new-PIN write is parked',
+      );
+
+      // Sign-out lands mid-write. `ref.mounted` cannot catch this: the keepAlive
+      // controller is wiped IN PLACE and stays mounted.
+      final wiped = controller.wipe();
+      expect(
+        stateOf(container),
+        const PrivacyLockDisabled(),
+        reason: 'the wipe flips the state synchronously',
+      );
+
+      gate.complete();
+      expect(
+        await change,
+        const PinLockAttemptAborted(),
+        reason: 'the in-flight op aborted on the generation bump',
+      );
+      await wiped;
+
+      expect(
+        store.record,
+        isNull,
+        reason:
+            'the wipe cleared the store; the parked write must not '
+            'reappear behind it',
+      );
+      expect(stateOf(container), const PrivacyLockDisabled());
+      expect(store.callLog.last, 'clear', reason: 'no write after the clear');
+
+      // MUTATION-CHECK (Invariant 2): the store-level assert above cannot see
+      // the post-write gen re-check (the FIFO fake serializes write-then-clear
+      // either way) — what that re-check protects is the IN-MEMORY commit.
+      // Without it, `_record = updated` lands after the wipe and the rotated
+      // record resurrects in memory: the new PIN would then verify against a
+      // lock the wipe already destroyed (post-diff review S024, finding 2).
+      expect(
+        await controller.verifyPin(newPin),
+        const PinLockAttemptAborted(),
+        reason:
+            'MUTATION-CHECK (Invariant 2): dropping the post-write gen '
+            're-check resurrects the rotated record in memory — the new PIN '
+            'must NOT verify after the wipe',
+      );
+    });
   });
 
   group('the grace window (Decision 3)', () {
@@ -1024,6 +1089,221 @@ void main() {
       expect(await controllerOf(container).setBiometricEnabled(true), isFalse);
       expect(store.record!.biometricEnabled, isFalse);
     });
+
+    // ── changePin (ADR-018 rev 4 — the verify-first rotation) ───────────────
+
+    test(
+      'changePin with the correct current PIN rewrites the record — a fresh '
+      'salt + hash of the NEW pin, counter reset, state stays unlocked',
+      () async {
+        final store = FakePinLockStore(initial: aRecord(wrongCount: 3));
+        final container = boot(store: store);
+        await controllerOf(
+          container,
+        ).verifyPin(correctPin); // stand in settings
+
+        final result = await controllerOf(
+          container,
+        ).changePin(currentPin: correctPin, newPin: newPin);
+
+        expect(result, const PinLockAttemptAccepted());
+        expect(
+          stateOf(container),
+          const PrivacyLockUnlocked(),
+          reason:
+              'the owner is standing INSIDE settings — no state flip, unlike '
+              'verifyPin which would slam the lock overlay over the route',
+        );
+        final rec = store.record!;
+        // MUTATION-CHECK: the new hash matches the NEW pin and NOT the old one — a
+        // no-op or wrong-hash mutation is caught here.
+        expect(
+          constantTimeEquals(hashPin(pin: newPin, salt: rec.salt), rec.pinHash),
+          isTrue,
+        );
+        expect(
+          constantTimeEquals(
+            hashPin(pin: correctPin, salt: rec.salt),
+            rec.pinHash,
+          ),
+          isFalse,
+        );
+        expect(rec.salt, isNot(salt), reason: 'a fresh salt per change');
+        expect(rec.wrongCount, 0);
+        expect(rec.lockoutUntilMs, isNull);
+      },
+    );
+
+    test(
+      'changePin PRESERVES the biometric accelerator, enrollment state and '
+      'all (MUTATION-CHECK: the disable→enable composition would drop it)',
+      () async {
+        final store = FakePinLockStore(
+          initial: aRecord(biometricEnabled: true, enrollment: 'e1'),
+        );
+        final container = boot(
+          store: store,
+          biometric: FakeBiometricAuthenticator(enrollment: 'e1'),
+        );
+        await controllerOf(container).verifyPin(correctPin);
+
+        expect(
+          await controllerOf(
+            container,
+          ).changePin(currentPin: correctPin, newPin: newPin),
+          const PinLockAttemptAccepted(),
+        );
+        expect(
+          store.record!.biometricEnabled,
+          isTrue,
+          reason: 'a rotation does not change who is enrolled',
+        );
+        expect(store.record!.biometricEnrollmentState, 'e1');
+      },
+    );
+
+    test('a WRONG current PIN persists the attempt but does NOT flip the state '
+        'to Locked — the verifyPin-vs-disableLock divergence', () async {
+      final store = FakePinLockStore(initial: aRecord());
+      final container = boot(store: store);
+      await controllerOf(container).verifyPin(correctPin);
+      expect(stateOf(container), const PrivacyLockUnlocked());
+
+      final result = await controllerOf(
+        container,
+      ).changePin(currentPin: wrongPin, newPin: newPin);
+
+      expect(result, isA<PinLockAttemptWrong>());
+      expect(
+        stateOf(container),
+        const PrivacyLockUnlocked(),
+        reason:
+            'MUTATION-CHECK: a "simplify to reuse verifyPin" mutant flips to '
+            'PrivacyLocked and slams the overlay over settings — it fails here',
+      );
+      expect(store.record!.wrongCount, 1, reason: 'bounded like disable');
+      // The pinHash is UNCHANGED — the old PIN still verifies.
+      expect(
+        constantTimeEquals(
+          hashPin(pin: correctPin, salt: store.record!.salt),
+          store.record!.pinHash,
+        ),
+        isTrue,
+      );
+    });
+
+    test('changePin during a COOLDOWN refuses without consuming — the current '
+        'PIN is never compared (DVUX-4)', () async {
+      final until = msFromStart(const Duration(seconds: 30));
+      final store = FakePinLockStore(
+        initial: aRecord(wrongCount: 5, lockoutUntilMs: until),
+      );
+      final container = boot(store: store);
+
+      final result = await controllerOf(
+        container,
+      ).changePin(currentPin: correctPin, newPin: newPin);
+
+      expect(result, isA<PinLockAttemptCooldown>());
+      expect(store.record!.wrongCount, 5, reason: 'not consumed');
+      expect(
+        constantTimeEquals(
+          hashPin(pin: correctPin, salt: store.record!.salt),
+          store.record!.pinHash,
+        ),
+        isTrue,
+        reason: 'the record is untouched — the old PIN is intact',
+      );
+    });
+
+    test(
+      'the 5th wrong current PIN starts the 30s cooldown — the SAME schedule '
+      'as verifyPin/disableLock (MUTATION-CHECK: an unbounded oracle fails)',
+      () async {
+        final store = FakePinLockStore(initial: aRecord());
+        final container = boot(store: store);
+        await controllerOf(container).verifyPin(correctPin);
+        final controller = controllerOf(container);
+
+        for (var attempt = 1; attempt <= 4; attempt++) {
+          final r = await controller.changePin(
+            currentPin: wrongPin,
+            newPin: newPin,
+          );
+          expect(
+            r,
+            isA<PinLockAttemptWrong>(),
+            reason: 'attempt $attempt free',
+          );
+          expect(store.record!.lockoutUntilMs, isNull);
+        }
+        final fifth = await controller.changePin(
+          currentPin: wrongPin,
+          newPin: newPin,
+        );
+        final until = msFromStart(const Duration(seconds: 30));
+        expect(
+          fifth,
+          PinLockAttemptWrong(
+            remainingBeforeCooldown: 0,
+            cooldownUntilMs: until,
+            tier: PinLockCooldownTier.thirtySeconds,
+          ),
+        );
+        expect(store.record!.wrongCount, 5);
+        expect(store.record!.lockoutUntilMs, until);
+      },
+    );
+
+    test('changePin with no record set → Aborted', () async {
+      final store = FakePinLockStore();
+      final container = boot(store: store);
+      expect(
+        await controllerOf(
+          container,
+        ).changePin(currentPin: correctPin, newPin: newPin),
+        const PinLockAttemptAborted(),
+      );
+    });
+
+    test('a FAILED new-PIN write returns Aborted and leaves the OLD PIN in '
+        'force — store still holds the old hash, verifyPin(oldPin) succeeds '
+        '(MUTATION-CHECK: an advance-_record-before-write mutant would leave the '
+        'NEW pin active in memory)', () async {
+      final store = FakePinLockStore(initial: aRecord());
+      final container = boot(store: store);
+      await controllerOf(container).verifyPin(correctPin); // clean unlock
+      // Only the change write fails.
+      store.onWrite = (_) async => throw StateError('keychain fault');
+
+      final result = await controllerOf(
+        container,
+      ).changePin(currentPin: correctPin, newPin: newPin);
+
+      expect(result, const PinLockAttemptAborted());
+      // The store still holds the OLD pin, never the new one.
+      expect(
+        constantTimeEquals(
+          hashPin(pin: correctPin, salt: store.record!.salt),
+          store.record!.pinHash,
+        ),
+        isTrue,
+      );
+      expect(
+        constantTimeEquals(
+          hashPin(pin: newPin, salt: store.record!.salt),
+          store.record!.pinHash,
+        ),
+        isFalse,
+      );
+      // And a subsequent verify of the OLD pin still succeeds — memory agrees
+      // with the store (write-first left `_record` untouched on the throw).
+      store.onWrite = null;
+      expect(
+        await controllerOf(container).verifyPin(correctPin),
+        const PinLockAttemptAccepted(),
+      );
+    });
   });
 
   group('the no-content rule (architecture §8 — the sentinel)', () {
@@ -1079,11 +1359,15 @@ void main() {
       final container = boot(store: store);
       await controllerOf(container).verifyPin(wrongPin);
       await controllerOf(container).verifyPin(correctPin);
+      await controllerOf(
+        container,
+      ).changePin(currentPin: correctPin, newPin: newPin);
 
       final rendered = store.callLog.join('\n');
       expect(rendered, isNot(contains(salt)));
       expect(rendered, isNot(contains(correctHash)));
       expect(rendered, isNot(contains(correctPin)));
+      expect(rendered, isNot(contains(newPin)));
     });
   });
 }

@@ -1,6 +1,7 @@
 # ADR-018: Device-privacy layer — root lock gate (PIN + biometric), always-on snapshot shield, discreet alternate icon, first settings surface
 
-- **Status:** Accepted (rev 3 — implemented; rev 2 folded in the pre-code
+- **Status:** Accepted (rev 4 — the change-PIN gap is closed, see the rev-4
+  amendment at the end; rev 3 — implemented; rev 2 folded in the pre-code
   adversarial review, rev 3 records what the implementation proved. See the two
   review records at the end.)
 - **Date:** 2026-07-12 (Session 020)
@@ -141,6 +142,8 @@ where they arise.
   verify current PIN → record cleared. No separate change-PIN flow in v1
   (disable→enable covers it; recorded as an accepted gap — a dedicated flow
   is a later nicety, not a security hole, because both paths verify first).
+  **(Superseded by rev 4, Session 024: a dedicated verify-first `changePin`
+  op now ships — see the amendment at the end.)**
 - **The lock is device-scoped, not account-scoped — and it is wiped on
   sign-out.** `AuthSignedOut` (manual or remote) clears the lock via a root
   listener mounted beside the coach teardown in `app.dart`. **The wipe
@@ -619,8 +622,8 @@ where they arise.
 - **Explicitly NOT in settings (v1):** theme toggle (MVP OUT-list), the
   notification-privacy override (Decision 6 deferral), KVKK export/delete
   (M6.2 — this screen is their future home, noted so M6.2 extends rather
-  than invents), change-PIN (Decision 1), hotline/safety content (★ gate,
-  founder-blocked).
+  than invents), ~~change-PIN (Decision 1)~~ **(shipped in rev 4, Session
+  024)**, hotline/safety content (★ gate, founder-blocked).
 - **ARB:** new keys prefixed `settings*` / `lock*` ×3 locales; a
   `privacy_arb_guard_test` clones the coach guard's key-set-parity check for
   both prefixes (the digit-run rule stays coach-scoped — it is an ADR-016
@@ -641,6 +644,7 @@ where they arise.
 | Wrong-attempt write races the sign-out wipe | write ABORTED by the generation guard | `ref.mounted` cannot catch an in-place wipe on a keepAlive controller (D1) |
 | Icon channel fails | toggle reverts + honest copy | never display a state the OS refused (D7) |
 | Lock record write fails on enable | setup reports failure, lock NOT shown as on | never claim protection that didn't persist |
+| New-PIN write fails on change-PIN (rev 4) | settings reports failure; OLD PIN stays in force in memory and store | never claim a rotation that didn't persist — a survivor rotating a compromised PIN must learn it is still the old one (the change row has no self-revealing state, unlike disable) |
 | Sign-out wipe write fails | overlay still lock-state-driven; recovery idempotent | orphaned record is escapable, not a brick (D1, D4) |
 | App killed between wrong attempt and verdict | attempt already persisted (increment-before-verdict) | restart is not a retry reset (D4) |
 | Device clock set FORWARD | grace + cooldown deadlines elapse — bound degrades to manual-entry speed | no persistent monotonic clock; stated, not hidden (D3, D4) |
@@ -750,8 +754,9 @@ where they arise.
 
 - The shield flashes behind system sheets (share sheet, permission dialogs)
   — a cosmetic cost of always-on; banking-app precedent.
-- No change-PIN flow (disable→enable), no grace-window setting, Western
-  keypad digits in AR — v1 minimalism, each individually cheap to add later.
+- ~~No change-PIN flow (disable→enable)~~ **(closed in rev 4, Session 024)**,
+  no grace-window setting, Western keypad digits in AR — v1 minimalism, each
+  individually cheap to add later.
 - The discreet toggle controls the icon only until M6.2 wires the per-user
   notification override through the settings-Function path — PRD F6 is
   split across two sessions, loudly. And discreet mode is bounded by the
@@ -891,3 +896,95 @@ them were found INDEPENDENTLY BY TWO LENSES, which is the signal worth trusting.
   enrollment change and permanently revokes the accelerator (**issue #48**) —
   again fail-safe (toward the PIN), an annoyance rather than a hole; revisit once
   operator item 4 says whether it bites in practice.
+
+## Amendment — rev 4 (Session 024): the change-PIN gap is closed, invariant-preserving
+
+D1's "no separate change-PIN flow in v1" and D7's "explicitly NOT in settings"
+are superseded: a dedicated verify-first `changePin({currentPin, newPin})`
+controller op now ships from settings (a "Change PIN" row visible only when
+the lock is on). Design decisions, each deliberate:
+
+- **Modeled on `disableLock`, NOT `verifyPin`.** `verifyPin` flips state to
+  `PrivacyLocked` on a wrong entry — inside settings that would slam the lock
+  overlay over the settings route. `changePin` persists a wrong attempt via
+  `_persistWrongAttempt` and returns `PinLockAttemptWrong` with **no state
+  flip**, exactly like `disableLock`.
+- **Attempt-bounded identically to `disableLock`** — the current-PIN verify
+  counts toward the same 5/6/7 cooldown schedule, constant-time compare,
+  cooldown refuses without consuming an attempt (DVUX-4's `PinLockAttemptResult`
+  contract). A change flow behind the gate is a PIN oracle just like disable;
+  leaving it unbounded would hand a partner on a momentarily-unlocked phone a
+  brute-force oracle (the LOCKBYPASS-2 shape). Today's "turn off → turn on"
+  path routes its verify through the bounded `disableLock`, so bounding parity
+  preserves existing semantics exactly.
+- **Atomic, write-first, commit-after (D8 ordering, from `enableLock`):** the
+  new record (fresh salt + hash of the new PIN, `wrongCount: 0`,
+  `lockoutUntilMs: null`) is written to the Keychain store FIRST; `_record` is
+  committed only after the write returns. A failed write returns `Aborted` and
+  leaves the OLD PIN in force in both memory and store — never claiming a
+  change that did not persist. (The advance-`_record`-before-write ordering
+  used by `verifyPin`'s wrong-attempt path protects an *increment* against a
+  refund race; the change-success path *resets* the count, where a refund is a
+  no-op — so write-first is the correct ordering here.)
+- **A failed write is REPORTED, not silent (pre-code review S024, findings
+  0/9 — skeptic and adjudicator both confirmed):** unlike disable, whose
+  failed clear leaves the lock visibly ON in the settings row, a failed
+  change has no self-revealing row state — silence would read as success
+  while the old, possibly-compromised PIN stayed valid (the exact D8 harm: a
+  survivor believing a rotation took when it didn't; next unlock then burns
+  attempt budget on the NEW pin while the OLD one silently remains the
+  credential). Settings therefore maps the write-failure `Aborted` to a
+  save-failed line (`settingsChangePinSaveFailed` — "couldn't save; your old
+  PIN is still in place"), mirroring the enable path's
+  `settingsPinSaveFailed`, and the D8 fail-direction table gains the
+  change-PIN row. The wipe/sign-out `Aborted` cannot misfire this message:
+  the sign-out listener pops settings and the handler is `mounted`-guarded.
+- **Recorded residual — the mid-flow handoff window (pre-code review S024,
+  finding 1, skeptic-corrected):** between the current-PIN dialog and the
+  new-PIN screen's confirm, the raw current PIN is held in a local while a
+  second screen runs. An owner who types their current PIN and then hands
+  over the phone mid-flow lets the holder set a PIN of their choosing without
+  knowing the current one — stealthy persistent access (session intact; only
+  the changed PIN reveals it). Bounded, not a brick: ADR-018 D4's
+  always-visible "Forgot PIN? Sign out" recovery IS the reset, and the window
+  requires owner cooperation (initiate + verify + walk away mid-flow) — no
+  worse than the accepted disable→enable baseline it replaces, which leaves
+  the lock fully OFF in its window. Kept current-PIN-first because it matches
+  every other verify-then-act flow in the app; recorded so a future editor
+  weighs the reorder (new-PIN-first, verify-last) with open eyes.
+- **Generation-guarded after EVERY await (invariant 2):** the entry generation
+  is captured, `_persistWrongAttempt` re-checks internally, and the new-PIN
+  `_store.write` is bracketed by re-checks before and after; on mismatch the
+  op aborts without writing (a mid-op `wipe()` wins — no record resurrection).
+- **The biometric accelerator is PRESERVED** (`biometricEnabled` +
+  `biometricEnrollmentState` re-based on the CURRENT `_record` at
+  success-time): a proven current PIN is owner-auth, and a PIN rotation does
+  not change who is enrolled. Known micro-race, accepted and recorded: a
+  concurrent `refreshBiometricAvailability` revoke landing during the
+  `_store.write` await could be clobbered by the preserved flags — this is
+  self-healing (the next lock-screen mount re-runs the enrollment check and
+  re-revokes; fail-safe toward the PIN). Do not "fix" this into a hole.
+- **The rejected alternative** — composing `disableLock(current)` +
+  `enableLock(new)` — loses the biometric accelerator (`enableLock` hard-codes
+  `biometricEnabled: false`), opens a window where the record is fully cleared
+  (a crash there leaves the lock OFF), and forces the user back through the DV
+  warning. That is exactly the convenience gap this amendment closes.
+- **UI: reuse, not new surface.** Current PIN via the existing
+  `PinVerifyDialog` (pushed INSIDE the Navigator per D7 — legal there); new
+  PIN via `PinSetupScreen` gaining a named `collectNewPin` constructor that
+  pops the confirmed PIN instead of calling `enableLock` (the default-ctor
+  enable path stays byte-identical, so its tests/goldens do not move). Four
+  new ARB keys ×3 locales (`settingsChangePinTitle`, `settingsChangePinEnterPrompt`,
+  `settingsChangePinFailed`, `settingsChangePinSaveFailed`); reuses
+  `settingsPinConfirmPrompt`, `settingsPinMismatch`, `settingsLockCooldown`.
+- **Recorded UX trade:** the user learns a wrong *current* PIN only after
+  entering the new PIN (one atomic `changePin` call). Early feedback would
+  need either `verifyPin` (unacceptable — state flip) or a new state-neutral
+  verify op (surface we refuse to add). Accepted for a rare, deliberate
+  settings action.
+- **The four invariants audited for this op:** (1) no `ref.invalidate`
+  anywhere in the flow — the controller mutates in place; (2) generation
+  re-check after every await as above; (3) the biometric adapter is untouched
+  (`biometricOnly: true` sentinel unaffected); (4) the lock screen is
+  untouched — the whole flow lives in settings, below the gate, where dialogs
+  and pushed routes are legal. No new seam, plugin, or platform channel.

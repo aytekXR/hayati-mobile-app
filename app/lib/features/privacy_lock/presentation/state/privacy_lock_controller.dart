@@ -438,6 +438,120 @@ class PrivacyLockController extends _$PrivacyLockController {
     }
   }
 
+  /// Changes the PIN from settings (ADR-018 rev 4 — closes the M6.1 accepted
+  /// gap D1/D7 recorded). Verify-first, atomic, and attempt-bounded EXACTLY like
+  /// [disableLock]: a change flow sitting behind the gate is a PIN oracle just
+  /// like disable, so leaving it unbounded would hand a partner on a
+  /// momentarily-unlocked phone a brute-force oracle for the current PIN. The
+  /// current-PIN verify therefore counts toward the same 5/6/7 cooldown schedule,
+  /// is constant-time, and a running cooldown refuses WITHOUT consuming an attempt.
+  ///
+  /// Deliberately does NOT reuse [verifyPin]: verifyPin flips the state to
+  /// [PrivacyLocked] on a wrong entry, which would slam the lock overlay over the
+  /// settings screen the owner is standing on. A wrong current PIN here persists
+  /// the attempt via [_persistWrongAttempt] and returns [PinLockAttemptWrong] with
+  /// NO state flip — the [disableLock] semantics.
+  ///
+  /// Write-first / commit-after (the [enableLock] ordering, Decision 8): the new
+  /// record — fresh salt + hash of the NEW pin, `wrongCount: 0`,
+  /// `lockoutUntilMs: null` — is WRITTEN before `_record` is committed. A failed
+  /// write returns [PinLockAttemptAborted] and leaves the OLD PIN in force in both
+  /// memory and store: never claim a rotation that did not persist. (The
+  /// advance-`_record`-before-write ordering [verifyPin] uses guards an
+  /// *increment* against a refund race; the change-success path *resets* the
+  /// count, where a refund is a no-op — so write-first is the correct ordering.)
+  /// Settings maps that write-failure `Aborted` to a save-failed line, because —
+  /// unlike disable, whose failed clear leaves the lock visibly ON in the row — a
+  /// failed change has no self-revealing row state and silence would read as
+  /// success while the old PIN stayed valid.
+  ///
+  /// The biometric accelerator is PRESERVED (`biometricEnabled` +
+  /// `biometricEnrollmentState`): a proven current PIN is owner-auth, and a PIN
+  /// rotation does not change who is enrolled. Recorded micro-race, accepted: the
+  /// preserved flags CLOBBER a concurrent [refreshBiometricAvailability] revoke
+  /// that lands during the `_store.write` await (that op is deliberately not
+  /// `_busy`-guarded and does not bump the generation, so the guard cannot catch
+  /// it). Correctness is restored by SELF-HEAL at the next lock-screen mount — it
+  /// re-runs the enrollment check and re-revokes (fail-safe toward the PIN). Do
+  /// NOT "fix" this into a hole.
+  ///
+  /// Recorded residual (ADR-018 rev 4): the raw current PIN is held by the caller
+  /// across the new-PIN screen — owner-cooperation-gated (initiate + verify + walk
+  /// away mid-flow), bounded by Decision 4's always-visible sign-out recovery, and
+  /// kept current-PIN-first to match every other verify-then-act flow in the app.
+  Future<PinLockAttemptResult> changePin({
+    required String currentPin,
+    required String newPin,
+  }) async {
+    if (_busy) return const PinLockAttemptAborted();
+    final record = _record;
+    if (record == null || !record.isSet) return const PinLockAttemptAborted();
+
+    final gen = _generation;
+    _busy = true;
+    try {
+      final now = _nowMs;
+      final cooldownUntil = _activeCooldown(now);
+      if (cooldownUntil != null) {
+        // Refused, NOT consumed — the compare never runs (DVUX-4's distinction).
+        return PinLockAttemptCooldown(
+          cooldownUntilMs: cooldownUntil,
+          tier: cooldownTierFor(record.wrongCount),
+        );
+      }
+
+      if (!constantTimeEquals(
+        hashPin(pin: currentPin, salt: record.salt),
+        record.pinHash,
+      )) {
+        // Bounded exactly like the lock screen (via the shared helper), but with
+        // NO state flip — unlike verifyPin, a wrong current PIN must not throw the
+        // lock overlay over the settings route the owner is standing on.
+        await _persistWrongAttempt(record, gen, now);
+        final updated = _record ?? record;
+        return PinLockAttemptWrong(
+          remainingBeforeCooldown: remainingBeforeCooldown(updated.wrongCount),
+          cooldownUntilMs: updated.lockoutUntilMs,
+          tier: cooldownTierFor(updated.wrongCount),
+        );
+      }
+
+      // Current PIN proven. Re-read `_record` before building the new record:
+      // this is DEFENSIVE against a future edit that introduces an await above
+      // this line — on today's success path nothing is awaited between the entry
+      // capture and here, so `current` equals the entry `record`; it is not an
+      // active safeguard today.
+      final current = _record;
+      if (current == null || !current.isSet) {
+        return const PinLockAttemptAborted();
+      }
+      final salt = generateSalt();
+      final updated = PinLockRecord(
+        salt: salt,
+        pinHash: hashPin(pin: newPin, salt: salt),
+        // Preserve the accelerator — see the doc-comment's clobber/self-heal note.
+        biometricEnabled: current.biometricEnabled,
+        biometricEnrollmentState: current.biometricEnrollmentState,
+        // A proven PIN is a successful verification: it resets the bound, the same
+        // as unlocking with it would.
+        wrongCount: 0,
+        lockoutUntilMs: null,
+      );
+
+      if (gen != _generation) return const PinLockAttemptAborted();
+      await _store.write(updated); // WRITE-FIRST (the enableLock ordering).
+      if (gen != _generation) return const PinLockAttemptAborted();
+      _record = updated; // Commit only after a persisted write.
+      // state stays PrivacyLockUnlocked — the owner is standing inside settings.
+      return const PinLockAttemptAccepted();
+    } catch (_) {
+      // The new-PIN write threw → the OLD PIN is still in force (memory + store).
+      return const PinLockAttemptAborted();
+    } finally {
+      _busy = false;
+    }
+  }
+
   /// Toggles the biometric accelerator from settings (Decision 1). Enabling
   /// CAPTURES the platform's current enrollment state into the record (the input
   /// to the revocation check); disabling nulls it.
