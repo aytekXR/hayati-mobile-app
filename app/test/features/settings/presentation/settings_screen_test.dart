@@ -179,38 +179,42 @@ void main() {
       expect(find.text(en.settingsChangePinTitle), findsOneWidget);
     });
 
-    testWidgets('the happy path rotates the PIN — verify dialog, then the new-PIN '
-        'screen, then back on settings with the new hash persisted', (
-      tester,
-    ) async {
-      final env = arrange(record: lockRecord());
-      await pumpSettings(tester, env.overrides);
-      final oldSalt = env.store.record!.salt;
+    testWidgets(
+      'the happy path rotates the PIN — verify dialog, then the new-PIN '
+      'screen, then back on settings with the new hash persisted',
+      (tester) async {
+        final env = arrange(record: lockRecord());
+        await pumpSettings(tester, env.overrides);
+        final oldSalt = env.store.record!.salt;
 
-      await tester.tap(find.text(en.settingsChangePinTitle));
-      await tester.pumpAndSettle();
-      // The current-PIN dialog (pushed INSIDE the Navigator — legal here).
-      expect(find.text(en.settingsLockVerifyTitle), findsOneWidget);
-      await enterPin(tester, kTestPin);
-      await tester.pumpAndSettle();
+        await tester.tap(find.text(en.settingsChangePinTitle));
+        await tester.pumpAndSettle();
+        // The current-PIN dialog (pushed INSIDE the Navigator — legal here).
+        expect(find.text(en.settingsLockVerifyTitle), findsOneWidget);
+        await enterPin(tester, kTestPin);
+        await tester.pumpAndSettle();
 
-      // The collect-mode new-PIN screen, with its own prompt.
-      expect(find.byType(PinSetupScreen), findsOneWidget);
-      expect(find.text(en.settingsChangePinEnterPrompt), findsOneWidget);
-      await enterPin(tester, kNewPin); // enter
-      await enterPin(tester, kNewPin); // confirm
-      await tester.pumpAndSettle();
+        // The collect-mode new-PIN screen, with its own prompt.
+        expect(find.byType(PinSetupScreen), findsOneWidget);
+        expect(find.text(en.settingsChangePinEnterPrompt), findsOneWidget);
+        await enterPin(tester, kNewPin); // enter
+        await enterPin(tester, kNewPin); // confirm
+        await tester.pumpAndSettle();
 
-      expect(find.byType(SettingsScreen), findsOneWidget);
-      final rec = env.store.record!;
-      expect(
-        constantTimeEquals(hashPin(pin: kNewPin, salt: rec.salt), rec.pinHash),
-        isTrue,
-        reason: 'the new PIN is persisted',
-      );
-      expect(rec.salt, isNot(oldSalt), reason: 'a fresh salt per change');
-      expect(rec.wrongCount, 0);
-    });
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        final rec = env.store.record!;
+        expect(
+          constantTimeEquals(
+            hashPin(pin: kNewPin, salt: rec.salt),
+            rec.pinHash,
+          ),
+          isTrue,
+          reason: 'the new PIN is persisted',
+        );
+        expect(rec.salt, isNot(oldSalt), reason: 'a fresh salt per change');
+        expect(rec.wrongCount, 0);
+      },
+    );
 
     testWidgets('a WRONG current PIN shows the unchanged-PIN line and leaves the '
         'record untouched — bounded like disable', (tester) async {
@@ -236,7 +240,9 @@ void main() {
 
     testWidgets('a running cooldown shows the cooldown line, not a wrong-PIN '
         'line, and leaves the record unchanged (DVUX-4)', (tester) async {
-      final until = _now.add(const Duration(seconds: 30)).millisecondsSinceEpoch;
+      final until = _now
+          .add(const Duration(seconds: 30))
+          .millisecondsSinceEpoch;
       final env = arrange(
         record: lockRecord(wrongCount: 5, lockoutUntilMs: until),
       );
@@ -291,30 +297,31 @@ void main() {
       );
     });
 
-    testWidgets('a FAILED new-PIN write shows the save-failed line and leaves the '
-        'record unchanged — the old PIN is still in place (Decision 8)', (
-      tester,
-    ) async {
-      final env = arrange(record: lockRecord());
-      await pumpSettings(tester, env.overrides);
-      final oldHash = env.store.record!.pinHash;
-      env.store.onWrite = (_) async => throw StateError('keychain fault');
+    testWidgets(
+      'a FAILED new-PIN write shows the save-failed line and leaves the '
+      'record unchanged — the old PIN is still in place (Decision 8)',
+      (tester) async {
+        final env = arrange(record: lockRecord());
+        await pumpSettings(tester, env.overrides);
+        final oldHash = env.store.record!.pinHash;
+        env.store.onWrite = (_) async => throw StateError('keychain fault');
 
-      await tester.tap(find.text(en.settingsChangePinTitle));
-      await tester.pumpAndSettle();
-      await enterPin(tester, kTestPin);
-      await tester.pumpAndSettle();
-      await enterPin(tester, kNewPin);
-      await enterPin(tester, kNewPin);
-      await tester.pumpAndSettle();
+        await tester.tap(find.text(en.settingsChangePinTitle));
+        await tester.pumpAndSettle();
+        await enterPin(tester, kTestPin);
+        await tester.pumpAndSettle();
+        await enterPin(tester, kNewPin);
+        await enterPin(tester, kNewPin);
+        await tester.pumpAndSettle();
 
-      expect(find.text(en.settingsChangePinSaveFailed), findsOneWidget);
-      expect(
-        env.store.record!.pinHash,
-        oldHash,
-        reason: 'never claim a rotation that did not persist',
-      );
-    });
+        expect(find.text(en.settingsChangePinSaveFailed), findsOneWidget);
+        expect(
+          env.store.record!.pinHash,
+          oldHash,
+          reason: 'never claim a rotation that did not persist',
+        );
+      },
+    );
   });
 
   group('row 2 — the biometric accelerator', () {

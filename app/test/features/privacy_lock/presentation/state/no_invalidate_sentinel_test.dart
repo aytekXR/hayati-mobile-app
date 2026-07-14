@@ -48,16 +48,19 @@ void main() {
         .join('\n');
   });
 
-  test('the controller never invalidates itself or its provider (FLUTTER-2)', () {
-    expect(
-      code,
-      isNot(contains('ref.invalidate(')),
-      reason: 'invalidation replays the STALE boot snapshot (ADR-018 D1)',
-    );
-    expect(
-      code,
-      isNot(contains('invalidateSelf')),
-      reason: 'invalidateSelf re-runs build() against the boot override too',
-    );
-  });
+  test(
+    'the controller never invalidates itself or its provider (FLUTTER-2)',
+    () {
+      expect(
+        code,
+        isNot(contains('ref.invalidate(')),
+        reason: 'invalidation replays the STALE boot snapshot (ADR-018 D1)',
+      );
+      expect(
+        code,
+        isNot(contains('invalidateSelf')),
+        reason: 'invalidateSelf re-runs build() against the boot override too',
+      );
+    },
+  );
 }

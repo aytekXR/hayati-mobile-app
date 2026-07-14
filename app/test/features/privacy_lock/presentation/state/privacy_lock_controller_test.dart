@@ -447,7 +447,8 @@ void main() {
       expect(
         store.record,
         isNull,
-        reason: 'the wipe cleared the store; the parked write must not '
+        reason:
+            'the wipe cleared the store; the parked write must not '
             'reappear behind it',
       );
       expect(stateOf(container), const PrivacyLockDisabled());
@@ -462,7 +463,8 @@ void main() {
       expect(
         await controller.verifyPin(newPin),
         const PinLockAttemptAborted(),
-        reason: 'MUTATION-CHECK (Invariant 2): dropping the post-write gen '
+        reason:
+            'MUTATION-CHECK (Invariant 2): dropping the post-write gen '
             're-check resurrects the rotated record in memory — the new PIN '
             'must NOT verify after the wipe',
       );
@@ -1090,67 +1092,75 @@ void main() {
 
     // ── changePin (ADR-018 rev 4 — the verify-first rotation) ───────────────
 
-    test('changePin with the correct current PIN rewrites the record — a fresh '
-        'salt + hash of the NEW pin, counter reset, state stays unlocked', () async {
-      final store = FakePinLockStore(initial: aRecord(wrongCount: 3));
-      final container = boot(store: store);
-      await controllerOf(container).verifyPin(correctPin); // stand in settings
-
-      final result = await controllerOf(
-        container,
-      ).changePin(currentPin: correctPin, newPin: newPin);
-
-      expect(result, const PinLockAttemptAccepted());
-      expect(
-        stateOf(container),
-        const PrivacyLockUnlocked(),
-        reason:
-            'the owner is standing INSIDE settings — no state flip, unlike '
-            'verifyPin which would slam the lock overlay over the route',
-      );
-      final rec = store.record!;
-      // MUTATION-CHECK: the new hash matches the NEW pin and NOT the old one — a
-      // no-op or wrong-hash mutation is caught here.
-      expect(
-        constantTimeEquals(hashPin(pin: newPin, salt: rec.salt), rec.pinHash),
-        isTrue,
-      );
-      expect(
-        constantTimeEquals(
-          hashPin(pin: correctPin, salt: rec.salt),
-          rec.pinHash,
-        ),
-        isFalse,
-      );
-      expect(rec.salt, isNot(salt), reason: 'a fresh salt per change');
-      expect(rec.wrongCount, 0);
-      expect(rec.lockoutUntilMs, isNull);
-    });
-
-    test('changePin PRESERVES the biometric accelerator, enrollment state and '
-        'all (MUTATION-CHECK: the disable→enable composition would drop it)', () async {
-      final store = FakePinLockStore(
-        initial: aRecord(biometricEnabled: true, enrollment: 'e1'),
-      );
-      final container = boot(
-        store: store,
-        biometric: FakeBiometricAuthenticator(enrollment: 'e1'),
-      );
-      await controllerOf(container).verifyPin(correctPin);
-
-      expect(
+    test(
+      'changePin with the correct current PIN rewrites the record — a fresh '
+      'salt + hash of the NEW pin, counter reset, state stays unlocked',
+      () async {
+        final store = FakePinLockStore(initial: aRecord(wrongCount: 3));
+        final container = boot(store: store);
         await controllerOf(
           container,
-        ).changePin(currentPin: correctPin, newPin: newPin),
-        const PinLockAttemptAccepted(),
-      );
-      expect(
-        store.record!.biometricEnabled,
-        isTrue,
-        reason: 'a rotation does not change who is enrolled',
-      );
-      expect(store.record!.biometricEnrollmentState, 'e1');
-    });
+        ).verifyPin(correctPin); // stand in settings
+
+        final result = await controllerOf(
+          container,
+        ).changePin(currentPin: correctPin, newPin: newPin);
+
+        expect(result, const PinLockAttemptAccepted());
+        expect(
+          stateOf(container),
+          const PrivacyLockUnlocked(),
+          reason:
+              'the owner is standing INSIDE settings — no state flip, unlike '
+              'verifyPin which would slam the lock overlay over the route',
+        );
+        final rec = store.record!;
+        // MUTATION-CHECK: the new hash matches the NEW pin and NOT the old one — a
+        // no-op or wrong-hash mutation is caught here.
+        expect(
+          constantTimeEquals(hashPin(pin: newPin, salt: rec.salt), rec.pinHash),
+          isTrue,
+        );
+        expect(
+          constantTimeEquals(
+            hashPin(pin: correctPin, salt: rec.salt),
+            rec.pinHash,
+          ),
+          isFalse,
+        );
+        expect(rec.salt, isNot(salt), reason: 'a fresh salt per change');
+        expect(rec.wrongCount, 0);
+        expect(rec.lockoutUntilMs, isNull);
+      },
+    );
+
+    test(
+      'changePin PRESERVES the biometric accelerator, enrollment state and '
+      'all (MUTATION-CHECK: the disable→enable composition would drop it)',
+      () async {
+        final store = FakePinLockStore(
+          initial: aRecord(biometricEnabled: true, enrollment: 'e1'),
+        );
+        final container = boot(
+          store: store,
+          biometric: FakeBiometricAuthenticator(enrollment: 'e1'),
+        );
+        await controllerOf(container).verifyPin(correctPin);
+
+        expect(
+          await controllerOf(
+            container,
+          ).changePin(currentPin: correctPin, newPin: newPin),
+          const PinLockAttemptAccepted(),
+        );
+        expect(
+          store.record!.biometricEnabled,
+          isTrue,
+          reason: 'a rotation does not change who is enrolled',
+        );
+        expect(store.record!.biometricEnrollmentState, 'e1');
+      },
+    );
 
     test('a WRONG current PIN persists the attempt but does NOT flip the state '
         'to Locked — the verifyPin-vs-disableLock divergence', () async {
@@ -1206,37 +1216,44 @@ void main() {
       );
     });
 
-    test('the 5th wrong current PIN starts the 30s cooldown — the SAME schedule '
-        'as verifyPin/disableLock (MUTATION-CHECK: an unbounded oracle fails)', () async {
-      final store = FakePinLockStore(initial: aRecord());
-      final container = boot(store: store);
-      await controllerOf(container).verifyPin(correctPin);
-      final controller = controllerOf(container);
+    test(
+      'the 5th wrong current PIN starts the 30s cooldown — the SAME schedule '
+      'as verifyPin/disableLock (MUTATION-CHECK: an unbounded oracle fails)',
+      () async {
+        final store = FakePinLockStore(initial: aRecord());
+        final container = boot(store: store);
+        await controllerOf(container).verifyPin(correctPin);
+        final controller = controllerOf(container);
 
-      for (var attempt = 1; attempt <= 4; attempt++) {
-        final r = await controller.changePin(
+        for (var attempt = 1; attempt <= 4; attempt++) {
+          final r = await controller.changePin(
+            currentPin: wrongPin,
+            newPin: newPin,
+          );
+          expect(
+            r,
+            isA<PinLockAttemptWrong>(),
+            reason: 'attempt $attempt free',
+          );
+          expect(store.record!.lockoutUntilMs, isNull);
+        }
+        final fifth = await controller.changePin(
           currentPin: wrongPin,
           newPin: newPin,
         );
-        expect(r, isA<PinLockAttemptWrong>(), reason: 'attempt $attempt free');
-        expect(store.record!.lockoutUntilMs, isNull);
-      }
-      final fifth = await controller.changePin(
-        currentPin: wrongPin,
-        newPin: newPin,
-      );
-      final until = msFromStart(const Duration(seconds: 30));
-      expect(
-        fifth,
-        PinLockAttemptWrong(
-          remainingBeforeCooldown: 0,
-          cooldownUntilMs: until,
-          tier: PinLockCooldownTier.thirtySeconds,
-        ),
-      );
-      expect(store.record!.wrongCount, 5);
-      expect(store.record!.lockoutUntilMs, until);
-    });
+        final until = msFromStart(const Duration(seconds: 30));
+        expect(
+          fifth,
+          PinLockAttemptWrong(
+            remainingBeforeCooldown: 0,
+            cooldownUntilMs: until,
+            tier: PinLockCooldownTier.thirtySeconds,
+          ),
+        );
+        expect(store.record!.wrongCount, 5);
+        expect(store.record!.lockoutUntilMs, until);
+      },
+    );
 
     test('changePin with no record set → Aborted', () async {
       final store = FakePinLockStore();

@@ -125,14 +125,12 @@ void main() {
             iosBundleId: 'com.hayati.app',
           ),
         );
-        await FirebaseAuth.instanceFor(app: appB).useAuthEmulator(
-          kAuthEmulatorHost,
-          kAuthEmulatorPort,
-        );
-        FirebaseFirestore.instanceFor(app: appB).useFirestoreEmulator(
-          kAuthEmulatorHost,
-          kFirestoreEmulatorPort,
-        );
+        await FirebaseAuth.instanceFor(
+          app: appB,
+        ).useAuthEmulator(kAuthEmulatorHost, kAuthEmulatorPort);
+        FirebaseFirestore.instanceFor(
+          app: appB,
+        ).useFirestoreEmulator(kAuthEmulatorHost, kFirestoreEmulatorPort);
         FirebaseFunctions.instanceFor(
           app: appB,
           region: kFunctionsRegion,
@@ -210,7 +208,9 @@ void main() {
       final authB = FirebaseAuth.instanceFor(app: appB); // joiner — partnerB
       final firestoreA = FirebaseFirestore.instance;
       final firestoreB = FirebaseFirestore.instanceFor(app: appB);
-      final functionsA = FirebaseFunctions.instanceFor(region: kFunctionsRegion);
+      final functionsA = FirebaseFunctions.instanceFor(
+        region: kFunctionsRegion,
+      );
       final functionsB = FirebaseFunctions.instanceFor(
         app: appB,
         region: kFunctionsRegion,
@@ -249,9 +249,9 @@ void main() {
       // signed-in user — parameterized by the Functions instance so creator and
       // joiner each stamp consent as THEMSELVES on their own app.
       Future<void> recordConsent(FirebaseFunctions functions) async {
-        await functions
-            .httpsCallable('recordConsent')
-            .call<Object?>(<String, Object?>{'withdraw': false});
+        await functions.httpsCallable('recordConsent').call<Object?>(
+          <String, Object?>{'withdraw': false},
+        );
       }
 
       const profile = RelationshipProfile(
