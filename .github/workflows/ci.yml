@@ -277,7 +277,10 @@ jobs:
     # Each suite compiles its own simulator binary and they run serially, so the
     # bound is ~4 Xcode debug builds plus the emulator round-trips (auth,
     # pairing, profile, daily_question; phone_auth stays quarantined, issue #15).
-    timeout-minutes: 40
+    # 40 → 50 (S024): the healthy norm is 25-26 min, but a slow macOS runner ran
+    # the same work ~55% longer and hit 40 exactly (run 29295078572 — all suites
+    # that finished were green; the budget, not the tests, was the failure).
+    timeout-minutes: 50
     permissions:
       contents: read
     steps:
