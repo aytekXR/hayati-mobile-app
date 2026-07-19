@@ -8,6 +8,12 @@ firestore-debug.log
 # CodeGraph local index (machine-local sqlite DB; each machine runs `codegraph init` once — session-rules §1)
 .codegraph/
 
+# UI/UX Pro Max skill corpus (machine-local, like .codegraph/; each machine runs `uipro init -a claude` once).
+# 143 vendored third-party files; `uipro init` cannot pin a version, so committing buys no real reproducibility —
+# everything binding lives in docs/adr/025 instead (ADR-025 D1/D9). Only the `ui-ux-pro-max` skill may be invoked
+# in this repo; the other six installed skills are forbidden here (ADR-025 D9). `.claude/settings.json` stays tracked.
+.claude/skills/
+
 # Golden mismatch artifacts (LocalFileComparator writes these beside the test on failure)
 **/failures/
 
