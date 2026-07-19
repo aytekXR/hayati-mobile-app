@@ -16,7 +16,16 @@
 // not a dialog. The settings screen's PIN-verify dialog is a different story: it
 // is pushed INSIDE the Navigator and may use `showDialog` normally (Decision 7).
 //
-// This screen also provides its OWN `Material` — there is no Scaffold above it.
+// This screen also provides its OWN `Material` — there is no Scaffold above it,
+// so `ScaffoldMessenger.of` (a snackbar) throws for the same reason.
+//
+// SENTINEL SCAN SET (ADR-025 D5.i, issue #61): the constraint above is no longer
+// only a comment. `lock_screen_forbidden_api_sentinel_test.dart` reads this file
+// — and every widget-declaring file reachable through its RELATIVE imports —
+// and fails if any of those calls appears in code. The scan set is derived from
+// the real import graph, so a shared widget mounted here tomorrow is guarded
+// tomorrow without anyone updating a list. Comment lines are stripped before
+// scanning, which is why this header may name the forbidden calls in prose.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';

@@ -5,6 +5,21 @@ import '../../../../core/design_system/spacing_tokens.dart';
 import '../../../../core/l10n/gen/app_localizations.dart';
 import '../../domain/pin_hasher.dart';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SENTINEL SCAN SET (ADR-025 D5.i, issue #61). This file is mounted by
+// LockScreen, which sits ABOVE the app's only Navigator and has NO Navigator,
+// NO Overlay and NO Scaffold ancestor — so the ADR-018 D3 constraint in
+// `lock_screen.dart`'s header applies here in full: no `showDialog`, no
+// `Tooltip` (and therefore no `tooltip:` argument and no `IconButton`, which
+// builds one), no text-selection-enabled field, no `ScaffoldMessenger.of`.
+// Each throws when its ancestor lookup fails, and on the recovery path that
+// crash IS the lockout. `lock_screen_forbidden_api_sentinel_test.dart` reaches
+// this file through LockScreen's import graph and enforces it.
+//
+// This is also why the keys below are hand-built from `InkWell` rather than
+// `FilledButton`: see the S019 min-width note at [_PinKey].
+// ═══════════════════════════════════════════════════════════════════════════
+
 /// The 6-dot PIN echo (ADR-018 Decision 1 — dots only, never the digits).
 ///
 /// Pinned LTR alongside the keypad: the dots fill in the same order the digits
