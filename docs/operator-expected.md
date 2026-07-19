@@ -7,10 +7,24 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-19, **Session 026 close** (the UI/UX Pro Max refactor
-scoping ADR — your 2026-07-14 directive). **Nothing new is required from you,
-and no app code changed.** One small NEW question is waiting whenever you want
-it (item 10 — Phosphor vs Material icons), and it blocks nothing._
+_Last refreshed: 2026-07-20, **Session 027 close** (the UI/UX refactor's first
+unit — the safety nets, built before anything visual moves). **Nothing new is
+required from you.** One small question is still waiting whenever you want it
+(item 10 — Phosphor vs Material icons), and it blocks nothing._
+
+_**Session 027 in one paragraph:** it built the three automated checks that
+Session 026 said had to exist before any redesign starts — and two of them
+close gaps that were already in the app. **The lock screen now has a real
+guard**: the rule that certain common UI elements would crash it (and lock you
+out of your own app on the "forgot my PIN" path) was previously just a written
+note; now a test enforces it, and it enforces the two spellings a written note
+would have missed. **The brand colours are now checked against the brand kit
+automatically**, so neither side can drift from the other unnoticed — they
+match today. And **the sentences that carry safety or legal meaning are now
+frozen**: 96 strings across all three languages, including the consent and
+withdrawal wording, cannot be silently reworded — any change turns the build
+red and forces a deliberate decision. Nothing you can see changed: zero screen
+snapshots moved, which was the session's own success condition._
 
 _**Still the one thing worth doing: item 5 — rotate the leaked Slack webhook**
 (a security action, open since Session 005). Ten minutes, four steps, and it
@@ -929,20 +943,33 @@ also state, in writing, that the project is built in "React Native" — it
 isn't; it's Flutter.) Nothing was adopted from it without being checked
 against the brand kit first.
 
-**(b) Two real gaps in the existing app were found, and both are now the next
-session's work.** Neither is a bug you would ever see — they are missing
+**(b) Two real gaps in the existing app were found — and BOTH ARE NOW FIXED
+(Session 027).** Neither was a bug you would ever have seen; they were missing
 *safety nets*, not broken features:
-  1. **The lock screen has a rule that nothing was enforcing.** Because of how
-     the lock sits above everything else in the app, certain common UI
-     elements (a pop-up dialog, a tooltip, selectable text) would *crash* it
-     if anyone ever added one — and on the "forgot my PIN" path, that crash
-     would mean being locked out of your own app. The rule was written in a
-     comment; nothing checked it. A future change could have shipped that
-     crash with every test passing. Now being fixed properly (issue #61).
-  2. **The brand colours were copied into the app by hand, and nothing checks
-     they still match.** They do match today. But if the brand kit were ever
-     updated, or a colour edited during the refactor, nothing would notice.
-     Being fixed with an automatic check (issue #62).
+  1. **The lock screen had a rule that nothing was enforcing.** Because the
+     lock sits above everything else in the app, certain common UI elements
+     (a pop-up dialog, a tooltip, selectable text, a "copied!" bar) would
+     *crash* it if anyone ever added one — and on the "forgot my PIN" path,
+     that crash would mean being locked out of your own app. The rule was
+     written in a comment; nothing checked it, so a future change could have
+     shipped that crash with every test passing. **Now enforced by an
+     automatic check** (issue #61, closed) — including two cases the written
+     rule would have missed: the common shorthand for adding a tooltip to a
+     button, and the "copied to clipboard" bar.
+  2. **The brand colours were copied into the app by hand, and nothing checked
+     they still matched.** They did match — verified. But if the brand kit
+     were ever updated, or a colour edited during the redesign, nothing would
+     have noticed, in either direction. **Now checked automatically** (issue
+     #62, closed).
+
+  A third net was added at the same time: **the sentences that carry safety or
+  legal meaning are frozen.** 96 strings — the "this is not therapy" wording,
+  the crisis-support text, and every consent and withdrawal sentence, in all
+  three languages — now have a fingerprint recorded in the tests. Any reword,
+  in any language, turns the build red. That does not block the change; it
+  forces it to be a decision rather than an accident, which matters because a
+  material change to the consent wording legally requires re-asking both of
+  you for consent.
 
 **(c) The refactor's actual job turned out to be different than expected.** The
 app's own screens are already well-disciplined about using brand colours and
@@ -1047,15 +1074,16 @@ coach — and it waits on item 6 alone.** Engineering is ~95% of the MVP;
 **operational proof is still 0%**: nothing has ever been deployed (item 2), the
 app has never run on a real phone against a real backend (items 3+4), and no
 real purchase has ever happened (item 0). That gap is not an engineering gap —
-it is four account/billing decisions that only you can make. The last three
+it is four account/billing decisions that only you can make. The last four
 sessions were **hardening and planning**, not features: S024 shipped the
 change-PIN flow, the iOS privacy manifest and CI runtime bumps; S025 shipped
 CI→Slack notifications and fixed a CI bug that was silently destroying the
 post-merge test verdict; **S026 scoped the UI/UX refactor (ADR-025) without
-touching a pixel** — and in the process found two pre-existing safety/consistency
-gaps that are now the next session's work (items 11(b)). **Next session:
-ADR-025 slice 0 — building those safety nets. It moves no pixels either;
-it is the precondition for the seven slices that do.**
+touching a pixel**, finding two pre-existing safety/consistency gaps on the
+way; **S027 closed both of them and froze the safety/legal wording** — still
+without touching a pixel. **Next session: ADR-025 slice 1 — the first visible
+one.** It re-brands the layer underneath every screen (dialogs, cards,
+confirmation bars), which is where the un-branded Flutter defaults live.
 
 **A note on how the refactor is sequenced, since it is now a multi-session
 arc:** slice 0 (the safety nets) → slice 1 (the un-branded Flutter defaults
