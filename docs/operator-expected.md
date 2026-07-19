@@ -7,17 +7,23 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-14, **Session 025 close** (CI → Slack notifications,
-your directive today). **One new thing is expected from you, and part of it is
-a security action: item 5 below — rotate the leaked Slack webhook, then turn
-the notifications on with one command.** The wiring is built, tested and
-merged; it is deliberately **silent** until you do that, and its silence is by
-design, not a fault. Session 025 also fixed a CI bug worth knowing about: the
-session's own closing commit was **cancelling** the post-merge test run that
-carries the only full end-to-end verdict — so that verdict was being destroyed
-before anyone could read it. And it repaired Session 024's close, which never
-ran (its work had merged and gone green; its paperwork and one issue were left
-open)._
+_Last refreshed: 2026-07-19, **Session 026 close** (the UI/UX Pro Max refactor
+scoping ADR — your 2026-07-14 directive). **Nothing new is required from you,
+and no app code changed.** One small NEW question is waiting whenever you want
+it (item 10 — Phosphor vs Material icons), and it blocks nothing._
+
+_**Still the one thing worth doing: item 5 — rotate the leaked Slack webhook**
+(a security action, open since Session 005). Ten minutes, four steps, and it
+also switches your CI notifications on._
+
+_**What Session 026 did, in one paragraph:** it planned the UI/UX refactor
+rather than starting it — deliberately, because the refactor has to be told in
+writing which parts of the app it may not touch before anyone moves a pixel.
+It installed and actually ran the UI/UX Pro Max tool you asked for, catalogued
+all 48 screens and components against their tests, and wrote the plan down as
+ADR-025. Three things came out of it that are worth your knowing about, in
+item 11 below — including **two real safety/consistency gaps that already
+existed in the app** and are now the next session's work._
 
 _Nothing about the product changed this session — no app code was touched.
 Session 024's summary (the hardening sweep: the change-PIN flow, the iOS
@@ -50,11 +56,11 @@ Session 019; M5.3 is the ONLY planned session-unit left, and it waits on this
 alone)** and **item 4 (the Apple Developer enrollment — the release lane is
 BUILT and waiting)**. Item 9 (the legal bundle — six documents, three blanks,
 three lawyer questions, one KVKK filing) stays open before public launch, and
-items 7 (coach-chat retention) and 8 (store-listing decisions) stay open,
-non-blocking. **Your two directives from today are both handled:** Slack→CI
-shipped this session; the **UI/UX Pro Max refactor** is recorded in the roadmap
-and is the next session's work (a scoping ADR first — no pixels move until the
-plan and its safety boundaries are written down).
+items 7 (coach-chat retention), 8 (store-listing decisions) and now 10 (the
+icon question) stay open, non-blocking. **Both of your 2026-07-14 directives
+are now handled:** Slack→CI shipped in Session 025; the **UI/UX Pro Max
+refactor** is now fully scoped in ADR-025 (Session 026) and its first slice is
+the next session's work.
 
 **Session 023 needed nothing from you mid-flight.** It built the consent
 screen, wrote the privacy policy and terms in Turkish, Arabic, and English,
@@ -883,6 +889,75 @@ Everything here needs your Mac and/or the Apple Developer enrollment:
   purpose string (the on-device emulator-rig prompt, issue #55's rider) —
   same AI-drafted / native-review-PENDING status.
 
+## 10. NEW (Session 026): one small question — which icon set does Hayati actually use? (not blocking anything)
+
+The brand kit says the app uses **Phosphor** icons (a specific icon family,
+rounded, at a set weight). The app actually ships **Material** icons — 28 of
+them — and Phosphor was never added. Nobody did anything wrong; the brand kit
+was written before the screens were, and the gap was never noticed until this
+session catalogued every surface.
+
+It matters only because the refactor is about to assert "one consistent icon
+family" as a quality check, and right now that check would fail on a
+technicality against a rule the code has never followed. So rather than
+silently swapping icons mid-refactor, it is written down as your call:
+
+- **(a) Switch to Phosphor.** The right answer if the brand kit's icon look
+  matters to you. Real cost: a new dependency, all 28 icons re-drawn, a
+  measurable size increase, and one genuinely fiddly piece — Material's back
+  arrow flips itself automatically in Arabic, and a Phosphor icon would not,
+  so every directional icon needs a hand-made mirrored twin (the app has an
+  automated test that exists purely to catch un-flipped arrows).
+- **(b) Update the brand kit to say Material.** Cheapest, and honest: Material
+  outline icons at the same size read perfectly well with the brand, and the
+  brand kit already records one similar "here is what we actually shipped and
+  why" exception. **This is the recommendation** unless you have a view.
+
+Tracked as issue #63. Either answer is fine; no session is waiting on it.
+
+## 11. What Session 026 found while planning the refactor (FYI — no action)
+
+**(a) The tool you installed is genuinely useful, but not the way it advertises.**
+UI/UX Pro Max was installed and actually run against a real description of
+Hayati. Its *checklist* is good and has been copied into the plan. Its
+*automatic design generator* is not usable here: asked about Hayati, it
+proposed a light pink palette, a different font, and a marketing landing-page
+layout — and wrote a file declaring itself the "single source of truth" for
+the design. Hayati's brand kit is the source of truth, so the generator is
+deliberately switched off and only the checklist is kept. (Its instructions
+also state, in writing, that the project is built in "React Native" — it
+isn't; it's Flutter.) Nothing was adopted from it without being checked
+against the brand kit first.
+
+**(b) Two real gaps in the existing app were found, and both are now the next
+session's work.** Neither is a bug you would ever see — they are missing
+*safety nets*, not broken features:
+  1. **The lock screen has a rule that nothing was enforcing.** Because of how
+     the lock sits above everything else in the app, certain common UI
+     elements (a pop-up dialog, a tooltip, selectable text) would *crash* it
+     if anyone ever added one — and on the "forgot my PIN" path, that crash
+     would mean being locked out of your own app. The rule was written in a
+     comment; nothing checked it. A future change could have shipped that
+     crash with every test passing. Now being fixed properly (issue #61).
+  2. **The brand colours were copied into the app by hand, and nothing checks
+     they still match.** They do match today. But if the brand kit were ever
+     updated, or a colour edited during the refactor, nothing would notice.
+     Being fixed with an automatic check (issue #62).
+
+**(c) The refactor's actual job turned out to be different than expected.** The
+app's own screens are already well-disciplined about using brand colours and
+spacing. What is *not* branded is the layer underneath: pop-up dialogs, cards
+and confirmation bars fall back to Flutter's built-in defaults. Concretely,
+your three most important confirmation dialogs — the Face ID warning, the
+"delete everything" confirmation, and the consent-withdrawal dialog — currently
+render on exactly the same colour as the page behind them, with no visual
+separation; and the "copied to clipboard" bar renders on a **cream** background
+in an otherwise dark app. That is the first thing the refactor fixes.
+
+**(d) The plan is eight sessions, and the lock screen goes last and barely
+changes.** That is a deliberate trade: the lock's safety guarantees are worth
+more than visual consistency on the one screen you will see least.
+
 ## Parked (cross-project): Unhooked panic-button verification (reported 2026-07-11)
 
 > Not a Hayati item — parked here because this is the checklist you read.
@@ -964,25 +1039,31 @@ deliver. Session 025 also found and fixed a bug where that run was being
 *cancelled* by the session's own closing commit — so the verdict was being
 destroyed before anyone could read it.
 
-## Progress & readiness snapshot (as of Session 025 close)
+## Progress & readiness snapshot (as of Session 026 close)
 
 **The one-paragraph version.** Every line of MVP engineering that can be built
-**without you** is done. **One planned unit remains — M5.3, the live AI coach —
-and it waits on item 6 alone.** Engineering is ~95% of the MVP; **operational
-proof is still 0%**: nothing has ever been deployed (item 2), the app has never
-run on a real phone against a real backend (items 3+4), and no real purchase
-has ever happened (item 0). That gap is not an engineering gap — it is four
-account/billing decisions that only you can make. Sessions 024 and 025 were
-**hardening**, not features: S024 shipped the change-PIN flow, the iOS privacy
-manifest and CI runtime bumps; S025 shipped CI→Slack notifications (your
-directive) and, along the way, **fixed a CI bug that was silently destroying
-the post-merge test verdict** — the session's own closing commit was cancelling
-the run that carries it. Two of the five main runs before the fix were being
-cancelled exactly that way. **Next session: the UI/UX Pro Max refactor scoping
-ADR** (your other directive today) — design only, no pixels move, because the
-refactor has to be told in writing which surfaces it may not touch (the lock
-screen, the consent copy, the crisis copy — all of which are *safety* surfaces
-whose wording was matched sentence-by-sentence against the code).
+**without you** is done. **One planned MVP unit remains — M5.3, the live AI
+coach — and it waits on item 6 alone.** Engineering is ~95% of the MVP;
+**operational proof is still 0%**: nothing has ever been deployed (item 2), the
+app has never run on a real phone against a real backend (items 3+4), and no
+real purchase has ever happened (item 0). That gap is not an engineering gap —
+it is four account/billing decisions that only you can make. The last three
+sessions were **hardening and planning**, not features: S024 shipped the
+change-PIN flow, the iOS privacy manifest and CI runtime bumps; S025 shipped
+CI→Slack notifications and fixed a CI bug that was silently destroying the
+post-merge test verdict; **S026 scoped the UI/UX refactor (ADR-025) without
+touching a pixel** — and in the process found two pre-existing safety/consistency
+gaps that are now the next session's work (items 11(b)). **Next session:
+ADR-025 slice 0 — building those safety nets. It moves no pixels either;
+it is the precondition for the seven slices that do.**
+
+**A note on how the refactor is sequenced, since it is now a multi-session
+arc:** slice 0 (the safety nets) → slice 1 (the un-branded Flutter defaults
+under every screen) → the product screens, outward → **the lock screen last,
+and barely touched**. Each slice is one session with its own acceptance line,
+and each one regenerates its screen snapshots deliberately rather than
+accepting whatever changed. You can re-order the middle slices by saying so;
+the first and last are fixed for safety reasons.
 
 ### The older detail (as of Session 023 close, still accurate for the product itself)
 

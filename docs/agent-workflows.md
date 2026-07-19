@@ -16,7 +16,9 @@ Solo-founder discipline substitutes for peer review: feature branches `feat/mX-s
 
 ## W4 — Testing workflow
 
-Per `test-suite.md`. Red → green → refactor inside sessions; emulator-suite integration tests pre-merge for backend-touching changes; golden updates require explicit intent flag in the PR (accidental golden churn is treated as a failure); flaky test = quarantined same day with an issue, never silently retried.
+Per `test-suite.md`. Red → green → refactor inside sessions; emulator-suite integration tests pre-merge for backend-touching changes; flaky test = quarantined same day with an issue, never silently retried.
+
+**Golden updates (tightened by ADR-025 D8, and binding on every session, not only UI-refactor slices):** a session **writes the exact set of golden files it expects to change into the PR description BEFORE running `flutter test --update-goldens`**, then pastes the actual `git status --porcelain -- 'app/test/**/*.png'` beside it. A golden outside the declared set that changed is **a defect to explain, not churn to accept**. This is a PR-review discipline — nothing in CI reads the PR body — but both numbers land in the PR record, so a discrepancy is visible to a later reader instead of invisible. The two `app/test/support/golden/goldens/probe` PNGs (the RTL mirror-net self-test) are never in a declared set: a change to either means the mirror net itself moved, which is a defect in any session.
 
 ## W5 — GitHub / CI workflow
 
