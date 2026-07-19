@@ -1,6 +1,6 @@
 # ADR-025: The UI/UX Pro Max refactor — scope, the skill's REJECTED workflow, the invariant firewall, and the eight-slice arc
 
-- **Status:** Accepted
+- **Status:** Accepted (**rev 2** — rev 2 folds the pre-code adversarial review's 1 blocking + 7 serious + 7 minor, all 15 of which survived double verification by a refuting skeptic and a governing-docs adjudicator out of 26 raised; plus one defect the review missed and the author's own verification caught, the Phosphor divergence. Rev 1 is in git history; the review is recorded in `past-prompts.md` Session 026)
 - **Date:** 2026-07-19 (Session 026)
 - **Deciders:** session agent, per founder directive 2026-07-14 ("refactor the app's UI/UX with UI/UX Pro Max"); the copy gates inside the firewall are founder/native-reviewer-owned and are not resolved here
 - **Related:** `docs/frontend-brandkit.md` (v1.0 — the visual constitution this ADR subordinates the skill to), ADR-018 (the device-privacy layer whose four lock invariants set the firewall's hardest boundary — **D3's no-dialog constraint is the gap this ADR found**), ADR-023 (the consent surface as a *guarantee* surface), ADR-016/017 (the ★ safety-gated crisis/coach copy), ADR-020 (store copy under the native-review gate), ADR-022 (the pre-frame bootstrap sentinel — the source-sentinel precedent this ADR extends), `docs/test-suite.md` §Golden harness, `docs/agent-workflows.md` W4 (the explicit golden-update flag), `docs/operator-expected.md` items 1 + ★ (the copy gates a refactor session may not silently cross)
@@ -13,7 +13,7 @@ Two bodies of fact drive every decision below, and both were *produced*, not rec
 
 ### Fact set A — what `uipro init` actually installed and actually does
 
-`uipro init -a claude` was run at the repo root. It exited 0 and wrote **143 files / 2.8 MB into `.claude/skills/`**, across **seven** skills — not one:
+`uipro init -a claude` was run at the repo root. It exited 0 and wrote **143 files / 2.8 MB into `.claude/skills/`**, across **seven** skills — not one. *(Re-counting after running the corpus's `search.py` gives 145 / 2.9 MB — Python writes two `__pycache__/*.pyc` files. 143 is what `init` wrote; the pre-code review flagged the discrepancy and this parenthetical is why it exists.)*
 
 | Skill | What it is | Usable here? |
 |---|---|---|
@@ -44,7 +44,7 @@ it classified the product correctly ("Couple & Relationship App") and then propo
 | Heading **Noto Naskh Arabic** / body **Noto Sans Arabic** | **Rubik** is the single dual-script family; Noto is the *fallback* (§3) | Contradiction |
 | Pattern: **"App Store Style Landing"** (hero + screenshots carousel + download CTAs) | Hayati has no landing page in scope; this is an in-app refactor | Category error |
 | Delivery: Google Fonts `@import` + `--color-*` CSS variables | Flutter bundles fonts; tokens are Dart constants | Wrong runtime |
-| `--persist` wrote `design-system/hayati/MASTER.md` headed *"Global Source of Truth… strictly follow the rules below"* | brandkit v1.0 is the source of truth | Direct conflict of authority |
+| `--persist` wrote `design-system/hayati/MASTER.md`, which the CLI announces as the *"Global Source of Truth"* and whose body instructs the reader to *"strictly follow the rules below"* | brandkit v1.0 is the source of truth | Direct conflict of authority |
 
 And in the workflow the skill instructs an agent to follow, `SKILL.md:346` states verbatim:
 
@@ -76,7 +76,7 @@ Inventoried against source (not docs) by 16 agents over 655 tool calls, then the
 
 Verified against the installed SDK (`color_scheme.dart:1254,1272,1316`; `dialog.dart:1979`; `card.dart`; `bottom_sheet.dart:1496`; `snack_bar.dart:949`). brandkit §4 assigns `night.raised` `#2E2344` to "Cards, sheets" — so the three surfaces that carry the app's most consequential confirmations (**the biometric shared-device warning, the irreversible-delete confirmation, and the consent-withdrawal dialog**) currently render flat, unseparated, on the wrong token; and the export screen's confirmation `SnackBar` is a light-mode intrusion. The skill's own checklist names both defects ("Surface readability — keep cards/surfaces clearly separated from background"; "Scrim and modal legibility"). This is the arc's first real work.
 
-**B2 — ADR-018 D3, the single most safety-critical constraint the refactor faces, has NO mechanism.** The constraint — *nothing inside `LockScreen` or any widget it mounts may call `showDialog` / `showModalBottomSheet` / `showMenu` / `Navigator.of`, or use `Tooltip` / `Autocomplete` / `DropdownButton` / a selection-enabled field* — exists as a block comment at `lock_screen.dart:7-17` and one behavioural test that covers **only the recovery path** (`lock_screen_test.dart:319-326`). `LockScreen` sits above the app's only Navigator and has no Overlay ancestor; any such call **throws**, and on the recovery path that crash *is* the lockout. Verified by hand: of the eleven source-sentinel-style tests in `app/test`, **none scans `lock_screen.dart`**. A refactor adding a cooldown `Tooltip` or a biometric-error dialog would ship green. This is a pre-existing hole (open since M6.1), not one uipro creates — but the refactor is exactly the change that would walk into it.
+**B2 — ADR-018 D3, the single most safety-critical constraint the refactor faces, has NO mechanism.** The constraint — *nothing inside `LockScreen` or any widget it mounts may call `showDialog` / `showModalBottomSheet` / `showMenu` / `Navigator.of`, or use `Tooltip` / `Autocomplete` / `DropdownButton` / a text-selection-enabled field* — exists as a block comment at `lock_screen.dart:1-20` (the forbidden-call list itself at `:7-9`) and one behavioural test that covers **only the recovery path** (`lock_screen_test.dart:307-327`). `LockScreen` sits above the app's only Navigator and has no Overlay ancestor; any such call **throws**, and on the recovery path that crash *is* the lockout. Verified by hand: of the eleven source-sentinel-style tests in `app/test`, **none scans `lock_screen.dart`**. A refactor adding a cooldown `Tooltip` or a biometric-error dialog would ship green. This is a pre-existing hole (open since M6.1), not one uipro creates — but the refactor is exactly the change that would walk into it.
 
 **B3 — "the brandkit decides" is, today, a claim with no mechanism either.** `brandkit/brandkit/tokens/hayati-tokens.json` was **transcribed by hand** into `app/lib/core/design_system/*.dart`. There is no codegen and **no drift test** — verified: nothing under `app/test` reads `brandkit/` at all. The values match today by care, not by construction. An ADR whose central rule is "the refactor is expressed through brandkit tokens" cannot rest that rule on a hand-copy nobody checks.
 
@@ -100,7 +100,9 @@ The reason is not that the generator is low quality; it is that its output is a 
 
 The skill proposes; brandkit's tokens and assets decide; the refactor is expressed **through** brandkit tokens and does not replace them. Where the skill and the brandkit agree (Phosphor icons, ≥44pt targets, WCAG AA, 4/8dp rhythm, 150–300ms micro-interactions), the agreement is *confirmation* and the brandkit remains the citation. Where they disagree, **the brandkit wins without discussion** — the four contradictions tabulated in Fact set A are closed, not open questions.
 
-Because B3 showed that rule resting on an unchecked hand-copy, **Slice 0 adds a token-parity test** (D5.ii). Until that test exists, no slice may proceed.
+Because B3 showed that rule resting on an unchecked hand-copy, **Slice 0 adds a token-parity test** (D5.ii, **issue #62**). Until that test exists, no slice may proceed.
+
+**One brandkit rule the code does not follow today, recorded rather than assumed:** §5 and `iconography.*` specify **Phosphor** icons; the app ships **28 Material `Icons.*` call sites** and Phosphor is not a dependency. This ADR does not quietly "fix" that inside a refactor slice — the migration would rework the RTL mirror-net's premise (Material's `arrow_back` auto-mirrors; a Phosphor glyph does not) and add a second icon font to both the golden harness and the size budget. It is a founder decision, tracked in **issue #63**, and until it is made the token-parity test does not assert `iconography.*` and Appendix A states the rule the code can pass. This is what "the brandkit decides" looks like when the brandkit and the code disagree: the disagreement is written down, not resolved by whichever side is easier to edit.
 
 ### D4 — The invariant firewall, per surface
 
@@ -122,10 +124,51 @@ The rendered *sentences* are the guarantee (ADR-023; ADR-016/017 ★). A slice m
 
 Three guards plus a harness rule. Each is modelled on an existing, proven pattern in this repo, and each must be **mutation-checked** (neuter it, confirm exactly its own test turns red, restore).
 
-- **(i) The lock-screen forbidden-API source sentinel.** Modelled on `no_invalidate_sentinel_test.dart` (which strips comment lines before scanning — necessary here too, since `lock_screen.dart`'s header comment *names* the forbidden calls in prose). Scans `lock_screen.dart` **and every widget file it mounts** for `showDialog`, `showModalBottomSheet`, `showMenu`, `Navigator.of`, `Tooltip`, `Autocomplete`, `DropdownButton`. Closes B2. **This guard's absence is a live hole today, independent of the refactor** — filed as its own issue so it is not hostage to this arc.
-- **(ii) The brandkit token-parity test.** Parses `brandkit/brandkit/tokens/hayati-tokens.json` and asserts every hex, type-scale entry, line-height, spacing step and radius equals its `ColorTokens`/`TypographyTokens`/`SpacingTokens`/`RadiusTokens` counterpart. Closes B3 and makes D3 enforceable. Bidirectional by construction: a brandkit edit without a Dart edit fails, and a Dart edit without a brandkit edit fails.
-- **(iii) A frozen-sentence digest over the ★ and guarantee strings only.** A SHA-256 digest of the ARB values under the named ★ safety keys and the ADR-023 consent sentences, pinned in the test. Any reword turns CI red and forces a deliberate re-stamp — the W4 golden-flag pattern applied to the copy that carries safety and legal meaning. **Deliberately scoped to that named set, not to all 237 keys:** a digest over everything would tax every future copy session for little gain, and the broad native-review gate (item 1) stays what it honestly is — a *human* process with no mechanical enforcement. We do not fake a mechanism for it (ADR-024's lesson: prefer an honest gap to a fake guard).
-- **(iv) The golden-set declaration rule** (D8).
+- **(i) The lock-screen forbidden-API source sentinel.** Modelled on `no_invalidate_sentinel_test.dart` (which strips comment lines before scanning — necessary here too, since `lock_screen.dart`'s header comment *names* the forbidden calls in prose). Closes B2. **This guard's absence is a live hole today, independent of the refactor** — filed as **issue #61** so it is not hostage to this arc.
+
+  **Scan set — an explicit list, because "every widget file it mounts" is not computable by a test** (the pre-code review's finding; the phrase implied structural coverage the implementation cannot deliver):
+
+  ```
+  lib/features/privacy_lock/presentation/lock_screen.dart
+  lib/features/privacy_lock/presentation/widgets/pin_keypad.dart
+  ```
+
+  The list is maintained by hand. Two things make that honest rather than rotting: a `// SENTINEL SCAN SET` comment in both files stating that any new widget file mounted by `LockScreen` must be added here, and a **sentinel-of-the-sentinel** assertion that the list still contains both paths and that both files still exist — so the scan set cannot silently shrink to nothing and stay green.
+
+  **Forbidden strings — the list is ADR-018 D3's, in full:** `showDialog`, `showModalBottomSheet`, `showMenu`, `Navigator.of`, `Tooltip`, `Autocomplete`, `DropdownButton`, and — the review's two catches — **`tooltip:`** (lowercase, the *parameter* form: `IconButton`, `PopupMenuButton` and friends build a `Tooltip` internally, so scanning only for the class name misses the most natural way to introduce one) and the **text-selection** family `SelectableText`, `TextField`, `TextFormField`, `EditableText` (ADR-018 D3 names "a text-selection-enabled field" co-equally with the rest — `lock_screen.dart:9` — and a first draft of this decision dropped it). `IconButton` is forbidden outright in the scan set: its only safe uses are already served by `TextButton.icon` or a bare `InkWell`, and permitting it means relying on the `tooltip:` scan catching every future call site.
+
+  **Mutation-check note:** the mutation must be run once per forbidden string, including `tooltip:` in its parameter form. A mutation that only inserts `showDialog` proves the sentinel scans, not that its list is complete.
+- **(ii) The brandkit token-parity test.** Parses `brandkit/brandkit/tokens/hayati-tokens.json` and asserts each JSON entry equals its Dart counterpart. Closes B3 and makes D3 enforceable. **The correspondence is NOT 1:1 and the mapping is specified here**, because "assert every entry" would fail on first write against entries that have no Dart counterpart (the pre-code review's finding):
+
+  | JSON | Dart | Asserted? |
+  |---|---|---|
+  | `color.*` (9 entries) | `ColorTokens.{night,nightRaised,pomegranate,pomegranateDeep,sand,gold,sage,clay,alert}` | **Yes** — hex equality |
+  | `typography.family` + `fallback[]` | `TypographyTokens.family` / `.fallback` | **Yes** |
+  | `typography.{display,h1,h2,body,caption}.{size,weight}` | the corresponding `TextTheme` entries built by `textThemeFor` | **Yes** |
+  | `typography.body.lineHeight.{latin,arabic}` | `TypographyTokens.bodyHeight{Latin,Arabic}` | **Yes** |
+  | `spacing.grid` · `screenGutter` · `cardPadding` | `SpacingTokens.x1` · `.screenGutter` · `.cardPadding` | **Yes** |
+  | `radius.card` · `sheet` · `chip: "full"` | `RadiusTokens.card` · `.sheet` · `.stadium` | **Yes** (`chip: "full"` ⇒ `StadiumBorder`, asserted as a type, not a number) |
+  | `typography.minimumBodySize: 14` | *(none)* | **No** — a brandkit *rule*, not a token the theme emits; enforced by review, not by the theme |
+  | `typography.dynamicTypeMax: "130%"` | *(none)* | **No** — realised as the goldens' scale-130 cells, not as a constant |
+  | `iconography.*` | *(none — the app ships Material icons)* | **No** — see the recorded divergence in D3 and **issue #63**; asserting it would fail on first write |
+  | `rules[]` | *(prose)* | **No** |
+  | — | `SpacingTokens.x2..x8` | **Derived**, asserted as exact multiples of `spacing.grid` — so a hand-edit of `x3` from 12 to 14 still fails |
+
+  Bidirectional over the asserted set: a brandkit edit without a Dart edit fails, and a Dart edit without a brandkit edit fails. The four **No** rows are the honest bound — recorded here rather than quietly skipped in the test.
+- **(iii) A frozen-sentence digest over the ★ and guarantee strings — and the exact key set is enumerated HERE, not left to the implementer.** A SHA-256 over `UTF-8(sorted("<locale>.<key>=<value>\n"))` for exactly the keys below, across all three locales, pinned as a literal in the test. Any reword turns CI red and forces a deliberate re-stamp — the W4 golden-flag pattern applied to the copy that carries safety and legal meaning.
+
+  **The set (the pre-code review's blocking finding — "the named ★ safety keys" named nothing, and two implementers would have pinned different hashes):**
+
+  | Group | Keys | Why |
+  |---|---|---|
+  | ★ safety (ADR-016/017, operator ★ gate) | `coachDisclaimerTitle`, `coachDisclaimerBody`, `coachDisclaimerCta`, `coachHelpTitle`, `coachPausedBody` | The not-therapy disclaimer and the crisis/help path copy — the strings the ★ gate exists to protect |
+  | Consent (ADR-023) | every key matching `consent*` | The consent sentences the user acts on |
+  | Legal (ADR-023) | every key matching `legal*` | **Included deliberately** — D10.1 promises `legal*` protection, and a first draft of this decision did not deliver it. The consent-withdrawal dialog (`legalWithdrawDialogBody`) is a legal guarantee surface; leaving it out would have made D10.1 a false promise, which is the exact guarantee-vs-mechanism defect this ADR was written to prevent |
+
+  **Today that resolves to (5 + 9 + 18) × 3 locales = 96 key/value pairs** — verified against the ARB files at the time of writing, so slice 0 has a number to check its implementation against rather than a category to interpret. A key added under `consent*` or `legal*` is picked up by the prefix automatically (and legitimately changes the count); a **new** ★ key must be added to the list above by the session that introduces it, and the test asserts the five ★ keys still exist by name — a rename must be deliberate, not silent.
+
+  **Deliberately scoped to that set, not to all 237 keys:** a digest over everything would tax every future copy session for little gain, and the broad native-review gate (item 1) stays what it honestly is — a *human* process with no mechanical enforcement. We do not fake a mechanism for it (ADR-024's lesson: prefer an honest gap to a fake guard).
+- **(iv) The golden-set declaration rule** (D8) — a PR-review discipline, not a CI gate; see D8 for why that distinction is stated rather than papered over.
 
 **Slice 0's acceptance line:** all four land, all three guards mutation-checked, `flutter analyze` clean, full suite green, **zero golden PNGs changed** (slice 0 renders nothing differently).
 
@@ -137,6 +180,10 @@ Rationale for ordering: this is a one-line-per-component change with an app-wide
 
 **Acceptance:** the three `AlertDialog`s and the export `SnackBar` render on brandkit surfaces (`night.raised` for dialogs/cards/sheets — never the same value as `surface`); no component still resolves a background through an unset slot; the declared golden set re-baselined; every golden outside it byte-identical.
 
+**Class F carve-out — the trap the pre-code review found.** `hayatiTheme()` is built *above* `PrivacyGuard` (`app.dart:111-121`), and `LockScreen` reads `Theme.of(context)` even though it has no `Scaffold` ancestor. So slice 1's app-wide change **reaches the Class F surfaces**, and "app-wide re-baseline" would quietly launder a lock-screen pixel change past the Class F rule — after which slice 8's "byte-identical" line would be true against an already-drifted baseline and the change would never get its Class F review.
+
+Therefore slice 1 carries an extra, explicit acceptance line: **`lock_screen`, `pin_setup_screen` and the two `probe` goldens are expected BYTE-IDENTICAL after slice 1.** If any of them changes, slice 1 stops and the change gets the full Class F treatment (declared in advance, justified against ADR-018, reviewed as a lock change) — it is never absorbed into the app-wide set. The plausible culprits are named so they are checked rather than discovered: `CircularProgressIndicator` track colour (M3 reads `secondaryContainer`), `InkWell` focus/hover overlays on `_PinKey` (`onSurfaceVariant`), and anything newly resolving through `outline`.
+
 ### D7 — The arc: eight slices after slice 0, one per session, in this order
 
 | # | Slice | Surfaces | Goldens | Class | Acceptance line |
@@ -144,20 +191,30 @@ Rationale for ordering: this is a one-line-per-component change with an app-wide
 | 0 | **The firewall** | — | 0 | — | Three guards land + mutation-checked; zero goldens change |
 | 1 | **Material default floor** | `hayatiTheme` + `ColorScheme` | app-wide | — | D6's line |
 | 2 | **The product core** — solo + paired home, question card, answer entry, partner slot, streak row, packs/coach tiles, gear overlay, invite nudge, solo-completed | 12 | 66 | N | "The reveal is the product" (brandkit §9.3) — the reveal moment measurably improved; every home state still renders every state it did |
-| 3 | **Onboarding & pairing** — sign-in, phone sign-in, `ProviderActions`, profile capture, onboarding gate, invite share, partner preview | 7 | 93 | N + G | `ProviderActions` still ONE shared widget; the legal footer still present by construction on all three call sites |
+| 3 | **Onboarding & pairing** — sign-in, phone sign-in, `ProviderActions`, profile capture, onboarding gate, invite share, partner preview | 7 | 87 | N + G | `ProviderActions` still ONE shared widget; the legal footer still present by construction on all three call sites |
 | 4 | **Commerce** — paywall, pack selection, `PremiumGate` | 3 | 30 | N | Free-tier probes still byte-identical; the processing banner still reads as good news, never error colour |
 | 5 | **Coach** — chat, disclaimer, help path | 3 | 27 | G + ★ | `CoachHelpCard` remains a structurally distinct widget TYPE from `CoachPersonaBubble`; the help-sticky latch still replaces the composer; zero ★ strings changed (digest green) |
 | 6 | **Settings & data rights** — settings, PIN setup, PIN verify dialog, delete account, export, couple-ended notice, `SettingsErrorLine` | 7 | 55 | N | The delete confirmation still reads as irreversible and still says the shared space goes for both; `SettingsErrorLine` still shared, not forked per screen |
 | 7 | **Legal & consent** — consent gate, legal hub, legal document | 3 | 18 | G | Layout only; digest green; the four consent escapes (sign out / export / delete / accept) all still reachable from the gate |
 | 8 | **The lock — parity only** | 4 | 18 | **F** | The D5.i sentinel green; goldens byte-identical unless a token normalization is declared in advance; no new widget type, no new interaction |
 
+Slice golden counts sum to **301**; the remaining 2 of the 303 are the `app/test/support/golden/goldens/probe` pair (the RTL mirror-net's `back_arrow` mirrored/unmirrored probes). **Those two are Class F for the entire arc and belong to no slice's re-baseline set** — they are a structural self-test, not a screen, and a change to either means the mirror net itself moved, which is a defect in any slice. *(A first draft of this table said 93 for slice 3 and summed to 307; the pre-code review caught both.)*
+
 **The arc is done** when every one of the 48 inventoried surfaces has been through a slice or is explicitly recorded here as parity-only (Class F) or unreachable (Class S). Slices 2–7 may be re-ordered by the founder; **0 and 1 may not move off the front, and 8 may not move off the back.**
+
+**Not in the arc, recorded rather than assumed:** the brandkit's **Phosphor** icon system (§5, and `iconography.*` in the tokens JSON) is **not what the app ships** — 28 Material `Icons.*` call sites, and Phosphor is not a dependency. Migrating is not a package swap: `Icons.arrow_back`'s Material auto-mirroring is what the RTL mirror-net self-test is built on, and a second icon font joins both the test harness and the size budget. It is deferred to a founder decision — migrate as its own slice 1.5, or amend the brandkit to record Material outline as the shipped system the way §10 already records the `sand`-on-`pomegranate` contrast exception — tracked in **issue #63**. Until then Appendix A states the rule the code can actually pass.
 
 ### D8 — The goldens acceptance harness: declare the set BEFORE regenerating
 
 The existing harness is the acceptance instrument and is not changed: 6 cells per state (`{tr,ar,en}` × `{ltr,rtl}`) plus 3 natural-direction cells at 130% text scale, 390×844 @1×, real Rubik/Noto fonts, **exact** pixel comparison, Linux-canonical (`cd app && flutter test --update-goldens` on Linux only — macOS renders text differently), diffs uploaded as CI artifacts, the RTL mirror-net self-test as the un-mirrored-arrow trap.
 
-**The rule this ADR adds:** a slice **writes down the exact set of golden files it expects to change, in the PR description, before running `--update-goldens`**. After regeneration, `git status` must show changes to that set and **nothing else**. A golden outside the declared set that changed is a **defect to explain, not churn to accept** — the M4.2 and M6.2 precedent, where every non-target golden was git-verified byte-identical. This is what makes "never blind-accepted" (W4) mechanically checkable rather than aspirational.
+**The rule this ADR adds:** a slice **writes down the exact set of golden files it expects to change, in the PR description, before running `--update-goldens`**. After regeneration it pastes the actual `git status --porcelain -- 'app/test/**/*.png'` output beside the declaration. A golden outside the declared set that changed is a **defect to explain, not churn to accept** — the M4.2 and M6.2 precedent, where every non-target golden was git-verified byte-identical.
+
+**This is a PR-review discipline, not a CI gate, and the distinction is stated rather than papered over.** No workflow step reads the PR body; nothing turns red if a session declares 66 files and commits 71. A first draft of this decision claimed the rule made W4 "mechanically checkable" — it does not, and the pre-code review was right to call that false reliance on a critical process gate. What the rule actually buys is that both numbers are *in the PR record*, so the discrepancy is visible to any later reader instead of being invisible. `git` itself is the mechanism; the declaration is what gives `git`'s output something to be compared against.
+
+The recorded upgrade path, if the discipline proves insufficient during the arc: a committed golden manifest (path + SHA-256 for all 303) under a test, so any un-restamped change is red. It is deliberately **not** built now — it largely duplicates what `git diff` already shows, and ADR-024's lesson applies (an honest gap beats a guard that mostly restates version control).
+
+Because the rule now binds every session and not only this arc, **`agent-workflows.md` W4 is updated in the same diff** to carry it — a governing procedure that lives only inside an arc ADR is a procedure the next unrelated session will not read (the pre-code review's finding).
 
 Slices 2–8 additionally may not *reduce* golden coverage: a state that had cells keeps them. New states get the full 6-cell matrix; new scale-130 variants follow the existing per-screen precedent.
 
@@ -174,7 +231,7 @@ Slices 2–8 additionally may not *reduce* golden coverage: a state that had cel
 3. Edit `app/assets/legal/*.md` (byte-pinned to `docs/legal/` — and the text is founder/lawyer-gated, item 9).
 4. Bump the legal version, or touch any one leg of the three-way sentinel alone.
 5. Add a phone-number-shaped digit run to any `coach*` string.
-6. Add `showDialog`/`Overlay`/`Tooltip`/`Navigator.of` anywhere under `LockScreen`.
+6. Add `showDialog` / `showModalBottomSheet` / `showMenu` / `Navigator.of` / `Tooltip` (including a `tooltip:` parameter, and therefore `IconButton`) / `Autocomplete` / `DropdownButton` / any text-selection-enabled field (`SelectableText`, `TextField`, `TextFormField`, `EditableText`) anywhere under `LockScreen`.
 7. Call `ref.invalidate(privacyLockControllerProvider)` anywhere at all.
 8. Change `biometricOnly: true`, or the `Offstage`+`TickerMode` gating shape, or `PrivacyShieldCover`'s `night`.
 9. Split `ProviderActions`, or fork `SettingsErrorLine` per screen.
@@ -198,6 +255,9 @@ Slices 2–8 additionally may not *reduce* golden coverage: a state that had cel
 - **Slice 1 will churn a large number of goldens at once.** Accepted deliberately — the alternative is churning them repeatedly.
 - **The digest (D5.iii) taxes any future session that rewords a ★ or consent string**, forcing a deliberate re-stamp. Accepted: that is precisely the set where a silent reword is a safety or legal event.
 - **The broad native-review gate stays mechanically unenforced.** We record this rather than fake it. A session can still silently reword `paywall*` or `solo*` copy and ship green; the only defence is D10.2 and review discipline.
+- **D8's golden declaration is discipline, not enforcement** (D8 says so plainly). A session that ignores it produces a green pipeline.
+- **D5.i's scan set is a hand-maintained list**, not structural coverage. A future widget mounted by `LockScreen` and not added to the list is unguarded; the sentinel-of-the-sentinel keeps the list from shrinking, but cannot know what it should grow to include.
+- **The app does not use the brandkit's specified icon family**, and this ADR defers rather than resolves that (issue #63). Appendix A therefore asserts a weaker icon rule than the brandkit states.
 - **Six of seven installed skills are dead weight on disk** (2.8 MB, gitignored) and are held out by a rule rather than by deletion, because the tool restores them on update.
 - **The lock surfaces get almost no refactor.** Accepted: ADR-018's four invariants are worth more than visual consistency on the one screen most users see least.
 - **`.claude/skills/` gitignored means a fresh machine must run `uipro init` to use the corpus ad hoc.** Mitigated by D1 — nothing binding needs it.
@@ -212,7 +272,7 @@ Slices 2–8 additionally may not *reduce* golden coverage: a state that had cel
 Transcribed from `ui-ux-pro-max` v2.11.0's App-UI sections (its own scope notice: "App UI (iOS/Android/React Native/**Flutter**)"), adjudicated against brandkit v1.0. **Where a row cites the brandkit, the brandkit is the authority and the skill merely agrees.** Every slice's PR asserts this list.
 
 **Visual**
-- [ ] No emoji as structural icons; one icon family, one stroke weight — **Phosphor, rounded, 24dp grid, 1.75 stroke** (brandkit §5; the skill independently recommends Phosphor)
+- [ ] No emoji as structural icons; **one** icon family at one weight, and no slice mixes families. Today that family is **Material outline** at 24dp. The brandkit's **Phosphor** specification (§5, `iconography.*`; the skill independently recommends Phosphor) is a **recorded, unimplemented divergence** — 28 Material call sites, Phosphor not a dependency, and `Icons.arrow_back`'s auto-mirroring is what the RTL mirror net is built on. Tracked in **issue #63**; do not assert Phosphor compliance until it is resolved
 - [ ] Semantic tokens only — no ad-hoc colour, size or spacing literals in feature code (already true; keep it true)
 - [ ] Surfaces are visibly separated from their background — cards/sheets/dialogs on `night.raised`, never the same value as `surface` (brandkit §4; this is B1)
 - [ ] Pressed states change colour/opacity/elevation, never layout bounds

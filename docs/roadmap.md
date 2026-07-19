@@ -59,12 +59,11 @@ scoped:
   not reworded by a refactor session without flagging it back into that gate.
   (4) Goldens ×3 locales + RTL remain the acceptance harness — every
   refactored screen regenerates them intentionally, never blind-accepts.
-- **Sequencing:** needs its own scoping ADR (surface inventory, skill-output →
-  brandkit mapping, session slicing) before any pixels move; sized as a
-  multi-session arc. It enters the next-session queue behind the standing
-  preemptions (item 6 → M5.3; Blaze → first deploy; Gate 3 → M6.5) and ahead
-  of the AI-chosen backlog (e.g. seasonal windows #29) — the founder can
-  re-order it to the front by saying so.
+- **Sequencing: SCOPED — see [ADR-025](adr/025-uipro-refactor-scope-and-invariant-firewall.md)** (Session 026, design only, no pixels moved). The scoping ADR ran the tool, inventoried all **48** UI surfaces against source, and cut the arc into **a mandatory pixel-free slice 0 plus eight slices**, one per session, lock surfaces last and parity-only. Three things it settled that change the shape of the work:
+  1. **The skill's own prescribed workflow is REJECTED.** `SKILL.md` hardcodes the wrong stack ("React Native (this project's only tech stack)") and its REQUIRED `--design-system` step proposes a light pink palette, Noto-as-primary, an App-Store-landing page pattern and a `MASTER.md` that claims to be the "Global Source of Truth" — four direct contradictions of brandkit v1.0. Only the corpus's App-UI checklist is adopted, transcribed into the ADR so the arc does not depend on a tool that cannot pin its own version.
+  2. **The refactor is not token adoption.** Feature code is already token-clean (0 hardcoded text styles, 0 spacing magic numbers). The work is the Material default floor beneath it — `AlertDialog`/`Card`/`BottomSheet` currently fall back to `surface` and render flat `night`, and `SnackBar` renders on `sand`.
+  3. **Two safety/consistency mechanisms were missing and are now slice 0**, plus one recorded divergence: the lock screen's no-dialog constraint had no source sentinel (#61), brandkit→Dart tokens had no drift test (#62), and the brandkit's Phosphor icon system is not what the app ships (#63 — a founder call, deliberately not "fixed" inside a refactor slice).
+  The arc still enters the next-session queue behind the standing preemptions (item 6 → M5.3; Blaze → first deploy; Gate 3 → M6.5) and ahead of the AI-chosen backlog (e.g. seasonal windows #29) — the founder can re-order slices 2–7 by saying so, but **slice 0 goes first and slice 8 goes last**.
 
 ## v1.5 (months 6–9)
 
