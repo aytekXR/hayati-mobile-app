@@ -751,7 +751,7 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 
 **Commits:** `e398ea0` → PR #68.
 
-**CI:** green.
+**CI:** PR #68 green on all four jobs. **The post-merge MAIN run is UNVERIFIED and the next session must check it** — `quality`, `functions-rules` and `ios-build-smoke` had all reported success, but `integration-emulator` (main-only, the macOS leg carrying the only end-to-end verdict) was still in progress when **GitHub's REST API entered a sustained 503 outage** that lasted past the end of the session. Same for the S028 close run. Nothing indicates a problem — the code was fully verified locally (1,435 tests, both suites, analyze, coverage, zero golden churn) — but "unverified" is not "green", and per session-rules §5 a session never ends with an *unexamined* pipeline. **Session 029's first action: `gh run list --workflow ci.yml --branch main --limit 3` and confirm runs `29708998595` (2789e3b, slice 1) and `29709354780` (fe91dc2, the close) both concluded success.** If either is red, triaging it preempts slice 2.
 
 **Docs touched:** `docs/past-prompts.md`, `docs/resume-prompt.md`, `docs/operator-expected.md`.
 
