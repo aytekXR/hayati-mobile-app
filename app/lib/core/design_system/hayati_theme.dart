@@ -40,7 +40,31 @@ ThemeData hayatiTheme({required String languageCode}) {
     onError: ColorTokens.night,
     surface: ColorTokens.night,
     onSurface: ColorTokens.sand,
+    // ── The raised-surface family (ADR-025 slice 1) ──────────────────────────
+    // Material 3 resolves component backgrounds through these slots, and an
+    // UNSET slot does not fall back to something sensible — Flutter falls
+    // `surfaceContainer*` back to `surface` and `inverseSurface` to
+    // `onSurface` (color_scheme.dart). Before slice 1 only `Highest` was set,
+    // which is the slot almost nothing reads: `AlertDialog` reads
+    // `surfaceContainerHigh` (one word apart), `Card`/`BottomSheet` read
+    // `surfaceContainerLow`. All three therefore rendered flat `night` — the
+    // same value as the page behind them, i.e. no separation at all — while
+    // `SnackBar` resolved `inverseSurface ?? onSurface` and rendered on `sand`,
+    // a cream slab in a dark-first app.
+    //
+    // The brandkit assigns night.raised to "Cards, sheets" (§2/§4), so the
+    // whole container family takes it: one raised tone, used consistently,
+    // rather than a tonal ladder the brandkit does not define.
+    surfaceContainerLowest: ColorTokens.nightRaised,
+    surfaceContainerLow: ColorTokens.nightRaised,
+    surfaceContainer: ColorTokens.nightRaised,
+    surfaceContainerHigh: ColorTokens.nightRaised,
     surfaceContainerHighest: ColorTokens.nightRaised,
+    // The inverse pair is what SnackBar reads. Keeping it inside the brand
+    // (raised plum + sand) is the whole point: an "inverse" surface in a
+    // dark-first app must not become a light-mode intrusion.
+    inverseSurface: ColorTokens.nightRaised,
+    onInverseSurface: ColorTokens.sand,
   );
 
   return ThemeData(
@@ -111,6 +135,48 @@ ThemeData hayatiTheme({required String languageCode}) {
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
       color: ColorTokens.pomegranate,
+    ),
+    // ── ADR-025 slice 1: the components the app actually mounts ─────────────
+    // Only these. The slice deliberately does NOT add CardTheme,
+    // BottomSheetThemeData or PopupMenuThemeData: `grep` finds zero `Card(`,
+    // zero bottom sheets and zero popup menus in `lib/`, and theming a widget
+    // the app never builds is dead configuration that reads as coverage. The
+    // ColorScheme container family above already carries the right value for
+    // all three the day one of them is used.
+    //
+    // The brandkit fixes no dialog/snackbar radius, so each takes the NEAREST
+    // defined token, following the M1.4 precedent that mapped buttons to the
+    // chip token and inputs to the card token (frontend-brandkit §10).
+    dialogTheme: DialogThemeData(
+      // A dialog is a sheet-scale surface -> the sheet token (24).
+      backgroundColor: ColorTokens.nightRaised,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: RadiusTokens.sheetRadius,
+      ),
+      titleTextStyle: textTheme.titleLarge,
+      contentTextStyle: textTheme.bodyMedium,
+    ),
+    snackBarTheme: SnackBarThemeData(
+      // Card-scale surface -> the card token (16). Explicit background rather
+      // than relying on inverseSurface, so a future ColorScheme edit cannot
+      // silently return the snackbar to a light slab.
+      backgroundColor: ColorTokens.nightRaised,
+      contentTextStyle: textTheme.bodyMedium,
+      shape: const RoundedRectangleBorder(
+        borderRadius: RadiusTokens.cardRadius,
+      ),
+      behavior: SnackBarBehavior.floating,
+    ),
+    tooltipTheme: TooltipThemeData(
+      // Used on three icon buttons (export copy, new conversation, settings
+      // gear) — all inside the Navigator, never on the lock screen, where a
+      // Tooltip has no Overlay to mount into (ADR-018 D3, sentinel-enforced).
+      decoration: const BoxDecoration(
+        color: ColorTokens.nightRaised,
+        borderRadius: RadiusTokens.cardRadius,
+      ),
+      textStyle: textTheme.bodySmall,
     ),
   );
 }
