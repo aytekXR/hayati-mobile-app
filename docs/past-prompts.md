@@ -728,3 +728,33 @@ The post-merge proofs surfaced and closed three more things, all same-session (s
 **One process note worth keeping:** the first mutation-check run **timed out mid-loop and left an `EditableText` mutant in the working tree**. The explicit diff against the pre-mutation backup caught it — the exact S025 incident, and the exact mitigation written down for it. Twelve of fourteen mutants had already been confirmed killed at that point, so the timeout cost nothing but the restore. The remaining two were re-run individually.
 
 **Next objective written to resume-prompt.md:** ADR-025 **slice 1 — the Material default floor**, still behind the standing preemptions. It is the first slice that moves pixels, and it carries the Class F carve-out: the lock goldens must come out byte-identical.
+
+## Session 028 — 2026-07-20 — ADR-025 slice 1: the Material default floor, and the stopping condition that fired
+
+**Objective (from resume-prompt.md):** ADR-025 slice 1 — fill the `ColorScheme` slots M3 actually reads and add the missing component sub-themes. The first pixel-moving slice and the widest.
+
+**Outcome:** done, but **narrower than the ADR specified, and deliberately so** — the ADR's own stopping condition fired mid-slice and the scope shrank in response. Zero goldens changed.
+
+**Preemptions — all six negative** (Blaze re-verified factually; no founder signal on #63).
+
+**The defect fixed, SDK-verified:** an unset `ColorScheme` slot does not fall back to something sensible — Flutter falls `surfaceContainer*` back to `surface` and `inverseSurface` back to `onSurface`. `hayatiTheme` set only `surfaceContainerHighest`, the slot almost nothing reads, so `AlertDialog` (which reads `surfaceContainerHigh`, one word apart) rendered flat `night` — **the same value as the page behind it** — and `SnackBar` rendered on **`sand`**, a cream slab in a dark-first app. The three dialogs affected are the biometric shared-device warning, the irreversible-delete confirmation, and the consent-withdrawal dialog.
+
+**THE STOPPING CONDITION FIRED — the session's main lesson.** The first implementation also set `onSurfaceVariant` and `outline`, which the brandkit does not define, using invented `sand` alphas. It changed 96 goldens. **Looking at the regenerated images rather than trusting the count** showed a REGRESSION: the settings toggles got visibly dimmer, because an M3 `Switch` reads both slots for its off-state thumb and track outline — muting them made *enabled* controls read closer to disabled. Worse affordance, traded for tonal consistency. ADR-025 D3 forbids inventing a brand colour inside a refactor slice, so both slots were **dropped** and handed to the founder as a brandkit question (**#67**, three options with the accessibility weight written out). Everything that shipped uses only existing tokens.
+
+**Why the slice changes ZERO goldens — worth keeping in view for the rest of the arc:** dialogs and snackbars mount *above* the screen, so **no golden in the 303-file matrix captures any of them**. That is exactly how this defect survived from M1.4 to now with a full golden net in place. A golden matrix proves screens, not transient surfaces — and the arc should stop treating golden coverage as coverage of everything.
+
+So the fix ships with its own mechanism: `material_default_floor_test.dart` pumps the real `AlertDialog` and the real `SnackBar` and reads the resolved colour back, plus an assertion that **no container slot silently equals `surface`** (which catches the original defect even if the raised tone is later re-pointed). Mutation-checked 3×.
+
+**Also recorded, not assumed:** sub-themes were added only for components the app actually mounts. `grep` finds **zero** `Card(`, zero bottom sheets and zero popup menus in `lib/` — so `CardTheme`/`BottomSheetThemeData`/`PopupMenuThemeData` were **not** added despite the ADR naming them, because theming a widget the app never builds is dead configuration that reads as coverage. A test pins that absence so it stays a decision.
+
+**Class F carve-out:** `lock_screen`, `pin_setup_screen` and the two `probe` goldens byte-identical — verified, and trivially so at zero churn.
+
+**Commits:** `e398ea0` → PR #68.
+
+**CI:** green.
+
+**Docs touched:** `docs/past-prompts.md`, `docs/resume-prompt.md`, `docs/operator-expected.md`.
+
+**Notes / debt logged:** **#67 — the brandkit defines no token for secondary/muted text or for outlines/dividers.** A founder/design decision with real accessibility weight (WCAG's 3:1 for non-text controls; "reduced emphasis" and "disabled" must stay distinguishable). Non-blocking: slices 2–7 touch screen composition, not those two slots, and whichever slice needs them first is blocked on the answer. #63 (Phosphor) still open, still non-blocking.
+
+**Next objective written to resume-prompt.md:** ADR-025 **slice 2 — the product core** (solo + paired home and their sub-widgets), the highest-value slice of the arc: "the reveal is the product".

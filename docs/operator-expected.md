@@ -7,10 +7,25 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-20, **Session 027 close** (the UI/UX refactor's first
-unit — the safety nets, built before anything visual moves). **Nothing new is
-required from you.** One small question is still waiting whenever you want it
-(item 10 — Phosphor vs Material icons), and it blocks nothing._
+_Last refreshed: 2026-07-20, **Session 028 close** (the UI/UX refactor's first
+visual fix). **Nothing is required from you to keep going.** Two design
+questions are now waiting whenever you want them — item 10 (Phosphor vs
+Material icons) and **new item 12 (two missing brand colours)** — and neither
+blocks the next session._
+
+_**Session 028 in one paragraph:** it fixed a real visual defect you would have
+seen the first time you used the app on a phone. **Your three most important
+confirmation pop-ups — the Face ID warning, the "delete everything"
+confirmation, and the consent-withdrawal dialog — were rendering on exactly the
+same colour as the page behind them**, with no visual separation at all; and
+the "copied to clipboard" bar was a **cream-coloured slab** in an otherwise
+dark app. Both were caused by the same thing: Flutter needs to be told several
+specific colour slots, and the app had set only one of them — the one almost
+nothing reads. Fixed, and now protected by a test. **The session also stopped
+itself**: a second part of the planned change turned out to need two colours
+the brand kit does not define, the invented values made the settings switches
+visibly dimmer, and rather than ship a plausible guess it was dropped and
+written up as item 12 for you._
 
 _**Session 027 in one paragraph:** it built the three automated checks that
 Session 026 said had to exist before any redesign starts — and two of them
@@ -929,6 +944,43 @@ silently swapping icons mid-refactor, it is written down as your call:
 
 Tracked as issue #63. Either answer is fine; no session is waiting on it.
 
+## 12. NEW (Session 028): two brand colours that don't exist yet — a design decision, not a bug
+
+The brand kit defines nine colours, and all nine are **full strength**. Real
+interfaces also need two *quieter* roles that nothing in the brand kit covers:
+
+- **Secondary text** — the smaller grey-ish line under a settings row title,
+  the caption under a heading. Right now those use Flutter's own default
+  rather than a Hayati colour.
+- **Lines and borders** — the thin separators between settings rows, and the
+  outline of a switch when it's off. Same situation.
+
+Session 028 tried to fill both by simply fading `sand` (the cream text
+colour). It then **looked at the result** and found the settings **toggles had
+become noticeably dimmer** — because a switch borrows those exact two colours
+for its "off" look, so fading them made *working* controls look half-disabled.
+That is a worse interface, and it is the kind of thing you only catch by
+looking. So the change was reverted rather than shipped.
+
+**Your options (issue #67), none obviously right:**
+- **(a) Add two named colours to the brand kit** — a "muted text" tone and a
+  "line" tone, picked so that switches and buttons still read clearly as
+  active. Cleanest, and makes every colour in the app yours.
+- **(b) Use faded `sand` for both, but with the exact fade levels chosen and
+  the contrast measured** against both backgrounds (the brand kit already has
+  one note in this style, for the input-hint colour).
+- **(c) Leave them as Flutter's defaults and say so deliberately.** Cheapest,
+  and it is what ships today — the cost is that two colour roles in your app
+  are not chosen by you.
+
+There is an accessibility angle worth knowing: the accepted standard asks for
+a lower contrast bar on controls than on text (3:1 rather than 4.5:1), but
+"quieter" must still never look like "disabled" — which is exactly what went
+wrong in the attempt.
+
+**Nothing waits on this.** The next few sessions work on screen layout, not
+these two colours. Whichever session needs them first will stop and ask.
+
 ## 11. What Session 026 found while planning the refactor (FYI — no action)
 
 **(a) The tool you installed is genuinely useful, but not the way it advertises.**
@@ -1080,10 +1132,13 @@ change-PIN flow, the iOS privacy manifest and CI runtime bumps; S025 shipped
 CI→Slack notifications and fixed a CI bug that was silently destroying the
 post-merge test verdict; **S026 scoped the UI/UX refactor (ADR-025) without
 touching a pixel**, finding two pre-existing safety/consistency gaps on the
-way; **S027 closed both of them and froze the safety/legal wording** — still
-without touching a pixel. **Next session: ADR-025 slice 1 — the first visible
-one.** It re-brands the layer underneath every screen (dialogs, cards,
-confirmation bars), which is where the un-branded Flutter defaults live.
+way; **S027 closed both of them and froze the safety/legal wording**; **S028 shipped
+the refactor's first visual fix** — the three confirmation dialogs and the
+"copied" bar, all of which were rendering on the wrong colour — and stopped
+itself when the rest of the planned change needed two colours the brand kit
+does not define (item 12). **Next session: ADR-025 slice 2 — the product core**
+(the daily question, the answer, the partner's side, the reveal). The brand kit
+calls the reveal "the product", so it is where the polish budget goes.
 
 **A note on how the refactor is sequenced, since it is now a multi-session
 arc:** slice 0 (the safety nets) → slice 1 (the un-branded Flutter defaults
