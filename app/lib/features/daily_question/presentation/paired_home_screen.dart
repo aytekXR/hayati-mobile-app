@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show LengthLimitingTextInputFormatter;
+import 'package:flutter/services.dart'
+    show HapticFeedback, LengthLimitingTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design_system/motion_tokens.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
@@ -273,6 +275,51 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
     super.dispose();
   }
 
+  /// At-most-once-per-instance guard for the reveal haptic. Reset with the
+  /// State — and the State is re-keyed per dayKey (parent's ValueKey), so a new
+  /// day can buzz again.
+  bool _revealHapticFired = false;
+
+  @override
+  void didUpdateWidget(covariant _PairedQuestionView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The signature reveal moment (brandkit §6, "gentle haptic"): a single
+    // gentle buzz the first time the reveal LANDS, marked by the partner slot
+    // going waiting→revealed. This is ONCE per instance and therefore once per
+    // dayKey per app session.
+    //
+    // Honest bound, discovered in testing: this fires on cold-open-into-revealed
+    // too, not only on the live "partner just answered" moment. The read chain
+    // settles Locked→Waiting→Revealed even when both answers already exist, so
+    // there is no cheap client signal that separates "the user was watching
+    // Waiting" from "the app just loaded a revealed day" — both are genuinely
+    // waiting→revealed. We choose the simple, §6-consistent behaviour (buzz once
+    // when the reveal appears) over a timing heuristic or a persisted per-day
+    // flag, which would add fragility for a marginal UX gain. App RESUME does
+    // NOT re-fire: the State (and this flag) survive, and a resumed revealed day
+    // is revealed→revealed, not waiting→revealed. The permission-denial self-heal
+    // (locked→revealed) is likewise silent — not a waiting→revealed transition,
+    // and the flag is already set. The soft-unfold MOTION is separate: it plays
+    // on every revealed-group mount (see _RevealUnfold).
+    //
+    // Belt-and-suspenders, deliberately: `_revealHapticFired` is the at-most-once
+    // guarantee, and the `oldWidget.slot is PartnerSlotWaiting` check documents
+    // the intent (the reveal moment IS the partner answer arriving). They are
+    // redundant by the state machine — the partner watch attaches only after the
+    // own ack (Waiting), and a network Failure does not auto-retry
+    // (`partnerSlotProvider`), so the ONLY path to first-Revealed is
+    // Waiting→Revealed and every recovery (Locked/Failure→Revealed) can only
+    // happen with the flag already set. That is why the guard's specificity is
+    // inspection-verified rather than unit-tested: the transition that would
+    // distinguish it from a broad `!Revealed→Revealed` guard is unreachable.
+    if (!_revealHapticFired &&
+        oldWidget.slot is PartnerSlotWaiting &&
+        widget.slot is PartnerSlotRevealed) {
+      _revealHapticFired = true;
+      HapticFeedback.lightImpact();
+    }
+  }
+
   String get _entry => _controller.text.trim();
 
   bool get _saved =>
@@ -323,23 +370,49 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: SpacingTokens.x6),
-                if (revealed) ...[
-                  // The couple's mutual-day streak (M3.4, ADR-012): a modest
-                  // marker shown ONLY here (revealed) and ONLY when count > 0.
-                  // A zero count renders nothing — reveal-trigger lag or a
-                  // not-yet-deployed trigger must not surface as a real streak
-                  // (which is exactly why every existing revealed golden, whose
-                  // fixture couple has the zero streak, stays byte-identical).
-                  if (widget.streak.count > 0) ...[
-                    _StreakRow(count: widget.streak.count),
-                    const SizedBox(height: SpacingTokens.x3),
-                  ],
-                  // Frozen by rules once both answered: read-only own card.
-                  _AnswerCard(
-                    label: l10n.pairedRevealedCaption,
-                    text: widget.persisted?.text ?? _entry,
-                  ),
-                ] else ...[
+                if (revealed)
+                  // The reveal — the product (brandkit §9.3, "the reveal is the
+                  // product; spend polish budget there"). The revealed group
+                  // (streak + both answers) softly unfolds on entry (§6, "the
+                  // signature interaction"); the gentle haptic is fired once by
+                  // didUpdateWidget on the LIVE waiting→revealed transition, not
+                  // here (this branch also mounts on cold-open-into-revealed).
+                  // Own and partner render at EQUAL weight (brandkit §9.1, "two
+                  // people, one screen state") and GROUPED (x4 — tighter than the
+                  // x6 that sets the reveal apart from the affordances below), so
+                  // the two answers read as one shared moment, not a list.
+                  _RevealUnfold(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // The mutual-day streak (M3.4, ADR-012): shown ONLY here
+                        // and ONLY when count > 0 — a zero count renders nothing
+                        // (reveal-trigger lag must never surface as a real
+                        // streak), which is why the zero-streak revealed goldens
+                        // carry no row.
+                        if (widget.streak.count > 0) ...[
+                          _StreakRow(count: widget.streak.count),
+                          const SizedBox(height: SpacingTokens.x3),
+                        ],
+                        // Frozen by rules once both answered: read-only own card.
+                        _AnswerCard(
+                          label: l10n.pairedRevealedCaption,
+                          text: widget.persisted?.text ?? _entry,
+                        ),
+                        // Grouped with the own card (x4). Rendered DIRECTLY (not
+                        // via _PartnerSlotCard) because this branch is reached
+                        // only when the slot is revealed.
+                        const SizedBox(height: SpacingTokens.x4),
+                        _AnswerCard(
+                          label: l10n.pairedPartnerAnswerLabel,
+                          text:
+                              (widget.slot as PartnerSlotRevealed).answer.text,
+                        ),
+                      ],
+                    ),
+                  )
+                else ...[
                   TextField(
                     controller: _controller,
                     enabled: !saving,
@@ -395,13 +468,22 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
                       onPressed: (_entry.isEmpty || _saved) ? null : _save,
                       child: Text(l10n.pairedAnswerSave),
                     ),
+                  // The partner-slot status card (locked / waiting / failure)
+                  // belongs to the non-revealed path ONLY — the revealed path
+                  // renders the partner's answer inside the unfold group above.
+                  // Its x6 spacer moved in here with it (it used to be an
+                  // unconditional spacer below the if/else); co-locating both so
+                  // the non-revealed column is byte-for-byte what it was:
+                  // button → x6 → slot → x6 → packs.
+                  const SizedBox(height: SpacingTokens.x6),
+                  _PartnerSlotCard(slot: widget.slot),
                 ],
-                const SizedBox(height: SpacingTokens.x6),
-                _PartnerSlotCard(slot: widget.slot),
                 // The quiet packs affordance (ADR-014 Decision 4): mounted
                 // INSIDE the question view only, so the daily loop's other
                 // states (no_day_yet, pack-update, error, loading) carry no
-                // tile and their goldens stay byte-identical.
+                // tile and their goldens stay byte-identical. The x6 above is
+                // the single unconditional gap before the affordances in EVERY
+                // question-view state (reveal and non-reveal alike).
                 const SizedBox(height: SpacingTokens.x6),
                 _PacksTile(coupleId: widget.coupleId),
                 // The quiet coach affordance (ADR-017 Decision 1): the tile AND
@@ -543,8 +625,14 @@ class _CoachTile extends StatelessWidget {
   }
 }
 
-/// The partner half of the reveal: locked → waiting → revealed (or an
-/// inline failure that never takes down the whole screen).
+/// The partner half of the pre-reveal card: **locked / waiting / failure**.
+/// Since ADR-025 slice 2 the REVEALED case is rendered directly inside
+/// [_PairedQuestionView]'s unfold group (so the two answers can be grouped and
+/// animated together), so this widget is only ever mounted in the non-revealed
+/// `else` branch. The `PartnerSlotRevealed` arm below is therefore not reached
+/// from that call site; it is retained because `PartnerSlot` is a sealed class
+/// (the switch must be exhaustive) and it keeps the widget defensively reusable
+/// — an inline failure here still never takes down the whole screen.
 class _PartnerSlotCard extends StatelessWidget {
   const _PartnerSlotCard({required this.slot});
 
@@ -565,6 +653,8 @@ class _PartnerSlotCard extends StatelessWidget {
         icon: Icons.hourglass_empty,
         text: l10n.pairedPartnerWaiting,
       ),
+      // Not reached from _PairedQuestionView (revealed renders directly there);
+      // kept for sealed-class exhaustiveness + defensive reuse.
       PartnerSlotRevealed(:final answer) => _AnswerCard(
         label: l10n.pairedPartnerAnswerLabel,
         text: answer.text,
@@ -636,6 +726,52 @@ class _AnswerCard extends StatelessWidget {
           const SizedBox(height: SpacingTokens.x2),
           Text(text, style: theme.textTheme.bodyMedium),
         ],
+      ),
+    );
+  }
+}
+
+/// Test seam for the reveal unfold: the [Opacity] whose value a widget test
+/// samples mid-animation (the animation is transient, so no golden captures it).
+@visibleForTesting
+const revealUnfoldOpacityKey = ValueKey<String>('reveal-unfold-opacity');
+
+/// The reveal's "soft unfold" (brandkit §6 — *the* signature interaction, the
+/// one the brandkit says to "budget polish here first"): its child fades in and
+/// gently rises, once, when it mounts (both on cold-open-into-revealed and on
+/// the live waiting→revealed transition — it does not, and need not, tell the
+/// two apart; the haptic that DOES is in [_PairedQuestionViewState]).
+///
+/// Motion values come from [MotionTokens] (§6's 150–300ms band, ease-out
+/// entering). VERTICAL-only slide, so it is direction-neutral (no RTL mirror).
+/// Reduce-motion → [Duration.zero]: the child appears settled, no fade, no rise.
+/// At rest it is pixel-neutral (`Opacity(1)` + `Transform.translate(Offset.zero)`
+/// both hit Flutter's no-op fast paths), so it changes NO settled golden — the
+/// only golden delta in the reveal is the x4 grouping in [_PairedQuestionView].
+/// `alwaysIncludeSemantics` keeps the revealed content in the semantics tree
+/// from the first frame, so a screen reader never loses it mid-unfold
+/// (Appendix A, "screen-reader order matches visual order").
+class _RevealUnfold extends StatelessWidget {
+  const _RevealUnfold({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: reduceMotion ? Duration.zero : MotionTokens.revealUnfold,
+      curve: MotionTokens.enter,
+      child: child,
+      builder: (context, t, child) => Opacity(
+        key: revealUnfoldOpacityKey,
+        opacity: t,
+        alwaysIncludeSemantics: true,
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * MotionTokens.revealSlide),
+          child: child,
+        ),
       ),
     );
   }

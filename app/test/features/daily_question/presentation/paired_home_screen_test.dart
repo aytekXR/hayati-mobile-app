@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
@@ -139,6 +140,9 @@ void main() {
     onSaveAnswer,
     Future<QuestionPack> Function(String packId)? onLoadPack,
     Locale locale = const Locale('en'),
+    // Forces MediaQuery.disableAnimations for the reduce-motion reveal test —
+    // the soft unfold must collapse to an instant, animation-free appearance.
+    bool reduceMotion = false,
   }) async {
     final coupleDoc =
         couple ??
@@ -172,9 +176,18 @@ void main() {
     // everything else pins a fixed instant. The same clock backs isPremium's
     // expiry check, so a premium mirror needs a future expiry against it.
     final clockFn = clock ?? (() => now ?? fixedNow);
+    const paired = PairedHomeScreen(uid: ownUid, coupleId: coupleId);
+    final home = reduceMotion
+        ? Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: paired,
+            ),
+          )
+        : paired;
     await tester.pumpWidget(
       localizedApp(
-        const PairedHomeScreen(uid: ownUid, coupleId: coupleId),
+        home,
         locale: locale,
         overrides: [
           coupleRepositoryProvider.overrideWith((ref) => couples),
@@ -817,6 +830,198 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text(en.coachTileTitle), findsNothing);
+    });
+  });
+
+  // The signature reveal interaction (brandkit §6, §9.3): a soft unfold plus a
+  // gentle haptic. The unfold is TRANSIENT — no golden captures it, so it is
+  // proven here (the S028 lesson: a fix on a transient surface needs a widget
+  // test, not a golden). ADR-025 slice 2, Session 029.
+  //
+  // These tests deliberately drive frames with pump()/pump(Duration) rather than
+  // pumpAndSettle: the reveal ANIMATION is the thing under test, so settling it
+  // away would hide the mid-fade frame — and a pumpAndSettle that runs the live
+  // unfold under the SystemChannels.platform haptic mock does not terminate.
+  group('reveal unfold + haptic (slice 2, brandkit §6)', () {
+    List<MethodCall> spyHaptics(WidgetTester tester) {
+      final haptics = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate') haptics.add(call);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      return haptics;
+    }
+
+    // Pumps a bounded number of frames until [finder] matches — the read chain
+    // (answer stream → partnerSlotProvider → rebuild) settles over a few
+    // microtask hops. Bare pump()s elapse zero fake time, so a mounted unfold
+    // stays at its start value, leaving the mid-fade assertion meaningful.
+    Future<void> pumpUntil(
+      WidgetTester tester,
+      Finder finder, {
+      int maxPumps = 12,
+    }) async {
+      for (var i = 0; i < maxPumps && finder.evaluate().isEmpty; i++) {
+        await tester.pump();
+      }
+    }
+
+    // Finish the 240ms unfold deterministically without pumpAndSettle, so no
+    // ticker is left pending at teardown.
+    Future<void> settleUnfold(WidgetTester tester) =>
+        tester.pump(const Duration(milliseconds: 300));
+
+    Map<String, CoupleAnswer> ownOnly() => {
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, ownUid):
+          ackedAnswer('My own thoughts.'),
+    };
+    Map<String, CoupleAnswer> bothAnswered() => {
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, ownUid):
+          ackedAnswer('My own thoughts.'),
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, partnerUid):
+          ackedAnswer('Partner reply here.'),
+    };
+
+    testWidgets('the revealed group softly unfolds (opacity climbs 0→1) on the '
+        'live waiting→revealed transition', (tester) async {
+      final fakes = await pumpPaired(tester, initialAnswers: ownOnly());
+      await tester.pumpAndSettle(); // waiting: no unfold yet → settles cleanly
+      expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
+      expect(find.byKey(revealUnfoldOpacityKey), findsNothing);
+
+      fakes.answers.emitAnswer(
+        coupleId,
+        todayKey,
+        partnerUid,
+        ackedAnswer('Partner reply here.'),
+      );
+      // Propagate the partner answer and mount the unfold at its START value.
+      await pumpUntil(tester, find.byKey(revealUnfoldOpacityKey));
+      expect(find.byKey(revealUnfoldOpacityKey), findsOneWidget);
+
+      // Partway through the 240ms unfold: mid-fade — proof the animation is
+      // actually running, not frozen at either boundary.
+      await tester.pump(const Duration(milliseconds: 100));
+      final mid = tester.widget<Opacity>(find.byKey(revealUnfoldOpacityKey));
+      expect(mid.opacity, greaterThan(0.0));
+      expect(mid.opacity, lessThan(1.0));
+
+      await settleUnfold(tester);
+      expect(
+        tester.widget<Opacity>(find.byKey(revealUnfoldOpacityKey)).opacity,
+        1.0,
+      );
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      expect(find.text('Partner reply here.'), findsOneWidget);
+    });
+
+    testWidgets('the live waiting→revealed transition fires ONE gentle '
+        'lightImpact haptic', (tester) async {
+      final haptics = spyHaptics(tester);
+      final fakes = await pumpPaired(tester, initialAnswers: ownOnly());
+      await tester.pumpAndSettle();
+      expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
+      expect(haptics, isEmpty); // nothing before the reveal
+
+      fakes.answers.emitAnswer(
+        coupleId,
+        todayKey,
+        partnerUid,
+        ackedAnswer('Partner reply here.'),
+      );
+      // The haptic fires in didUpdateWidget the instant the slot flips — no need
+      // to settle the animation to observe it.
+      await pumpUntil(tester, find.text(en.pairedRevealedCaption));
+
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      expect(haptics, hasLength(1));
+      expect(haptics.single.arguments, 'HapticFeedbackType.lightImpact');
+      await settleUnfold(tester);
+    });
+
+    testWidgets('cold-open into revealed fires exactly ONE haptic as the reveal '
+        'settles in (the read chain still passes waiting→revealed)', (tester) async {
+      // Honest bound: the slot settles Locked→Waiting→Revealed even when both
+      // answers already exist, so cold-open reaches revealed via waiting→revealed
+      // and buzzes once — there is no cheap client signal separating it from the
+      // live moment. It is bounded to ONCE per instance (see the next test), and
+      // app-resume never re-fires.
+      final haptics = spyHaptics(tester);
+      await pumpPaired(tester, initialAnswers: bothAnswered());
+      await pumpUntil(tester, find.text(en.pairedRevealedCaption));
+
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      expect(find.text('Partner reply here.'), findsOneWidget);
+      expect(haptics, hasLength(1));
+      expect(haptics.single.arguments, 'HapticFeedbackType.lightImpact');
+      await settleUnfold(tester);
+    });
+
+    testWidgets('the reveal haptic is at-most-once per instance: the '
+        'permission-denial self-heal (locked→revealed) adds NONE', (
+      tester,
+    ) async {
+      final haptics = spyHaptics(tester);
+      final fakes = await pumpPaired(tester, initialAnswers: bothAnswered());
+      await pumpUntil(tester, find.text(en.pairedRevealedCaption));
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      expect(haptics, hasLength(1)); // the cold-open settle fired once
+      await settleUnfold(tester);
+
+      // A lost exists()-race denies the partner listen → the slot maps back to
+      // Locked (defense-in-depth), then the bounded 1s retry replays the stored
+      // answer and re-reveals — a locked→revealed transition (not waiting→), and
+      // the once-per-instance flag is already set.
+      fakes.answers.emitError(
+        coupleId,
+        todayKey,
+        partnerUid,
+        const CoupleDataPermissionException(message: 'denied'),
+      );
+      await pumpUntil(tester, find.text(en.pairedPartnerLocked));
+      expect(find.text(en.pairedPartnerLocked), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 1)); // fire the bounded retry
+      await pumpUntil(tester, find.text(en.pairedPartnerAnswerLabel));
+      expect(find.text(en.pairedPartnerAnswerLabel), findsOneWidget);
+      // Still exactly one — the self-heal added no buzz.
+      expect(haptics, hasLength(1));
+      await settleUnfold(tester);
+    });
+
+    testWidgets('reduce-motion collapses the unfold to an instant appearance '
+        '(opacity 1 on the first revealed frame, no fade)', (tester) async {
+      final fakes = await pumpPaired(
+        tester,
+        reduceMotion: true,
+        initialAnswers: ownOnly(),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
+
+      fakes.answers.emitAnswer(
+        coupleId,
+        todayKey,
+        partnerUid,
+        ackedAnswer('Partner reply here.'),
+      );
+      await pumpUntil(tester, find.byKey(revealUnfoldOpacityKey));
+      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      // Duration.zero → the group is already fully in place on frame one, no
+      // fade — and nothing left ticking, so no settle needed.
+      expect(
+        tester.widget<Opacity>(find.byKey(revealUnfoldOpacityKey)).opacity,
+        1.0,
+      );
     });
   });
 }
