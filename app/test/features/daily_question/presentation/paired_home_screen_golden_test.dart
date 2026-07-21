@@ -294,4 +294,43 @@ void main() {
       );
     });
   }
+
+  // Dynamic-type probe on the RESTRUCTURED reveal (ADR-025 slice 2): slice 2 is
+  // the first structural change to the revealed layout (the two answers now
+  // group at x4), so Appendix A's 130% check needs a cell that exercises it.
+  // revealed_streak is the busiest reveal state (streak row + both answer
+  // cards), a superset of plain revealed — if the grouped column survives 130%
+  // WITH the streak row, it survives without. Naturals only, matching the
+  // locked_scale130 convention.
+  for (final cell in naturalCells) {
+    testWidgets('revealed_streak scale130 ${cell.suffix}', (tester) async {
+      final overrides = arrange(
+        seedDay: true,
+        couple: _coupleWithStreak,
+        ownAnswer: answerOf(_ownAnswerText),
+        partnerAnswer: answerOf(_partnerAnswerText),
+      );
+
+      await pumpGolden(
+        tester,
+        const PairedHomeScreen(uid: _ownUid, coupleId: _coupleId),
+        locale: cell.locale,
+        direction: cell.direction,
+        overrides: overrides,
+        textScale: 1.3,
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(PairedHomeScreen),
+        matchesGoldenFile(
+          goldenFile(
+            'paired_home_screen',
+            'revealed_streak_scale130',
+            cell.suffix,
+          ),
+        ),
+      );
+    });
+  }
 }
