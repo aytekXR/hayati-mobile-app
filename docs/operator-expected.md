@@ -7,11 +7,24 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-20, **Session 028 close** (the UI/UX refactor's first
-visual fix). **Nothing is required from you to keep going.** Two design
-questions are now waiting whenever you want them — item 10 (Phosphor vs
-Material icons) and **new item 12 (two missing brand colours)** — and neither
-blocks the next session._
+_Last refreshed: 2026-07-21, **Session 029 close** (ADR-025 slice 2 — the
+reveal's signature interaction). **Nothing is required from you to keep going.**
+The waiting design questions are unchanged and none blocks the next session —
+item 10 (Phosphor vs Material icons, #63), item 12 (two missing brand colours,
+#67), and now a third, **#71 (motion has no brand-kit token)**._
+
+_**Session 029 in one paragraph:** it built the one thing the brand kit says to
+polish first and the app never had — **the reveal now unfolds**. When both of
+you have answered, your two answers gently rise into view together with a soft
+haptic tap, instead of just appearing flat; and they were pulled a little closer
+so they read as one shared moment rather than a list — deliberately kept at
+EQUAL size (neither partner's voice is bigger). One honest detail: the tap also
+happens the first time you open the app to an already-revealed day, not only
+when you're watching live — there is no reliable way for the app to tell those
+two apart, so it does the simple gentle thing once (and never again on the same
+day, and never when you just switch back to the app). **Nothing you can read
+changed** — no words were touched — and only the reveal's own screen snapshots
+moved; every other snapshot is byte-identical._
 
 _**Session 028 in one paragraph:** it fixed a real visual defect you would have
 seen the first time you used the app on a phone. **Your three most important

@@ -758,3 +758,38 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 **Notes / debt logged:** **#67 — the brandkit defines no token for secondary/muted text or for outlines/dividers.** A founder/design decision with real accessibility weight (WCAG's 3:1 for non-text controls; "reduced emphasis" and "disabled" must stay distinguishable). Non-blocking: slices 2–7 touch screen composition, not those two slots, and whichever slice needs them first is blocked on the answer. #63 (Phosphor) still open, still non-blocking.
 
 **Next objective written to resume-prompt.md:** ADR-025 **slice 2 — the product core** (solo + paired home and their sub-widgets), the highest-value slice of the arc: "the reveal is the product".
+
+## Session 029 — 2026-07-21 — ADR-025 slice 2: the product core (the reveal) — its signature §6 interaction, built and grouped
+
+**Objective (from resume-prompt.md):** ADR-025 slice 2 — the solo + paired home and their sub-widgets, the highest-value slice of the arc ("the reveal is the product", brandkit §9.3).
+
+**Outcome:** done. The reveal now has the one thing brandkit §6 says to build first and it never had — a soft unfold + a gentle haptic — plus a restrained grouping change so the two answers read as one shared moment. 15 goldens re-baselined (exactly the declared set), all suites green.
+
+**Preemptions — all negative.** Item 6 (LLM provider) still unanswered → no M5.3. **Blaze re-verified FACTUALLY** (minted a token from the firebase-tools refresh token, queried Cloud Billing): `billingEnabled:false` on both `hayatiapp-dev` and `hayatiapp-prod` → no first-deploy. #67 and #63 both OPEN, 0 comments → no token/Phosphor answer. No Android green-light, on-device defect, or dev-rig request. (Session-hygiene: the one other claude near the tree was on `repo-blueprint`, not hayati.)
+
+**What was actually wrong (looked at the goldens, didn't just count):** the reveal was FLAT — own answer and partner answer were byte-identical `nightRaised` cards with equal spacing to everything else, so the payoff (the partner's words) read as an undifferentiated list item — and there was **NO motion at all**, though §6 names the reveal "*the* signature interaction — budget polish here first" (soft unfold + gentle haptic). The rest of the home was already token-clean, so this was a polish slice: the value is concentrated where the product is judged.
+
+**Pre-code adversarial review (16th consecutive pre-code pass): 28 raised → 5 real defects, all fixed before the first line of code.** Five findings converged on one hole — the design under-specified the fate of the unconditional `SizedBox(x6)` + `_PartnerSlotCard`: a naive restructure would either double-render the partner card (breaking `findsOneWidget`) or shift 15+ non-declared goldens. Fixed by moving BOTH into the non-revealed `else` branch, keeping the non-revealed column byte-for-byte identical. The other four: the haptic host had to be `didUpdateWidget` on the persisting State, not the freshly-mounted `_RevealUnfold`; the 240ms enforcement claim was honest-corrected to review-level (like `minimumBodySize`, not the mechanically-checked `dynamicTypeMax`) with a `MotionTokens` range test; a `revealed_streak_scale130 ×3` probe was added for Appendix A's 130% check on the restructured layout; and the haptic test gained the self-heal sub-case. The refuted findings died correctly (the `_RevealUnfold`-changes-pixels claim was refuted by Flutter's own `RenderOpacity`/`RenderTransform` no-op fast paths; the dead-code claim by Dart sealed-class exhaustiveness). **Post-diff review: 7 → 3, all minor/refinement, "sound to merge as-is"** — both surviving code-quality nits applied as doc/comment clarity fixes.
+
+**What shipped:**
+- **The signature reveal motion (§6), transient → widget-tested not goldened (S028's lesson).** `_RevealUnfold` (a `TweenAnimationBuilder`) fades + gently raises the revealed group (streak + both answers) once on mount; `MotionTokens.revealUnfold = 240ms` inside §6's 150–300ms band, ease-out, vertical-only (RTL-neutral), `alwaysIncludeSemantics` (no 1-frame a11y gap), reduce-motion → `Duration.zero`, pixel-neutral at rest (changes no settled golden). A gentle `HapticFeedback.lightImpact` fires once per instance on `Waiting→Revealed`.
+- **An honest bound found in testing and recorded, not papered over:** cold-open-into-revealed ALSO settles Locked→Waiting→Revealed even when both answers exist, so there is no cheap client signal separating "user watching Waiting live" from "app loading a revealed day" — the design's "never on cold-open" was unachievable without a timing heuristic or a persisted per-day flag. Chose the simple §6-consistent behaviour: one gentle buzz the first time the reveal lands (live OR cold-open settle), bounded once per instance; app-resume never re-fires; the permission-denial self-heal (locked→revealed) is silent.
+- **Equal weight, not primacy:** own and partner render identically (brandkit §9.1, "two people, one screen state"); the reveal's specialness is the unfold + grouping. The `Icons.favorite`-absent-elsewhere state-ladder tests independently forbid a partner-card accent, so the equality ethos and the test net agree. The only settled-pixel change is the own→partner gap x6→x4.
+
+**Golden discipline (D8):** declared {revealed×6, revealed_streak×6 changed; revealed_streak_scale130×3 new} = 15 BEFORE `--update-goldens`; `git status --porcelain` came back **exactly** those 15, nothing else (solo untouched, locked/waiting/no_day byte-identical). **Looked at the regenerated images** (the slice-1 lesson): the two answer cards group as a pair, the 130% probe wraps without overflow, the Arabic RTL cell mirrors correctly — better, not just different.
+
+**Slice-0 firewall:** all three guards green and unweakened (paired_home is in no scan set; no tokens touched; no consent/legal/★ strings touched).
+
+**A process note worth keeping:** a `pumpAndSettle` that runs the live reveal unfold WHILE the `SystemChannels.platform` haptic mock is installed does not terminate — the reveal-motion tests drive frames with `pump()`/`pump(Duration)` instead, which also keeps the mid-fade frame observable. (The non-mock cold-open + pumpAndSettle path settles fine, so the golden regen was unaffected.)
+
+**Tests:** app suite green (**+1446**, incl. the 5 new reveal tests + 3 MotionTokens); coverage **86.43% ≥ 68**; `flutter analyze` clean.
+
+**Commits:** `b61062d` (squash of feat `fcebaf4`, amended from `08956d8` for `dart format`) → PR #72.
+
+**CI:** PR #72 all green (quality, functions-rules, ios-build-smoke, slack-notify; integration-emulator main-only). Post-merge main run `29843811695` — **all green, including `integration-emulator`** (the main-only app+backend E2E job that actually runs on an app-touching change).
+
+**Docs touched:** `docs/adr/025-*.md` (slice-2 note), `docs/test-suite.md`, `docs/past-prompts.md`, `docs/resume-prompt.md`, `docs/operator-expected.md`.
+
+**Notes / debt logged:** **#71 — motion is a §6 rule (150–300ms, ease-out) with no `hayati-tokens.json` token**, so `MotionTokens` is review-enforced (like `minimumBodySize`), not parity-tested; non-blocking, a future brandkit-revision decision parallel to #67. #67 (muted/outline tokens) and #63 (Phosphor) still open, still non-blocking.
+
+**Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 3 — onboarding & pairing** (7 surfaces, 87 goldens, N + G), the first slice with a Class-G guarantee surface — keep `ProviderActions` a single shared widget with the legal footer present by construction on all three sign-in call sites.
