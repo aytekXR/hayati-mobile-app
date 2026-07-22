@@ -7,11 +7,31 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-21, **Session 029 close** (ADR-025 slice 2 — the
-reveal's signature interaction). **Nothing is required from you to keep going.**
-The waiting design questions are unchanged and none blocks the next session —
-item 10 (Phosphor vs Material icons, #63), item 12 (two missing brand colours,
-#67), and now a third, **#71 (motion has no brand-kit token)**._
+_Last refreshed: 2026-07-22, **Session 030 close** (ADR-025 slice 3 — onboarding
+& pairing). **Nothing is required from you to keep going.** The waiting design
+questions are unchanged and none blocks the next session — item 10 (Phosphor vs
+Material icons, #63), item 12 (two missing brand colours, #67), the motion-token
+tidy (#71), and a new small code-cleanup follow-up (#74). **#67 is the one the
+next session (commerce/paywall) may bump into** — if the paywall's "purchase in
+progress" banner needs a muted tone the brand kit doesn't define, that session
+will STOP and hand it to you rather than invent one, exactly as Session 028 did._
+
+_**Session 030 in one paragraph:** it polished the moment you first see **who
+invited you**. When a partner's invitation opens ("Aylin invited you"), it now
+gently unfolds into view — a soft fade and a small rise — instead of appearing
+flat, the same warm touch the daily reveal got last session (and, as there,
+deliberately no buzz on this one — a second haptic is a brand-kit call that
+stays yours). And on the very first setup screen — where each of you picks
+relationship, language and tone — the **"Continue" button now anchors at the
+bottom of the screen** with proper weight, instead of floating mid-screen over a
+large empty space; it also stays put and reachable when text is enlarged to
+130%. One small spacing tidy on the phone-code screen too (the "Resend code" link
+now reads as clearly secondary). **Nothing you can read changed** — no words were
+touched — and only three of the setup/pairing screen snapshots moved; every other
+snapshot is byte-identical. The one Class-G guarantee this slice carried — that
+the legal notice under the sign-in buttons can never drift or be split per
+screen — held by construction and is now proven on all three places those
+buttons appear._
 
 _**Session 029 in one paragraph:** it built the one thing the brand kit says to
 polish first and the app never had — **the reveal now unfolds**. When both of
