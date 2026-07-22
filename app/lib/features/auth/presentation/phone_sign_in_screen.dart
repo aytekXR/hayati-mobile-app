@@ -203,7 +203,14 @@ class _SmsCodeEntryState extends ConsumerState<_SmsCodeEntry> {
         ),
         const SizedBox(height: SpacingTokens.x6),
         FilledButton(onPressed: _submit, child: Text(l10n.verifyCode)),
-        const SizedBox(height: SpacingTokens.x2),
+        // x4 (not x2) so the subordinate resend affordance reads as hierarchy
+        // below the primary action, matching the single-primary→single-
+        // subordinate gap on the other pairing/invite surfaces (invite_share
+        // Share→x4→"Have a code?", partner_preview Accept→x4→"Not now").
+        // ADR-025 slice 3 (brandkit §4). NB: ProviderActions' Apple/Google/Phone
+        // stack is a homogeneous 3-item list at x3 throughout — NOT this
+        // pattern, and deliberately left at x3.
+        const SizedBox(height: SpacingTokens.x4),
         if (widget.resending)
           const Padding(
             padding: EdgeInsets.all(SpacingTokens.x2),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/widgets/soft_unfold_reveal.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
 import '../../auth/presentation/widgets/provider_actions.dart';
@@ -309,24 +310,37 @@ class _ValidPreview extends StatelessWidget {
               horizontal: SpacingTokens.screenGutter,
               vertical: SpacingTokens.x6,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  invitedBy,
-                  style: theme.textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: SpacingTokens.x3),
-                Text(l10n.invitePreviewValidBody, textAlign: TextAlign.center),
-                const _QuestionSlot(),
-                const SizedBox(height: SpacingTokens.x6),
-                _JoinActions(
-                  code: code,
-                  onReenter: onReenter,
-                  onDismiss: onDismiss,
-                ),
-              ],
+            // The activation moment (brandkit §6/§9.3): the invitee's first
+            // sight of who invited them softly unfolds (fade + a gentle rise),
+            // the pairing-flow sibling of slice 2's daily reveal. Transient —
+            // no golden captures it (settles pixel-neutral); proven by
+            // soft_unfold_reveal_test.dart. Wraps the whole card so the
+            // headline, body and join CTA rise together as one moment; when the
+            // invitee is not yet signed in the CTA is the shared [ProviderActions]
+            // (unchanged, still one widget with its legal footer by construction).
+            child: SoftUnfoldReveal(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    invitedBy,
+                    style: theme.textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: SpacingTokens.x3),
+                  Text(
+                    l10n.invitePreviewValidBody,
+                    textAlign: TextAlign.center,
+                  ),
+                  const _QuestionSlot(),
+                  const SizedBox(height: SpacingTokens.x6),
+                  _JoinActions(
+                    code: code,
+                    onReenter: onReenter,
+                    onDismiss: onDismiss,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
