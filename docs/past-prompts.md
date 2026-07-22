@@ -828,3 +828,36 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 **Notes / debt logged:** **#74 — DRY slice-2's `_RevealUnfold` into the shared `SoftUnfoldReveal`** (a later pixel-neutral tidy; ~15 duplicated lines, recorded in the ADR note). #67 (muted/outline tokens), #63 (Phosphor), #71 (motion token) still open, still non-blocking — **#67 is the one to watch for slice 4** (the paywall processing banner must read as good news, never error).
 
 **Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 4 — commerce** (paywall, pack selection, `PremiumGate`; 30 goldens; the free-tier byte-identity + "processing banner reads as good news, never error" invariant).
+
+## Session 031 — 2026-07-23 — ADR-025 slice 4: commerce — the gated pitch drops from h1 to h2
+
+**Objective (from resume-prompt.md):** ADR-025 slice 4 — commerce (paywall, pack selection, `PremiumGate`; 30 goldens; Class N): the free-tier byte-identity + "processing banner reads as good news, never error" invariant.
+
+**Outcome:** done. The smallest slice of the arc — **ONE change, 9 goldens, 21 byte-identical**. A 3-auditor + governing-docs-adjudicator design pass found the commerce surfaces already token-clean and brandkit-compliant; the one real defect was a flat typography hierarchy on the gated (free) pack-selection view.
+
+**Preemptions — all negative.** Item 6 (LLM provider) still unanswered → no M5.3. **Blaze re-verified FACTUALLY** (minted a token from the firebase-tools refresh token, queried Cloud Billing): `billingEnabled:false` on both projects → no first-deploy. #67/#63/#71/#74 open, none answered. No Android green-light, on-device defect, or dev-rig request.
+
+**What the audit found (the surfaces were already well-built):** the `_ProcessingBanner` ALREADY reads as good news (`surfaceContainerHighest` + a `tertiary`/sage hourglass, explicitly "never the error colour" — ADR-014 D3), so NAMED INVARIANT 1 was satisfied and had only to be PRESERVED; gold is already restrained (exactly two elements — the entitled premium mark + the annual best-value badge); the paywall hierarchy/rhythm/RTL/130% are sound; `PremiumGate` is a correct minimal shared wrapper (one `isPremiumProvider` decision, three call sites — coach/paired-home/pack-selection — no fork). All three auditors returned "already good" for their surfaces except one defect.
+
+**What shipped (1 change):**
+- **pack_selection `_GatedView` pitch: `headlineMedium` (h1) → `titleLarge` (h2).** The pitch "Unlock every pack" was the SAME textTheme role as the screen title "Question packs" (both `headlineMedium`), stacking two h1s and erasing the h1/h2 distinction brandkit §3's 24/20 scale carries. Downgraded to `titleLarge`, which also matches `_UnlockedView` (whose section header `packSelectionCurrentTitle` is already `titleLarge` under the same screen title). LOOKED at the regenerated goldens: the screen title now clearly leads and the pitch reads as a subordinate-but-still-prominent (20/w600) headline, at 1× and 130%, RTL mirrored.
+
+**No motion — the restraint discriminant, recorded.** The paywall "You're Premium" entitled view is a positive moment but a *deliberately-navigated confirmation*, not a *surprise reveal* (§9.3); slice 3's `SoftUnfoldReveal` earned its place on the pairing activation precisely because THAT was a surprise ("who invited you"). A soft-unfold on the entitled view would be motion-for-motion's-sake, so it is correctly absent. The good-news banner, gold restraint, and `PremiumGate` wrapper are preserved untouched.
+
+**Review (one focused combined pass, proportionate to a one-line change): 1 finding → resolved; the free-tier-invariant crux settled.** For a genuinely one-line typography change the design and the built diff are identical, so a single 3-lens (free-tier-invariant / hierarchy-correctness / firewall) × adjudicator pass covered both. The hierarchy-correctness and free-tier lenses raised NO objection (the change stands — the "de-emphasises the sell message" counter-argument was weighed and answered: h2/20/w600 stays prominent). **The crux — does touching the free-tier `gated` goldens violate D7 row 4's "free-tier probes still byte-identical"? — was ruled CHANGE-PERMITTED:** the invariant is a LEAK-CHECK ("must not move *unless declared*"), guarding against the entitled/paywall path inadvertently shifting the free appearance; a deliberate, declared, rationale-backed improvement to the free surface itself is the "unless declared" case (the other free-tier probes — paywall loaded/loaded_scale130 — are byte-identical, confirming no leak). The one BLOCKING finding ("the 9 goldens were never regenerated") was a TIMING ARTIFACT — the review inspected the code-only commit before the goldens were amended in; the 9 were already regenerated + visually confirmed and were folded into the commit.
+
+**Golden discipline (D8):** declared {pack_selection gated ×6 + gated_scale130 ×3} = 9 BEFORE `--update-goldens`; `git status --porcelain` came back **exactly** those 9. The 21 others (paywall entitled/loaded/loaded_scale130, pack_selection unlocked) byte-identical.
+
+**Slice-0 firewall:** all three guards green and unweakened (no lock file touched; no tokens touched; no ★/consent/legal strings touched). #67/#63/#71 untouched (`titleLarge` is an existing role — no muted tone invented). `pack_selection_screen_test.dart` asserts the gated title TEXT (presence/absence), not style, so it stays green unchanged.
+
+**Tests:** app suite green (+1449 (same as slice 3 — no new tests; the change is a golden re-baseline)); coverage 86.46% ≥ 68; `flutter analyze` clean; RTL lint clean; `dart format` clean.
+
+**Commits:** `0884b4e` (squash) → PR #78.
+
+**CI:** PR #78 all green (quality, functions-rules, ios-build-smoke, slack-notify; integration-emulator main-only). Post-merge main run `29963403049` — **all green including `integration-emulator`** (the app+backend E2E).
+
+**Docs touched:** `docs/adr/025-*.md` (slice-4 note), `docs/past-prompts.md`, `docs/resume-prompt.md`, `docs/operator-expected.md`.
+
+**Notes / debt logged:** none new. #67 (muted/outline tokens), #63 (Phosphor), #71 (motion token), #74 (DRY the unfold) still open, still non-blocking — **#67 is the one to watch for slice 5** (the coach chat, where a muted timestamp/divider is tempting).
+
+**Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 5 — coach** (chat, disclaimer, help path; 27 goldens; Class G + ★): `CoachHelpCard` stays a distinct widget TYPE from `CoachPersonaBubble`, the help-sticky latch still replaces the composer, zero ★ strings changed (frozen digest green).

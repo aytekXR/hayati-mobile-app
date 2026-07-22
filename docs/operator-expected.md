@@ -7,14 +7,31 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-22, **Session 030 close** (ADR-025 slice 3 — onboarding
-& pairing). **Nothing is required from you to keep going.** The waiting design
-questions are unchanged and none blocks the next session — item 10 (Phosphor vs
-Material icons, #63), item 12 (two missing brand colours, #67), the motion-token
-tidy (#71), and a new small code-cleanup follow-up (#74). **#67 is the one the
-next session (commerce/paywall) may bump into** — if the paywall's "purchase in
-progress" banner needs a muted tone the brand kit doesn't define, that session
-will STOP and hand it to you rather than invent one, exactly as Session 028 did._
+_Last refreshed: 2026-07-23, **Session 031 close** (ADR-025 slice 4 — commerce).
+**Nothing is required from you to keep going.** The waiting design questions are
+unchanged and none blocks the next session — item 10 (Phosphor vs Material icons,
+#63), item 12 (two missing brand colours, #67), the motion-token tidy (#71), and
+the small code-cleanup follow-up (#74). **#67 is the one the NEXT session (the
+coach chat) may bump into** — a chat screen is where a muted timestamp or a
+divider tone is tempting, and the brand kit defines none, so that session will
+STOP and hand it to you rather than invent one._
+
+_**Session 031 in one paragraph:** it reviewed the money screens — the paywall,
+the pack-selection screen, and the shared "is this couple Premium?" gate — and
+found them **already in good shape**: the "purchase is going through" banner
+already reads as good news (a calm sage tone, never a red error), gold is used
+with restraint (just the premium ribbon and the "best value" badge), and the
+paywall's layout, hierarchy and Arabic/large-text handling were all sound. So
+this was the **smallest change of the whole redesign — a single fix**: on the
+locked "Question packs" screen, the line "Unlock every pack" was rendered at the
+exact same size and weight as the screen's own title, so the two competed; it is
+now a clear sub-heading beneath the title, matching how the unlocked version of
+that screen already works. Nothing you can read changed — no words were touched —
+and only the nine snapshots of that one locked screen moved; the paywall and the
+unlocked screens are byte-identical. **One deliberate non-change worth knowing:**
+the "You're Premium" confirmation did NOT get the gentle unfold animation the
+pairing screen got last session — because you OPEN that screen yourself (it is
+not a surprise), so an animation there would be decoration, not meaning._
 
 _**Session 030 in one paragraph:** it polished the moment you first see **who
 invited you**. When a partner's invitation opens ("Aylin invited you"), it now
