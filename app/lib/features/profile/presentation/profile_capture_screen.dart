@@ -120,18 +120,42 @@ class _ProfileCaptureScreenState extends ConsumerState<ProfileCaptureScreen> {
               const SizedBox(height: SpacingTokens.x6),
               _SaveErrorView(failure: failure),
             ],
-            const SizedBox(height: SpacingTokens.x8),
-            if (saving) ...[
-              const Center(child: CircularProgressIndicator()),
-              const SizedBox(height: SpacingTokens.x4),
-            ],
-            FilledButton(
-              onPressed: (_status == null || saving)
-                  ? null
-                  : () => _save(context),
-              child: Text(l10n.continueAction),
-            ),
           ],
+        ),
+      ),
+      // The screen's sole primary action is pinned to the viewport bottom rather
+      // than floating at the tail of the ListView (which wraps its children, so
+      // the button rendered mid-screen over a large empty void). Anchoring the
+      // one CTA gives it the spatial authority brandkit §4 ("one primary action
+      // per screen") implies, completes the composition with no new elements
+      // (§9.5 restraint), and keeps it reachable at 130% text scale. The
+      // in-flight spinner rides above it; the save guard and _save call are
+      // unchanged (behaviour frozen). ADR-025 slice 3.
+      bottomNavigationBar: SafeArea(
+        // Bottom inset only: Scaffold already strips the top padding from the
+        // bottomNavigationBar slot, but pinning top:false makes "no status-bar
+        // dead space above the button" explicit rather than implicit.
+        top: false,
+        minimum: const EdgeInsets.only(bottom: SpacingTokens.x6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: SpacingTokens.screenGutter,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (saving) ...[
+                const Center(child: CircularProgressIndicator()),
+                const SizedBox(height: SpacingTokens.x4),
+              ],
+              FilledButton(
+                onPressed: (_status == null || saving)
+                    ? null
+                    : () => _save(context),
+                child: Text(l10n.continueAction),
+              ),
+            ],
+          ),
         ),
       ),
     );
