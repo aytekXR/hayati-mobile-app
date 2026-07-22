@@ -7,14 +7,31 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-23, **Session 031 close** (ADR-025 slice 4 — commerce).
+_Last refreshed: 2026-07-23, **Session 032 close** (ADR-025 slice 5 — coach).
 **Nothing is required from you to keep going.** The waiting design questions are
 unchanged and none blocks the next session — item 10 (Phosphor vs Material icons,
 #63), item 12 (two missing brand colours, #67), the motion-token tidy (#71), and
 the small code-cleanup follow-up (#74). **#67 is the one the NEXT session (the
-coach chat) may bump into** — a chat screen is where a muted timestamp or a
-divider tone is tempting, and the brand kit defines none, so that session will
-STOP and hand it to you rather than invent one._
+settings screen) is most likely to bump into** — settings is the app's densest
+screen of on/off switches, captions and dividers, and it is the exact place
+Session 028 hit the missing muted-tone colours before; if it needs one, that
+session will STOP and hand it to you rather than invent one (as Session 028 did)._
+
+_**Session 032 in one paragraph:** it reviewed the AI-coach screens — the chat,
+the "before you begin" note, and the gentle "let's pause and get you real help"
+crisis path — and found them **already right**, so it changed **nothing at all**.
+This is a real result, not a skipped session: the redesign's whole job is to walk
+every screen once, and some screens are already where they should be (the coach
+was built carefully). What the review confirmed, and re-proved with tests: the
+safety wording is untouched (the frozen check that guards the crisis and
+"not therapy" sentences stayed green); the crisis card can never be mistaken for
+an ordinary coach reply; and the "conversation paused" safeguard still takes over
+the message box exactly as before. One idea was floated and deliberately dropped —
+a gentle fade-in on the "before you begin" note — because you tap that note on
+purpose to reach the coach, so an animation there would be decoration, not
+meaning (the same judgement that kept animation off the "You're Premium" screen
+last session). Nothing you can see changed, and every coach snapshot is
+byte-identical._
 
 _**Session 031 in one paragraph:** it reviewed the money screens — the paywall,
 the pack-selection screen, and the shared "is this couple Premium?" gate — and
