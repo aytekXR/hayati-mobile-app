@@ -861,3 +861,33 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 **Notes / debt logged:** none new. #67 (muted/outline tokens), #63 (Phosphor), #71 (motion token), #74 (DRY the unfold) still open, still non-blocking — **#67 is the one to watch for slice 5** (the coach chat, where a muted timestamp/divider is tempting).
 
 **Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 5 — coach** (chat, disclaimer, help path; 27 goldens; Class G + ★): `CoachHelpCard` stays a distinct widget TYPE from `CoachPersonaBubble`, the help-sticky latch still replaces the composer, zero ★ strings changed (frozen digest green).
+
+## Session 032 — 2026-07-23 — ADR-025 slice 5: coach — a ZERO-CHANGE review slice (already compliant)
+
+**Objective (from resume-prompt.md):** ADR-025 slice 5 — coach (chat, disclaimer, help path; 27 goldens; Class G + ★): `CoachHelpCard` stays a distinct widget TYPE from `CoachPersonaBubble`, the help-sticky latch replaces the composer, zero ★ strings changed (frozen digest green).
+
+**Outcome:** done — **ZERO code changes, zero golden updates.** Two parallel auditors (the chat surface; the panels), each reading the full 854-line `coach_screen.dart` + the goldens, then a governing-docs adjudicator, found the coach **already token-clean and brandkit-compliant** — the deepest confirmation yet of the arc's thesis (the screens were built well; the work is the Material floor + composition, and here there was neither to do). This is the honest outcome when a surface is already right — the arc's completion criterion is "every surface goes THROUGH a slice", not "every slice moves a pixel" (slice 0's precedent: zero pixels, real deliverable).
+
+**Preemptions — all negative.** Item 6 (LLM provider) still unanswered → no M5.3. **Blaze re-verified FACTUALLY** (`billingEnabled:false` on both projects) → no first-deploy. #67/#63/#71/#74 open, none answered. No Android green-light, on-device defect, or dev-rig request.
+
+**What the audit verified (recorded, not assumed):** every spacing value traces to a `SpacingTokens` constant; every colour reads from `colorScheme` (no hardcoded literals, no gold, and — correctly — no `onSurfaceVariant`/`outline`: the #67-stopped absence a chat is most tempted to break with a muted timestamp or a message divider); typography roles descend cleanly (headlineMedium titles, titleMedium help-card header, bodyMedium body/bubbles, bodySmall persona-label + quota caption); Material icons throughout (#63); RTL correct (`AlignmentDirectional` end/start on bubbles, `EdgeInsetsDirectional` on composer/chips — confirmed in the ar.rtl goldens).
+
+**The Class-G + ★ guarantees hold BY PROOF, not assertion.** The zero-change slice RE-RAN its guards green as the deliverable's proof: the frozen-sentence digest (no `coachDisclaimer*`/`coachHelp*`/`coachPaused*` reword — no coach string touched); `coach_screen_test.dart`'s `find.byType` pins (`CoachHelpCard` distinct from `CoachPersonaBubble`; the help-latch shows `CoachPausedPanel`); the 27 coach goldens byte-identical; the lock-screen forbidden-API sentinel; the brandkit token-parity test. 66 targeted tests green.
+
+**The one motion candidate REJECTED by the S031 discriminant.** A `SoftUnfoldReveal` on `_CoachDisclaimerView` was considered and rejected: the disclaimer is an *expected safety gate the user deliberately navigates to* (they pressed "Coach"), not a *surprise reveal* — structurally unlike slice 2's daily reveal or slice 3's "who invited you". §6 ("motion conveys cause and effect, never decoration") and §9.5 ("restraint reads premium") both cut against it; both auditors and the candidate's own self-assessment reached DROP.
+
+**Method note:** for a zero-change slice the "review twice" discipline collapses to a completeness check — the design audit (2 auditors + adjudicator) IS the search for a defensible change, and its "nothing found" is the reviewed conclusion; the second pass is the guard RE-RUN that PROVES the compliant claim. No separate diff review (there is no diff).
+
+**Golden discipline (D8):** declared set delta = 0 files; all 27 coach goldens byte-identical.
+
+**Tests:** the 66 targeted guard/type/digest/golden tests green (the full suite is unchanged from main, which merged slice 4 green); `flutter analyze` clean (no code touched).
+
+**Commits:** this is a docs-only session (no code) — the ADR-025 slice-5 note + the close docs ship in ONE PR (there is no feature to merge first).
+
+**CI:** docs-only session — the ADR slice-5 note + close docs ship in one PR; CI is quality + functions-rules + ios-build-smoke (integration-emulator skips — no app code). Watched to green.
+
+**Docs touched:** `docs/adr/025-*.md` (slice-5 zero-change note), `docs/past-prompts.md`, `docs/resume-prompt.md`, `docs/operator-expected.md`.
+
+**Notes / debt logged:** none new. #67/#63/#71/#74 open, non-blocking. #67 stayed un-tripped because the coach's persona-label + quota caption use the default on-surface tone (not a muted variant), which is the correct #67-stopped choice.
+
+**Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 6 — settings & data rights** (settings, PIN setup, PIN verify dialog, delete account, export, couple-ended notice, `SettingsErrorLine`; 55 goldens — the largest set left; Class N): the delete confirmation still reads irreversible + says the shared space goes for BOTH; `SettingsErrorLine` stays shared, not forked per screen; dialogs mount above goldens (S028) so their fixes need widget tests.
