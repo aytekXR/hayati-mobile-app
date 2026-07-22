@@ -129,7 +129,13 @@ class _GatedView extends StatelessWidget {
         const SizedBox(height: SpacingTokens.x3),
         Text(
           l10n.packSelectionGatedTitle,
-          style: theme.textTheme.headlineMedium,
+          // h2 (titleLarge), not h1: this is the gated SECTION pitch under the
+          // screen title (`packSelectionTitle`, headlineMedium/h1). Two stacked
+          // h1s flatten the hierarchy (brandkit §3's 24/20 scale exists to
+          // distinguish level); this also matches `_UnlockedView`, whose section
+          // header (`packSelectionCurrentTitle`) is already titleLarge under the
+          // same screen title. ADR-025 slice 4.
+          style: theme.textTheme.titleLarge,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: SpacingTokens.x3),
