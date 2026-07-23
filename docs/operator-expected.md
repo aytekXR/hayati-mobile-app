@@ -7,15 +7,32 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-23, **Session 032 close** (ADR-025 slice 5 — coach).
-**Nothing is required from you to keep going.** The waiting design questions are
-unchanged and none blocks the next session — item 10 (Phosphor vs Material icons,
-#63), item 12 (two missing brand colours, #67), the motion-token tidy (#71), and
-the small code-cleanup follow-up (#74). **#67 is the one the NEXT session (the
-settings screen) is most likely to bump into** — settings is the app's densest
-screen of on/off switches, captions and dividers, and it is the exact place
-Session 028 hit the missing muted-tone colours before; if it needs one, that
-session will STOP and hand it to you rather than invent one (as Session 028 did)._
+_Last refreshed: 2026-07-23, **Session 033 close** (ADR-025 slice 6 — settings &
+data rights). **Nothing is required from you to keep going.** The waiting design
+questions are unchanged — item 10 (Phosphor vs Material icons, #63), item 12 (two
+missing brand colours, #67), the motion-token tidy (#71), and the small
+code-cleanup follow-up (#74). **Item 12 (#67) has now firmed up into a concrete,
+low-stakes decision worth making when convenient:** the redesign has now walked
+the whole app, and #67 (the two missing "muted grey" / "hairline divider" brand
+colours) turns out to be the ONE thing standing between the **Settings screen**
+and a final coat of polish — its row descriptions currently use a generic system
+grey rather than a brand tone, and its sections have no dividers, because the
+brand kit defines neither colour. Nothing is broken (it reads fine today); it is
+purely a "could look a touch more finished" item, and your answer would unblock a
+short follow-up pass. Not urgent, not launch-blocking._
+
+_**Session 033 in one paragraph:** it reviewed the Settings screen and the
+account-data screens (download, delete, the "your shared space was closed"
+notice) — the largest batch of the redesign — and, as with the coach last
+session, found them **already right**, so it changed **nothing**. It re-checked
+and re-proved the parts that matter: the "delete everything" screen still leads
+with "This can't be undone." and still says the shared space goes for both of
+you; the little error lines under settings rows are still one shared piece, not
+copy-pasted per screen; and the safety wording is all untouched. The one genuine
+"could be nicer" it found — giving the grey row-descriptions a warmer brand tone
+and adding faint dividers between the settings groups — is the #67 item above,
+which it correctly declined to guess at (the same colours Session 028 stopped on).
+Nothing you can see changed; every settings/data snapshot is byte-identical._
 
 _**Session 032 in one paragraph:** it reviewed the AI-coach screens — the chat,
 the "before you begin" note, and the gentle "let's pause and get you real help"
