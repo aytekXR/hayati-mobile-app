@@ -111,7 +111,12 @@ Widget _blockWidget(LegalBlock block, ThemeData theme) {
   final textTheme = theme.textTheme;
   switch (block.kind) {
     case LegalBlockKind.title:
-      return Text(block.text, style: textTheme.headlineSmall);
+      // The document's own h1 (`# ` line) uses the DEFINED h1 role
+      // (headlineMedium = 24/w700 per TypographyTokens / brandkit §3), NOT the
+      // unset `headlineSmall` slot — which fell through to Material's 24/w400
+      // default and rendered the title LIGHTER than its own `## ` section
+      // headings (titleMedium 16/w600). ADR-025 slice 7.
+      return Text(block.text, style: textTheme.headlineMedium);
     case LegalBlockKind.section:
       return Text(block.text, style: textTheme.titleMedium);
     case LegalBlockKind.bullet:
