@@ -891,3 +891,33 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 **Notes / debt logged:** none new. #67/#63/#71/#74 open, non-blocking. #67 stayed un-tripped because the coach's persona-label + quota caption use the default on-surface tone (not a muted variant), which is the correct #67-stopped choice.
 
 **Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 6 — settings & data rights** (settings, PIN setup, PIN verify dialog, delete account, export, couple-ended notice, `SettingsErrorLine`; 55 goldens — the largest set left; Class N): the delete confirmation still reads irreversible + says the shared space goes for BOTH; `SettingsErrorLine` stays shared, not forked per screen; dialogs mount above goldens (S028) so their fixes need widget tests.
+
+## Session 033 — 2026-07-23 — ADR-025 slice 6: settings & data rights — a ZERO-CHANGE, #67-BLOCKED review slice
+
+**Objective (from resume-prompt.md):** ADR-025 slice 6 — settings & data rights (settings, PIN setup, PIN-verify dialog, delete account, export, couple-ended notice, `SettingsErrorLine`; 55 goldens — the largest set left; Class N): the delete confirmation stays irreversible + both-of-you; `SettingsErrorLine` stays shared; #67 flagged as the likely stopper.
+
+**Outcome:** done — **ZERO code changes, zero golden updates, and the #67 stopping condition confirmed as the reason `SettingsScreen` cannot be polished.** Three parallel auditors (settings + dialogs + `SettingsErrorLine`; pin_setup + export; delete + couple_ended) + a governing-docs adjudicator raised ZERO candidates across all 7 surfaces. Same honest outcome as slice 5, but sharper: the settings surface has a REAL improvement available and it is permanently #67-blocked.
+
+**Preemptions — all negative.** Item 6 (LLM) unanswered → no M5.3. **Blaze re-verified FACTUALLY** (`billingEnabled:false` on both) → no first-deploy. #67/#63/#71/#74 open. No Android green-light, on-device defect, or dev-rig request.
+
+**The load-bearing finding — settings is #67-blocked from the other direction.** `SettingsScreen` is the app's densest secondary-text/toggle/divider surface: the `ListTile`/`SwitchListTile` subtitles fall through to Material's DEFAULT `onSurfaceVariant` (a desaturated grey — functional but off-brand), and giving them a brand muted tone, or adding a `Divider`/section-separator between the lock / privacy / data-rights clusters, needs `onSurfaceVariant`/`outline` — the two slots **S028 proved dim the Switches** and deferred to **#67**. Adding section-header copy is equally forbidden (Class N). So slice 1 hit #67 SETTING the tokens; slice 6 hits it WANTING TO USE them. **#67 is now the gate on the one remaining piece of settings polish** — strengthened in `operator-expected.md` for the founder.
+
+**The safety acceptances already hold BY CONSTRUCTION.** The delete confirmation keeps "This can't be undone." in `titleMedium` (prominent, under the app bar) + the "both sides of every answer" clause in the first `bodyMedium` paragraph; the destructive `FilledButton` is `colorScheme.error`/`onError` (alert-on-night 4.94:1, §8 danger semantic) — nothing softens the irreversibility. `SettingsErrorLine` stays ONE shared widget across settings/consent-gate/legal (no fork). The two dialogs (`PinVerifyDialog`, `_BiometricWarningDialog`) correctly mount above the golden matrix (S028).
+
+**Proven, not assumed.** All 55 slice-6 goldens byte-identical; the settings/delete state-ladders, the `SettingsErrorLine` sharing, and the three slice-0 guards RE-RUN green (106 targeted tests). No motion (all 7 surfaces are deliberately-navigated destinations — S031's discriminant).
+
+**Method note:** as with slice 5, the "review twice" discipline for a zero-change slice is the design audit (3 auditors + adjudicator) as the search for a defensible change, plus the guard RE-RUN that PROVES the compliant claim. No diff review (no diff). Because there is no code, the slice-6 ADR note + close docs ship in ONE docs PR.
+
+**Golden discipline (D8):** declared set delta = 0 files; all 55 byte-identical.
+
+**Tests:** the 106 targeted golden/state-ladder/guard tests green (full suite unchanged from main); `flutter analyze` clean (no code touched).
+
+**Commits:** docs-only session — the slice-6 ADR note + close docs in ONE PR.
+
+**CI:** docs-only session — the ADR slice-6 note + close docs ship in one PR; CI is quality + functions-rules + ios-build-smoke (integration-emulator skips — no app code). Watched to green.
+
+**Docs touched:** `docs/adr/025-*.md` (slice-6 zero-change/#67-blocked note), `docs/past-prompts.md`, `docs/resume-prompt.md`, `docs/operator-expected.md`.
+
+**Notes / debt logged:** **#67 is now the explicit gate on settings polish** (strengthened in operator-expected — the founder's answer unblocks the settings subtitle tone + section dividers, the one thing slices 1 and 6 both hit). #63/#71/#74 open, non-blocking.
+
+**Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 7 — legal & consent** (consent gate, legal hub, legal document; 18 goldens; Class G): layout only, the frozen-sentence digest stays green (every `consent*`/`legal*` string pinned), and the four consent escapes — sign out / export / delete / accept — all still reachable from the gate.
