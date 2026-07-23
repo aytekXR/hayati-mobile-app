@@ -7,29 +7,47 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-23, **Session 034 close** (ADR-025 slice 7 — legal &
-consent). **Nothing is required from you to keep going.** The waiting design
-questions are unchanged — item 10 (Phosphor vs Material icons, #63), item 12 (two
-missing brand colours, #67), the motion-token tidy (#71), and the small
-code-cleanup follow-up (#74). **Item 12 (#67) has firmed up into a concrete,
-low-stakes decision worth making when convenient:** the redesign has now walked
-almost the whole app, and #67 (the two missing "muted grey" / "hairline divider"
-brand colours) is the ONE thing standing between the **Settings screen** and a
-final coat of polish — its row descriptions use a generic system grey rather than
-a brand tone, and its sections have no dividers, because the brand kit defines
-neither. Nothing is broken; it is a "could look a touch more finished" item, and
-your answer unblocks a short follow-up pass. Not urgent, not launch-blocking._
+_Last refreshed: 2026-07-23, **Session 035 close** (ADR-025 slice 8 — the app
+lock; the FINAL slice). **The UI/UX redesign you asked for on 2026-07-14 is now
+DONE**, and with it, **autonomous engineering has reached the edge of what it can
+do without you.** Nothing was broken and nothing needs undoing — this is simply
+the honest end of the work a machine can do alone on this product._
 
-_**Heads-up — the UI/UX redesign finishes next session.** Only the app-lock screen
-remains (a deliberately hands-off "confirm it hasn't moved a pixel" pass, because
-the lock's security rules matter more than its looks). After that, the redesign
-you asked for is DONE — and the only work left in the whole product is the three
-things that need YOU: **item 6 (pick the AI provider — the live coach waits on it),
-item 2 (turn on Firebase billing — the first server deploy waits on it), and item 4
-(your Apple Developer enrollment — TestFlight + on-device testing wait on it).**
-None of these can be done from this machine. So expect the next session to close
-the redesign and then tell you, plainly, that autonomous work has reached the
-edge of what it can do without you._
+_**THE ONE THING THAT MATTERS NOW: the whole remaining product is three
+decisions, and all three are yours.** The engineering is finished (the app, the
+consent/legal layer, the CI, and now the whole visual redesign). What is left is
+not code — it is:_
+- _**Item 6 — pick the AI provider + make an API key** (the live coach is built
+  and waiting on exactly this; it has been the single blocker since Session 019)._
+- _**Item 2 — turn on Firebase Blaze billing** (the eleven cloud functions are
+  built, tested and waiting; nothing has ever been deployed)._
+- _**Item 4 — your Apple Developer enrollment** (the release pipeline is built and
+  fails-closed until it lands; TestFlight + on-device testing wait on it)._
+- _**Item 5 (still open since Session 005) — rotate the leaked Slack webhook**, the
+  one 10-minute security chore._
+
+_None of these can be done from this machine. Until at least one is unblocked,
+future sessions will correctly find no engineering work to do and will say so
+plainly rather than invent busywork — that is the design, not a stall._
+
+_**Two purely-optional design questions the redesign surfaced (non-blocking, no
+rush):** **#67** — define two small brand colours (a "muted grey" for secondary
+text and a "hairline divider" tone); your answer unblocks a short final polish of
+the Settings screen (today its row descriptions use a system grey and its sections
+have no dividers — it reads fine, it could read a touch more finished). **#63** —
+whether to swap the app's icon set to the Phosphor family the brand kit names;
+that is a bigger, self-contained job if you ever want it._
+
+_**Session 035 in one paragraph:** it did the last screen of the redesign — the
+app-lock screen — which by deliberate design was a "look, don't touch" pass:
+because the lock's security behaviour matters far more than its appearance, the
+rule was to confirm it is pixel-for-pixel unchanged and that its safety guards are
+all still in force, and change nothing. That is exactly what happened — every lock
+snapshot is byte-identical, the guard that stops the lock screen from ever showing
+a pop-up (which could lock you out on the "forgot PIN" path) is green, and the
+app-switcher privacy cover is still the plain neutral panel it should be. With
+that, all 48 screens and components of the app have been walked once, and the
+redesign is complete._
 
 _**Session 034 in one paragraph:** it reviewed the consent screen and the in-app
 legal documents (Privacy Policy, Terms) and found them already right — with one

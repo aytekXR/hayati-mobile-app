@@ -952,3 +952,34 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 **Notes / debt logged:** none new. #67 (still the gate on settings polish), #63/#71/#74 open, non-blocking.
 
 **Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 8 — the lock (parity only)** (`PrivacyGuard`, `PrivacyShieldCover`, `LockScreen`, `PinKeypad`; 18 goldens; Class **F**): the D5.i sentinel green; goldens BYTE-IDENTICAL unless a token normalization is declared in advance; NO new widget type / interaction / dialog / overlay / tooltip; `PrivacyShieldCover` stays `night`; the keypad stays `TextDirection.ltr`. **Slice 8 is the LAST slice — the ADR-025 arc is then COMPLETE, and the remaining MVP roadmap (M5.3, first deploy) is operator-blocked (item 6 / Blaze).**
+
+## Session 035 — 2026-07-23 — ADR-025 slice 8: the lock (parity only) — a ZERO-CHANGE parity proof, and THE ARC IS COMPLETE
+
+**Objective (from resume-prompt.md):** ADR-025 slice 8 — the lock (`PrivacyGuard`, `PrivacyShieldCover`, `LockScreen`, `PinKeypad`; 18 goldens; Class F, parity only): the D5.i sentinel green; goldens BYTE-IDENTICAL unless a token normalization is declared in advance; no new widget type/interaction/dialog; `PrivacyShieldCover` stays `night`; the keypad stays `TextDirection.ltr`. The LAST slice.
+
+**Outcome:** done — **ZERO changes.** Class F forbids restructuring the lock, so slice 8's deliverable is a PROOF that the lock is byte-identical and its firewall intact, and the CLOSING of the arc. **The ADR-025 arc is now COMPLETE** — all 48 inventoried surfaces have been through a slice or are recorded parity-only/unreachable.
+
+**Preemptions — all negative.** Item 6 (LLM) unanswered → no M5.3. **Blaze re-verified FACTUALLY** (`billingEnabled:false` on both) → no first-deploy. #67/#63/#71/#74 open. No Android green-light, on-device defect, or dev-rig request.
+
+**The parity proof (130 lock + guard tests RE-RUN green):**
+- **All 18 lock goldens + the 2 `probe` PNGs BYTE-IDENTICAL** (`lock_screen_golden_test` + `rtl_mirror_net_test` pass with NO `--update-goldens`). The lock reached byte-identity at slice 1 (D6's carve-out) and never drifted across slices 2–7.
+- **The four ADR-018 lock invariants hold:** the D5.i forbidden-API sentinel green; the no-invalidate sentinel green (nothing calls `ref.invalidate(privacyLockControllerProvider)`); the `biometricOnly: true` source-contract test green; and by direct source read `PrivacyShieldCover` keeps `ColorTokens.night` (FLUTTER-4), the `PinKeypad` keeps its explicit `TextDirection.ltr`, and the `Offstage`+`TickerMode` gating shape is unchanged.
+- **Zero changes** — the arc's most conservative outcome on its most safety-critical surface, exactly as ADR-025's D-Consequences predicted ("the lock surfaces get almost no refactor … ADR-018's four invariants are worth more than visual consistency").
+
+**THE ARC IS COMPLETE (D7's own criterion).** Slice 0 built the firewall; slice 1 filled the Material floor; slices 2 (the reveal) + 3 (the pairing activation) added the two §6 signature motions + composition; slices 4 (commerce, one h1→h2) + 7 (legal, one undefined-slot→h1) were single defensible fixes; slices 5 (coach) + 6 (settings, #67-blocked) were documented already-compliant reviews; slice 8 (the lock) is the parity proof. The UI/UX Pro Max refactor the founder directed (2026-07-14) is DONE.
+
+**Method note:** slice 8 needed no design audit — Class F forbids improvements, so the "review" is the parity PROOF (byte-identity + the four invariants + the D5.i sentinel), and the deliverable is the ADR's arc-COMPLETE record. Docs-only session (no code) → one PR.
+
+**Golden discipline (D8):** declared set delta = 0 files; all 18 lock goldens + 2 probes byte-identical.
+
+**Tests:** the 130 targeted lock/probe/sentinel/invariant/guard tests green (full suite unchanged from main); `flutter analyze` clean (no code touched).
+
+**Commits:** docs-only session — the slice-8 ADR note + arc-COMPLETE record + close docs in ONE PR.
+
+**CI:** docs-only session — the slice-8 ADR note + arc-COMPLETE record + close docs ship in one PR; CI is quality + functions-rules + ios-build-smoke (integration-emulator skips — no app code). Watched to green.
+
+**Docs touched:** `docs/adr/025-*.md` (slice-8 note + arc-COMPLETE + Status), `docs/past-prompts.md`, `docs/resume-prompt.md`, `docs/operator-expected.md`, `docs/roadmap.md` (arc marked complete).
+
+**Notes / debt logged:** **AUTONOMOUS ENGINEERING HAS REACHED ITS OPERATOR-DEPENDENCY BOUNDARY.** With the arc complete, every remaining MVP unit needs the founder: **M5.3** (live coach) waits on **item 6** (LLM provider + API key); the **first deploy** waits on **item 2** (Blaze billing); the **on-device/TestFlight** lane waits on **item 4** (Apple Developer enrollment). Open design questions (non-blocking): **#67** (muted/outline tokens — unblocks a settings-polish follow-up), **#63** (Phosphor — its own slice 1.5), **#71** (motion token), **#74** (DRY the unfold).
+
+**Next objective written to resume-prompt.md:** a POST-ARC resume-prompt — the arc is complete and every remaining unit is operator-blocked, so the next session first re-runs the preemption checks (LLM answered? Blaze flipped? Apple enrollment? on-device defect? dev-rig?) and, if any is unblocked, does that unit; else it records that autonomous engineering is complete and safely no-ops, waiting on the founder (items 6/2/4). This is a clean, honest terminus — not a failure to find work, but the correct stop when the roadmap's remaining work is genuinely a human dependency (session-rules §4).
