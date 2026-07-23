@@ -7,19 +7,42 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-23, **Session 033 close** (ADR-025 slice 6 — settings &
-data rights). **Nothing is required from you to keep going.** The waiting design
+_Last refreshed: 2026-07-23, **Session 034 close** (ADR-025 slice 7 — legal &
+consent). **Nothing is required from you to keep going.** The waiting design
 questions are unchanged — item 10 (Phosphor vs Material icons, #63), item 12 (two
 missing brand colours, #67), the motion-token tidy (#71), and the small
-code-cleanup follow-up (#74). **Item 12 (#67) has now firmed up into a concrete,
+code-cleanup follow-up (#74). **Item 12 (#67) has firmed up into a concrete,
 low-stakes decision worth making when convenient:** the redesign has now walked
-the whole app, and #67 (the two missing "muted grey" / "hairline divider" brand
-colours) turns out to be the ONE thing standing between the **Settings screen**
-and a final coat of polish — its row descriptions currently use a generic system
-grey rather than a brand tone, and its sections have no dividers, because the
-brand kit defines neither colour. Nothing is broken (it reads fine today); it is
-purely a "could look a touch more finished" item, and your answer would unblock a
-short follow-up pass. Not urgent, not launch-blocking._
+almost the whole app, and #67 (the two missing "muted grey" / "hairline divider"
+brand colours) is the ONE thing standing between the **Settings screen** and a
+final coat of polish — its row descriptions use a generic system grey rather than
+a brand tone, and its sections have no dividers, because the brand kit defines
+neither. Nothing is broken; it is a "could look a touch more finished" item, and
+your answer unblocks a short follow-up pass. Not urgent, not launch-blocking._
+
+_**Heads-up — the UI/UX redesign finishes next session.** Only the app-lock screen
+remains (a deliberately hands-off "confirm it hasn't moved a pixel" pass, because
+the lock's security rules matter more than its looks). After that, the redesign
+you asked for is DONE — and the only work left in the whole product is the three
+things that need YOU: **item 6 (pick the AI provider — the live coach waits on it),
+item 2 (turn on Firebase billing — the first server deploy waits on it), and item 4
+(your Apple Developer enrollment — TestFlight + on-device testing wait on it).**
+None of these can be done from this machine. So expect the next session to close
+the redesign and then tell you, plainly, that autonomous work has reached the
+edge of what it can do without you._
+
+_**Session 034 in one paragraph:** it reviewed the consent screen and the in-app
+legal documents (Privacy Policy, Terms) and found them already right — with one
+small, real fix worth making. On the legal documents, the document's own title
+(e.g. "Privacy Policy" at the top of the page) was accidentally rendering
+THINNER than the bold sub-headings below it, because it was using a text style
+the brand kit never actually defined, so the phone fell back to a lighter system
+default. It now uses the proper bold heading style, so the page title leads the
+way a title should. Nothing you can read changed — no legal or consent wording
+was touched (the frozen safety-check confirms it), and the four ways to leave the
+consent screen without agreeing (sign out, download, delete, or accept) are all
+exactly as before. Only the three legal-document snapshots moved; the consent
+screen and the legal menu are byte-identical._
 
 _**Session 033 in one paragraph:** it reviewed the Settings screen and the
 account-data screens (download, delete, the "your shared space was closed"
