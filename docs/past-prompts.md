@@ -921,3 +921,34 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 **Notes / debt logged:** **#67 is now the explicit gate on settings polish** (strengthened in operator-expected — the founder's answer unblocks the settings subtitle tone + section dividers, the one thing slices 1 and 6 both hit). #63/#71/#74 open, non-blocking.
 
 **Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 7 — legal & consent** (consent gate, legal hub, legal document; 18 goldens; Class G): layout only, the frozen-sentence digest stays green (every `consent*`/`legal*` string pinned), and the four consent escapes — sign out / export / delete / accept — all still reachable from the gate.
+
+## Session 034 — 2026-07-23 — ADR-025 slice 7: legal & consent — the legal document title stops rendering lighter than its own sections
+
+**Objective (from resume-prompt.md):** ADR-025 slice 7 — legal & consent (consent gate, legal hub, legal document + renderer; 18 goldens; Class G): layout only, the frozen digest stays green, the four consent escapes reachable.
+
+**Outcome:** done — **ONE change, 3 goldens, 15 byte-identical.** Two auditors + a governing-docs adjudicator found the consent gate and legal hub already token-clean and layout-correct, and one genuine defect in the renderer.
+
+**Preemptions — all negative.** Item 6 (LLM) unanswered → no M5.3. **Blaze re-verified FACTUALLY** (`billingEnabled:false` on both) → no first-deploy. #67/#63/#71/#74 open. No Android green-light, on-device defect, or dev-rig request.
+
+**What shipped (1 change):**
+- **The legal document's own h1 title was rendering LIGHTER than its `##` section headings.** `legal_renderer.dart` styled the `#` document title (the parser's declared h1, e.g. "Privacy Policy") with `textTheme.headlineSmall` — a slot `TypographyTokens` never defines, so it fell to Material 3's default (24sp/**w400**), while `##` section headings use `titleMedium` (16sp/**w600**). The document's own title was the ONE place in the whole app using an undefined type role (a completeness grep confirmed no other unset-slot usages in `app/lib`), and it read *lighter* than its sub-headings — a weight-hierarchy inversion. Fixed to `headlineMedium` (the DEFINED h1, 24sp/w700 per `TypographyTokens`' own annotation + brandkit §3 "H1 = 24/700"). LOOKED at the regenerated goldens: the title now leads in both size AND weight, matching the bold app-bar title, with the sections correctly subordinate — better, not just different.
+
+**Class-G guarantees hold — no copy, no escapes, no bytes touched.** A type-role substitution in the renderer: no `consent*`/`legal*` string reworded (frozen digest green), the four consent escapes untouched (the change is in the renderer, not `ConsentGateScreen`), the legal markdown BYTES untouched (`legal_assets_drift_test` byte-faithful test green), `SettingsErrorLine` not forked, no `onSurfaceVariant`/`outline` (#67 not implicated — the consent gate's existing `onSurfaceVariant` age-statement caption was deliberately left as-is, being #67 itself). No motion (navigated surfaces).
+
+**Review (lean, proportionate to a one-line typography fix): the design audit (2 auditors + adjudicator) WAS the design review; a 2-agent refute-skeptic + firewall-verifier pass confirmed the built diff.** The audit's adjudicator vetted the change against every Class-G/digest/escapes/bytes/#67/#63/motion/SettingsErrorLine constraint; the completeness grep confirmed the fix's scope is complete (headlineSmall was the sole unset-slot instance); 75 legal + guard tests green; the golden LOOK confirmed the improvement.
+
+**Golden discipline (D8):** declared {legal_document_screen privacy_policy ×3 (en.ltr, ar.rtl, tr.ltr — the naturals)} = 3 BEFORE `--update-goldens`; `git status --porcelain` came back **exactly** those 3. The 9 `consent_gate` + 6 `legal_screen` hub goldens byte-identical.
+
+**Slice-0 firewall:** all three guards green and unweakened (frozen digest, lock sentinel, token parity — RE-RUN). #67/#63/#71 untouched.
+
+**Tests:** app suite green (+1449 (same — the change is a golden re-baseline, no new tests)); coverage 86.46% ≥ 68; `flutter analyze` clean; RTL lint clean; `dart format` clean.
+
+**Commits:** `de673af` (squash) → PR #82.
+
+**CI:** PR #82 all green (quality, functions-rules, ios-build-smoke, slack-notify; integration-emulator main-only). Post-merge main run `29970070832` — **all green including `integration-emulator`** (the app+backend E2E).
+
+**Docs touched:** `docs/adr/025-*.md` (slice-7 note), `docs/past-prompts.md`, `docs/resume-prompt.md`, `docs/operator-expected.md`.
+
+**Notes / debt logged:** none new. #67 (still the gate on settings polish), #63/#71/#74 open, non-blocking.
+
+**Next objective written to resume-prompt.md:** whichever preemption fires, else ADR-025 **slice 8 — the lock (parity only)** (`PrivacyGuard`, `PrivacyShieldCover`, `LockScreen`, `PinKeypad`; 18 goldens; Class **F**): the D5.i sentinel green; goldens BYTE-IDENTICAL unless a token normalization is declared in advance; NO new widget type / interaction / dialog / overlay / tooltip; `PrivacyShieldCover` stays `night`; the keypad stays `TextDirection.ltr`. **Slice 8 is the LAST slice — the ADR-025 arc is then COMPLETE, and the remaining MVP roadmap (M5.3, first deploy) is operator-blocked (item 6 / Blaze).**
