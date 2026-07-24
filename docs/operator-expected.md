@@ -7,11 +7,13 @@
 > Sessions update this file with docs-with-code discipline (rule #8); check it
 > after every merge to `main`.
 
-_Last refreshed: 2026-07-23, **Session 035 close** (ADR-025 slice 8 — the app
-lock; the FINAL slice). **The UI/UX redesign you asked for on 2026-07-14 is now
-DONE**, and with it, **autonomous engineering has reached the edge of what it can
-do without you.** Nothing was broken and nothing needs undoing — this is simply
-the honest end of the work a machine can do alone on this product._
+_Last refreshed: 2026-07-24, **Session 036 close** (the preemption re-check +
+one last unblocked tidy-up). **The UI/UX redesign you asked for on 2026-07-14 is
+DONE** (Session 035), and Session 036 cleared the one small engineering task that
+did NOT need you — so now **autonomous engineering has fully reached the edge of
+what it can do without you.** Nothing is broken and nothing needs undoing — this
+is simply the honest end of the work a machine can do alone on this product. From
+here, every remaining item is one of your three decisions below (items 6 / 2 / 4)._
 
 _**THE ONE THING THAT MATTERS NOW: the whole remaining product is three
 decisions, and all three are yours.** The engineering is finished (the app, the
@@ -37,6 +39,22 @@ the Settings screen (today its row descriptions use a system grey and its sectio
 have no dividers — it reads fine, it could read a touch more finished). **#63** —
 whether to swap the app's icon set to the Phosphor family the brand kit names;
 that is a bigger, self-contained job if you ever want it._
+
+_**Session 036 in one paragraph:** it re-checked the three things that are waiting
+on you — and confirmed, by looking directly rather than assuming, that all three
+are still open: the AI provider is still not chosen (item 6), Firebase billing is
+still off on BOTH projects (item 2, verified against Google's billing API), and
+the Apple signing keys slot is still empty (item 4). With nothing left that needs
+you, it did the ONE small leftover cleanup that did not: the app had two
+near-identical copies of the same "reveal unfolds into view" animation (one for
+the daily reveal, one for the pairing screen) — a leftover the redesign had
+deliberately parked so it wouldn't risk those screens' snapshots. They are now a
+single shared piece of code. **Nothing you can see changed** — every screen
+snapshot is byte-identical, all 1,449 tests are green, and the safety guards are
+untouched — and this closes the last do-it-without-you item on the list (issue
+#74). So the picture is now completely clean: the whole remaining product is your
+three decisions below (6, 2, 4), plus the still-open 10-minute security chore
+(item 5)._
 
 _**Session 035 in one paragraph:** it did the last screen of the redesign — the
 app-lock screen — which by deliberate design was a "look, don't touch" pass:

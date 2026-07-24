@@ -5,10 +5,10 @@ import 'package:flutter/services.dart'
     show HapticFeedback, LengthLimitingTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design_system/motion_tokens.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/widgets/soft_unfold_reveal.dart';
 import '../../coach/presentation/coach_screen.dart';
 import '../../entitlements/presentation/pack_selection_screen.dart';
 import '../../entitlements/presentation/premium_gate.dart';
@@ -300,7 +300,7 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
     // is revealed→revealed, not waiting→revealed. The permission-denial self-heal
     // (locked→revealed) is likewise silent — not a waiting→revealed transition,
     // and the flag is already set. The soft-unfold MOTION is separate: it plays
-    // on every revealed-group mount (see _RevealUnfold).
+    // on every revealed-group mount (see SoftUnfoldReveal).
     //
     // Belt-and-suspenders, deliberately: `_revealHapticFired` is the at-most-once
     // guarantee, and the `oldWidget.slot is PartnerSlotWaiting` check documents
@@ -381,7 +381,8 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
                   // people, one screen state") and GROUPED (x4 — tighter than the
                   // x6 that sets the reveal apart from the affordances below), so
                   // the two answers read as one shared moment, not a list.
-                  _RevealUnfold(
+                  SoftUnfoldReveal(
+                    opacityKey: revealUnfoldOpacityKey,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -731,51 +732,19 @@ class _AnswerCard extends StatelessWidget {
   }
 }
 
-/// Test seam for the reveal unfold: the [Opacity] whose value a widget test
-/// samples mid-animation (the animation is transient, so no golden captures it).
+/// Test seam for the daily reveal's soft unfold: the [Opacity] whose value a
+/// widget test samples mid-animation (the animation is transient, so no golden
+/// captures it). Passed to [SoftUnfoldReveal.opacityKey] so this surface's
+/// unfold is addressable independently of the pairing preview's. Issue #74
+/// folded the once-inline `_RevealUnfold` onto the shared [SoftUnfoldReveal]
+/// (the §6 rationale — signature interaction, VERTICAL-only slide, reduce-motion
+/// collapse, pixel-neutral rest, `alwaysIncludeSemantics` — now lives there);
+/// the daily reveal's own x4 answer grouping stays in [_PairedQuestionView], and
+/// the haptic that distinguishes the LIVE transition stays in
+/// [_PairedQuestionViewState]. The seam and its tests are unchanged; no golden
+/// moved.
 @visibleForTesting
 const revealUnfoldOpacityKey = ValueKey<String>('reveal-unfold-opacity');
-
-/// The reveal's "soft unfold" (brandkit §6 — *the* signature interaction, the
-/// one the brandkit says to "budget polish here first"): its child fades in and
-/// gently rises, once, when it mounts (both on cold-open-into-revealed and on
-/// the live waiting→revealed transition — it does not, and need not, tell the
-/// two apart; the haptic that DOES is in [_PairedQuestionViewState]).
-///
-/// Motion values come from [MotionTokens] (§6's 150–300ms band, ease-out
-/// entering). VERTICAL-only slide, so it is direction-neutral (no RTL mirror).
-/// Reduce-motion → [Duration.zero]: the child appears settled, no fade, no rise.
-/// At rest it is pixel-neutral (`Opacity(1)` + `Transform.translate(Offset.zero)`
-/// both hit Flutter's no-op fast paths), so it changes NO settled golden — the
-/// only golden delta in the reveal is the x4 grouping in [_PairedQuestionView].
-/// `alwaysIncludeSemantics` keeps the revealed content in the semantics tree
-/// from the first frame, so a screen reader never loses it mid-unfold
-/// (Appendix A, "screen-reader order matches visual order").
-class _RevealUnfold extends StatelessWidget {
-  const _RevealUnfold({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: reduceMotion ? Duration.zero : MotionTokens.revealUnfold,
-      curve: MotionTokens.enter,
-      child: child,
-      builder: (context, t, child) => Opacity(
-        key: revealUnfoldOpacityKey,
-        opacity: t,
-        alwaysIncludeSemantics: true,
-        child: Transform.translate(
-          offset: Offset(0, (1 - t) * MotionTokens.revealSlide),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
 
 /// The couple's mutual-day streak as a modest, centered row (M3.4, ADR-012 /
 /// PRD F3). A display slot only — deliberately NOT a celebration screen (that
