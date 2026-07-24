@@ -109,4 +109,34 @@ void main() {
       isTrue,
     );
   });
+
+  testWidgets(
+    'a caller-supplied opacityKey is stamped on the animated Opacity, '
+    'and the default is then unused (the daily reveal passes its own key, '
+    'issue #74)',
+    (tester) async {
+      const customKey = ValueKey<String>('custom-unfold-opacity');
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SoftUnfoldReveal(
+                opacityKey: customKey,
+                child: Text('reveal-child'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // The override routes to the animated Opacity; the default no longer
+      // matches — so a regression where build() ignored opacityKey would fail
+      // here even without the paired_home_screen daily-reveal tests.
+      expect(find.byKey(customKey), findsOneWidget);
+      expect(find.byKey(softUnfoldOpacityKey), findsNothing);
+
+      // Settle past the 240ms unfold so no ticker is left pending at teardown.
+      await tester.pump(const Duration(milliseconds: 300));
+    },
+  );
 }
