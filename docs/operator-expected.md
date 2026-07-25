@@ -10,7 +10,9 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-26, **Session 039 close**. The whole MVP is built,
+_Last refreshed: 2026-07-26, **Session 040 close** — the session that finally had something to deploy._
+
+_**🚀 You flipped Blaze, and the backend is now LIVE on `hayatiapp-dev`.** Ten of the eleven Cloud Functions are deployed and verified in `europe-west1`; the hourly question rollover is an ENABLED Cloud Scheduler job; the reveal trigger is ACTIVE with retries on. The eleventh — the RevenueCat webhook — is the ONE thing a session would not do without you, and item 0 below says why._ The whole MVP is built,
 tested and merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX
 redesign), and **every item below still needs you** — accounts, keys, an
 enrollment, and a few reviews. Nothing on this page changed this session._
@@ -46,7 +48,7 @@ never appear. This is part of item 1's content work, not a new demand._
 | # | What | Blocks | Effort |
 |---|---|---|---|
 | **6** | Pick the AI provider + make an API key | the live coach (M5.3) | ~15 min + a billing acct |
-| **2** | Turn on Firebase **Blaze** billing | the first backend deploy | ~5 min |
+| **2** | ~~Turn on Firebase **Blaze** billing~~ **DONE — and the dev backend is deployed** | ~~the first backend deploy~~ (prod still undeployed, deliberately) | — |
 | **4** | ~~Apple Developer enrollment~~ **DONE** — what remains is **Step 3's three `ASC_*` secrets** (still absent) + the on-device checks ↓ | hands-free CI builds; the on-device proofs | ~15 min for the secrets |
 | **0** | RevenueCat account + App Store Connect subscription products | the real sandbox purchase | ~30 min |
 | **3** | Enable Apple + Phone sign-in in the Firebase console | real-device sign-in | ~5 min |
@@ -276,21 +278,36 @@ first deploy and the loop comes alive on the phone.
   bumps the legal version, names the provider in the notice/policy, re-gates
   every user, and adds the provider row to `docs/dpa-inventory.md`.
 
-## 2. Blaze plan decision — deploying Cloud Functions requires it
+## 2. Blaze ✅ ON — and the dev backend is DEPLOYED (Session 040)
 
-- **What:** upgrade `hayatiapp-dev`/`hayatiapp-prod` from Spark (free) to **Blaze**
-  (pay-as-you-go).
-- **Status:** eleven Functions — the five loop/invite units (`createInvite`,
-  `invitePreview`, `joinInvite`, scheduled `questionRollover`, triggered
-  `answerReveal`), `revenueCatWebhook`, `coachProxy`, and the four data-rights
-  callables (`deleteAccount`, `exportData`, `updateNotificationPrivacy`,
-  `recordConsent`) — all emulator-proven; **nothing deployed yet.** Deploy-verified
-  only: the rollover's Cloud Scheduler trigger, `answerReveal`'s Eventarc retry,
-  and the webhook's `RC_WEBHOOK_TOKEN` Secret Manager binding + public URL.
-- **When needed:** the first deploy + real-device pairing test; hard requirement
-  before the first TestFlight of the live loop. The RC webhook can only be
-  configured against a deployed URL, so the live entitlement loop waits on this.
-- **Cost:** couple-scoped workload ≈ near-zero at dev scale; set budget alerts.
+**Verified live on `hayatiapp-dev`, `europe-west1`, all Node 20 / 256 MB:**
+
+| What | Status |
+|---|---|
+| `createInvite`, `joinInvite`, `coachProxy`, `deleteAccount`, `exportData`, `recordConsent`, `updateNotificationPrivacy` | ✅ deployed (auth-gated callables) |
+| `invitePreview` | ✅ deployed, public HTTPS by design — smoke-tested (a bogus code returns 400, not a crash) |
+| `questionRollover` | ✅ deployed **and** its Cloud Scheduler job `firebase-schedule-questionRollover-europe-west1` is **ENABLED** at `0 * * * *` UTC — exactly the hourly sweep ADR-011 specifies |
+| `answerReveal` | ✅ deployed, Eventarc trigger **ACTIVE** on `document.v1.created` with `RETRY_POLICY_RETRY` |
+| `revenueCatWebhook` | ⛔ **deliberately NOT deployed — see item 0** |
+
+**Why the eleventh is missing, and it is not an oversight.** The webhook declares
+`secrets: ['RC_WEBHOOK_TOKEN']`, so it cannot deploy until that secret exists in
+Secret Manager — and ADR-013 says that token is generated **with you**, not by a
+session on its own, because it is the only credential standing between the
+public internet and your couples' entitlement state. The deploy was run with the
+other ten explicitly named; the dry run confirmed the secret is the *only* thing
+blocking the eleventh. **Nothing else is waiting.**
+
+**Also deliberately not done: `hayatiapp-prod` is still undeployed.** Dev first
+is the point; prod should follow a session that has watched dev behave.
+
+- **Cost:** couple-scoped workload ≈ near-zero at dev scale. **Please set a
+  budget alert** now that billing is live — it is the one thing a session cannot
+  do for you and the one thing you would want in place before a surprise.
+- **⚠️ Dated:** the deploy warned that **Node.js 20 is decommissioned
+  2026-10-30**, after which deploys fail. Filed as **issue #96**; the natural
+  time to fix it is just before the first prod deploy, so prod is never stood up
+  on a runtime with a known end date.
 
 ## 4. Apple: enrollment ✅ DONE — what remains is the **three `ASC_*` secrets** and the on-device checks
 

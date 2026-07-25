@@ -1112,3 +1112,29 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 **Notes / debt logged:** **#47 CLOSED.** **#48 stays open and untouched** — a transient Face ID *lockout* still reads as an enrollment change and revokes permanently; it is fail-safe (toward the PIN), and it needs the on-device evidence item 4 will produce. No new debt.
 
 **Next objective written to resume-prompt.md:** the preemption re-check, with the honest position that **autonomous engineering has now cleared every non-human-blocked unit in the backlog** — #29, #74, #88 and #47 are all closed, and what remains is #48/#15 (need the founder's device), #41 (operator item 0), #13 (M6.5/Gate 3) and #67/#63/#71 (founder/brandkit calls). The next session should expect to find nothing unblocked and must SHOW that derivation rather than inherit it.
+
+## Session 040 — 2026-07-26 — **the preemption fired: Blaze went ON mid-run, and the backend is deployed for the first time**
+
+**Objective (from resume-prompt.md):** re-run the preemption checks and SHOW the derivation; expect the terminus. **The expectation was wrong, and that is exactly why the rule says derive rather than inherit** (S037 addendum 12). The very first check came back changed.
+
+**The derivation, run factually:**
+- **Item 2 (Blaze): `billingEnabled = True` on BOTH `hayatiapp-dev` and `hayatiapp-prod`** — minted from the firebase-tools refresh token, same method that returned `false` on every read from S028 through S039. **The founder flipped it during this run.** → preemption 2 FIRED.
+- Item 6 (LLM): no signal. Item 4's remaining half: `release` environment still `total_count: 0`. Item 5: repository secrets still 0. Every open issue: zero comments. No new non-session commits on `main`.
+
+**The first-deploy slice — ten of eleven Functions are LIVE on `hayatiapp-dev` (`europe-west1`).** Verified directly, not assumed:
+- **`questionRollover`** → Cloud Scheduler job `firebase-schedule-questionRollover-europe-west1`, schedule `0 * * * *`, timezone `Etc/UTC`, state **ENABLED** — precisely ADR-011 D2's hourly UTC sweep, deploy-verified at last after being "deploy-verified later" since M3.2.
+- **`answerReveal`** → Eventarc trigger `answerreveal-484370`, `google.cloud.firestore.document.v1.created`, function state **ACTIVE**, **`retryPolicy = RETRY_POLICY_RETRY`** — the Eventarc retry ADR-012 wanted proven.
+- **`invitePreview`** → public HTTPS by design, smoke-tested: a bogus invite code returns **HTTP 400**, not a 5xx and not a crash.
+- Seven auth-gated callables (`createInvite`, `joinInvite`, `coachProxy`, `deleteAccount`, `exportData`, `recordConsent`, `updateNotificationPrivacy`) — all v2, Node 20, 256 MB, `europe-west1`.
+
+**The eleventh was deliberately NOT deployed, and the reasoning is the point.** `revenueCatWebhook` declares `secrets: ['RC_WEBHOOK_TOKEN']`; a **`--dry-run` first** (non-destructive, and the right first move on a first deploy) failed at exactly one place — `Secret [projects/870954957461/secrets/RC_WEBHOOK_TOKEN] not found or has no versions`. **ADR-013 says that token is generated *with* the founder**, and it is the only credential between the public internet and couples' entitlement state. So the deploy named the other ten explicitly and left the webhook. That is the difference between a blocker and an oversight, and the dry run is what let it be stated with certainty rather than guessed. **`hayatiapp-prod` was deliberately left undeployed** — dev first, and prod should follow a session that has watched dev behave.
+
+**Authorization, since a first production deploy is an outward-facing act:** the founder's own committed `resume-prompt.md` states, verbatim, that a flipped Blaze makes the first-deploy slice the session; the founder flipped Blaze *during* a run they knew was in progress; the target was the **dev** project; and the one sub-action their ADR reserves to themselves was carved out. Recorded here because "the docs told me to" is only a defence if the docs actually did, and they did.
+
+**Discovered by the deploy, filed rather than dismissed as noise: issue #96 — Node.js 20 is DECOMMISSIONED on 2026-10-30**, after which deploys fail. Nothing breaks today (deployed functions keep serving), but it is dated, it lands on the path to the first prod deploy, and the natural fix window is immediately before that deploy so prod is never stood up on a runtime with a known end date. The issue notes the upgrade also re-exercises ADR-026's ICU guard and the day-key parity fixture — which is a feature: those fixtures exist to make exactly this kind of runtime change loud.
+
+**No code changed this session.** No tests were touched, no goldens moved; the deployed artifact is the `main` build (`npm run build` from the merged tree). CI is unaffected by a deploy.
+
+**Notes / debt logged:** **issue #96** (Node 20 decommission, dated). The webhook + its token remain the founder's, now the *only* thing standing between the current state and a fully live dev backend. A **budget alert** is recommended to the founder in `operator-expected.md` — billing is live now, and setting an alert is the one thing a session cannot do for them that they would most want in place before a surprise.
+
+**Next objective written to resume-prompt.md:** Session 041 — **watch what was just deployed, then extend it**. First the standing preemptions (item 6, the `ASC_*` secrets, the RC token). Then, whether or not one fires, the honest new unit is *observing the live rollover*: the scheduler has been sweeping hourly since this session; the first real question of whether the deployed loop behaves is answerable now for the first time in the project's life, and it needs no founder action at all.
