@@ -48,7 +48,8 @@
           },
           "seasonalWindow": {
             "type": "string",
-            "description": "Optional seasonal tag, e.g. ramadan, eid, new_year; absent = evergreen"
+            "enum": ["ramadan", "eid_fitr", "eid_adha", "new_year"],
+            "description": "Optional seasonal window (ADR-026); absent = evergreen. ramadan = the whole Hijri month 9; eid_fitr = Shawwal 1-3; eid_adha = Dhu al-Hijjah 10-13; new_year = Dec 31 - Jan 1. A closed vocabulary on purpose: a free-string tag that nothing recognises is a question that is never selected, silently, forever."
           },
           "text": { "type": "string", "minLength": 1 }
         }

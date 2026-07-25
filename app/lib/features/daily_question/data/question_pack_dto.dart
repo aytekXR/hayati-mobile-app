@@ -78,6 +78,15 @@ Question _questionFromJson(Map<String, dynamic> json, String packId) {
       'seasonalWindow',
       context: 'question "$id"',
     );
+    // ADR-026 D3: the vocabulary is closed. Defense-in-depth at this
+    // consumption edge — the validator is the gate, but a tag nothing
+    // recognises must never reach the domain silently.
+    if (!knownSeasonalWindows.contains(seasonalWindow)) {
+      throw FormatException(
+        'question "$id": unknown seasonalWindow "$seasonalWindow" '
+        '(one of $knownSeasonalWindows, or absent for evergreen)',
+      );
+    }
   }
   return Question(
     id: id,

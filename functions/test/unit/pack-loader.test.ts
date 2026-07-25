@@ -138,6 +138,25 @@ describe('parseQuestionPack', () => {
     }, /question id/);
   });
 
+  it('rejects a seasonalWindow outside the closed vocabulary (ADR-026 D3)', () => {
+    // The whole point of closing the vocabulary: a typo like 'Ramadan' or a
+    // retired tag like 'eid' used to parse fine and produce a question that
+    // was NEVER selected, silently, forever.
+    for (const bogus of ['Ramadan', 'eid', 'ramadan_2027', 'newyear', 'RAMADAN']) {
+      expectParseError((p) => {
+        (p.questions as Record<string, unknown>[])[1].seasonalWindow = bogus;
+      }, /seasonalWindow/);
+    }
+  });
+
+  it('accepts every value of the closed vocabulary', () => {
+    for (const window of ['ramadan', 'eid_fitr', 'eid_adha', 'new_year']) {
+      const raw = validPack();
+      (raw.questions as Record<string, unknown>[])[1].seasonalWindow = window;
+      expect(parseQuestionPack(raw, 'solo_tr.json').questions[1].seasonalWindow).toBe(window);
+    }
+  });
+
   it('rejects an empty seasonalWindow (absent means evergreen, empty is junk)', () => {
     expectParseError((p) => {
       (p.questions as Record<string, unknown>[])[1].seasonalWindow = '';

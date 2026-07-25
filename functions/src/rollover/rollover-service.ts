@@ -20,6 +20,7 @@ import { logger } from 'firebase-functions';
 
 import { localDayKey } from './day-key';
 import { QuestionPack, loadQuestionPack } from './pack-loader';
+import { hijriCalendarAvailable } from './seasonal-window';
 import { selectQuestion } from './select-question';
 
 /**
@@ -51,6 +52,14 @@ export interface RolloverSummary {
   failedCoupleIds: string[];
   /** Distinct timezones seen this run. */
   buckets: number;
+  /**
+   * True when this runtime cannot resolve Umm al-Qura dates, so every HIJRI
+   * seasonal window was treated as CLOSED for the whole sweep (ADR-026 D2).
+   * Evergreen selection is unaffected — the daily loop does not stop over a
+   * calendar library — but seasonal content silently would not fire, so the
+   * verdict is surfaced here AND logged once per sweep rather than swallowed.
+   */
+  seasonalCalendarUnavailable: boolean;
 }
 
 // gRPC status ALREADY_EXISTS (google.rpc.Code 6): DocumentReference.create()
@@ -171,7 +180,9 @@ export async function assignDayQuestion(
   const historyIds = history.docs
     .map((doc) => doc.get('questionId') as unknown)
     .filter((id): id is string => typeof id === 'string');
-  const question = selectQuestion(pack, historyIds);
+  // The dayKey being written IS the seasonal-window input (ADR-026 D1) — never
+  // the wall clock, so an overlapping sweep on this same doc agrees.
+  const question = selectQuestion(pack, historyIds, dayKey);
 
   try {
     await dayRef.create({
@@ -212,6 +223,7 @@ export async function runQuestionRollover(
     failed: 0,
     failedCoupleIds: [],
     buckets: 0,
+    seasonalCalendarUnavailable: false,
   };
   const skip = (coupleId: string, error: unknown): void => {
     summary.failed += 1;
@@ -221,6 +233,20 @@ export async function runQuestionRollover(
       error: error instanceof Error ? error.message : String(error),
     });
   };
+
+  // ONE probe per sweep, before any assignment: an Intl without Umm al-Qura
+  // does not throw, it silently answers in GREGORIAN (which would fire ramadan
+  // every September). seasonal-window.ts refuses to answer at all in that
+  // state; this is where the refusal becomes visible (ADR-026 D2).
+  if (!hijriCalendarAvailable()) {
+    summary.seasonalCalendarUnavailable = true;
+    logger.error(
+      'question_rollover: the Umm al-Qura calendar is unavailable in this runtime — ' +
+        'every Hijri seasonal window (ramadan, eid_fitr, eid_adha) is treated as CLOSED ' +
+        'for this sweep; evergreen selection is unaffected',
+      { icu: process.versions.icu ?? 'unknown', node: process.version },
+    );
+  }
 
   const { buckets, skips } = precomputed ?? (await bucketCouplesByTimezone(db));
   // Field-validation failures (bad timezone/packConfig) are assignment-domain skips
