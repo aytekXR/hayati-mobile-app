@@ -1,0 +1,25 @@
+{
+  "policy": "ADR-026 D8. Each case pins one couple-local dayKey (yyyymmdd) to its Umm al-Qura Hijri date and to the EXACT set of seasonal windows open on it. Every window carries both sides of both edges, so an off-by-one at any boundary reddens. Two properties are load-bearing and deliberate: (a) the 1448 Ramadan pair sits ~11 Gregorian days earlier than the 1447 pair, so any 'Gregorian month mistaken for a Hijri month' bug fails; (b) Ramadan 1447 is 30 days while Ramadan 1448 is 29, so an implementation that hardcodes a month length instead of testing month === 9 fails. Hijri values were verified against Node 20 full-ICU (calendar islamic-umalqura) when ADR-026 was written; this file is therefore also the ICU-data drift guard — if a future ICU revision moves an Umm al-Qura date, this suite goes red instead of the product quietly shifting. Unlike day-key-parity.json this fixture has NO Dart side by design (ADR-026 D7): the client never computes a selection.",
+  "windows": ["ramadan", "eid_fitr", "eid_adha", "new_year"],
+  "cases": [
+    { "dayKey": "20260217", "hijri": "1447-08-29", "open": [], "note": "ramadan entry edge, outside" },
+    { "dayKey": "20260218", "hijri": "1447-09-01", "open": ["ramadan"], "note": "ramadan entry edge, inside (first day)" },
+    { "dayKey": "20260319", "hijri": "1447-09-30", "open": ["ramadan"], "note": "ramadan exit edge, inside — a 30-day Ramadan" },
+    { "dayKey": "20260320", "hijri": "1447-10-01", "open": ["eid_fitr"], "note": "ramadan exit outside AND eid_fitr entry inside, same day" },
+    { "dayKey": "20260321", "hijri": "1447-10-02", "open": ["eid_fitr"], "note": "eid_fitr middle" },
+    { "dayKey": "20260322", "hijri": "1447-10-03", "open": ["eid_fitr"], "note": "eid_fitr exit edge, inside (last day)" },
+    { "dayKey": "20260323", "hijri": "1447-10-04", "open": [], "note": "eid_fitr exit edge, outside" },
+    { "dayKey": "20260526", "hijri": "1447-12-09", "open": [], "note": "eid_adha entry edge, outside" },
+    { "dayKey": "20260527", "hijri": "1447-12-10", "open": ["eid_adha"], "note": "eid_adha entry edge, inside (first day)" },
+    { "dayKey": "20260530", "hijri": "1447-12-13", "open": ["eid_adha"], "note": "eid_adha exit edge, inside (last day)" },
+    { "dayKey": "20260531", "hijri": "1447-12-14", "open": [], "note": "eid_adha exit edge, outside" },
+    { "dayKey": "20261230", "hijri": "1448-07-21", "open": [], "note": "new_year entry edge, outside" },
+    { "dayKey": "20261231", "hijri": "1448-07-22", "open": ["new_year"], "note": "new_year entry edge, inside (Dec 31)" },
+    { "dayKey": "20270101", "hijri": "1448-07-23", "open": ["new_year"], "note": "new_year across the Gregorian year boundary (Jan 1)" },
+    { "dayKey": "20270102", "hijri": "1448-07-24", "open": [], "note": "new_year exit edge, outside" },
+    { "dayKey": "20270207", "hijri": "1448-08-30", "open": [], "note": "ramadan 1448 entry edge, outside" },
+    { "dayKey": "20270208", "hijri": "1448-09-01", "open": ["ramadan"], "note": "ramadan 1448 entry edge, inside — ~11 Gregorian days earlier than 1447" },
+    { "dayKey": "20270308", "hijri": "1448-09-29", "open": ["ramadan"], "note": "ramadan 1448 exit edge, inside — a 29-day Ramadan" },
+    { "dayKey": "20270309", "hijri": "1448-10-01", "open": ["eid_fitr"], "note": "ramadan 1448 exit outside AND eid_fitr entry inside" }
+  ]
+}

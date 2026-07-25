@@ -307,12 +307,26 @@ void _coreTests() {
       ['"seasonalWindow"'],
     ),
   );
-  _check(
-    'seasonalWindow "ramadan" is valid',
-    _validate(
-      packWithQuestion(question()..['seasonalWindow'] = 'ramadan'),
-    ).isEmpty,
-  );
+  for (final window in knownSeasonalWindows) {
+    _check(
+      'seasonalWindow "$window" is valid',
+      _validate(
+        packWithQuestion(question()..['seasonalWindow'] = window),
+      ).isEmpty,
+    );
+  }
+  // ADR-026 D3: the vocabulary is CLOSED. Before it was, each of these parsed
+  // fine and produced a question that was never selected, silently, forever.
+  for (final bogus in ['Ramadan', 'eid', 'ramadan_2027', 'newyear']) {
+    _check(
+      'seasonalWindow "$bogus" is an error (outside the closed vocabulary)',
+      _hasIssue(
+        _validate(packWithQuestion(question()..['seasonalWindow'] = bogus)),
+        IssueSeverity.error,
+        ['"seasonalWindow" must be one of'],
+      ),
+    );
+  }
   _check(
     'duplicate question id within a pack is an error',
     _hasIssue(
@@ -377,6 +391,25 @@ void _schemaAgreementTests(String schemaSource) {
       validateSchemaAgreement(jsonEncode(tampered)),
       IssueSeverity.error,
       ['"locale" enum', 'update both together'],
+    ),
+  );
+  // ADR-026 D3.3: without this guard the schema file and this validator could
+  // drift on the seasonal vocabulary, and the authoring gate the closed enum
+  // exists to provide would be the first thing to rot.
+  final windowTampered = jsonDecode(schemaSource) as Map<String, dynamic>;
+  final tamperedProps = windowTampered['properties'] as Map<String, dynamic>;
+  final tamperedQuestions = tamperedProps['questions'] as Map<String, dynamic>;
+  final tamperedItems = tamperedQuestions['items'] as Map<String, dynamic>;
+  final tamperedItemProps = tamperedItems['properties'] as Map<String, dynamic>;
+  final tamperedWindow =
+      tamperedItemProps['seasonalWindow'] as Map<String, dynamic>;
+  tamperedWindow['enum'] = ['ramadan', 'eid'];
+  _check(
+    'schema drift (seasonalWindow enum) is an error',
+    _hasIssue(
+      validateSchemaAgreement(jsonEncode(windowTampered)),
+      IssueSeverity.error,
+      ['"questions.items.seasonalWindow" enum', 'update both together'],
     ),
   );
 }
