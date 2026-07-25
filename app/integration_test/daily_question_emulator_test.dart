@@ -91,7 +91,7 @@ void main() {
           appId: '1:870954957461:ios:0000000000000000000000',
           messagingSenderId: '870954957461',
           projectId: 'demo-hayati',
-          iosBundleId: 'com.hayati.app',
+          iosBundleId: 'com.beyondkaira.hayati',
         ),
       );
       await FirebaseAuth.instance.useAuthEmulator(
@@ -122,7 +122,7 @@ void main() {
             appId: '1:870954957461:ios:0000000000000000000000',
             messagingSenderId: '870954957461',
             projectId: 'demo-hayati',
-            iosBundleId: 'com.hayati.app',
+            iosBundleId: 'com.beyondkaira.hayati',
           ),
         );
         await FirebaseAuth.instanceFor(

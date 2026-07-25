@@ -16,6 +16,20 @@ merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX redesign),
 and every remaining item below needs **you**. Nothing here is blocked on more
 code; it is blocked on accounts, keys, an enrollment, and a few reviews._
 
+> **⚠️ Session 037 (2026-07-25) — the Apple picture moved; three corrections
+> to the map below.** (1) **Enrollment is DONE** — the paid Apple Developer
+> Program is active (Individual team `UH7MXG7Z94`) and a dev build already
+> runs on the iPhone 17 Pro Max over cable, so "finish enrollment" is no
+> longer the next move. (2) **`com.hayati.app` is squatted** — Apple refuses
+> to register it ("not available" = another team owns it), and `UH7MXG7Z94`
+> is the founder's only Apple account. (3) **The iOS bundle id was renamed to
+> `com.beyondkaira.hayati`** (the founder's own namespace, same as the Ballast
+> app; ADR-027); every `com.hayati.app` reference in the roadmap below now
+> reads `com.beyondkaira.hayati`. Android keeps `com.hayati.app`, deferred to
+> M6.5. **Net:** Step 1 will now register successfully; the only added work is
+> two Firebase iOS-app registrations + a Dart config regen (a session does the
+> code half).
+
 ---
 
 ## TL;DR — the whole remaining product is a handful of your decisions
@@ -43,7 +57,7 @@ TestFlight:** finish the **Apple enrollment**, then walk the roadmap below.
 
 This is the end-to-end path from "I have an Apple ID" to "Hayati is installed on
 my iPhone via TestFlight." It is verified against this repo's actual config:
-bundle id **`com.hayati.app`** (pinned in the Xcode project and
+bundle id **`com.beyondkaira.hayati`** (pinned in the Xcode project and
 `fastlane/Appfile`), **Sign in with Apple** entitlement already declared,
 flavor entrypoints **`lib/main_dev.dart` / `lib/main_prod.dart`** (no `--flavor`
 schemes), **SwiftPM-first (no Podfile — ignore any `pod install` advice)**,
@@ -80,7 +94,7 @@ CI secrets) so every later build is a one-line tag push.
 
 1. developer.apple.com → **Certificates, Identifiers & Profiles** →
    **Identifiers** → **`+`** → **App IDs** → type **App**.
-2. **Description:** `Hayati`. **Bundle ID: Explicit**, exactly **`com.hayati.app`**
+2. **Description:** `Hayati`. **Bundle ID: Explicit**, exactly **`com.beyondkaira.hayati`**
    (any other string will not build — it is pinned in the Xcode project and
    `fastlane/Appfile`).
 3. **Capabilities:** tick **Sign in with Apple** (the entitlements file already
@@ -97,7 +111,7 @@ CI secrets) so every later build is a one-line tag push.
 2. **Platform** iOS · **Name** `Hayati` (the public/TestFlight display name — if
    Apple says it's taken, pick a variant; it can change before launch — see item
    8(a)) · **Primary language** Turkish or English (your call) · **Bundle ID**
-   `com.hayati.app` (appears in the dropdown after Step 1) · **SKU** `hayati-ios`
+   `com.beyondkaira.hayati` (appears in the dropdown after Step 1) · **SKU** `hayati-ios`
    (internal, never shown) · **Full Access**.
 3. **Do NOT create subscription products yet** unless a session specs the tiers
    with you (item 0). ⚠️ **When you do: leave "Family Sharing" OFF — this is
