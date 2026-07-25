@@ -75,16 +75,37 @@ import UIKit
         // phone since the accelerator was enabled, and the Dart side auto-revokes
         // biometric unlock. nil whenever biometrics cannot be evaluated at all —
         // which the Dart side also treats as a revoke.
+        //
+        // Two sources, one meaning (ADR-018 rev 5, issue #47). iOS 18 deprecated
+        // `evaluatedPolicyDomainState` and names its own replacement in the SDK
+        // header: API_DEPRECATED_WITH_REPLACEMENT("domainState.biometry.stateHash").
+        // The deployment target is iOS 15, so the legacy branch is live code, not
+        // dead weight — and it is the branch that will keep warning until the
+        // target rises past 18. The bytes are opaque to Dart either way: it stores
+        // and compares them, never parses them, so the two representations differ
+        // WITHOUT breaking anything except across an OS upgrade, where the
+        // mismatch revokes the accelerator and asks for the PIN — the fail-SAFE
+        // direction, recorded in the ADR rather than left to surprise anyone.
         let context = LAContext()
         var error: NSError?
-        guard
-          context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error),
-          let domainState = context.evaluatedPolicyDomainState
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
         else {
           result(nil)
           return
         }
-        result(domainState.base64EncodedString())
+        let enrollmentBytes: Data?
+        if #available(iOS 18.0, *) {
+          enrollmentBytes = context.domainState.biometry.stateHash
+        } else {
+          enrollmentBytes = context.evaluatedPolicyDomainState
+        }
+        // nil is NOT an error path to swallow: the Dart side reads it as "cannot
+        // validate the accelerator" and revokes. Never substitute a placeholder.
+        guard let enrollmentBytes else {
+          result(nil)
+          return
+        }
+        result(enrollmentBytes.base64EncodedString())
 
       default:
         result(FlutterMethodNotImplemented)

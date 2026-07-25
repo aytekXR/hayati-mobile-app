@@ -26,9 +26,16 @@ abstract interface class BiometricAuthenticator {
   /// contract line plus a source-sentinel test over the real adapter.
   Future<bool> authenticate({required String reason});
 
-  /// The opaque platform biometric-enrollment state (iOS
-  /// `LAContext.evaluatedPolicyDomainState`, base64 over the device-privacy
+  /// The opaque platform biometric-enrollment state (iOS `LAContext`'s
+  /// biometric enrollment bytes — `domainState.biometry.stateHash` on iOS 18+,
+  /// `evaluatedPolicyDomainState` below it — base64 over the device-privacy
   /// channel), or null when biometrics are unavailable / on any error.
+  ///
+  /// The value is OPAQUE: it is stored and compared, never parsed. That is why
+  /// the two native sources can differ freely — but it also means an OS upgrade
+  /// across iOS 18 changes the representation and therefore revokes the
+  /// accelerator once, demanding the PIN (ADR-018 rev 5, the fail-safe
+  /// direction, recorded deliberately).
   ///
   /// A CHANGE in this value revokes biometric unlock (ADR-018 Decision 1): a
   /// partner who adds their face or finger AFTER the user enabled the

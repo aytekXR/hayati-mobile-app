@@ -1,6 +1,8 @@
 # ADR-018: Device-privacy layer — root lock gate (PIN + biometric), always-on snapshot shield, discreet alternate icon, first settings surface
 
-- **Status:** Accepted (rev 4 — the change-PIN gap is closed, see the rev-4
+- **Status:** Accepted (**rev 5** — the biometric enrollment probe migrates off
+  the iOS-18-deprecated `evaluatedPolicyDomainState`, see the rev-5 amendment at
+  the end; rev 4 — the change-PIN gap is closed, see the rev-4
   amendment at the end; rev 3 — implemented; rev 2 folded in the pre-code
   adversarial review, rev 3 records what the implementation proved. See the two
   review records at the end.)
@@ -121,6 +123,10 @@ where they arise.
     platform's opaque biometric enrollment state
     (`LAContext.evaluatedPolicyDomainState`, exposed as bytes through the
     device-privacy channel, Decision 6) and stores it in the lock record.
+    *(Superseded in part by rev 5, Session 039: on iOS 18+ those bytes come
+    from `LAContext.domainState.biometry.stateHash`, Apple's own named
+    replacement — same opaque token, same comparison, same revocation; see the
+    rev-5 amendment at the end.)*
     On every lock-screen mount, before biometric is offered or auto-prompted,
     the current enrollment state is compared to the stored one; **any
     mismatch (or unavailability) auto-revokes `biometricEnabled`** — the
@@ -524,7 +530,8 @@ where they arise.
   `biometricEnrollmentState` returns
   `LAContext.evaluatedPolicyDomainState` bytes (after a
   `canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` probe) or
-  null. iOS shows its own system alert on icon change — expected,
+  null. *(Superseded in part by rev 5: on iOS 18+ the bytes come from
+  `domainState.biometry.stateHash` behind the same probe.)* iOS shows its own system alert on icon change — expected,
   user-initiated, not suppressed (no private API — App Store safety).
 - **Assets:** a second icon set `AppIconDiscreet.appiconset` in
   `Assets.xcassets` — single-size 1024 (Xcode 14+ single-size icons; CI
@@ -557,8 +564,9 @@ where they arise.
   --no-codesign` compiles the Swift and runs actool over the new icon set —
   the compile/asset surface is CI-gated. What CI cannot prove (the icon
   actually swapping on a home screen, the system alert copy, the Keychain
-  round-trip, `evaluatedPolicyDomainState` behavior across enrollment
-  changes) joins operator item 4's on-device checklist.
+  round-trip, the enrollment-bytes behaviour across enrollment changes —
+  whichever property supplies them, rev 5) joins operator item 4's on-device
+  checklist.
 - **The notification-text override is DEFERRED to M6.2, loudly.** PRD F6's
   discreet mode includes neutral push text; M3.4 shipped it locale-derived
   (`resolveDiscreet = contentLanguage == 'ar'`) with a documented server
@@ -639,7 +647,7 @@ where they arise.
 | Recovery sign-out THROWS | overlay stays LOCKED + honest retry copy | sign-out-first ordering; the lock never drops on an unconfirmed sign-out (D4) |
 | Same-device re-auth after recovery (partner completes SMS-OTP / Apple re-auth on the held phone) | **recorded residual — not preventable at app level** | recovery is destructive + detectable (owner finds a signed-out app, lock gone); the lock blocks silent/casual access, not identity-anchor holders (D4) |
 | Biometric passes for a partner enrolled BEFORE enable | recorded residual — carried by the enable-time DV warning | the app cannot enumerate whose biometrics exist (D1) |
-| Biometric enrollment CHANGES after enable | biometric auto-REVOKED at next lock-screen mount; PIN required; honest copy | `evaluatedPolicyDomainState` mismatch (D1) |
+| Biometric enrollment CHANGES after enable | biometric auto-REVOKED at next lock-screen mount; PIN required; honest copy | enrollment-bytes mismatch (D1) — `domainState.biometry.stateHash` on iOS 18+, `evaluatedPolicyDomainState` below it (rev 5) |
 | Biometric fails / cancels / throws / unavailable | fall back to PIN keypad (adapter maps `LocalAuthException` → false) | PIN is the credential; biometric is an accelerator (D1) |
 | Wrong-attempt write races the sign-out wipe | write ABORTED by the generation guard | `ref.mounted` cannot catch an in-place wipe on a keepAlive controller (D1) |
 | Icon channel fails | toggle reverts + honest copy | never display a state the OS refused (D7) |
@@ -988,3 +996,79 @@ the lock is on). Design decisions, each deliberate:
   (`biometricOnly: true` sentinel unaffected); (4) the lock screen is
   untouched — the whole flow lives in settings, below the gate, where dialogs
   and pushed routes are legal. No new seam, plugin, or platform channel.
+
+## Amendment — rev 5 (Session 039): the enrollment probe migrates to `domainState.biometry.stateHash` (issue #47)
+
+**What changed, and only this:** the `biometricEnrollmentState` case of the
+device-privacy channel (`app/ios/Runner/AppDelegate.swift`) now reads the
+enrollment bytes from **`LAContext.domainState.biometry.stateHash` on iOS 18+**
+and from `evaluatedPolicyDomainState` below it. No seam, no Dart type, no state
+machine and no stored-record field changes: the value was opaque before and is
+opaque now — Dart stores it and compares it, never parses it.
+
+**Why now, and why it is not merely tidiness.** Apple deprecated the old
+property in the iOS 18 SDK and names the replacement in the header itself:
+`API_DEPRECATED_WITH_REPLACEMENT("domainState.biometry.stateHash",
+ios(9.0, 18.0))`. The property this ADR's Decision 1 rests on is therefore on a
+retirement path, and D1's revocation is a **security** mechanism — it is what
+stops a partner who enrols their face *after* the accelerator was enabled from
+gaining a permanent second credential. Migrating deliberately, while the old
+property still works and the fallback can be tested, is strictly better than
+discovering the removal.
+
+**The deployment target is iOS 15**, so the legacy branch is **live code**, not
+dead weight, and it is the branch that keeps emitting a deprecation warning
+until the target rises past 18. Accepted; the warning is the honest signal.
+
+### The one user-visible consequence, recorded rather than discovered
+
+`stateHash` and `evaluatedPolicyDomainState` are different representations of
+the same fact. A user who enabled the accelerator on iOS 17 and then **upgrades
+to iOS 18** will have a stored token that no longer matches what the platform
+now reports — so the accelerator **auto-revokes once** and the PIN is required,
+exactly as if a face had been added. That is the **fail-SAFE** direction and it
+is the same behaviour D1 already specifies for any mismatch; it costs one PIN
+entry and one re-enable. It is written down here because a silent, unexplained
+"Face ID turned itself off after I updated iOS" is precisely the kind of event
+that erodes trust in a safety mechanism. *(Apple's own forums record that the
+old value could already shift across major OS versions, so this class of event
+predates the migration.)*
+
+### What CI can and cannot prove — stated so a green pipeline is not over-read
+
+`ios-build-smoke` (macos-15, `flutter build ios --no-codesign`) proves the
+migration **compiles**, that `#available(iOS 18.0, *)` is well-formed and that
+the fallback still type-checks at the iOS-15 deployment target. **Nothing in CI
+can prove the revocation still fires** — no simulator enrols a face. The runtime
+half rides operator item 4's on-device checklist, which already carries the
+exact check (*enable Face ID, lock, unlock; then change/add a face in iOS
+Settings and reopen → it must have switched Face ID off by itself and demand the
+PIN*), plus the post-migration entry added at Session 038's close. Until the
+founder runs it, the honest status of this amendment is **compiled, not
+verified**, and it says so here rather than in a commit message nobody re-reads.
+
+### The invariants re-checked in the same diff (D5.i discipline)
+
+`AppDelegate.swift` is app-touching, so the slice-0 firewall and the ADR-018
+lock invariants were re-run on this change, not assumed: the lock-screen
+forbidden-API sentinel, the `biometricOnly: true` source-contract test (the
+literal is untouched — this diff never opens `local_auth_biometric_authenticator`'s
+`authenticate`), the no-`ref.invalidate` sentinel, the brandkit→Dart token
+parity test and the frozen-sentence digest. The four Dart doc-comments that
+named the old property are guarantee surfaces under this project's own rule and
+were corrected in the same diff — a comment that names a retired API is a
+comment that will mislead the next reader of a security path.
+
+**That rule was then turned back on this ADR**, by its own built-diff review:
+rev 5 originally corrected the Dart comments and left ADR-018's *body* naming
+only the retired property — including the **Decision 8 fail-direction table**,
+which this document itself calls *"the table reviewers check first"*. All three
+review lenses surfaced it independently. D1, D6 and the D8 row now carry
+inline rev-5 supersede notes in the style rev 4 established. The `README.md`
+index row is deliberately **not** touched: rev 4 did not touch it either, so
+amendments do not re-index — a reviewer checked the convention rather than
+assuming it.
+
+**Issue #47 closed.** **Issue #48** (a transient Face ID *lockout* reading as an
+enrollment change) is untouched and still open: it needs the on-device evidence
+item 4 will produce, and it is fail-safe meanwhile.

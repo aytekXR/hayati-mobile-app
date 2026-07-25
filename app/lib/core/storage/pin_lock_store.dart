@@ -55,7 +55,8 @@ class PinLockRecord {
   final bool biometricEnabled;
 
   /// The opaque platform biometric-enrollment state captured when biometric was
-  /// enabled (iOS `evaluatedPolicyDomainState`). A MISMATCH at lock-screen mount
+  /// enabled (iOS `domainState.biometry.stateHash`, or the deprecated
+  /// `evaluatedPolicyDomainState` below iOS 18). A MISMATCH at lock-screen mount
   /// auto-revokes the accelerator (Decision 1 — a partner who adds their face
   /// after enable gains nothing). Null whenever [biometricEnabled] is false.
   final String? biometricEnrollmentState;
