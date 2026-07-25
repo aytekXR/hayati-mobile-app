@@ -33,7 +33,7 @@ class GoogleSignInConfig {
 
   static const GoogleSignInConfig dev = GoogleSignInConfig(
     iosClientId:
-        '870954957461-d47kphokdf1vrrtn7g9fvqom7ofikies'
+        '870954957461-jdvb4rvvgkb9079bjaoplt71s8b55070'
         '.apps.googleusercontent.com',
     serverClientId:
         '870954957461-4inhi2favrm0lo1idc7tobd41a7n5olh'
@@ -41,7 +41,7 @@ class GoogleSignInConfig {
   );
   static const GoogleSignInConfig prod = GoogleSignInConfig(
     iosClientId:
-        '419979715508-brk62sg117qfj212ig43cfv4da0k5jg0'
+        '419979715508-qmpgoq7stv6tf6f1dgelmd47hc6m62ag'
         '.apps.googleusercontent.com',
     serverClientId:
         '419979715508-g85p4sgcnoh8ctdfij97rllfuha0jdg8'

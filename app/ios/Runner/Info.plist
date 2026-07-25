@@ -44,8 +44,8 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.870954957461-d47kphokdf1vrrtn7g9fvqom7ofikies</string>
-				<string>com.googleusercontent.apps.419979715508-brk62sg117qfj212ig43cfv4da0k5jg0</string>
+				<string>com.googleusercontent.apps.870954957461-jdvb4rvvgkb9079bjaoplt71s8b55070</string>
+				<string>com.googleusercontent.apps.419979715508-qmpgoq7stv6tf6f1dgelmd47hc6m62ag</string>
 			</array>
 		</dict>
 		<!-- Custom scheme for invite deep links (hayati://invite/<code>),
@@ -56,7 +56,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.hayati.app.invite</string>
+			<string>com.beyondkaira.hayati.invite</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>hayati</string>

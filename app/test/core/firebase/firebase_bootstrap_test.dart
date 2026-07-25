@@ -25,7 +25,10 @@ void main() {
     test('dev on iOS selects the dev iOS options', () {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       expect(firebaseOptionsFor(AppFlavor.dev), DevFirebaseOptions.ios);
-      expect(firebaseOptionsFor(AppFlavor.dev).iosBundleId, 'com.hayati.app');
+      expect(
+        firebaseOptionsFor(AppFlavor.dev).iosBundleId,
+        'com.beyondkaira.hayati',
+      );
     });
 
     test('prod on Android selects the prod Android options', () {
@@ -37,7 +40,10 @@ void main() {
     test('prod on iOS selects the prod iOS options', () {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       expect(firebaseOptionsFor(AppFlavor.prod), ProdFirebaseOptions.ios);
-      expect(firebaseOptionsFor(AppFlavor.prod).iosBundleId, 'com.hayati.app');
+      expect(
+        firebaseOptionsFor(AppFlavor.prod).iosBundleId,
+        'com.beyondkaira.hayati',
+      );
     });
 
     test('dev and prod never share a Firebase project', () {
