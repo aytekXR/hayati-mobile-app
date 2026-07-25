@@ -10,7 +10,7 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-25, **Session 038 close** (re-refreshed after a concurrent session merged ADR-027 mid-flight). The whole MVP is built,
+_Last refreshed: 2026-07-26, **Session 039 close**. The whole MVP is built,
 tested and merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX
 redesign), and **every item below still needs you** — accounts, keys, an
 enrollment, and a few reviews. Nothing on this page changed this session._
@@ -521,7 +521,7 @@ JSON and the parity test could check it mechanically. Non-blocking.
 
 ---
 
-# Current state snapshot (Session 038 close)
+# Current state snapshot (Session 039 close)
 
 - **Plan progress:** M0–M4 engineering ✅ · M5: 2/3 (spine + chat UI; **M5.3 live
   adapter blocked on item 6**) · M6.1–M6.3 ✅ · consent/legal buildable half ✅
@@ -549,9 +549,11 @@ JSON and the parity test could check it mechanically. Non-blocking.
   everything that MATTERS to you.** Until you unblock item 6, 2, or 4, no
   session can deploy, sign, or make the coach talk. Sessions keep clearing small
   tracked engineering debts behind the scenes when one is genuinely unblocked
-  (S037 cleared the seasonal-window deferral, S038 the CI drift-guard it filed)
-  — but nothing a session can do without you changes what you see on your
-  phone. That is the design, not a stall.
+  (S037 cleared the seasonal-window deferral, S038 the CI drift-guard it filed,
+  S039 an iOS-18 API deprecation inside the Face ID revocation) — but nothing a
+  session can do without you changes what you see on your phone. That is the
+  design, not a stall. **As of S039 that backlog is empty**: every remaining
+  item genuinely needs you.
 
 ---
 
