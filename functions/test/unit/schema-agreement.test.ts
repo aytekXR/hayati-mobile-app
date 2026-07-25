@@ -46,6 +46,7 @@ const SCHEMA_PATH = fileURLToPath(
 
 interface SchemaNode {
   type?: string;
+  additionalProperties?: boolean;
   enum?: string[];
   pattern?: string;
   minimum?: number;
@@ -108,6 +109,29 @@ function question(pack: Record<string, unknown>): Record<string, unknown> {
 
 function parse(pack: Record<string, unknown>): void {
   parseQuestionPack(pack, 'solo_tr.json');
+}
+
+/**
+ * Whether a field the schema does not declare must be rejected is the schema's
+ * `additionalProperties` decision, not a constant of this test — so read it.
+ * The loosening direction is the dangerous one: a schema that starts allowing
+ * extra fields while the parser still rejects them means content that passes
+ * the authoring gate and throws at rollover, which is the whole failure class
+ * issue #88 exists to close.
+ */
+function expectStranger(scope: SchemaNode, act: () => void, level: 'pack' | 'question'): void {
+  const rejects = scope.additionalProperties === false;
+  if (rejects) {
+    expect(act, `the schema forbids extra ${level} fields; the TS parser allows them`).toThrowError(
+      new RegExp(`unknown ${level} field`),
+    );
+  } else {
+    expect(
+      act,
+      `the schema now ALLOWS extra ${level} fields (additionalProperties is not false); ` +
+        'the TS parser still rejects them — update both together',
+    ).not.toThrow();
+  }
 }
 
 describe('the TS parser agrees with content/schema/question-pack.schema.json', () => {
@@ -185,7 +209,7 @@ describe('the TS parser agrees with content/schema/question-pack.schema.json', (
     }
     const withStranger = validPack();
     withStranger.notInTheSchema = DUMMY;
-    expect(() => parse(withStranger)).toThrowError(/unknown pack field/);
+    expectStranger(schema, () => parse(withStranger), 'pack');
   });
 
   it('knows every question field the schema declares, and no others', () => {
@@ -206,11 +230,15 @@ describe('the TS parser agrees with content/schema/question-pack.schema.json', (
     }
     const withStranger = validPack();
     question(withStranger).notInTheSchema = DUMMY;
-    expect(() => parse(withStranger)).toThrowError(/unknown question field/);
+    expectStranger(questionSchema, () => parse(withStranger), 'question');
   });
 
   it('requires every field the schema marks required (pack level)', () => {
-    const required = node('required', { required: schema.required }).required ?? [];
+    expect(
+      schema.required,
+      'schema shape changed: root "required" not found — update this guard with it',
+    ).toBeDefined();
+    const required = schema.required ?? [];
     expect(required.length).toBeGreaterThan(0);
     for (const field of required) {
       const pack = validPack();
@@ -284,17 +312,56 @@ describe('the TS parser agrees with content/schema/question-pack.schema.json', (
     }
   });
 
-  it('enforces the schema id pattern on packId and question id', () => {
+  it('enforces the schema id pattern on packId and question id — BOTH directions', () => {
     const packIdPattern = node('packId', packProps.packId).pattern;
     const questionIdPattern = node('questions.items.id', questionProps.id).pattern;
-    expect(packIdPattern).toBe(questionIdPattern);
-    const violating = 'Not-Matching';
-    expect(new RegExp(packIdPattern!).test(violating)).toBe(false);
-    const badPack = validPack();
-    badPack.packId = violating;
-    expect(() => parse(badPack)).toThrowError(/packId/);
-    const badQuestion = validPack();
-    question(badQuestion).id = violating;
-    expect(() => parse(badQuestion)).toThrowError(/question id/);
+    expect(packIdPattern, 'schema packId has no pattern').toBeDefined();
+    expect(
+      packIdPattern,
+      'the schema uses different id patterns for packId and question id — this ' +
+        'guard assumes one shared pattern',
+    ).toBe(questionIdPattern);
+    const schemaPattern = new RegExp(packIdPattern!);
+
+    // Character-class equivalence, driven by the schema. Asserting only that a
+    // KNOWN-BAD id is rejected proves nothing about the direction that actually
+    // bites: the schema relaxing (say, to allow '-') while the parser stays
+    // strict, so an author's `my-pack` passes the gate and throws at rollover.
+    // For every probe character, the parser must agree with the schema about
+    // whether an id containing it is legal — in whichever direction.
+    for (const char of ['a', 'z', '0', '9', '_', '-', '.', ' ', 'A', 'Z', '/', ':']) {
+      const packId = `sol${char}tr`;
+      const questionId = `sol${char}tr_001`;
+      const schemaAllows = schemaPattern.test(packId);
+
+      const packCase = validPack();
+      packCase.packId = packId;
+      const questionCase = validPack();
+      question(questionCase).id = questionId;
+
+      if (schemaAllows) {
+        expect(
+          () => parse(packCase),
+          `the schema allows packId "${packId}"; the TS parser rejects it — ` +
+            'update both together',
+        ).not.toThrow();
+        expect(
+          () => parse(questionCase),
+          `the schema allows question id "${questionId}"; the TS parser rejects ` +
+            'it — update both together',
+        ).not.toThrow();
+      } else {
+        expect(
+          () => parse(packCase),
+          `the schema forbids packId "${packId}"; the TS parser accepts it — ` +
+            'update both together',
+        ).toThrowError(/packId/);
+        expect(
+          () => parse(questionCase),
+          `the schema forbids question id "${questionId}"; the TS parser accepts ` +
+            'it — update both together',
+        ).toThrowError(/question id/);
+      }
+    }
   });
 });
