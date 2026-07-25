@@ -10,7 +10,7 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-25, **Session 038 close**. The whole MVP is built,
+_Last refreshed: 2026-07-25, **Session 038 close** (re-refreshed after a concurrent session merged ADR-027 mid-flight). The whole MVP is built,
 tested and merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX
 redesign), and **every item below still needs you** — accounts, keys, an
 enrollment, and a few reviews. Nothing on this page changed this session._
@@ -47,7 +47,7 @@ never appear. This is part of item 1's content work, not a new demand._
 |---|---|---|---|
 | **6** | Pick the AI provider + make an API key | the live coach (M5.3) | ~15 min + a billing acct |
 | **2** | Turn on Firebase **Blaze** billing | the first backend deploy | ~5 min |
-| **4** | **Apple Developer enrollment** → TestFlight (see the Apple roadmap ↓) | on-device / signed builds | enrollment + setup |
+| **4** | ~~Apple Developer enrollment~~ **DONE** — what remains is **Step 3's three `ASC_*` secrets** (still absent) + the on-device checks ↓ | hands-free CI builds; the on-device proofs | ~15 min for the secrets |
 | **0** | RevenueCat account + App Store Connect subscription products | the real sandbox purchase | ~30 min |
 | **3** | Enable Apple + Phone sign-in in the Firebase console | real-device sign-in | ~5 min |
 | **5** | **Security:** rotate the leaked Slack webhook | (also switches CI alerts on) | ~10 min |
@@ -58,7 +58,9 @@ review (**1**), the crisis-content safety review (**★**), the legal bundle
 coach retention (**7**) and the two/three design questions (**#67 / #63 / #71**).
 
 **The single most important next move for you right now, since you're doing
-TestFlight:** finish the **Apple enrollment**, then walk the roadmap below.
+TestFlight:** the enrollment is behind you — go straight to **Step 1** (register
+`com.beyondkaira.hayati`), then **Step 2**, **Step 4** and **Step 5 Path A**.
+Everything before Step 1 is done.
 
 ---
 
@@ -240,6 +242,12 @@ Built and emulator-proven; please eyeball each on the TestFlight build:
    phone is where the honest number comes from.
 6. **Issue #15** — if phone-auth sign-in crashes natively, capture the log
    (Xcode → Window → Devices → Open Console) — that's a bountied item-4 checkbox.
+   *(Now genuinely reachable: you have the Mac.)*
+6b. **If a session ships issue #47** (an iOS-18 API migration under the Face ID
+   revocation): re-run check 2 above afterwards, and additionally confirm that a
+   build installed on iOS 17 and then upgraded does not lose Face ID silently —
+   it is *allowed* to fall back to the PIN (that is the safe direction), but you
+   should see it happen rather than be surprised by it.
 7. Also: Apple first-authorization full name reaching `displayName`; deep-link
    cold+warm OS→app delivery; the real-device pairing test (pairs with item 2).
 
@@ -284,11 +292,19 @@ first deploy and the loop comes alive on the phone.
   configured against a deployed URL, so the live entitlement loop waits on this.
 - **Cost:** couple-scoped workload ≈ near-zero at dev scale; set budget alerts.
 
-## 4. Apple Developer enrollment — **see the Apple roadmap above**
+## 4. Apple: enrollment ✅ DONE — what remains is the **three `ASC_*` secrets** and the on-device checks
 
-The Mac + iPhone 17 are in hand; the only remaining gate is the enrollment
-itself. The release lane is BUILT and fails-closed until the three `ASC_*`
-secrets land (roadmap Step 3). Also riding this item: **App Attest** (App Check
+The paid Apple Developer Program is active (Individual team `UH7MXG7Z94`), the
+bundle id is `com.beyondkaira.hayati` (ADR-027), and a dev build already runs on
+the iPhone over cable. The release lane is BUILT and fails-closed until the
+three `ASC_*` secrets land (roadmap Step 3) — verified at Session 038's close,
+the `release` environment still holds **zero** secrets.
+
+**Newly reachable now that you have the Mac + device** (both were "impossible"
+before, so they are worth a pass): the on-device verification backlog below,
+and **issue #15** — the phone-auth suite crashes the app natively on the iOS
+simulator; with Xcode in hand you can capture the crash log
+(Xcode → Window → Devices → Open Console) and a session can then fix it. Also riding this item: **App Attest** (App Check
 enforcement stays OFF in both consoles until on-device attestation is verified),
 **APNs** (the M3.4 notification logic is done and waiting on the device half —
 APNs registration + `users.fcmTokens` capture), **dSYM upload** for Crashlytics,
