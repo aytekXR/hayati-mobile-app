@@ -58,6 +58,34 @@ void main() {
       expect(pack.questions.last.seasonalWindow, 'new_year');
     });
 
+    test('accepts every value of the closed seasonal vocabulary', () {
+      for (final window in knownSeasonalWindows) {
+        final json = validPack();
+        ((json['questions'] as List).single
+                as Map<String, dynamic>)['seasonalWindow'] =
+            window;
+        expect(
+          questionPackFromJson(json).questions.single.seasonalWindow,
+          window,
+        );
+      }
+    });
+
+    test('rejects a seasonalWindow outside the closed vocabulary (ADR-026 D3 '
+        '— a tag nothing recognises is a question never selected)', () {
+      for (final bogus in ['Ramadan', 'eid', 'ramadan_2027', 'newyear']) {
+        final json = validPack();
+        ((json['questions'] as List).single
+                as Map<String, dynamic>)['seasonalWindow'] =
+            bogus;
+        expect(
+          () => questionPackFromJson(json),
+          throwsFormatException,
+          reason: 'accepted "$bogus"',
+        );
+      }
+    });
+
     test('rejects an empty seasonalWindow loudly', () {
       final json = validPack();
       ((json['questions'] as List).single

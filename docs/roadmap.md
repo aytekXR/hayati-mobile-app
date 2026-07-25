@@ -66,6 +66,24 @@ scoped:
   The arc still enters the next-session queue behind the standing preemptions (item 6 → M5.3; Blaze → first deploy; Gate 3 → M6.5) and ahead of the AI-chosen backlog (e.g. seasonal windows #29) — the founder can re-order slices 2–7 by saying so, but **slice 0 goes first and slice 8 goes last**.
 - **✅ COMPLETE — Sessions 027–035 (2026-07-19 → 2026-07-23).** All nine slices shipped: 0 (the invariant firewall), 1 (the Material default floor), 2 (the daily-reveal §6 motion + grouping), 3 (the pairing-activation §6 motion + the onboarding CTA anchor), 4 (commerce — one h1→h2 fix), 5 (coach — zero-change review), 6 (settings — zero-change, #67-blocked), 7 (legal — one undefined-slot→h1 fix), 8 (the lock — zero-change parity proof). Every one of the 48 inventoried surfaces is now through a slice or recorded parity-only/unreachable. **Two design questions the arc surfaced remain open, non-blocking:** #67 (muted/outline tokens — the gate on a settings-polish follow-up) and #63 (Phosphor — its own slice 1.5). Details in ADR-025's dated slice notes and `past-prompts.md` Sessions 027–035.
 
+## Post-arc backlog — cleared as it comes up (AI-chosen, behind the standing preemptions)
+
+- **✅ Seasonal question windows (#29) — Session 037, 2026-07-25.** ADR-011 D4's
+  evergreen-only deferral is CLOSED by **[ADR-026](adr/026-seasonal-question-windows.md)**:
+  a closed four-value vocabulary (`ramadan`, `eid_fitr`, `eid_adha`,
+  `new_year`) resolved from ICU's Umm al-Qura calendar against the **dayKey
+  being written** (never the wall clock, so overlapping sweeps agree), behind a
+  guard for `Intl`'s silent Gregorian fallback; selection prefers in-window
+  seasonal **unseen-first**. Mechanism only — **authoring the seasonal
+  questions stays a founder/W9 content item**, and until one is authored the
+  change is a provable no-op on every shipped pack. It does put the calendar
+  machinery under **Ramadan mode** (v1.5's dated item below) a version early.
+- Remaining backlog issues are operator- or founder-blocked: #47/#48 (iOS
+  device-privacy items — #48 needs the phone), #41 (RevenueCat identity —
+  operator item 0), #15 (needs a Mac/device), #13 (M6.5 Android), #67/#63/#71
+  (founder/brandkit calls). **#88** (a TS↔schema agreement guard, filed by
+  ADR-026) is unblocked and small — the next AI-chosen unit.
+
 ## v1.5 (months 6–9)
 
 Quizzes + WhatsApp/IG share cards → Spice mode (18+, both-partner opt-in, region flags) → Bucket list + memories timeline (Hijri+Gregorian dates) → **Ramadan mode** (calendar-driven priority) → referral rewards → break-even checkpoint (~500–550 paying couples; if trending short, cut content spend before cutting price).

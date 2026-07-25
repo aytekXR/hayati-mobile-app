@@ -7,6 +7,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { Question, QuestionPack } from '../../src/rollover/pack-loader';
+import type { SeasonalWindow } from '../../src/rollover/seasonal-window';
 import { UnknownPackError } from '../../src/rollover/pack-loader';
 import {
   DEFAULT_PACK_ID,
@@ -26,7 +27,7 @@ const AT = new Date('2026-07-10T02:00:00Z');
 const ISTANBUL_KEY = '20260710';
 const NEW_YORK_KEY = '20260709';
 
-function q(id: string, seasonalWindow?: string): Question {
+function q(id: string, seasonalWindow?: SeasonalWindow): Question {
   return { id, category: 'deep', depth: 2, text: `t-${id}`, seasonalWindow };
 }
 
@@ -202,6 +203,7 @@ describe('runQuestionRollover', () => {
       failed: 0,
       failedCoupleIds: [],
       buckets: 2,
+      seasonalCalendarUnavailable: false,
     });
     expect((await dayDoc('ist', ISTANBUL_KEY)).exists).toBe(true);
     expect((await dayDoc('ist', NEW_YORK_KEY)).exists).toBe(false);
@@ -265,11 +267,31 @@ describe('runQuestionRollover', () => {
     expect(summary.failedCoupleIds.sort()).toEqual(['bad-tz', 'no-tz']);
   });
 
-  it('skips a couple whose pack has no evergreen question', async () => {
+  it('skips a couple whose all-seasonal pack is OUTSIDE every window', async () => {
+    // AT is 1448-01-25 in Istanbul — no window open, so the pack offers
+    // nothing today and the couple is a loud per-couple skip (ADR-026 D4.4).
     await seedCouple('seasonal', { packConfig: { packId: 'seasonal_tr' } });
     const summary = await runQuestionRollover(db, AT, loadTestPack);
     expect(summary.failed).toBe(1);
     expect((await couples.doc('seasonal').collection('days').get()).size).toBe(0);
+  });
+
+  it('assigns the seasonal question end-to-end INSIDE its window (ADR-026)', async () => {
+    // 2026-02-18 is 1447-09-01 (Ramadan day 1) — the same pack that is
+    // unselectable above is the day's question here, and the window verdict
+    // comes from the dayKey the doc is written under, not from the clock.
+    const inRamadan = new Date('2026-02-18T09:00:00Z');
+    await seedCouple('seasonal', { packConfig: { packId: 'seasonal_tr' } });
+
+    const summary = await runQuestionRollover(db, inRamadan, loadTestPack);
+
+    expect(summary.assigned).toBe(1);
+    expect(summary.failed).toBe(0);
+    expect(summary.seasonalCalendarUnavailable).toBe(false);
+    expect((await dayDoc('seasonal', '20260218')).data()).toMatchObject({
+      questionId: 'r1',
+      packId: 'seasonal_tr',
+    });
   });
 
   it('handles an empty couples collection as a clean no-op', async () => {
@@ -280,6 +302,7 @@ describe('runQuestionRollover', () => {
       failed: 0,
       failedCoupleIds: [],
       buckets: 0,
+      seasonalCalendarUnavailable: false,
     });
   });
 });

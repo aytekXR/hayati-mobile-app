@@ -9,6 +9,8 @@
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 
+import { SEASONAL_WINDOWS, type SeasonalWindow, isSeasonalWindow } from './seasonal-window';
+
 export const PACK_LOCALES = ['tr', 'ar', 'en'] as const;
 export const PACK_REGISTERS = ['playful', 'respectful', 'msa_gulf', 'neutral'] as const;
 export const QUESTION_CATEGORIES = ['fun', 'deep', 'memories', 'future', 'gratitude'] as const;
@@ -22,8 +24,12 @@ export interface Question {
   readonly category: QuestionCategory;
   readonly depth: number;
   readonly text: string;
-  /** Verbatim seasonal tag (e.g. 'ramadan'); undefined = evergreen. */
-  readonly seasonalWindow: string | undefined;
+  /**
+   * The question's seasonal window; undefined = evergreen. Narrowed to the
+   * CLOSED vocabulary (ADR-026 D3) so a typo cannot become a question that is
+   * silently never selected.
+   */
+  readonly seasonalWindow: SeasonalWindow | undefined;
 }
 
 export interface QuestionPack {
@@ -80,15 +86,19 @@ function parseQuestion(value: unknown, index: number, source: string): Question 
   if (typeof text !== 'string' || text.length === 0) {
     throw new PackParseError(source, `bad text for question '${id}'`);
   }
-  if (seasonalWindow !== undefined && (typeof seasonalWindow !== 'string' || seasonalWindow.length === 0)) {
-    throw new PackParseError(source, `bad seasonalWindow for question '${id}'`);
+  if (seasonalWindow !== undefined && !isSeasonalWindow(seasonalWindow)) {
+    throw new PackParseError(
+      source,
+      `bad seasonalWindow for question '${id}' ` +
+        `(one of ${SEASONAL_WINDOWS.join(', ')} required; absent means evergreen)`,
+    );
   }
   return {
     id,
     category: category as QuestionCategory,
     depth,
     text,
-    seasonalWindow: seasonalWindow as string | undefined,
+    seasonalWindow: seasonalWindow as SeasonalWindow | undefined,
   };
 }
 

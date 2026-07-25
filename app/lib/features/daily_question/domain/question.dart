@@ -20,6 +20,22 @@ enum QuestionRegister {
   final String wire;
 }
 
+/// The CLOSED seasonal vocabulary (ADR-026 D3), mirroring the
+/// `seasonalWindow` enum in `content/schema/question-pack.schema.json`.
+///
+/// Deliberately a constant list rather than a Dart enum, unlike
+/// [QuestionCategory]/[QuestionRegister]: the app never READS this value — the
+/// server resolves the window and the client only ever renders the question
+/// the day doc names (ADR-011/ADR-026 D7) — so an enum would buy a wire↔Dart
+/// name mapping (`eid_fitr` ↔ `eidFitr`) for a field with no consumer. The
+/// loudness is identical: an unknown tag throws at parse time either way.
+const List<String> knownSeasonalWindows = [
+  'ramadan',
+  'eid_fitr',
+  'eid_adha',
+  'new_year',
+];
+
 /// One question from a pack. Pure Dart; shaped after the question object in
 /// `content/schema/question-pack.schema.json` (promoted from the M2.4
 /// `SoloQuestion` — same fields plus [seasonalWindow], M3.1).
@@ -39,9 +55,9 @@ class Question {
   final int depth;
   final String text;
 
-  /// Schema `seasonalWindow` (e.g. `ramadan`, `eid`, `new_year`); null =
-  /// evergreen. Free-form by schema design — window→date resolution is the
-  /// M3.2 rollover's job, so the domain carries the tag verbatim.
+  /// Schema `seasonalWindow`, one of [knownSeasonalWindows]; null = evergreen.
+  /// The domain carries the tag verbatim — window→date resolution is the
+  /// rollover Function's job and lives only there (ADR-026 D7).
   final String? seasonalWindow;
 
   @override

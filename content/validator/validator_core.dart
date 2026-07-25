@@ -44,6 +44,18 @@ const List<String> optionalPackFields = ['reviewedBy'];
 const List<String> requiredQuestionFields = ['id', 'category', 'depth', 'text'];
 const List<String> optionalQuestionFields = ['seasonalWindow'];
 
+/// The CLOSED seasonal vocabulary (ADR-026 D3). Mirrored by the schema file's
+/// `enum` (kept honest by [validateSchemaAgreement]), by the Functions pack
+/// parser's `SEASONAL_WINDOWS` and by the app's pack DTO. Closed on purpose: a
+/// free-string tag nothing recognises is a question that is never selected,
+/// silently, forever — a red gate here is the whole point.
+const List<String> knownSeasonalWindows = [
+  'ramadan',
+  'eid_fitr',
+  'eid_adha',
+  'new_year',
+];
+
 /// `^[a-z0-9_]+$` — the schema pattern for packId and question id.
 final RegExp idPattern = RegExp(r'^[a-z0-9_]+$');
 
@@ -318,8 +330,11 @@ List<PackIssue> _validateQuestion(
 
   final rawWindow = json['seasonalWindow'];
   if (json.containsKey('seasonalWindow') &&
-      (rawWindow is! String || rawWindow.isEmpty)) {
-    error('"seasonalWindow" must be a non-empty string when present');
+      (rawWindow is! String || !knownSeasonalWindows.contains(rawWindow))) {
+    error(
+      '"seasonalWindow" must be one of $knownSeasonalWindows when present '
+      '(absent means evergreen), got ${jsonEncode(rawWindow)}',
+    );
   }
 
   return issues;
@@ -437,6 +452,11 @@ List<PackIssue> validateSchemaAgreement(String schemaSource) {
     'questions.items.category',
     questionProps['category'],
     knownCategories,
+  );
+  checkEnum(
+    'questions.items.seasonalWindow',
+    questionProps['seasonalWindow'],
+    knownSeasonalWindows,
   );
 
   final required = stringList(decoded['required']);

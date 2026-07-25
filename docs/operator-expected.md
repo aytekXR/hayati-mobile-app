@@ -10,11 +10,20 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-24, **Session 036 close**. Autonomous engineering has
-reached its operator-dependency boundary — the whole MVP is built, tested and
-merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX redesign),
-and every remaining item below needs **you**. Nothing here is blocked on more
-code; it is blocked on accounts, keys, an enrollment, and a few reviews._
+_Last refreshed: 2026-07-25, **Session 037 close**. The whole MVP is built,
+tested and merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX
+redesign), and **every item below still needs you** — accounts, keys, an
+enrollment, and a few reviews. Nothing on this page changed this session._
+
+_What did change: Session 037 shipped **seasonal question windows** (ADR-026)
+— the machinery that lets a question be tagged `ramadan`, `eid_fitr`,
+`eid_adha` or `new_year` and appear only during that window, with the Hijri
+dates computed from the Umm al-Qura calendar. **This is plumbing, not
+content**: no question carries a tag yet, so nothing you can see has changed.
+It is listed here for one reason — **when you (or a session, with you) author
+seasonal questions, the tag must be exactly one of those four strings**; a typo
+now fails the content check loudly instead of producing a question that would
+never appear. This is part of item 1's content work, not a new demand._
 
 > **⚠️ Session 037 (2026-07-25) — the Apple picture moved; three corrections
 > to the map below.** (1) **Enrollment is DONE** — the paid Apple Developer
@@ -352,7 +361,13 @@ session:
 
 - **Solo questions** (7 × TR/AR/EN) — `content/packs/solo_{tr,ar,en}.json`; run
   `dart content/validator/validate.dart --sync`. These double as the **couple**
-  question bank placeholder, so edits pay off twice.
+  question bank placeholder, so edits pay off twice. *(New since S037: a
+  question may carry `"seasonalWindow"` — exactly one of `ramadan`, `eid_fitr`,
+  `eid_adha`, `new_year` — and will then be offered only inside that window,
+  freshest-first, before the normal rotation resumes. Anything else is a loud
+  validation error by design. Ramadan/Eid dates follow the Saudi Umm al-Qura
+  calendar, which can differ by a day from Diyanet or local sighting; we chose
+  not to fudge the edges — say the word if you want it padded.)*
 - **Paywall / pack copy** (~28 strings × TR/AR/EN) — `app/lib/core/l10n/arb/`
   (keys `paywall`/`packs`/`packSelection`).
 - **Coach chat copy** (27 strings × TR/AR/EN) — keys `coach*`, plus persona/register
@@ -490,13 +505,15 @@ JSON and the parity test could check it mechanically. Non-blocking.
 
 ---
 
-# Current state snapshot (Session 036 close)
+# Current state snapshot (Session 037 close)
 
 - **Plan progress:** M0–M4 engineering ✅ · M5: 2/3 (spine + chat UI; **M5.3 live
   adapter blocked on item 6**) · M6.1–M6.3 ✅ · consent/legal buildable half ✅
   (ADR-023) · CI→Slack ✅ (ADR-024) · **the entire UI/UX Pro Max redesign ✅**
-  (ADR-025, slices 0–8, plus the #74 DRY tidy in S036). **M6.5 Android** sits
-  outside the MVP count; its timing is your Gate-3 call (ADR-006).
+  (ADR-025, slices 0–8, plus the #74 DRY tidy in S036) · **seasonal question
+  windows ✅** (ADR-026, S037 — mechanism only; the questions themselves are
+  item 1's content work). **M6.5 Android** sits outside the MVP count; its
+  timing is your Gate-3 call (ADR-006).
 - **Readiness: engineering ~95%, operational proof 0%.** Everything is
   emulator/CI-proven; **nothing has ever been deployed** (item 2), the app has
   **never run on a real phone against a real backend** (items 3+4), and **no real
@@ -512,9 +529,13 @@ JSON and the parity test could check it mechanically. Non-blocking.
   cascade delete), the release-readiness layer (tag-triggered `release.yml`,
   fail-closed signing), and the consent & legal layer (server-recorded
   version-stamped consent + TR/AR/EN policy/terms in-app).
-- **Autonomous engineering is at its operator-dependency boundary.** Until you
-  unblock item 6, 2, or 4, sessions will correctly find no engineering work and
-  say so rather than invent busywork — that is the design, not a stall.
+- **Autonomous engineering is at its operator-dependency boundary for
+  everything that MATTERS to you.** Until you unblock item 6, 2, or 4, no
+  session can deploy, sign, or make the coach talk. Sessions will keep clearing
+  small tracked engineering debts behind the scenes when one is genuinely
+  unblocked (S037 cleared the seasonal-window deferral; one small CI-guard item
+  remains) — but nothing a session can do without you changes what you see on
+  your phone. That is the design, not a stall.
 
 ---
 

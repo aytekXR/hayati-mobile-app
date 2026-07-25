@@ -1,6 +1,6 @@
 # ADR-011: Rollover pack source, timezone-sweep scheduling, and selection policy
 
-- **Status:** Accepted
+- **Status:** Accepted — **Decision 4 amended by [ADR-026](026-seasonal-question-windows.md)** (2026-07-25): the evergreen-only policy and the Hijri window→date deferral below are CLOSED; selection now prefers unseen in-window seasonal questions and takes the dayKey as a third argument.
 - **Date:** 2026-07-10
 - **Deciders:** Session 012 (per `docs/resume-prompt.md` M3.2 "decide + document" mandate)
 - **Related:** [ADR-010](010-content-authoring-home-and-sync.md) (single authoring home `content/packs/`, validator-owned sync — pre-blesses Functions reading repo-root content); [ADR-007](007-de-gate-build-from-content-validation.md) (personal-use-first scale posture); `docs/architecture.md` §2–4; `docs/test-suite.md` §1
@@ -83,7 +83,9 @@ came due, each with real alternatives:
    reserved for systemic failures (couples unlistable, handler-level
    errors). Register is a *pack-level* property, so "register honored" holds
    by construction: selection never leaves the configured pack.
-4. **Evergreen-only selection policy (explicit deferral).** Questions carrying
+4. **Evergreen-only selection policy (explicit deferral).** *(SUPERSEDED by
+   [ADR-026](026-seasonal-question-windows.md) D4 — kept verbatim as the
+   record of what shipped in M3.2 and why the deferral was honest.)* Questions carrying
    any `seasonalWindow` are excluded from selection. No shipped question has a
    window today, so the filter is a no-op in practice; the Hijri window→date
    mapping (ramadan/eid) lands with the first seasonal content (tracked as a
@@ -153,8 +155,11 @@ came due, each with real alternatives:
 
 ## Follow-ups
 
-- Seasonal window→date mapping (Hijri for `ramadan`/`eid`, Gregorian for
-  `new_year`) when the first seasonal content is authored.
+- ~~Seasonal window→date mapping (Hijri for `ramadan`/`eid`, Gregorian for
+  `new_year`) when the first seasonal content is authored.~~ **CLOSED** by
+  [ADR-026](026-seasonal-question-windows.md) (Session 037, issue #29) — with
+  `eid` split into `eid_fitr`/`eid_adha`, since one tag cannot name two feasts
+  two months apart.
 - Remote pack sync (Remote Config / Firestore) per ADR-010 follow-ups;
   `packConfig` grows pack-choice UI when couple packs exist (W9).
 - Timezone-indexed sweep query + selection cursor if scale ever demands it.
