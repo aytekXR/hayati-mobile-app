@@ -299,6 +299,7 @@ CAL-2):
 | `20260218` | 1447/9/1 | `ramadan` |
 | `20260319` | 1447/9/30 | `ramadan` (exit, inside — a **30-day** Ramadan) |
 | `20260320` | 1447/10/1 | `eid_fitr` (Ramadan exit outside; Eid entry inside) |
+| `20260321` | 1447/10/2 | `eid_fitr` (interior) |
 | `20260322` | 1447/10/3 | `eid_fitr` (exit, inside) |
 | `20260323` | 1447/10/4 | — (`eid_fitr` exit, outside) |
 | `20260526` | 1447/12/9 | — (**`eid_adha` entry, outside** — CAL-1) |
@@ -319,7 +320,7 @@ extra weight: the 1448 pair sits ~11 Gregorian days earlier than the 1447
 pair, so any "Gregorian month mistaken for Hijri month" bug fails; and
 1448's Ramadan is **29 days** while 1447's is 30, so an implementation that
 hardcodes a month length rather than testing `month === 9` fails too. All
-18 rows verified against Node 20's ICU while writing this ADR.
+19 rows verified against Node 20's ICU while writing this ADR.
 
 **The dangerous-mode simulation** (review finding D-3 — rev 1's "break the
 assertion and prove a test reddens" could not actually demonstrate the
@@ -336,8 +337,19 @@ verdict is computed under the spy, and asserts:
 - every **Hijri** window is CLOSED on dates the fixture proves are inside
   it — i.e. *"Ramadan does not fire in September"* is asserted, not hoped;
 - `new_year` still opens on `20261231` (the Gregorian window is unaffected);
-- `runQuestionRollover` sets `seasonalCalendarUnavailable: true` and still
-  assigns evergreen questions to every couple.
+- `runQuestionRollover` sets `seasonalCalendarUnavailable: true` and logs it
+  exactly once. This lives in its own file
+  (`test/unit/rollover-seasonal-guard.test.ts`) because the degradation must
+  be installed *before* the service is imported — the calendar verdict is
+  memoised on first use — and it is driven with an EMPTY precomputed
+  bucketing, the one shape that reaches the sweep probe without touching
+  Firestore. It is separately MUTATION-CHECKED: delete the
+  `if (!hijriCalendarAvailable())` block and both its tests go red. *(The
+  "evergreen keeps working" half of the split fail-direction is the
+  all-windows-closed case, which is asserted directly on `selectQuestion` and
+  end-to-end by the sweep tests at an out-of-window date — not re-proved
+  under the spy, where it would add module-reset risk around
+  `FieldValue` sentinels for no new information.)*
 
 This also covers the otherwise-unreachable null branch for the coverage
 gate.
@@ -420,6 +432,24 @@ splits.** Folded into rev 2:
 | CAL-2 | MINOR *(split)* | "same Ramadan edges in 1448" hides that Ramadan 1448 is **29** days | D8 fixture enumerated explicitly; the 29/30 contrast is now a deliberate property |
 | B-1 | SERIOUS *(split)* | claimed ADR-026 breaks ADR-011 D2's "identical assignments" | **partially accepted** — the skeptic's counter-example is decisive (history-read skew already flips evergreen picks, so the class pre-dates this ADR), but the adjudicator is right that D1 overclaimed; D1 now states what the race actually rests on |
 | ADR026-3 | — | `NoSelectableQuestionError` shares `summary.failed` with misconfiguration | **refuted** — already named in Consequences; recorded there explicitly |
+
+### The second pass — the BUILT-DIFF review
+
+Same four-lens × two-verifier shape run against the implemented diff.
+**5 findings, all 5 surfaced with both verifiers agreeing (0 splits, 0
+refuted)** — three distinct defects, each fixed in the same session:
+
+| id | severity | what it caught | fix |
+|---|---|---|---|
+| F1 | SERIOUS | **D1 promised the comments in BOTH `select-question.ts` and `rollover-service.ts` were corrected; only the first was.** `rollover-service.ts` still said determinism "is what makes the non-transactional read-then-create safe" — the exact overclaim D1 was written to retire | both comments rewritten onto the atomic-`create()` bound |
+| B-1 / C-01 | MINOR ×2 | **D8 promised a test asserting the sweep sets `seasonalCalendarUnavailable: true`; no test entered that branch at all** — every existing assertion checked `false` on a full-ICU box, so deleting the probe block changed nothing | new `rollover-seasonal-guard.test.ts`, mutation-checked |
+| DOC-1 / F2 | MINOR ×2 | the fixture grew a 19th row (`20260321`, `eid_fitr` interior) after the ADR table was written; the ADR still claimed 18 | table + count corrected to 19 |
+
+Both of the first two are the same class the design pass kept finding, now
+turned on the ADR itself: **a governing document asserting that something was
+done, where nothing enforced it.** The lesson is recorded rather than
+smoothed over — an ADR's promises about its own diff are guarantee surfaces
+too.
 
 **Same-diff document set** (project-rules #8, finding D-4): this ADR ·
 `docs/adr/README.md` index · ADR-011 (Status gains an *amended-by* pointer;

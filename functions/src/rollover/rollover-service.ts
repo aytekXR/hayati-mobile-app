@@ -2,12 +2,14 @@
 // creating couples/{cid}/days/{yyyymmdd}. Two layers, both taking an injected
 // Firestore (the M2.x service idiom):
 //   - assignDayQuestion: one couple, one dayKey. Create-if-absent — an
-//     existing day doc is NEVER reassigned or rewritten, and losing the
-//     create race to an overlapping sweep is a benign 'exists' (selection is
-//     deterministic, so the racer computed the same assignment; only today's
-//     dayKey is ever written, which is what makes the non-transactional
-//     read-then-create safe — do not add older-day backfill without
-//     revisiting ADR-011).
+//     existing day doc is NEVER reassigned or rewritten, and losing the create
+//     race to an overlapping sweep is a benign 'exists': create() is ATOMIC,
+//     so exactly one assignment can ever land. Deterministic selection is what
+//     makes the discarded computation uninteresting, not what makes the race
+//     safe — a history-read skew between two racers could already flip an
+//     evergreen pick before seasonal windows existed (ADR-026 D1 states this
+//     bound honestly). Only today's dayKey is ever written — do not add
+//     older-day backfill without revisiting ADR-011.
 //   - runQuestionRollover: the hourly sweep. Groups couples by their STORED
 //     timezone (the bucket), computes each bucket's local calendar date once,
 //     and assigns per couple. Per-couple problems (malformed packConfig,
@@ -193,8 +195,9 @@ export async function assignDayQuestion(
     });
   } catch (error) {
     if (isAlreadyExists(error)) {
-      // An overlapping run won the race after our existence check; its
-      // assignment is the same deterministic selection — nothing to do.
+      // An overlapping run won the race after our existence check. create()
+      // is atomic, so exactly one assignment landed and it is authoritative —
+      // nothing to do (ADR-026 D1).
       return 'exists';
     }
     throw error;
