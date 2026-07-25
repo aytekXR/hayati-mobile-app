@@ -280,6 +280,11 @@ first deploy and the loop comes alive on the phone.
 
 ## 2. Blaze ✅ ON — and the dev backend is DEPLOYED (Session 040)
 
+**It is not just deployed — it is RUNNING.** Two real hourly sweeps are in the
+logs (22:00 and 23:00 UTC), both clean: `failed: 0`, no errors, and the
+seasonal-calendar self-check reporting healthy in the real runtime. The backend
+you paid for is alive and behaving.
+
 **Verified live on `hayatiapp-dev`, `europe-west1`, all Node 20 / 256 MB:**
 
 | What | Status |

@@ -1113,7 +1113,7 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 
 **Next objective written to resume-prompt.md:** the preemption re-check, with the honest position that **autonomous engineering has now cleared every non-human-blocked unit in the backlog** — #29, #74, #88 and #47 are all closed, and what remains is #48/#15 (need the founder's device), #41 (operator item 0), #13 (M6.5/Gate 3) and #67/#63/#71 (founder/brandkit calls). The next session should expect to find nothing unblocked and must SHOW that derivation rather than inherit it.
 
-## Session 040 — 2026-07-26 — **the preemption fired: Blaze went ON mid-run, and the backend is deployed for the first time**
+## Session 040 — 2026-07-26 — **the preemption fired: Blaze went ON mid-run, the backend went live, and the ADR-026 guard reported from production**
 
 **Objective (from resume-prompt.md):** re-run the preemption checks and SHOW the derivation; expect the terminus. **The expectation was wrong, and that is exactly why the rule says derive rather than inherit** (S037 addendum 12). The very first check came back changed.
 
@@ -1121,7 +1121,9 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 - **Item 2 (Blaze): `billingEnabled = True` on BOTH `hayatiapp-dev` and `hayatiapp-prod`** — minted from the firebase-tools refresh token, same method that returned `false` on every read from S028 through S039. **The founder flipped it during this run.** → preemption 2 FIRED.
 - Item 6 (LLM): no signal. Item 4's remaining half: `release` environment still `total_count: 0`. Item 5: repository secrets still 0. Every open issue: zero comments. No new non-session commits on `main`.
 
-**The first-deploy slice — ten of eleven Functions are LIVE on `hayatiapp-dev` (`europe-west1`).** Verified directly, not assumed:
+**Attribution, corrected by the audit log rather than assumed.** The deploy reported *"updating"*, not *"creating"* — so something had deployed already. The Cloud Audit log settles it: **`CreateFunction` at 21:35:15 UTC from `FirebaseCLI/15.24.0 … claude-code_2-1-218`** — the **concurrent session** (the ADR-027 one, a different agent build) deployed first, immediately after the founder flipped Blaze. This session's `UpdateFunction` is the 23:11:54 entry (`FirebaseCLI/15.22.4 … claude-code_2-1-219`), redeploying the same ten from the merged-`main` build. **This session did not perform the first deploy; it re-deployed, verified, and documented it.** Recorded that way because a session log that claims someone else's milestone is worse than no log.
+
+**Ten of eleven Functions are LIVE on `hayatiapp-dev` (`europe-west1`).** Verified directly, not assumed:
 - **`questionRollover`** → Cloud Scheduler job `firebase-schedule-questionRollover-europe-west1`, schedule `0 * * * *`, timezone `Etc/UTC`, state **ENABLED** — precisely ADR-011 D2's hourly UTC sweep, deploy-verified at last after being "deploy-verified later" since M3.2.
 - **`answerReveal`** → Eventarc trigger `answerreveal-484370`, `google.cloud.firestore.document.v1.created`, function state **ACTIVE**, **`retryPolicy = RETRY_POLICY_RETRY`** — the Eventarc retry ADR-012 wanted proven.
 - **`invitePreview`** → public HTTPS by design, smoke-tested: a bogus invite code returns **HTTP 400**, not a 5xx and not a crash.
@@ -1133,8 +1135,22 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 
 **Discovered by the deploy, filed rather than dismissed as noise: issue #96 — Node.js 20 is DECOMMISSIONED on 2026-10-30**, after which deploys fail. Nothing breaks today (deployed functions keep serving), but it is dated, it lands on the path to the first prod deploy, and the natural fix window is immediately before that deploy so prod is never stood up on a runtime with a known end date. The issue notes the upgrade also re-exercises ADR-026's ICU guard and the day-key parity fixture — which is a feature: those fixtures exist to make exactly this kind of runtime change loud.
 
+**THE RESULT THAT MATTERS MOST — the ADR-026 guard reported from production, and it is green.** Two real hourly sweeps had already fired by the time the logs were read:
+
+```
+22:00:03Z  question_rollover: sweep complete
+           {"assigned":0,"existing":0,"failed":0,"failedCoupleIds":[],"buckets":0,
+            "seasonalCalendarUnavailable":false,"at":"2026-07-25T22:00:00.000Z"}
+23:00:03Z  question_rollover: sweep complete
+           {... "seasonalCalendarUnavailable":false, "at":"2026-07-25T23:00:00.769Z"}
+```
+
+**`seasonalCalendarUnavailable: false` in the deployed Google Cloud Functions runtime.** That is the S037 guard answering the exact question it was built for — *does this runtime's ICU actually carry Umm al-Qura, or is `Intl` silently handing back Gregorian months?* — and answering it from production rather than from a developer box. Had it come back `true`, seasonal content would have been silently unreachable forever and nothing else would have said so. It is worth noting how cheap this was: the guard cost one boolean on a run summary, and it converted an unanswerable question into a line in a log.
+
+Two more things the same log lines prove: the sweep runs on the **nominal scheduled instant** (`at: 22:00:00.000Z`, not wall-clock drift) exactly as ADR-011's handler-validation design intended, and the **at-risk notification pass** runs clean alongside it (`checked:0, sent:0, failed:0`) — the ADR-012 D3 shared-bucketing path, exercised for real.
+
 **No code changed this session.** No tests were touched, no goldens moved; the deployed artifact is the `main` build (`npm run build` from the merged tree). CI is unaffected by a deploy.
 
 **Notes / debt logged:** **issue #96** (Node 20 decommission, dated). The webhook + its token remain the founder's, now the *only* thing standing between the current state and a fully live dev backend. A **budget alert** is recommended to the founder in `operator-expected.md` — billing is live now, and setting an alert is the one thing a session cannot do for them that they would most want in place before a surprise.
 
-**Next objective written to resume-prompt.md:** Session 041 — **watch what was just deployed, then extend it**. First the standing preemptions (item 6, the `ASC_*` secrets, the RC token). Then, whether or not one fires, the honest new unit is *observing the live rollover*: the scheduler has been sweeping hourly since this session; the first real question of whether the deployed loop behaves is answerable now for the first time in the project's life, and it needs no founder action at all.
+**Next objective written to resume-prompt.md:** Session 041 — the standing preemptions (item 6, the `ASC_*` secrets, the RC webhook token), and then the *remaining* observation work. The headline observation was pulled forward into this session because the evidence was already sitting in the logs and the answer mattered: the deployed rollover is clean and the ICU guard is green. What is left to watch is the part that needs data — a real couple, a real invite, a real answer pair — which is the founder's device work, not a session's.
