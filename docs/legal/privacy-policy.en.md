@@ -2,7 +2,7 @@
 
 This policy explains what Hayati collects, why, where it lives, and the choices you have. It is written to be checked against what the app actually does, not to sound impressive. If a sentence here promises something the app cannot do, that is a mistake we want to hear about.
 
-Version 1. Effective 13 July 2026.
+Version 2. Effective 26 July 2026.
 
 ## Who runs Hayati
 
@@ -46,7 +46,7 @@ We state a legal basis for each purpose, because a notice that hides the basis i
 - Google (Firebase Authentication, Cloud Firestore, Cloud Functions, App Check, Crashlytics) processes data on our instructions under Google's data processing terms.
 - Apple provides the App Store, in-app purchasing, and Sign in with Apple. For the data Apple handles as the store, Apple acts as its own controller under Apple's terms.
 - RevenueCat will process subscription status on our behalf once subscriptions are connected. It is not yet configured.
-- An AI provider for the coach is not yet selected. When one is chosen, we will name it in an updated notice, require by contract that it does not use your conversations to train its models, and ask for your consent again before it goes live. Today the coach reaches no external AI provider.
+- The coach is powered by Anthropic, through its Claude API. When you chat with the coach, your messages are sent to Anthropic in the moment so it can write a reply, and Anthropic processes them on our behalf. Under Anthropic's commercial API terms, it does not use your conversations to train its models. We store nothing from the coach — not on our servers, and not on your device; your messages are sent to Anthropic only in the moment, to produce the reply. Sending your coach messages to Anthropic is a cross-border transfer, covered by a standard contract, and because Anthropic is a new recipient of that content, this version of the notice raises its version and asks for your consent again.
 
 We do not use your relationship content for advertising, and there is no advertising in Hayati. There is no analytics or tracking product in the app today; if we ever add one, it will arrive with its own separate opt-in, not folded into this notice.
 
@@ -86,7 +86,7 @@ Withdrawing does not delete what you have already written. Your stored reflectio
 
 ## Changes to this notice
 
-This is version 1. If we make a material change — for example, connecting the AI provider — we will update this notice, raise its version, and ask you to consent again before the changed processing begins.
+This is version 2. Version 2 names Anthropic as the coach's AI provider — a new recipient of your coach messages and a new cross-border transfer — and asks every user to consent again before that processing continues. If we make a further material change, we will update this notice, raise its version, and ask you to consent again before the changed processing begins.
 
 ## Contact
 

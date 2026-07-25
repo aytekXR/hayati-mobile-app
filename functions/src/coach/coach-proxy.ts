@@ -36,6 +36,7 @@ import {
   ProviderUnavailableError,
   UnconfiguredCoachProvider,
 } from './provider-port';
+import { AnthropicCoachProvider } from './anthropic-provider';
 import { refundCoachTurn, reserveCoachTurn } from './coach-service';
 
 /** Per-uid in-memory rate limit (Decision 2): 30 calls/min, the invitePreview mold. */
@@ -262,14 +263,19 @@ export function makeCoachProxyHandler(deps: CoachProxyDeps = {}) {
 
 /**
  * The deployed callable (Decision 1): europe-west1, App Check enforcement OFF
- * (repo-wide posture), the createInvite wiring. The default provider is
- * fail-closed, so a live deploy answers premium+capped turns with `unavailable`
- * and crisis turns with the help path — the honest posture until a provider lands.
+ * (repo-wide posture), the createInvite wiring. The M5.3 live provider is the
+ * `AnthropicCoachProvider`, bound to the `LLM_API_KEY` secret. It is STILL
+ * fail-closed: with no secret set the adapter throws `unconfigured`, so the callable
+ * answers premium+capped turns with the honest `unavailable` state and crisis turns
+ * with the help path (ADR-016 D5) — declaring the secret is the only gate, and the
+ * founder's key lands in Secret Manager at deploy. Until then the deploy fails
+ * closed and loud (the RC_WEBHOOK_TOKEN precedent), never silently green.
  */
 export const coachProxy = onCall(
   {
     region: FUNCTIONS_REGION,
     enforceAppCheck: false,
+    secrets: ['LLM_API_KEY'],
   },
-  makeCoachProxyHandler(),
+  makeCoachProxyHandler({ provider: new AnthropicCoachProvider() }),
 );

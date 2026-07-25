@@ -997,7 +997,7 @@
   "@consentDataLocation": {
     "description": "Consent gate paragraph — the honest data-location split (ADR-023 Context/D3, finding honesty-1). No 'all your data in the EU' over-claim. TR/AR respectful register."
   },
-  "consentProcessors": "Google runs sign-in, storage, and crash reporting on our instructions. Apple handles the App Store and Sign in with Apple. There is no advertising or tracking in Hayati, and the coach reaches no outside AI provider today.",
+  "consentProcessors": "Google runs sign-in, storage, and crash reporting on our instructions. Apple handles the App Store and Sign in with Apple. The coach is powered by Anthropic, which processes your coach messages in the moment to write a reply and does not use them to train its models. There is no advertising or tracking in Hayati.",
   "@consentProcessors": {
     "description": "Consent gate paragraph — the processors, honest to the shipped reality (ADR-023 D3/D6). TR/AR respectful register."
   },

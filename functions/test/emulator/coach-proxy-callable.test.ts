@@ -4,11 +4,12 @@
 //   firebase emulators:exec --only auth,firestore,functions \
 //     --project demo-hayati 'cd functions && npm run test:ci'
 //
-// CAREFUL: the DEPLOYED default provider is UnconfiguredCoachProvider (fail-closed)
-// — this slice makes ZERO live model calls anywhere. So the e2e proves the honest
-// deploy posture, not a persona round-trip:
-//   - a valid premium + within-cap turn → `unavailable` (the unconfigured provider
-//     throws; the reserved cap is refunded);
+// CAREFUL: the DEPLOYED provider is now the M5.3 `AnthropicCoachProvider`, but the
+// emulator sets no `LLM_API_KEY` secret, so the adapter fail-closes to
+// `unconfigured` and makes ZERO live model calls here. So the e2e still proves the
+// honest deploy posture, not a persona round-trip:
+//   - a valid premium + within-cap turn → `unavailable` (the keyless adapter throws
+//     `unconfigured`; the reserved cap is refunded);
 //   - a crisis message → 200 help path — the safety accept line end-to-end, which
 //     works EVEN unconfigured (the pre-scan precedes any provider/gate);
 //   - a sentinel in the request never echoes back in the response.
@@ -109,7 +110,7 @@ describe('coachProxy callable (functions emulator, default fail-closed wiring)',
     expect(body.error.status).toBe('UNAUTHENTICATED');
   });
 
-  it('a valid premium + within-cap turn → UNAVAILABLE (the unconfigured provider, honest deploy posture)', async () => {
+  it('a valid premium + within-cap turn → UNAVAILABLE (the keyless Anthropic adapter, honest deploy posture)', async () => {
     const { idToken, localId } = await signUpUser();
     await seedPremiumCouple(localId);
 

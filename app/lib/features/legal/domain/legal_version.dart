@@ -20,4 +20,4 @@
 /// server's own constant onto a grant. This const drives only the gate's
 /// `hasCurrentConsent` expectation (the residual skew, app-const-ahead-of-server,
 /// surfaces as the gate's persistent stale-after-accept error, never a brick).
-const int currentLegalVersion = 1;
+const int currentLegalVersion = 2;

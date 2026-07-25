@@ -22,7 +22,7 @@ export const FORMAT_VERSION = 2;
  * version const and the docs/legal/README.md `version:` line; the bump procedure
  * lives in docs/legal/README.md. A bump here must be same-diff with both.
  */
-export const CURRENT_LEGAL_VERSION = 1;
+export const CURRENT_LEGAL_VERSION = 2;
 
 /**
  * The wire-level literal the app sends on the deleteAccount request (Decision 2).

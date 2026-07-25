@@ -8,11 +8,11 @@ They are AI-drafted and **review-PENDING**. Until the native register owners and
 
 The single source of version truth for the whole legal bundle:
 
-version: 1
+version: 2
 
 This exact `version:` line is read by the three-way source-sentinel test alongside the app's `currentLegalVersion` Dart const and the Functions `CURRENT_LEGAL_VERSION` constant. All three must match, or CI fails red.
 
-Effective date of version 1: 13 July 2026.
+Effective date of version 2: 26 July 2026.
 
 ## Review status (PENDING)
 

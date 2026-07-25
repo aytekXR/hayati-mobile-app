@@ -284,7 +284,7 @@ describe('projectDailyLane / constants', () => {
   it('projects the daily lane and exposes the format version + note', () => {
     expect(projectDailyLane({ dayKey: '20260712', count: 4 })).toEqual({ dayKey: '20260712', count: 4 });
     expect(FORMAT_VERSION).toBe(2);
-    expect(CURRENT_LEGAL_VERSION).toBe(1);
+    expect(CURRENT_LEGAL_VERSION).toBe(2);
     expect(EXPORT_QUESTION_NOTE).toContain('questionId');
   });
 });

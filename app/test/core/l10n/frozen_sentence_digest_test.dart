@@ -63,7 +63,7 @@ void main() {
   /// SHA-256 over UTF-8 of the sorted `"<locale>.<key>=<value>\n"` lines.
   /// Re-stamp only after working through the checklist in this file's header.
   const expectedDigest =
-      '3b57dfa0c17bfe7a183f9f36c950103528a0921d29d32b84ec9cdea82aa7d0c3';
+      'c001b89423069e65f3e998d3526d976b12105f2b132192f14b61cb3f8a15ae35';
 
   /// The number of frozen pairs at the time of the last deliberate re-stamp.
   /// Pinned separately from the digest so a failure can distinguish "someone
