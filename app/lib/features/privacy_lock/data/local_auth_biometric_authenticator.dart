@@ -24,8 +24,9 @@ import '../domain/biometric_authenticator.dart';
 ///    obligation; every failure falls back to the PIN keypad.
 ///
 /// `enrollmentState` does NOT go through local_auth (it exposes no such API): it
-/// reads `LAContext.evaluatedPolicyDomainState` over the one device-privacy
-/// channel (Decision 6).
+/// reads `LAContext`'s biometric enrollment bytes over the one device-privacy
+/// channel (Decision 6) — `domainState.biometry.stateHash` on iOS 18+, the
+/// deprecated `evaluatedPolicyDomainState` below it (rev 5, issue #47).
 class LocalAuthBiometricAuthenticator implements BiometricAuthenticator {
   LocalAuthBiometricAuthenticator({
     LocalAuthentication? localAuth,

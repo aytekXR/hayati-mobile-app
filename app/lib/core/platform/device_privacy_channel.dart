@@ -7,8 +7,11 @@ import 'package:flutter/services.dart';
 /// * `supportsAlternateIcons` → `bool`
 /// * `getAlternateIconName` → `String?` (null = the primary icon)
 /// * `setAlternateIconName` (`{'name': String?}`, null = back to primary) → void
-/// * `biometricEnrollmentState` → `String?` (iOS
-///   `LAContext.evaluatedPolicyDomainState`, base64; null when unavailable)
+/// * `biometricEnrollmentState` → `String?` (iOS `LAContext`'s biometric
+///   enrollment bytes, base64; null when unavailable). The native side reads
+///   `domainState.biometry.stateHash` on iOS 18+ and the deprecated
+///   `evaluatedPolicyDomainState` below it (ADR-018 rev 5, issue #47) — two
+///   representations of the same opaque token, which this side never parses.
 ///
 /// This file is DEVICE-ONLY by construction: it is reached solely through the
 /// `AppIconSwitcher` / `BiometricAuthenticator` adapters, which the entrypoints

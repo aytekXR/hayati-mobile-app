@@ -1,6 +1,8 @@
 # ADR-018: Device-privacy layer — root lock gate (PIN + biometric), always-on snapshot shield, discreet alternate icon, first settings surface
 
-- **Status:** Accepted (rev 4 — the change-PIN gap is closed, see the rev-4
+- **Status:** Accepted (**rev 5** — the biometric enrollment probe migrates off
+  the iOS-18-deprecated `evaluatedPolicyDomainState`, see the rev-5 amendment at
+  the end; rev 4 — the change-PIN gap is closed, see the rev-4
   amendment at the end; rev 3 — implemented; rev 2 folded in the pre-code
   adversarial review, rev 3 records what the implementation proved. See the two
   review records at the end.)
@@ -988,3 +990,69 @@ the lock is on). Design decisions, each deliberate:
   (`biometricOnly: true` sentinel unaffected); (4) the lock screen is
   untouched — the whole flow lives in settings, below the gate, where dialogs
   and pushed routes are legal. No new seam, plugin, or platform channel.
+
+## Amendment — rev 5 (Session 039): the enrollment probe migrates to `domainState.biometry.stateHash` (issue #47)
+
+**What changed, and only this:** the `biometricEnrollmentState` case of the
+device-privacy channel (`app/ios/Runner/AppDelegate.swift`) now reads the
+enrollment bytes from **`LAContext.domainState.biometry.stateHash` on iOS 18+**
+and from `evaluatedPolicyDomainState` below it. No seam, no Dart type, no state
+machine and no stored-record field changes: the value was opaque before and is
+opaque now — Dart stores it and compares it, never parses it.
+
+**Why now, and why it is not merely tidiness.** Apple deprecated the old
+property in the iOS 18 SDK and names the replacement in the header itself:
+`API_DEPRECATED_WITH_REPLACEMENT("domainState.biometry.stateHash",
+ios(9.0, 18.0))`. The property this ADR's Decision 1 rests on is therefore on a
+retirement path, and D1's revocation is a **security** mechanism — it is what
+stops a partner who enrols their face *after* the accelerator was enabled from
+gaining a permanent second credential. Migrating deliberately, while the old
+property still works and the fallback can be tested, is strictly better than
+discovering the removal.
+
+**The deployment target is iOS 15**, so the legacy branch is **live code**, not
+dead weight, and it is the branch that keeps emitting a deprecation warning
+until the target rises past 18. Accepted; the warning is the honest signal.
+
+### The one user-visible consequence, recorded rather than discovered
+
+`stateHash` and `evaluatedPolicyDomainState` are different representations of
+the same fact. A user who enabled the accelerator on iOS 17 and then **upgrades
+to iOS 18** will have a stored token that no longer matches what the platform
+now reports — so the accelerator **auto-revokes once** and the PIN is required,
+exactly as if a face had been added. That is the **fail-SAFE** direction and it
+is the same behaviour D1 already specifies for any mismatch; it costs one PIN
+entry and one re-enable. It is written down here because a silent, unexplained
+"Face ID turned itself off after I updated iOS" is precisely the kind of event
+that erodes trust in a safety mechanism. *(Apple's own forums record that the
+old value could already shift across major OS versions, so this class of event
+predates the migration.)*
+
+### What CI can and cannot prove — stated so a green pipeline is not over-read
+
+`ios-build-smoke` (macos-15, `flutter build ios --no-codesign`) proves the
+migration **compiles**, that `#available(iOS 18.0, *)` is well-formed and that
+the fallback still type-checks at the iOS-15 deployment target. **Nothing in CI
+can prove the revocation still fires** — no simulator enrols a face. The runtime
+half rides operator item 4's on-device checklist, which already carries the
+exact check (*enable Face ID, lock, unlock; then change/add a face in iOS
+Settings and reopen → it must have switched Face ID off by itself and demand the
+PIN*), plus the post-migration entry added at Session 038's close. Until the
+founder runs it, the honest status of this amendment is **compiled, not
+verified**, and it says so here rather than in a commit message nobody re-reads.
+
+### The invariants re-checked in the same diff (D5.i discipline)
+
+`AppDelegate.swift` is app-touching, so the slice-0 firewall and the ADR-018
+lock invariants were re-run on this change, not assumed: the lock-screen
+forbidden-API sentinel, the `biometricOnly: true` source-contract test (the
+literal is untouched — this diff never opens `local_auth_biometric_authenticator`'s
+`authenticate`), the no-`ref.invalidate` sentinel, the brandkit→Dart token
+parity test and the frozen-sentence digest. The four Dart doc-comments that
+named the old property are guarantee surfaces under this project's own rule and
+were corrected in the same diff — a comment that names a retired API is a
+comment that will mislead the next reader of a security path.
+
+**Issue #47 closed.** **Issue #48** (a transient Face ID *lockout* reading as an
+enrollment change) is untouched and still open: it needs the on-device evidence
+item 4 will produce, and it is fail-safe meanwhile.
