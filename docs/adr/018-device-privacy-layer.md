@@ -123,6 +123,10 @@ where they arise.
     platform's opaque biometric enrollment state
     (`LAContext.evaluatedPolicyDomainState`, exposed as bytes through the
     device-privacy channel, Decision 6) and stores it in the lock record.
+    *(Superseded in part by rev 5, Session 039: on iOS 18+ those bytes come
+    from `LAContext.domainState.biometry.stateHash`, Apple's own named
+    replacement — same opaque token, same comparison, same revocation; see the
+    rev-5 amendment at the end.)*
     On every lock-screen mount, before biometric is offered or auto-prompted,
     the current enrollment state is compared to the stored one; **any
     mismatch (or unavailability) auto-revokes `biometricEnabled`** — the
@@ -526,7 +530,8 @@ where they arise.
   `biometricEnrollmentState` returns
   `LAContext.evaluatedPolicyDomainState` bytes (after a
   `canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` probe) or
-  null. iOS shows its own system alert on icon change — expected,
+  null. *(Superseded in part by rev 5: on iOS 18+ the bytes come from
+  `domainState.biometry.stateHash` behind the same probe.)* iOS shows its own system alert on icon change — expected,
   user-initiated, not suppressed (no private API — App Store safety).
 - **Assets:** a second icon set `AppIconDiscreet.appiconset` in
   `Assets.xcassets` — single-size 1024 (Xcode 14+ single-size icons; CI
@@ -559,8 +564,9 @@ where they arise.
   --no-codesign` compiles the Swift and runs actool over the new icon set —
   the compile/asset surface is CI-gated. What CI cannot prove (the icon
   actually swapping on a home screen, the system alert copy, the Keychain
-  round-trip, `evaluatedPolicyDomainState` behavior across enrollment
-  changes) joins operator item 4's on-device checklist.
+  round-trip, the enrollment-bytes behaviour across enrollment changes —
+  whichever property supplies them, rev 5) joins operator item 4's on-device
+  checklist.
 - **The notification-text override is DEFERRED to M6.2, loudly.** PRD F6's
   discreet mode includes neutral push text; M3.4 shipped it locale-derived
   (`resolveDiscreet = contentLanguage == 'ar'`) with a documented server
@@ -641,7 +647,7 @@ where they arise.
 | Recovery sign-out THROWS | overlay stays LOCKED + honest retry copy | sign-out-first ordering; the lock never drops on an unconfirmed sign-out (D4) |
 | Same-device re-auth after recovery (partner completes SMS-OTP / Apple re-auth on the held phone) | **recorded residual — not preventable at app level** | recovery is destructive + detectable (owner finds a signed-out app, lock gone); the lock blocks silent/casual access, not identity-anchor holders (D4) |
 | Biometric passes for a partner enrolled BEFORE enable | recorded residual — carried by the enable-time DV warning | the app cannot enumerate whose biometrics exist (D1) |
-| Biometric enrollment CHANGES after enable | biometric auto-REVOKED at next lock-screen mount; PIN required; honest copy | `evaluatedPolicyDomainState` mismatch (D1) |
+| Biometric enrollment CHANGES after enable | biometric auto-REVOKED at next lock-screen mount; PIN required; honest copy | enrollment-bytes mismatch (D1) — `domainState.biometry.stateHash` on iOS 18+, `evaluatedPolicyDomainState` below it (rev 5) |
 | Biometric fails / cancels / throws / unavailable | fall back to PIN keypad (adapter maps `LocalAuthException` → false) | PIN is the credential; biometric is an accelerator (D1) |
 | Wrong-attempt write races the sign-out wipe | write ABORTED by the generation guard | `ref.mounted` cannot catch an in-place wipe on a keepAlive controller (D1) |
 | Icon channel fails | toggle reverts + honest copy | never display a state the OS refused (D7) |
@@ -1052,6 +1058,16 @@ parity test and the frozen-sentence digest. The four Dart doc-comments that
 named the old property are guarantee surfaces under this project's own rule and
 were corrected in the same diff — a comment that names a retired API is a
 comment that will mislead the next reader of a security path.
+
+**That rule was then turned back on this ADR**, by its own built-diff review:
+rev 5 originally corrected the Dart comments and left ADR-018's *body* naming
+only the retired property — including the **Decision 8 fail-direction table**,
+which this document itself calls *"the table reviewers check first"*. All three
+review lenses surfaced it independently. D1, D6 and the D8 row now carry
+inline rev-5 supersede notes in the style rev 4 established. The `README.md`
+index row is deliberately **not** touched: rev 4 did not touch it either, so
+amendments do not re-index — a reviewer checked the convention rather than
+assuming it.
 
 **Issue #47 closed.** **Issue #48** (a transient Face ID *lockout* reading as an
 enrollment change) is untouched and still open: it needs the on-device evidence
