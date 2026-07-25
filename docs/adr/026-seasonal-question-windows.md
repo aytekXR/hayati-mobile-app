@@ -408,8 +408,8 @@ claim, proven mechanically rather than asserted.
 - The TS parser's enums (`PACK_LOCALES`, `PACK_REGISTERS`,
   `QUESTION_CATEGORIES`, and now `SEASONAL_WINDOWS`) have **no**
   schema-agreement guard on the TS side — only the Dart validator does
-  (D3.3). That pre-dates this ADR and is not widened by it; filed as its
-  own issue rather than smuggled into this diff.
+  (D3.3). That pre-dates this ADR and is not widened by it; filed as
+  **issue #88** rather than smuggled into this diff.
 
 ## Review record — the pre-code adversarial pass (rev 1 → rev 2)
 
