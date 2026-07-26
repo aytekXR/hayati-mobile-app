@@ -299,15 +299,23 @@
   "@pairedPackUpdateBody": {
     "description": "Body of the pack-lag state"
   },
-  "pairedStreak": "{count, plural, =1{1-day streak} other{{count}-day streak}}",
-  "@pairedStreak": {
-    "description": "Modest streak marker on the revealed paired home (M3.4, ADR-012): the couple's consecutive mutual-day count. Shown ONLY in the revealed state and ONLY when count > 0 (a zero count renders nothing).",
+  "streakSeeds": "{count, plural, =1{1 seed · 1 day together} other{{count} seeds · {count} days together}}",
+  "@streakSeeds": {
+    "description": "The streak strip line beside the seed vessel on the paired home (redesign ui-ux §6.3 / product-copy 'Streak & celebration'): one seed per mutual day, tabular figures. Replaces the M3.4 'N-day streak' row. TR/AR renderings are drafts pending native register review.",
     "placeholders": {
       "count": {
         "type": "int",
-        "example": "4"
+        "example": "11"
       }
     }
+  },
+  "streakVesselEmpty": "Your first seed arrives the first day you both answer.",
+  "@streakVesselEmpty": {
+    "description": "Canonical vessel-empty line (product-copy 'Empty states' — also the Us screen's zero-seed state later): honest, a seed needs BOTH answers, so a zero count never masquerades as a streak. TR/AR renderings are drafts pending native register review."
+  },
+  "streakMercyUsed": "Mercy day used — your streak is safe.",
+  "@streakMercyUsed": {
+    "description": "Compact caption beside the Sage leaf glyph on the streak strip when this ISO week's grace token has been consumed (product-copy 'Streak strip, mercy indicator'; graceTokens == 0 on the server streak) — forgiveness framing, never 'streak freeze' mechanics. TR/AR renderings are drafts pending native register review."
   },
   "soloDayProgress": "Day {day} of 7",
   "@soloDayProgress": {

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../design_system/color_tokens.dart';
 import '../design_system/motion_tokens.dart';
-import '../design_system/spacing_tokens.dart';
 
-/// Default testing handle on the group [Opacity] the choreography fades in —
-/// the same seam contract as `SoftUnfoldReveal.opacityKey` (a caller may
-/// override it; the daily reveal passes its `revealUnfoldOpacityKey`).
+/// Default testing handle on the pair group's [Opacity] (the beat-1
+/// crossfade) — the same seam contract as `SoftUnfoldReveal.opacityKey` (a
+/// caller may override it; the daily reveal passes its
+/// `revealUnfoldOpacityKey`).
 @visibleForTesting
 const revealChoreographyOpacityKey = ValueKey<String>(
   'reveal-choreography-opacity',
@@ -22,31 +22,59 @@ const revealPartnerEntryKey = ValueKey<String>('reveal-partner-entry');
 @visibleForTesting
 const revealSeedDropKey = ValueKey<String>('reveal-seed-drop');
 
-/// Builds the streak strip slot, receiving the beat-3 seed-drop progress
-/// (linear 0→1 across `MotionTokens.revealBeatSeedDrop`). Wrap the strip in a
-/// [SeedDropOverlay] to get the spec'd falling seed for free.
-typedef RevealStreakStripBuilder =
-    Widget Function(BuildContext context, Animation<double> seedDrop);
+/// The live handles of the three-beat timeline, handed to
+/// [RevealChoreography.builder] every frame so the caller can compose the
+/// reveal surface freely — the streak strip (beat 3's target) sits ABOVE the
+/// question card in the redesigned layout, outside the pair's fade group, so
+/// the choreography cannot own the whole column itself.
+class RevealBeats {
+  const RevealBeats._({
+    required this.fade,
+    required this.settle,
+    required this.seedDrop,
+    required this.done,
+  });
+
+  /// Beat 1 `unfoldReveal`: the pair group's crossfade AND the partner card's
+  /// entry share this window (0–300ms, easeOut).
+  final Animation<double> fade;
+
+  /// Beat 2 `settlePair`: both cards settle as a pair (300–480ms, easeOut).
+  final Animation<double> settle;
+
+  /// Beat 3 `seedDrop`: linear progress across 480–900ms — [SeedDropOverlay]
+  /// applies the spring character ([MotionTokens.seedDropCurve]) to the fall.
+  final Animation<double> seedDrop;
+
+  /// True once the timeline has completed (or collapsed under reduce-motion):
+  /// [RevealPairGroup] and [RevealPartnerEntry] retire their transforms so the
+  /// settled tree is pixel-neutral.
+  final bool done;
+}
+
+/// Builds the reveal surface for the current beat values.
+typedef RevealBuilder =
+    Widget Function(BuildContext context, RevealBeats beats);
 
 /// The reveal three-beat choreography (redesign ui-ux §11, creative-assets
-/// §7.2) — the product's ONE choreography budget, mounted where the mutual
-/// reveal renders (the paired home's revealed group):
+/// §7.2) — the product's ONE choreography budget, owner of the timeline where
+/// the mutual reveal renders (the paired home's revealed state):
 ///
 ///   Beat 1 `unfoldReveal` (300ms): the partner's card unfolds toward yours —
 ///     it enters from the partner-slot position below with a subtle 3D fold
-///     flattening at the meeting edge, while the group crossfades in.
+///     flattening at the meeting edge ([RevealPartnerEntry]), while the answer
+///     pair crossfades in ([RevealPairGroup]).
 ///   Beat 2 `settlePair` (180ms): both cards settle as a pair — one
 ///     simultaneous 2dp settle. [onSettle] fires as the settle lands: the
 ///     caller hooks the single light haptic here (kept, sacred).
 ///   Beat 3 `seedDrop` (420ms): one seed drops into the streak strip's vessel
-///     ([SeedDropOverlay] via [streakStripBuilder]), gentle spring, overshoot
-///     ≤4dp.
+///     ([SeedDropOverlay]), gentle spring, overshoot ≤4dp.
 ///
 /// Total 900ms — inside the ≤1.2s budget pinned by `motion_tokens_test.dart`.
 /// Reduce-motion collapses the whole sequence to an instant crossfade with
 /// [onSettle] (the haptic) preserved. At rest the tree is pixel-neutral: the
-/// group [Opacity] sits at 1 (Flutter's no-op fast path), every transform is
-/// skipped, and the seed overlay renders nothing — so a settled golden is
+/// pair [Opacity] sits at 1 (Flutter's no-op fast path), every transform is
+/// retired, and the seed overlay renders nothing — so a settled golden is
 /// byte-identical to a never-animated layout.
 ///
 /// RTL: every motion vector is vertical (the cards stack as a pair, the seed
@@ -54,49 +82,19 @@ typedef RevealStreakStripBuilder =
 /// horizontal placement (the seed's landing point) resolves through
 /// [SeedDropOverlay.alignment], an [AlignmentDirectional] — mirrored by the
 /// ambient [Directionality], never a physical left/right.
-///
-/// `alwaysIncludeSemantics` keeps both answers in the semantics tree from the
-/// first frame (ui-ux §8 VoiceOver: the reveal announces as one event — a
-/// screen reader must never lose it mid-unfold).
 class RevealChoreography extends StatefulWidget {
-  const RevealChoreography({
-    super.key,
-    required this.ownCard,
-    required this.partnerCard,
-    this.streakStripBuilder,
-    this.stripGap = SpacingTokens.x3,
-    this.pairGap = SpacingTokens.x4,
-    this.onSettle,
-    this.opacityKey = revealChoreographyOpacityKey,
-  });
+  const RevealChoreography({super.key, required this.builder, this.onSettle});
 
-  /// The own answer card — already on screen conceptually (the entry collapses
-  /// into it), so it carries no motion of its own beyond the group fade.
-  final Widget ownCard;
-
-  /// The partner's answer card — the star of beat 1.
-  final Widget partnerCard;
-
-  /// The streak strip slot above the pair (null when the couple has no strip —
-  /// e.g. reveal-trigger lag renders no streak). Receives the beat-3 progress.
-  final RevealStreakStripBuilder? streakStripBuilder;
-
-  /// Gap between the streak strip and the card pair.
-  final double stripGap;
-
-  /// Gap inside the card pair (own → partner) — x4, tighter than the x6 that
-  /// sets the reveal apart from the affordances below it, so the two answers
-  /// read as one shared moment.
-  final double pairGap;
+  /// Composes the reveal surface — typically: the streak strip wired to
+  /// `beats.seedDrop`, the question card (outside the fade — it was already
+  /// on screen pre-reveal), then a [RevealPairGroup] holding the own card and
+  /// a [RevealPartnerEntry]-wrapped partner card.
+  final RevealBuilder builder;
 
   /// Fired exactly once per mount, the moment beat 2's settle lands (or
   /// immediately under reduce-motion — the haptic is preserved when the
   /// animation is not). The caller owns any at-most-once-per-day guard.
   final VoidCallback? onSettle;
-
-  /// Key stamped on the group [Opacity] (the crossfade), so each reveal
-  /// surface exposes its own `@visibleForTesting` seam.
-  final Key opacityKey;
 
   /// The full three-beat span: 300 + 180 + 420 = 900ms (≤1.2s budget).
   static final Duration total =
@@ -118,24 +116,12 @@ class _RevealChoreographyState extends State<RevealChoreography>
           .inMilliseconds /
       RevealChoreography.total.inMilliseconds;
 
-  /// Beat 1's entry rise: the partner card starts this far below its rest
-  /// position (the partner-slot direction) and travels up toward the pair.
-  static const double _entryRise = 24;
-
-  /// Beat 1's fold: the subtle 3D flattening at the meeting edge, in radians
-  /// (≈17° — "subtle", not a full page-turn).
-  static const double _foldAngle = 0.3;
-
-  /// Beat 2's simultaneous pair settle distance (creative-assets §7.2: "2dp
-  /// settle").
-  static const double _settleLift = 2;
-
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: RevealChoreography.total,
   );
 
-  /// Group crossfade + partner entry share beat 1's window.
+  /// Beat 1: the pair's crossfade + the partner card's entry window.
   late final Animation<double> _fade = CurvedAnimation(
     parent: _controller,
     curve: Interval(0, _beat1End, curve: MotionTokens.enter),
@@ -147,8 +133,7 @@ class _RevealChoreographyState extends State<RevealChoreography>
     curve: Interval(_beat1End, _beat2End, curve: MotionTokens.enter),
   );
 
-  /// Beat 3's raw progress — [SeedDropOverlay] applies the spring character
-  /// ([MotionTokens.seedDropCurve]) to the fall itself.
+  /// Beat 3's raw progress — [SeedDropOverlay] applies the spring character.
   late final Animation<double> _seedDrop = CurvedAnimation(
     parent: _controller,
     curve: Interval(_beat2End, 1),
@@ -194,73 +179,114 @@ class _RevealChoreographyState extends State<RevealChoreography>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (context, _) {
-        final done = _controller.isCompleted;
-
-        var partner = widget.partnerCard;
-        if (!done) {
-          final t = _fade.value;
-          partner = Opacity(
-            key: revealPartnerEntryKey,
-            opacity: t,
-            alwaysIncludeSemantics: true,
-            child: Transform(
-              // The fold-line is the pair's meeting edge — the top of the
-              // partner card (the own card sits above). Vertical axis motion
-              // only: direction-neutral, no RTL variant needed.
-              alignment: Alignment.topCenter,
-              transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.0015)
-                ..translateByDouble(0, (1 - t) * _entryRise, 0, 1)
-                ..rotateX((1 - t) * _foldAngle),
-              child: partner,
-            ),
-          );
-        }
-
-        Widget pair = Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            widget.ownCard,
-            SizedBox(height: widget.pairGap),
-            partner,
-          ],
-        );
-        if (!done) {
-          // Beat 2: the pair rides 2dp high through beat 1, then settles to
-          // rest together — one simultaneous landing, felt via [onSettle].
-          pair = Transform.translate(
-            offset: Offset(0, -_settleLift * (1 - _settle.value)),
-            child: pair,
-          );
-        }
-
-        final strip = widget.streakStripBuilder?.call(context, _seedDrop);
-        return Opacity(
-          key: widget.opacityKey,
-          opacity: _fade.value,
-          alwaysIncludeSemantics: true,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (strip != null) ...[strip, SizedBox(height: widget.stripGap)],
-              pair,
-            ],
-          ),
-        );
-      },
+      builder: (context, _) => widget.builder(
+        context,
+        RevealBeats._(
+          fade: _fade,
+          settle: _settle,
+          seedDrop: _seedDrop,
+          done: _controller.isCompleted,
+        ),
+      ),
     );
   }
 }
 
-/// Beat 3 realised over a streak strip: a single seed materialises 24dp above
-/// [child], falls with the sanctioned gentle spring
+/// Beats 1+2 over the answer PAIR: the crossfade in (beat 1) and the shared
+/// 2dp settle (beat 2 — the pair rides 2dp high through the unfold, then
+/// lands together; the landing is what [RevealChoreography.onSettle] makes
+/// feelable). At rest: [Opacity] 1 (no-op fast path) and the translate is
+/// retired — pixel-neutral.
+///
+/// `alwaysIncludeSemantics` keeps both answers in the semantics tree from the
+/// first frame (ui-ux §8 VoiceOver: the reveal announces as one event — a
+/// screen reader must never lose it mid-unfold).
+class RevealPairGroup extends StatelessWidget {
+  const RevealPairGroup({
+    super.key,
+    required this.beats,
+    required this.child,
+    this.opacityKey = revealChoreographyOpacityKey,
+  });
+
+  final RevealBeats beats;
+
+  /// The pair column: own card, gap, [RevealPartnerEntry]-wrapped partner card.
+  final Widget child;
+
+  /// Key stamped on the pair [Opacity], so each reveal surface exposes its own
+  /// `@visibleForTesting` seam.
+  final Key opacityKey;
+
+  /// Beat 2's simultaneous pair settle distance (creative-assets §7.2: "2dp
+  /// settle").
+  static const double settleLift = 2;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      key: opacityKey,
+      opacity: beats.fade.value,
+      alwaysIncludeSemantics: true,
+      child: beats.done
+          ? child
+          : Transform.translate(
+              offset: Offset(0, -settleLift * (1 - beats.settle.value)),
+              child: child,
+            ),
+    );
+  }
+}
+
+/// Beat 1 over the partner card alone: it enters from the partner-slot
+/// position below (rising toward its pair) with a subtle 3D fold flattening
+/// at the meeting edge — the fold-line is the card's top edge, where it meets
+/// the own card above, so the axis is horizontal and the motion is
+/// direction-neutral (no RTL variant needed). Retired entirely at rest.
+class RevealPartnerEntry extends StatelessWidget {
+  const RevealPartnerEntry({
+    super.key,
+    required this.beats,
+    required this.child,
+  });
+
+  final RevealBeats beats;
+  final Widget child;
+
+  /// The entry rise: the card starts this far below its rest position.
+  static const double entryRise = 24;
+
+  /// The fold: the subtle 3D flattening, in radians (≈17° — "subtle", not a
+  /// full page-turn).
+  static const double foldAngle = 0.3;
+
+  @override
+  Widget build(BuildContext context) {
+    if (beats.done) return child;
+    final t = beats.fade.value;
+    return Opacity(
+      key: revealPartnerEntryKey,
+      opacity: t,
+      alwaysIncludeSemantics: true,
+      child: Transform(
+        alignment: Alignment.topCenter,
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, 0.0015)
+          ..translateByDouble(0, (1 - t) * entryRise, 0, 1)
+          ..rotateX((1 - t) * foldAngle),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Beat 3 realised over the streak strip's vessel: a single seed materialises
+/// 24dp above [child], falls with the sanctioned gentle spring
 /// ([MotionTokens.seedDropCurve], overshoot ≈2.4dp ≤ the 4dp budget) and
-/// merges into the strip as it lands — the landed seed is the strip's own
-/// render (the server streak already counts today), so the overlay ends empty
-/// and the rest frame is pixel-neutral.
+/// merges into the strip as it lands — the landed seed is the vessel's own
+/// render (the server streak is the count of record; the client never
+/// anticipates it), so the overlay ends empty and the rest frame is
+/// pixel-neutral.
 class SeedDropOverlay extends StatelessWidget {
   const SeedDropOverlay({
     super.key,
@@ -269,14 +295,15 @@ class SeedDropOverlay extends StatelessWidget {
     this.alignment = AlignmentDirectional.center,
   });
 
-  /// Beat-3 progress, linear 0→1 (from [RevealChoreography]'s third interval).
+  /// Beat-3 progress, linear 0→1 ([RevealBeats.seedDrop]).
   final Animation<double> progress;
 
-  /// The streak strip (the vessel's home).
+  /// The drop target — typically the vessel glyph itself, so the seed lands
+  /// exactly on it wherever the strip's layout puts it.
   final Widget child;
 
-  /// Where the seed lands over [child] — logical (start/end) coordinates, so a
-  /// vessel sitting at the start of the strip mirrors correctly under RTL.
+  /// Where the seed lands over [child] — logical (start/end) coordinates, so
+  /// a vessel sitting at the start of the strip mirrors correctly under RTL.
   final AlignmentGeometry alignment;
 
   /// The fall distance (creative-assets §7.3: appears 24dp above the rim).

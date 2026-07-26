@@ -7,7 +7,8 @@ import 'package:hayati_app/core/widgets/reveal_choreography.dart';
 /// settles pixel-neutral), so per the S028 lesson this file is its proof:
 /// beat 1's unfold-toward, beat 2's settle timing (the haptic hook), beat 3's
 /// seed drop-and-merge, the ≤1.2s budget, the reduce-motion collapse with the
-/// settle hook preserved, and RTL mounting.
+/// settle hook preserved, and RTL mounting. Composed the way the paired home
+/// composes it: strip (seed-drop target) outside the pair's fade group.
 void main() {
   Future<void> pumpChoreography(
     WidgetTester tester, {
@@ -24,14 +25,30 @@ void main() {
               builder: (context) {
                 final choreography = RevealChoreography(
                   onSettle: onSettle,
-                  streakStripBuilder: withStrip
-                      ? (context, seedDrop) => SeedDropOverlay(
-                          progress: seedDrop,
+                  builder: (context, beats) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (withStrip)
+                        SeedDropOverlay(
+                          progress: beats.seedDrop,
                           child: const Text('strip'),
-                        )
-                      : null,
-                  ownCard: const Text('own-card'),
-                  partnerCard: const Text('partner-card'),
+                        ),
+                      const Text('question'),
+                      RevealPairGroup(
+                        beats: beats,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('own-card'),
+                            RevealPartnerEntry(
+                              beats: beats,
+                              child: const Text('partner-card'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 );
                 final directed = Directionality(
                   textDirection: direction,
@@ -74,14 +91,32 @@ void main() {
   });
 
   testWidgets('beat 1: the partner card unfolds toward the pair — its entry '
-      'opacity climbs and it rises to rest by the beat end', (tester) async {
+      'opacity climbs and it rises to rest by the beat end; the strip and '
+      'question NEVER fade (they were already on screen)', (tester) async {
     await pumpChoreography(tester);
 
-    // First frame: the entry begins — partner faded out, group faded out.
+    // First frame: the entry begins — partner faded out, pair group faded out.
     final p0 = partnerOpacity(tester);
     final top0 = tester.getTopLeft(find.text('partner-card')).dy;
     expect(p0, lessThan(1.0));
     expect(groupOpacity(tester), lessThan(1.0));
+    // The strip and question sit OUTSIDE the fade group: no Opacity ancestor
+    // from the choreography wraps them (the pair Opacity is not their
+    // ancestor), so they render settled from frame one.
+    expect(
+      find.ancestor(
+        of: find.text('strip'),
+        matching: find.byKey(revealChoreographyOpacityKey),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.ancestor(
+        of: find.text('question'),
+        matching: find.byKey(revealChoreographyOpacityKey),
+      ),
+      findsNothing,
+    );
 
     // Mid beat 1: both climb; the card has risen toward its pair (smaller dy).
     await tester.pump(const Duration(milliseconds: 150));
@@ -135,7 +170,7 @@ void main() {
     expect(find.text('strip'), findsOneWidget);
   });
 
-  testWidgets('at rest the group Opacity is 1 and every transform is retired '
+  testWidgets('at rest the pair Opacity is 1 and every transform is retired '
       '(the settled tree is pixel-neutral)', (tester) async {
     await pumpChoreography(tester);
     await settleAll(tester);
@@ -148,8 +183,9 @@ void main() {
     expect(find.text('partner-card'), findsOneWidget);
   });
 
-  testWidgets('a null streakStripBuilder mounts no strip slot and still '
-      'completes the beats', (tester) async {
+  testWidgets('composing without a strip still completes the beats', (
+    tester,
+  ) async {
     var settles = 0;
     await pumpChoreography(tester, withStrip: false, onSettle: () => settles++);
     await settleAll(tester);

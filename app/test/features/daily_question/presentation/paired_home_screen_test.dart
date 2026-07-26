@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
+import 'package:hayati_app/core/widgets/seed_vessel.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/coach/domain/coach_repository_provider.dart';
@@ -510,17 +511,19 @@ void main() {
     });
   });
 
-  group('streak (M3.4)', () {
-    // A couple carrying a positive server streak (ADR-012). The revealed state
-    // shows it; every other state must not.
-    Couple coupleWithStreak(int count) => Couple(
+  group('streak strip (redesign ui-ux §6.3 — the seed vessel)', () {
+    // A couple carrying a positive server streak (ADR-012). The strip is
+    // ALWAYS present on the question view since the redesign (the vessel
+    // carries the streak language in every state); a zero count renders the
+    // empty vessel + the canonical honest line, never a fake streak.
+    Couple coupleWithStreak(int count, {int graceTokens = 1}) => Couple(
       id: coupleId,
       memberUids: const [ownUid, partnerUid],
       timezone: istanbul,
       streak: CoupleStreak(
         count: count,
         lastMutualDate: '20260709',
-        graceTokens: 1,
+        graceTokens: graceTokens,
       ),
     );
 
@@ -531,9 +534,8 @@ void main() {
           ackedAnswer('Partner reply here.'),
     };
 
-    testWidgets('revealed with count > 0 shows the localized N-day streak', (
-      tester,
-    ) async {
+    testWidgets('revealed with count > 0 shows the seeds/days line beside the '
+        'vessel (the Material heart is retired)', (tester) async {
       await pumpPaired(
         tester,
         couple: coupleWithStreak(4),
@@ -543,12 +545,12 @@ void main() {
 
       // Sanity: we are in the revealed state.
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      // The streak row: exact localized copy + its heart marker.
-      expect(find.text(en.pairedStreak(4)), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.text(en.streakSeeds(4)), findsOneWidget);
+      expect(find.byType(SeedVessel), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
     });
 
-    testWidgets('revealed under a PREMIUM mirror renders the streak row '
+    testWidgets('revealed under a PREMIUM mirror renders the strip '
         'identically (never hidden for premium)', (tester) async {
       await pumpPaired(
         tester,
@@ -559,34 +561,35 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      expect(find.text(en.pairedStreak(4)), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.text(en.streakSeeds(4)), findsOneWidget);
+      expect(find.byType(SeedVessel), findsOneWidget);
     });
 
-    testWidgets('revealed with the zero streak renders NOTHING (honest '
-        'display — trigger lag must not show a zero)', (tester) async {
+    testWidgets('revealed with the zero streak shows the empty vessel + the '
+        'canonical empty line — never a zero count (honest display: trigger '
+        'lag must not show a streak)', (tester) async {
       // Default couple = CoupleStreak.zero (count 0).
       await pumpPaired(tester, initialAnswers: bothAnswered());
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
-      // Even the count-0 caption must never appear (guards against a `>= 0`
-      // gate regression).
-      expect(find.text(en.pairedStreak(0)), findsNothing);
+      expect(find.text(en.streakVesselEmpty), findsOneWidget);
+      // The count line must never render a zero (guards a `>= 0` regression).
+      expect(find.text(en.streakSeeds(0)), findsNothing);
+      expect(find.byType(SeedVessel), findsOneWidget);
     });
 
-    testWidgets('locked (pre-answer) hides the streak even with a positive '
-        'count', (tester) async {
+    testWidgets('locked (pre-answer) SHOWS the strip — the vessel is the '
+        'always-present streak language since the redesign', (tester) async {
       await pumpPaired(tester, couple: coupleWithStreak(4));
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedPartnerLocked), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
-      expect(find.text(en.pairedStreak(4)), findsNothing);
+      expect(find.text(en.streakSeeds(4)), findsOneWidget);
+      expect(find.byType(SeedVessel), findsOneWidget);
     });
 
-    testWidgets('waiting (own answered, partner not) hides the streak', (
+    testWidgets('waiting (own answered, partner not) shows the strip', (
       tester,
     ) async {
       await pumpPaired(
@@ -600,15 +603,40 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.text(en.streakSeeds(4)), findsOneWidget);
     });
 
-    testWidgets('no-day-yet hides the streak', (tester) async {
+    testWidgets('a spent grace token (graceTokens == 0) surfaces the mercy '
+        'caption in the strip', (tester) async {
+      await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4, graceTokens: 0),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(en.streakMercyUsed), findsOneWidget);
+    });
+
+    testWidgets('an available grace token stays silent — no mercy caption', (
+      tester,
+    ) async {
+      await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(en.streakMercyUsed), findsNothing);
+    });
+
+    testWidgets('no-day-yet carries no strip (the vessel lives on the '
+        'question view only)', (tester) async {
       await pumpPaired(tester, couple: coupleWithStreak(4), seedDay: false);
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedNoDayTitle), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.byType(SeedVessel), findsNothing);
+      expect(find.text(en.streakSeeds(4)), findsNothing);
     });
   });
 

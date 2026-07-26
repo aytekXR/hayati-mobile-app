@@ -24,6 +24,7 @@ import '../domain/solo_clock.dart';
 import 'state/paired_answer_controller.dart';
 import 'state/paired_providers.dart';
 import 'state/partner_slot.dart';
+import 'streak_strip.dart';
 
 /// The paired couple's home (M3.3, docs/architecture.md §3/§4): today's
 /// server-assigned question with the answer entry and the mutual-reveal
@@ -324,10 +325,6 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    final save = ref.watch(pairedAnswerControllerProvider);
-    final saving = save is PairedSaveSaving;
     final revealed = widget.slot is PartnerSlotRevealed;
     return Scaffold(
       body: SafeArea(
@@ -337,155 +334,179 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
               horizontal: SpacingTokens.screenGutter,
               vertical: SpacingTokens.x6,
             ),
+            // The reveal — the product (brandkit §9.3, "the reveal is the
+            // product; spend polish budget there") — is staged as the
+            // three-beat choreography (redesign ui-ux §11): the partner's card
+            // unfolds toward yours → both settle as a pair (the gentle haptic
+            // fires at that settle via onSettle — guarded once per instance,
+            // since the revealed branch also mounts on
+            // cold-open-into-revealed) → one seed drops into the streak
+            // strip's vessel at the top of the view. The strip and the
+            // question stay OUTSIDE the fade (they were already on screen
+            // pre-reveal); only the answer pair crossfades in.
+            child: revealed
+                ? RevealChoreography(
+                    onSettle: _fireRevealHaptic,
+                    builder: (context, beats) =>
+                        _questionColumn(context, beats: beats),
+                  )
+                : _questionColumn(context, beats: null),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The question view's single column, shared by the writing states and the
+  /// reveal ([beats] non-null exactly when revealed — it drives the pair's
+  /// crossfade/settle and the strip's seed-drop).
+  Widget _questionColumn(BuildContext context, {required RevealBeats? beats}) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final save = ref.watch(pairedAnswerControllerProvider);
+    final saving = save is PairedSaveSaving;
+    final revealed = beats != null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // The streak strip (ui-ux §6.3 layout slot 2): always present on the
+        // question view — the vessel carries the streak language in every
+        // state, honestly (count 0 renders the empty vessel + the canonical
+        // empty line, never a fake streak). The seed-drop wires in only when
+        // the reveal is live AND there is a seed to celebrate (count > 0 —
+        // trigger lag never drops a seed into an empty-line strip).
+        StreakStrip(
+          streak: widget.streak,
+          streakSafe: revealed,
+          seedDrop: revealed && widget.streak.count > 0 ? beats.seedDrop : null,
+        ),
+        const SizedBox(height: SpacingTokens.x6),
+        Text(
+          l10n.pairedQuestionTitle,
+          style: theme.textTheme.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: SpacingTokens.x3),
+        Text(
+          widget.question.text,
+          style: theme.textTheme.headlineMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: SpacingTokens.x6),
+        if (revealed)
+          // Own and partner render at EQUAL weight (brandkit §9.1, "two
+          // people, one screen state") and GROUPED (x4 — tighter than the x6
+          // that sets the reveal apart from the affordances below), so the two
+          // answers read as one shared moment, not a list.
+          RevealPairGroup(
+            opacityKey: revealUnfoldOpacityKey,
+            beats: beats,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  l10n.pairedQuestionTitle,
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
+                // Frozen by rules once both answered: read-only own card.
+                _AnswerCard(
+                  label: l10n.pairedRevealedCaption,
+                  text: widget.persisted?.text ?? _entry,
                 ),
-                const SizedBox(height: SpacingTokens.x3),
-                Text(
-                  widget.question.text,
-                  style: theme.textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: SpacingTokens.x6),
-                if (revealed)
-                  // The reveal — the product (brandkit §9.3, "the reveal is the
-                  // product; spend polish budget there"), staged as the
-                  // three-beat choreography (redesign ui-ux §11): the partner's
-                  // card unfolds toward yours → both settle as a pair (the
-                  // gentle haptic fires at that settle, via onSettle — guarded
-                  // once per instance since this branch also mounts on
-                  // cold-open-into-revealed) → one seed drops into the streak
-                  // strip. Own and partner render at EQUAL weight (brandkit
-                  // §9.1, "two people, one screen state") and GROUPED (x4 —
-                  // tighter than the x6 that sets the reveal apart from the
-                  // affordances below), so the two answers read as one shared
-                  // moment, not a list. The streak strip renders ONLY when
-                  // count > 0 — a zero count renders nothing (reveal-trigger
-                  // lag must never surface as a real streak), which is why the
-                  // zero-streak revealed goldens carry no row.
-                  RevealChoreography(
-                    opacityKey: revealUnfoldOpacityKey,
-                    onSettle: _fireRevealHaptic,
-                    streakStripBuilder: widget.streak.count > 0
-                        ? (context, seedDrop) => SeedDropOverlay(
-                            progress: seedDrop,
-                            child: _StreakRow(count: widget.streak.count),
-                          )
-                        : null,
-                    stripGap: SpacingTokens.x3,
-                    pairGap: SpacingTokens.x4,
-                    // Frozen by rules once both answered: read-only own card.
-                    ownCard: _AnswerCard(
-                      label: l10n.pairedRevealedCaption,
-                      text: widget.persisted?.text ?? _entry,
-                    ),
-                    // Rendered DIRECTLY (not via _PartnerSlotCard) because this
-                    // branch is reached only when the slot is revealed.
-                    partnerCard: _AnswerCard(
-                      label: l10n.pairedPartnerAnswerLabel,
-                      text: (widget.slot as PartnerSlotRevealed).answer.text,
-                    ),
-                  )
-                else ...[
-                  TextField(
-                    controller: _controller,
-                    enabled: !saving,
-                    minLines: 3,
-                    maxLines: 6,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.newline,
-                    // Hard cap at the rules ceiling — an over-length entry
-                    // must be unrepresentable, not a server-denied dead end.
-                    inputFormatters: [
-                      LengthLimitingTextInputFormatter(coupleAnswerMaxLength),
-                    ],
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: l10n.pairedAnswerHint,
-                    ),
+                const SizedBox(height: SpacingTokens.x4),
+                // Rendered DIRECTLY (not via _PartnerSlotCard) because this
+                // branch is reached only when the slot is revealed.
+                RevealPartnerEntry(
+                  beats: beats,
+                  child: _AnswerCard(
+                    label: l10n.pairedPartnerAnswerLabel,
+                    text: (widget.slot as PartnerSlotRevealed).answer.text,
                   ),
-                  if (_saved) ...[
-                    const SizedBox(height: SpacingTokens.x3),
-                    Text(
-                      l10n.pairedAnswerSavedCaption,
-                      style: theme.textTheme.bodySmall,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                  if (save case PairedSaveFailure(:final failure)) ...[
-                    const SizedBox(height: SpacingTokens.x3),
-                    // Error copy in the theme's alert colour.
-                    Text(
-                      switch (failure) {
-                        CoupleDataNetworkException() => l10n.errorNetworkRetry,
-                        CoupleDataPermissionException() ||
-                        CoupleDataUnknownException() => l10n.errorGeneric,
-                      },
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                  const SizedBox(height: SpacingTokens.x6),
-                  if (saving)
-                    const FilledButton(
-                      onPressed: null,
-                      child: SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  else
-                    FilledButton(
-                      onPressed: (_entry.isEmpty || _saved) ? null : _save,
-                      child: Text(l10n.pairedAnswerSave),
-                    ),
-                  // The partner-slot status card (locked / waiting / failure)
-                  // belongs to the non-revealed path ONLY — the revealed path
-                  // renders the partner's answer inside the unfold group above.
-                  // Its x6 spacer moved in here with it (it used to be an
-                  // unconditional spacer below the if/else); co-locating both so
-                  // the non-revealed column is byte-for-byte what it was:
-                  // button → x6 → slot → x6 → packs.
-                  const SizedBox(height: SpacingTokens.x6),
-                  _PartnerSlotCard(slot: widget.slot),
-                ],
-                // The quiet packs affordance (ADR-014 Decision 4): mounted
-                // INSIDE the question view only, so the daily loop's other
-                // states (no_day_yet, pack-update, error, loading) carry no
-                // tile and their goldens stay byte-identical. The x6 above is
-                // the single unconditional gap before the affordances in EVERY
-                // question-view state (reveal and non-reveal alike).
-                const SizedBox(height: SpacingTokens.x6),
-                _PacksTile(coupleId: widget.coupleId),
-                // The quiet coach affordance (ADR-017 Decision 1): the tile AND
-                // its inter-sibling spacer live INSIDE the gate's unlocked
-                // subtree, so a free couple renders literally nothing — no
-                // tile, no spacer, no pixel shift, and every existing free-tier
-                // paired-home golden stays byte-identical.
-                PremiumGate(
-                  coupleId: widget.coupleId,
-                  unlocked: Column(
-                    children: [
-                      const SizedBox(height: SpacingTokens.x6),
-                      _CoachTile(uid: widget.uid, coupleId: widget.coupleId),
-                    ],
-                  ),
-                  locked: const SizedBox.shrink(),
                 ),
               ],
             ),
+          )
+        else ...[
+          TextField(
+            controller: _controller,
+            enabled: !saving,
+            minLines: 3,
+            maxLines: 6,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.newline,
+            // Hard cap at the rules ceiling — an over-length entry
+            // must be unrepresentable, not a server-denied dead end.
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(coupleAnswerMaxLength),
+            ],
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(hintText: l10n.pairedAnswerHint),
           ),
+          if (_saved) ...[
+            const SizedBox(height: SpacingTokens.x3),
+            Text(
+              l10n.pairedAnswerSavedCaption,
+              style: theme.textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+          ],
+          if (save case PairedSaveFailure(:final failure)) ...[
+            const SizedBox(height: SpacingTokens.x3),
+            // Error copy in the theme's alert colour.
+            Text(
+              switch (failure) {
+                CoupleDataNetworkException() => l10n.errorNetworkRetry,
+                CoupleDataPermissionException() ||
+                CoupleDataUnknownException() => l10n.errorGeneric,
+              },
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: SpacingTokens.x6),
+          if (saving)
+            const FilledButton(
+              onPressed: null,
+              child: SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            FilledButton(
+              onPressed: (_entry.isEmpty || _saved) ? null : _save,
+              child: Text(l10n.pairedAnswerSave),
+            ),
+          // The partner-slot status card (locked / waiting / failure) belongs
+          // to the non-revealed path ONLY — the revealed path renders the
+          // partner's answer inside the pair group above. Column shape:
+          // button → x6 → slot → x6 → packs.
+          const SizedBox(height: SpacingTokens.x6),
+          _PartnerSlotCard(slot: widget.slot),
+        ],
+        // The quiet packs affordance (ADR-014 Decision 4): mounted INSIDE the
+        // question view only, so the daily loop's other states (no_day_yet,
+        // pack-update, error, loading) carry no tile — and no strip either.
+        // The x6 above is the single unconditional gap before the affordances
+        // in EVERY question-view state (reveal and non-reveal alike).
+        const SizedBox(height: SpacingTokens.x6),
+        _PacksTile(coupleId: widget.coupleId),
+        // The quiet coach affordance (ADR-017 Decision 1): the tile AND its
+        // inter-sibling spacer live INSIDE the gate's unlocked subtree, so a
+        // free couple renders literally nothing — no tile, no spacer, no
+        // pixel shift.
+        PremiumGate(
+          coupleId: widget.coupleId,
+          unlocked: Column(
+            children: [
+              const SizedBox(height: SpacingTokens.x6),
+              _CoachTile(uid: widget.uid, coupleId: widget.coupleId),
+            ],
+          ),
+          locked: const SizedBox.shrink(),
         ),
-      ),
+      ],
     );
   }
 }
@@ -721,39 +742,6 @@ class _AnswerCard extends StatelessWidget {
 /// pixel-neutral, so no settled golden moved with the swap.
 @visibleForTesting
 const revealUnfoldOpacityKey = ValueKey<String>('reveal-unfold-opacity');
-
-/// The couple's mutual-day streak as a modest, centered row (M3.4, ADR-012 /
-/// PRD F3). A display slot only — deliberately NOT a celebration screen (that
-/// is M5 polish): no animation, no gold, just the pomegranate heart (the
-/// couple's bond) and the localized "N-day streak" caption. The caller gates
-/// on [count] > 0, so this never renders a zero streak.
-class _StreakRow extends StatelessWidget {
-  const _StreakRow({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.favorite, size: 18, color: theme.colorScheme.primary),
-        const SizedBox(width: SpacingTokens.x2),
-        // Flexible so a long localized/scaled caption wraps instead of
-        // overflowing the centered row.
-        Flexible(
-          child: Text(
-            l10n.pairedStreak(count),
-            style: theme.textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 /// The rollover has not assigned today's doc yet (pre-first-rollover, the
 /// ≤1h post-midnight window, or deploy lag). No retry button: the day watch
