@@ -1,7 +1,7 @@
 name: hayati_app
 description: "Hayati — the private daily ritual for two. See docs/ at the repo root."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.1.0+4
 
 environment:
   sdk: ^3.12.2

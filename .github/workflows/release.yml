@@ -255,7 +255,7 @@ jobs:
     # (ADR-021 D4 rev 2, REL-2). Referencing a not-yet-existing environment is safe
     # (GitHub auto-creates it; with no secrets the gate fails closed as designed).
     needs: [preflight, integration, build-report]
-    runs-on: macos-15
+    runs-on: macos-26          # Apple requires the iOS 26 SDK (Xcode 26) for App Store uploads
     timeout-minutes: 45
     environment: release
     steps:
@@ -333,27 +333,37 @@ jobs:
       - name: pub get
         working-directory: app
         run: flutter pub get
-      - name: fastlane beta (cloud sign + TestFlight)
-        # `flutter build ipa` cloud signing + upload_to_testflight + deliver, all
-        # authenticated by the one ASC API key. UNVERIFIABLE from a Linux session
-        # with zero secrets — the first real tag run after enrollment may need a
-        # Mac-era fix (likeliest: the automatic-signing DEVELOPMENT_TEAM build
-        # setting no secret currently carries). Accepted and recorded (ADR-021 D5);
-        # the fail-closed gate above guarantees the failure mode stays loud.
+      - name: select Xcode 26 (Apple rejects uploads built with an older SDK)
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+      - name: fastlane beta (match sign + TestFlight)
+        # match installs the Apple Distribution cert + App Store profile from the
+        # encrypted MATCH_GIT_URL into the CI keychain, then the Flutter build signs
+        # MANUALLY against them — GitHub-hosted runners have no Xcode Apple ID for
+        # automatic cloud signing, which fails "No valid code signing certificates
+        # were found" (Session 039; mirrors the sibling Unhooked app). FIRST run:
+        # repo Variable MATCH_BOOTSTRAP=true so match mints+pushes, then delete it.
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_P8_PATH: ${{ runner.temp }}/AuthKey.p8
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_BOOTSTRAP: ${{ vars.MATCH_BOOTSTRAP }}
+          # Publishable RevenueCat iOS SDK key (repo variable, ships in the binary).
+          REVENUECAT_IOS_API_KEY: ${{ vars.REVENUECAT_IOS_API_KEY }}
         run: bundle exec fastlane ios beta
       - name: fastlane store_metadata (deliver per locale)
-        # Pushes fastlane/metadata TR/EN via deliver(skip_binary_upload). Gated
-        # behind the same boundary, so store copy cannot reach App Store Connect
-        # from CI until enrollment — consistent with the copy being native-review-
-        # gated anyway (ADR-020 D8 / ADR-021 D2).
+        # Pushes fastlane/metadata TR/EN via deliver(skip_binary_upload). NON-BLOCKING
+        # (continue-on-error): store copy is native-review-gated (ADR-020 D8) and must
+        # never fail the run — the TestFlight binary already shipped in the step above.
+        continue-on-error: true
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_P8_PATH: ${{ runner.temp }}/AuthKey.p8
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
         run: bundle exec fastlane ios store_metadata
 
   slack-notify:
