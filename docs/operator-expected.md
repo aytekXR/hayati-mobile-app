@@ -10,13 +10,19 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-26, **Session 041 close** — the session that ran the release lane for the first time._
+_Last refreshed: 2026-07-26, **Session 042 close** — the session that finished the coach. **The MVP feature set is now code-complete.**_
 
 _**🚀 The backend is LIVE on `hayatiapp-dev`** (you flipped Blaze in S040): ten of eleven Cloud Functions deployed in `europe-west1`, the hourly rollover an ENABLED Scheduler job, the reveal trigger ACTIVE with retries. Verified again at S041 close — the sweep has now run cleanly every hour since, including the seasonal-calendar self-check reporting healthy from the real runtime._
 
 _**🔑 And you unblocked two more things overnight, which is why this page changed a lot.** You added the three `ASC_*` signing secrets (23:36 UTC) **and** created the `LLM_API_KEY` secret. Session 041 spent itself on the first: it removed the last repo-side blocker to a signed build and then **ran the release lane for real** — it got all the way to Apple before stopping on a provisioning prerequisite. **Item 4 below tells you the two small things to check (~10 min).** The coach key you added unblocks the live coach (item 6), whose code is sitting in an open PR and is the next session's work._
 
-_The whole MVP is built, tested and merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX redesign)._
+_**🗣️ The coach is real now (Session 042).** The last piece of code in the MVP — the live AI adapter — is merged and **deployed**. Your `LLM_API_KEY` is bound to the running `coachProxy` on `hayatiapp-dev` (verified: revision `coachproxy-00004-van`, ACTIVE, the key wired, an unauthenticated call correctly refused). **The MVP feature set is code-complete**: there is no remaining feature a session is waiting to write._
+
+_**⚠️ One thing you will SEE, and it is deliberate: the app will ask you to agree to the privacy notice again.** Naming Anthropic as the coach's AI provider is a new recipient of your coach messages and a new cross-border transfer, so the legal version went from 1 to 2 and every user is re-asked — exactly what the consent design promised would happen when a provider was named. It is one screen, once. Doing it now, before launch, is free; doing it after would have re-asked real users._
+
+_**What the notice now says, and what it deliberately does not.** It says Anthropic processes your coach messages in the moment to write a reply and **does not use them to train its models** (true under their commercial API terms). It stops short of claiming Anthropic **retains nothing** — their default API retention is limited but not zero. **You can make that stronger:** enable **zero-data-retention** on your Anthropic organisation, and a session will tighten the wording to match. That is optional, not blocking._
+
+_Also new since your last read: the legal bundle's TR/AR/EN privacy policies all name Anthropic and carry **version 2**, and `docs/dpa-inventory.md` gained an Anthropic row — which adds a real legal to-do under item 9(d): Anthropic is a **US processor**, so the KVKK standard-contract leg + the 5-business-day Kurum filing now cover them too._
 
 _What did change: Session 037 shipped **seasonal question windows** (ADR-026)
 — the machinery that lets a question be tagged `ramadan`, `eid_fitr`,
