@@ -85,7 +85,7 @@ diff so they stop claiming more than the mechanism carries.
 
 ### D2 — Hijri via ICU `islamic-umalqura`, zero dependency — with a loud availability guard, because the silent fallback is Gregorian
 
-Node 20 (the pinned Functions runtime) ships full ICU, which carries the
+Node 22 (the pinned Functions runtime — **bumped from Node 20 in S043/ADR-030**, and the Umm al-Qura availability re-verified on the new runtime, ICU 78, both locally and from the deployed sweep) ships full ICU, which carries the
 Umm al-Qura civil calendar. The conversion is one `Intl.DateTimeFormat` —
 the same primitive `day-key.ts` already uses, so no new dependency, no
 hand-rolled arithmetic, and no calendar table to maintain:
