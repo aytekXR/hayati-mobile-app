@@ -7,17 +7,13 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Hayati App</string>
+	<string>İkimiz</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
-	<!-- The store "Languages" row and the per-app language picker derive from
-	     the binary's declared localizations: the app ships TR/AR/EN + RTL, so
-	     the listing must not honestly claim EN-only (ADR-020 D7). Kept in sync
-	     with the pbxproj knownRegions + the InfoPlist.strings variant group. -->
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>en</string>
@@ -34,11 +30,6 @@
 	<string>????</string>
 	<key>CFBundleURLTypes</key>
 	<array>
-		<!-- Google Sign-In callback schemes (REVERSED_CLIENT_ID), one per
-		     flavor: dev (hayatiapp-dev) + prod (hayatiapp-prod). One Runner
-		     serves both Dart-entrypoint flavors, so both are registered;
-		     the client id itself is passed at runtime via
-		     GoogleSignInConfig (issue #5). -->
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
@@ -48,10 +39,6 @@
 				<string>com.googleusercontent.apps.419979715508-qmpgoq7stv6tf6f1dgelmd47hc6m62ag</string>
 			</array>
 		</dict>
-		<!-- Custom scheme for invite deep links (hayati://invite/<code>),
-		     M2.2. Universal links (associated domains) are deferred until
-		     Apple Developer enrollment lands (FOUNDER-ACTIONS). Parsed by
-		     app_links → PendingInvite. -->
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
@@ -65,30 +52,12 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<!-- Export compliance: the app uses only standard TLS (HTTPS to Firebase +
-	     the coach proxy), no proprietary or non-exempt cryptography. Declaring
-	     this here answers Apple's export-compliance question at build time so it
-	     never blocks a TestFlight/App Store upload (operator runbook + ADR-020 D7). -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<!-- The Face ID prompt's purpose string (ADR-018 Decision 7). Biometric is
-	     only ever an ACCELERATOR for the app PIN, never the credential, and the
-	     seam pins `biometricOnly: true` so the device passcode is never a
-	     fallback. This string here is the development-region (en) value; the
-	     localized overrides live in {en,tr,ar}.lproj/InfoPlist.strings, closing
-	     ADR-018 D7's EN-only deferral (ADR-020 D7). -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>Unlock Hayati with Face ID.</string>
-	<!-- Local Network purpose string. In production the shipping app makes NO
-	     LAN connections (all traffic is HTTPS to Firebase + the coach proxy), so
-	     iOS never raises this prompt. It exists solely so the founder's on-device
-	     emulator rig (operator recipe Phase 5: the AUTH_EMULATOR_HOST dart-define
-	     pointing at the Mac's LAN IP) gets a proper Local-Network consent prompt
-	     under iOS 26's strict LAN privacy, instead of a silent connection failure.
-	     Harmless in prod; localized ×3 via the InfoPlist.strings variant group,
-	     same precedent as NSFaceIDUsageDescription (ADR-020 D7). Issue #55 rider. -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Hayati connects to the Firebase emulators on your Mac for on-device testing.</string>
 	<key>UIApplicationSceneManifest</key>
