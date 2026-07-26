@@ -1,0 +1,269 @@
+<!-- @dsCard group="Screens" name="Paywall" subtitle="EN + TR lifetime storefront · entitled & processing states · AR/RTL" width="960" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hayati — Paywall screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300..800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F5F5F4;font-family:'Rubik',-apple-system,'Segoe UI',sans-serif;color:#4A4552;padding:44px 20px 72px}
+.wrap{max-width:960px;margin:0 auto}
+.card-head{margin-bottom:30px}
+.card-head h1{font-size:20px;font-weight:700;color:#26212E}
+.card-head p{font-size:13.5px;line-height:1.55;color:#6F697A;margin-top:6px;max-width:78ch}
+.row{display:flex;flex-wrap:wrap;gap:44px 40px;margin-bottom:48px;align-items:flex-start}
+.fig{width:390px}
+.fig.wide{width:526px}
+.col{display:flex;flex-direction:column;gap:32px}
+.figcap{margin-top:14px;font-size:12px;line-height:1.55;color:#6F697A}
+.figcap b{display:block;font-size:12.5px;font-weight:600;color:#26212E;margin-bottom:2px}
+.hex{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#7A7484;background:#ECEAE5;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.phone{width:390px;height:844px;background:#231A33;border-radius:54px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 12px #160E22,0 30px 60px -18px rgba(22,14,34,.5)}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:122px;height:34px;background:#160E22;border-radius:20px;z-index:6}
+.sbar{height:56px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 34px 8px;position:relative;z-index:5}
+.sbar .t{font-size:15px;font-weight:600;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.homebar{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#F3E7D7;opacity:.32;z-index:6}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.h1{font-size:24px;font-weight:700;line-height:1.25;color:#F3E7D7}
+.h2{font-size:20px;font-weight:600;line-height:1.3;color:#F3E7D7}
+.body{font-size:16px;font-weight:400;line-height:1.5;color:#F3E7D7}
+[dir=rtl] .body{line-height:1.7}
+.em{font-weight:600}
+.cap{font-size:13px;font-weight:400;line-height:1.45;color:#B9AFC6}
+.mist{color:#B9AFC6}.sage{color:#8FAE8B}.rose{color:#E38E99}.clay{color:#B98A6E}.sand{color:#F3E7D7}
+.btn{height:52px;border-radius:26px;background:#C04A5A;color:#FFF8F1;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.card{background:#2E2344;border-radius:16px;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28)}
+.gut{padding-left:20px;padding-right:20px}
+.tab{font-variant-numeric:tabular-nums}
+.pkg{background:#2E2344;border:1px solid #453A5C;border-radius:16px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;position:relative;box-shadow:0 2px 8px rgba(22,14,34,.28)}
+.pkg.sel{border:2px solid #C04A5A;padding:12px 15px}
+.badge{position:absolute;top:-10px;background:#D9A441;color:#231A33;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px}
+.pkg .badge{right:14px}
+[dir=rtl] .pkg .badge{right:auto;left:14px}
+.price{font-size:20px;font-weight:700;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.night-panel{background:#231A33;border-radius:24px;padding:24px;box-shadow:0 6px 24px rgba(22,14,34,.36)}
+.plabel{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#B9AFC6;margin-bottom:16px}
+.trial{border:1px solid #8FAE8B;border-radius:16px;background:#2E2344;padding:10px 14px;display:flex;align-items:center;gap:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="card-head">
+  <h1>Screens · Paywall — convert with dignity</h1>
+  <p>“One subscription. Premium for both of you.” is the differentiator — no per-person tax on being together. Gold <span class="hex">#D9A441</span> appears exactly twice on the whole surface: the Best value badge and the entitled premium mark — celebration and premium only, never body text. No fake social proof, no countdowns, no decoy pricing. Layout per ui-ux-redesign §6.4; strings from the shipped ARBs + product-copy.md. Canon price anchors: ≈ ₺74,99/month (annual sub-label) and ₺2,499 lifetime (feasibility §6); other figures are illustrative — the app always renders verbatim StoreKit prices.</p>
+</header>
+
+<!-- ══════════ ROW 1 ══════════ -->
+<div class="row">
+
+  <!-- EN paywall phone, TR storefront -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="gut" style="padding-top:2px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5 7.5 12l7.5 7.5"/></svg></div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:10px;padding-top:4px">
+          <h1 class="h1">Hayati Premium</h1>
+          <p class="body em" style="margin-top:-4px">One subscription. Premium for both of you.</p>
+          <!-- benefit vignettes -->
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:2px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linejoin="round"><rect x="3" y="10" width="18" height="10" rx="2.5"/><path d="M5 10V7.5A1.5 1.5 0 0 1 6.5 6h11A1.5 1.5 0 0 1 19 7.5V10"/><circle cx="9.5" cy="15" r="1.6" fill="#C04A5A" stroke="none"/><circle cx="14.5" cy="15" r="1.6" fill="#C04A5A" stroke="none"/></svg>
+              <span class="body" style="font-size:14.5px">Every question pack, present and future</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3.5h6M12 3.5V6"/><path d="M8 6h8l1.5 4a5.5 5.5 0 0 1-11 0z"/><path d="M9.5 16.5h5l-.8 4h-3.4z"/></svg>
+              <span class="body" style="font-size:14.5px">The coach — advice, date ideas, gifts</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <svg width="24" height="24" viewBox="0 0 48 48"><path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24)"/><path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24)"/></svg>
+              <span class="body" style="font-size:14.5px">One purchase covers you both</span>
+            </div>
+          </div>
+          <!-- trial banner -->
+          <div class="trial">
+            <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="none" stroke="#8FAE8B" stroke-width="1.75"/><path d="M12 8v13" stroke="#8FAE8B" stroke-width="1.5"/></svg>
+            <span style="font-size:14px;font-weight:600;color:#8FAE8B">Start with a 7-day free trial</span>
+          </div>
+          <!-- packages -->
+          <div class="pkg sel" style="margin-top:6px">
+            <span class="badge">Best value</span>
+            <div><div class="body em">Annual</div><div class="cap tab">≈ ₺74,99/month</div></div>
+            <div style="text-align:right"><span class="price">₺899,99</span><span class="cap">/year</span></div>
+          </div>
+          <div class="pkg">
+            <div class="body em">Monthly</div>
+            <div style="text-align:right"><span class="price">₺119,99</span><span class="cap">/month</span></div>
+          </div>
+          <div class="pkg">
+            <div><div class="body em">Yours forever</div><div class="cap">Pay once. Both of you, for good.</div></div>
+            <span class="price">₺2.499</span>
+          </div>
+          <div class="btn" style="margin-top:6px">Start your free trial</div>
+          <p class="cap" style="text-align:center">Nothing is charged until the trial ends. Cancel anytime in your App Store settings.</p>
+          <p style="text-align:center;font-size:13.5px;font-weight:500;color:#F3E7D7">Your daily question and streak stay free, always.</p>
+          <!-- free / premium table -->
+          <div class="card" style="padding:12px 16px">
+            <div style="display:grid;grid-template-columns:1fr 52px 76px;gap:6px;align-items:center">
+              <span></span><span class="cap" style="font-size:11px;text-align:center">Free</span><span class="cap" style="font-size:11px;text-align:center">Premium</span>
+              <span class="body" style="font-size:13.5px">Daily question &amp; streak</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" style="justify-self:center"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="#8FAE8B"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" style="justify-self:center"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="#8FAE8B"/></svg>
+              <span class="body" style="font-size:13.5px">Every question pack</span>
+              <span class="cap" style="text-align:center">—</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" style="justify-self:center"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="#8FAE8B"/></svg>
+              <span class="body" style="font-size:13.5px">Coach</span>
+              <span class="cap" style="text-align:center">—</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" style="justify-self:center"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="#8FAE8B"/></svg>
+            </div>
+          </div>
+          <p style="text-align:center;font-size:13px;font-weight:600;color:#E38E99;margin-bottom:24px">Restore purchases&nbsp;&nbsp;·&nbsp;&nbsp;Privacy Policy&nbsp;&nbsp;·&nbsp;&nbsp;Terms</p>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Paywall — EN chrome, TR storefront (lifetime present)</b>Annual pre-selected with a 2dp Pomegranate <span class="hex">#C04A5A</span> border; “Best value” is one of the two sanctioned gold uses <span class="hex">#D9A441</span>, label set in Night <span class="hex">#231A33</span>. Trial banner and table checks in Sage <span class="hex">#8FAE8B</span> seed glyphs. The free-tier reassurance is load-bearing copy and never leaves the screen. Prices: ≈ ₺74,99/month and ₺2,499 are canon anchors; ₺899,99 is derived, ₺119,99 illustrative.</figcaption>
+  </figure>
+
+  <!-- right column: TR package stack + states -->
+  <div class="fig wide col">
+    <figure style="margin:0">
+      <div class="night-panel">
+        <p class="plabel">TR storefront — TR chrome (app_tr.arb + product-copy TR)</p>
+        <div class="h2" style="margin-bottom:2px">Hayati Premium</div>
+        <p class="body em" style="margin-bottom:14px">Tek abonelik. İkiniz için Premium.</p>
+        <div class="trial" style="margin-bottom:16px">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="none" stroke="#8FAE8B" stroke-width="1.75"/><path d="M12 8v13" stroke="#8FAE8B" stroke-width="1.5"/></svg>
+          <span style="font-size:14px;font-weight:600;color:#8FAE8B">7 günlük ücretsiz denemeyle başla</span>
+        </div>
+        <div class="pkg sel" style="margin-bottom:12px">
+          <span class="badge">En avantajlı</span>
+          <div><div class="body em">Yıllık</div><div class="cap tab">≈ ₺74,99/ay</div></div>
+          <div style="text-align:right"><span class="price">₺899,99</span><span class="cap">/yıl</span></div>
+        </div>
+        <div class="pkg" style="margin-bottom:12px">
+          <div class="body em">Aylık</div>
+          <div style="text-align:right"><span class="price">₺119,99</span><span class="cap">/ay</span></div>
+        </div>
+        <div class="pkg" style="margin-bottom:16px">
+          <div><div class="body em" lang="tr">Bir kez öde, ikiniz için sonsuza dek.</div></div>
+          <span class="price">₺2.499</span>
+        </div>
+        <div class="btn" style="margin-bottom:12px">Ücretsiz denemeni başlat</div>
+        <p style="text-align:center;font-size:13.5px;font-weight:500;color:#F3E7D7;margin-bottom:10px">Günlük sorunuz ve seriniz her zaman ücretsiz.</p>
+        <p style="text-align:center;font-size:13px;font-weight:600;color:#E38E99">Satın alımları geri yükle</p>
+      </div>
+      <figcaption class="figcap"><b>TR lifetime card — “Yours forever” tier</b>Honors the TR one-time-purchase culture: “Bir kez öde, ikiniz için sonsuza dek.” (product-copy TR, verbatim) at ₺2.499 (feasibility §6). TR storefront only — it never renders in GCC/EN storefronts. Package labels (Yıllık/Aylık) are store-derived product names.</figcaption>
+    </figure>
+
+    <figure style="margin:0">
+      <div class="night-panel">
+        <p class="plabel">Transaction states — durable, honest</p>
+        <div class="card" style="border-top:1px solid #8FAE8B;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="#8FAE8B"/></svg>
+          <span style="font-size:14px;color:#8FAE8B">Purchase received — unlocking for both of you…</span>
+        </div>
+        <div class="card" style="border-top:1px solid #8FAE8B;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="#8FAE8B"/></svg>
+          <span style="font-size:14px;color:#8FAE8B">Restore processed — syncing…</span>
+        </div>
+        <div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:14px">
+          <svg width="30" height="38" viewBox="0 0 30 38"><path d="M15 34V20" stroke="#B98A6E" stroke-width="2" stroke-linecap="round"/><path d="M15 20C10 16 8 11 9 5c4 1 8 4 9 8 .8 3.5-1 6-3 7z" fill="none" stroke="#B98A6E" stroke-width="2" stroke-linejoin="round"/></svg>
+          <div>
+            <p class="body" style="font-size:14.5px">The store isn’t available right now. Please try again in a moment.</p>
+          </div>
+        </div>
+      </div>
+      <figcaption class="figcap"><b>Processing banners + store-unavailable</b>The processing banner is durable until the entitlement mirror flips — it survives navigation (Sage <span class="hex">#8FAE8B</span>, seed-pulse indicator, 800ms breathing loop — the one sanctioned loop). Store-unavailable fails closed with the shared “closed bud” error spot in Clay <span class="hex">#B98A6E</span> — patient, blame-free, no broken metaphors. Cancelled purchase shows no message: cancelling a sheet is a decision, not an error.</figcaption>
+    </figure>
+  </div>
+</div>
+
+<!-- ══════════ ROW 2 ══════════ -->
+<div class="row">
+
+  <!-- entitled phone -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="gut" style="padding-top:2px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5 7.5 12l7.5 7.5"/></svg></div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-bottom:80px">
+          <!-- premium vignette: two seeds under one gold-tipped branch -->
+          <svg width="220" height="150" viewBox="0 0 220 150">
+            <path d="M-10 46 C60 28 130 34 196 58" stroke="#B98A6E" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M164 48 C176 50 188 54 196 58" stroke="#D9A441" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <ellipse cx="70" cy="36" rx="9" ry="3.8" fill="#B98A6E" transform="rotate(-12 70 36)"/>
+            <ellipse cx="120" cy="40" rx="9" ry="3.8" fill="#B98A6E" transform="rotate(8 120 40)"/>
+            <circle cx="196" cy="58" r="4" fill="#D9A441"/>
+            <g transform="translate(86 66) scale(1.15)">
+              <path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24)"/>
+              <path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24)"/>
+              <path d="M31.5 15.5c1.8 1.5 3.4 3.3 4.5 5.2-.3-2.6-2-5.3-4.1-7.3z" fill="#FFF8F1" opacity=".9"/>
+            </g>
+          </svg>
+          <div style="display:inline-flex;align-items:center;gap:7px;border:1px solid #D9A441;border-radius:999px;padding:5px 14px;margin:18px 0 14px">
+            <svg width="13" height="13" viewBox="0 0 24 24"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="#D9A441"/></svg>
+            <span style="font-size:12px;font-weight:600;letter-spacing:.06em;color:#D9A441">PREMIUM</span>
+          </div>
+          <h1 class="h1">You’re Premium</h1>
+          <p class="body mist" style="margin-top:8px">Premium is active for both of you.</p>
+          <p class="cap" style="margin-top:16px">Manage your subscription in your App Store settings.</p>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Entitled view — premium welcome</b>The second sanctioned gold use: the premium mark and the gold-tipped branch over two seeds (“One subscription. Premium for both of you.” made visual). Still by design — no shimmer, no ongoing animation on a settings-class surface. Gold <span class="hex">#D9A441</span> is text-safe on Night (7.4:1) and appears nowhere else on this screen.</figcaption>
+  </figure>
+
+  <!-- AR RTL panel -->
+  <figure class="fig wide">
+    <div class="night-panel" dir="rtl" lang="ar">
+      <p class="plabel" dir="ltr" style="text-align:left">GCC storefront — shipped AR strings (app_ar.arb) · dir="rtl"</p>
+      <div class="h2" style="margin-bottom:2px">حياتي بريميوم</div>
+      <p class="body em" style="margin-bottom:14px">اشتراك واحد. بريميوم لكليكما.</p>
+      <div class="trial" style="margin-bottom:16px">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="none" stroke="#8FAE8B" stroke-width="1.75"/><path d="M12 8v13" stroke="#8FAE8B" stroke-width="1.5"/></svg>
+        <span style="font-size:14px;font-weight:600;color:#8FAE8B">ابدأ بتجربة مجانية لمدة 7 أيام</span>
+      </div>
+      <div class="pkg sel" style="margin-bottom:12px">
+        <span class="badge">أفضل قيمة</span>
+        <div><div class="body em">سنوي</div><div class="cap tab">≈ 149,99 ر.س/شهر</div></div>
+        <div style="text-align:left"><span class="price" dir="ltr">1.799,99 ر.س</span><span class="cap">/سنة</span></div>
+      </div>
+      <div class="pkg" style="margin-bottom:16px">
+        <div class="body em">شهري</div>
+        <div style="text-align:left"><span class="price" dir="ltr">199,99 ر.س</span><span class="cap">/شهر</span></div>
+      </div>
+      <div class="btn" style="margin-bottom:12px">ابدأ تجربتك المجانية</div>
+      <p style="text-align:center;font-size:13.5px;font-weight:500;color:#F3E7D7;margin-bottom:10px">سؤالكما اليومي وسلسلتكما يبقيان مجانيين دائمًا.</p>
+      <p style="text-align:center;font-size:13px;font-weight:600;color:#E38E99">استعادة المشتريات</p>
+    </div>
+    <figcaption class="figcap"><b>Paywall — Arabic, RTL (dir="rtl")</b>Everything shipped canon from app_ar.arb: title, pitch «اشتراك واحد. بريميوم لكليكما.», «أفضل قيمة» badge (mirrors to the start edge), «/سنة» · «/شهر» suffixes, CTA, free-tier reassurance, restore. No lifetime card — that tier is TR-storefront-only. SAR figures are illustrative (StoreKit renders verbatim); Western numerals are the default, Eastern Arabic numerals (٠١٢٣) ship later as an AR setting. Prices keep tabular figures so scaling never jitters.</figcaption>
+  </figure>
+</div>
+
+<footer style="border-top:1px solid #E4E1DB;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center">
+  <span style="font-size:11px;font-weight:600;color:#26212E;letter-spacing:.04em;text-transform:uppercase">Tokens used</span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#231A33;display:inline-block"></i>Night <span class="hex">#231A33</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#2E2344;display:inline-block"></i>Night Raised <span class="hex">#2E2344</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#F3E7D7;display:inline-block;border:1px solid #E4E1DB"></i>Sand <span class="hex">#F3E7D7</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B9AFC6;display:inline-block"></i>Mist <span class="hex">#B9AFC6</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#453A5C;display:inline-block"></i>Veil <span class="hex">#453A5C</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#C04A5A;display:inline-block"></i>Pomegranate <span class="hex">#C04A5A</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8E3140;display:inline-block"></i>Pom. Deep <span class="hex">#8E3140</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#E38E99;display:inline-block"></i>Rose <span class="hex">#E38E99</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#FFF8F1;display:inline-block;border:1px solid #E4E1DB"></i>Moonlight <span class="hex">#FFF8F1</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#D9A441;display:inline-block"></i>Gold <span class="hex">#D9A441</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8FAE8B;display:inline-block"></i>Sage <span class="hex">#8FAE8B</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B98A6E;display:inline-block"></i>Clay <span class="hex">#B98A6E</span></span>
+  <span style="font-size:11px;color:#6F697A">Gold: light-mode pairs use Brass <span class="hex">#866112</span> · Elevation L1 y2 blur8 <span class="hex">#160E22</span> 28% · tabular figures on all prices</span>
+</footer>
+
+</div>
+</body>
+</html>

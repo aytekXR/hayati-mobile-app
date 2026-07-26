@@ -1,0 +1,290 @@
+<!-- @dsCard group="Screens" name="Today — the ritual" subtitle="Paired waiting · the Reveal + reaction row · Solo 7-day · no-question-yet · AR/RTL" width="960" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hayati — Today screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300..800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F5F5F4;font-family:'Rubik',-apple-system,'Segoe UI',sans-serif;color:#4A4552;padding:44px 20px 72px}
+.wrap{max-width:960px;margin:0 auto}
+.card-head{margin-bottom:30px}
+.card-head h1{font-size:20px;font-weight:700;color:#26212E}
+.card-head p{font-size:13.5px;line-height:1.55;color:#6F697A;margin-top:6px;max-width:78ch}
+.row{display:flex;flex-wrap:wrap;gap:44px 40px;margin-bottom:48px;align-items:flex-start}
+.fig{width:390px}
+.fig.wide{width:526px}
+.col{display:flex;flex-direction:column;gap:32px}
+.figcap{margin-top:14px;font-size:12px;line-height:1.55;color:#6F697A}
+.figcap b{display:block;font-size:12.5px;font-weight:600;color:#26212E;margin-bottom:2px}
+.hex{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#7A7484;background:#ECEAE5;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.phone{width:390px;height:844px;background:#231A33;border-radius:54px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 12px #160E22,0 30px 60px -18px rgba(22,14,34,.5)}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:122px;height:34px;background:#160E22;border-radius:20px;z-index:6}
+.sbar{height:56px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 34px 8px;position:relative;z-index:5}
+.sbar .t{font-size:15px;font-weight:600;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.homebar{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#F3E7D7;opacity:.32;z-index:6}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.q{font-size:28px;font-weight:300;line-height:1.35;color:#F3E7D7}
+[dir=rtl] .q{line-height:1.6}
+.h2{font-size:20px;font-weight:600;line-height:1.3;color:#F3E7D7}
+.body{font-size:16px;font-weight:400;line-height:1.5;color:#F3E7D7}
+[dir=rtl] .body{line-height:1.7}
+.em{font-weight:600}
+.cap{font-size:13px;font-weight:400;line-height:1.45;color:#B9AFC6}
+[dir=rtl] .cap{line-height:1.7}
+.mist{color:#B9AFC6}.sage{color:#8FAE8B}
+.btn{height:52px;border-radius:26px;background:#C04A5A;color:#FFF8F1;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.card{background:#2E2344;border-radius:16px;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28)}
+.sealed{position:relative;background:#2E2344;border:1px solid #453A5C;border-radius:16px;box-shadow:0 2px 8px rgba(22,14,34,.28);overflow:hidden}
+.input{background:#2E2344;border:1px solid #453A5C;border-radius:16px;padding:14px 16px;font-size:16px;color:#F3E7D7}
+.gut{padding-left:20px;padding-right:20px}
+.hdr{display:flex;justify-content:space-between;align-items:center;padding:6px 20px 0}
+.reacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.react{width:44px;height:44px;border-radius:22px;background:#231A33;border:1px solid #453A5C;display:inline-flex;align-items:center;justify-content:center;font-size:18px}
+.react.sel{background:#8E3140;border-color:#8E3140}
+.night-panel{background:#231A33;border-radius:24px;padding:24px;box-shadow:0 6px 24px rgba(22,14,34,.36)}
+.plabel{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#B9AFC6;margin-bottom:16px}
+.tile{display:flex;align-items:center;gap:14px;background:#2E2344;border-radius:16px;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28);padding:13px 16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="card-head">
+  <h1>Screens · Today — the stage, and the reveal that is the product</h1>
+  <p>One home, no tab bar, no dashboard between the couple and the question. The question renders in the Question style 28/300 — the day’s hero text; the partner slot is a folded note, never a grey rectangle; and the waiting→revealed transition gets the entire choreography budget (three beats, ≤1.2s, one light haptic, one seed). Layout per ui-ux-redesign §6.3; every visible string verbatim from product-copy.md — answers and questions are sample content. Header: Us glyph start · date Caption centered · gear end.</p>
+</header>
+
+<!-- ══════════ ROW 1 · waiting + revealed ══════════ -->
+<div class="row">
+
+  <!-- Paired home · waiting -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><path d="M4.5 10.5h15c-.6 5-3.6 8-7.5 8s-6.9-3-7.5-8z"/><path d="M9.5 21h5"/><circle cx="10" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/><circle cx="14.2" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/></svg>
+            <span style="position:absolute;top:-4px;right:-8px;background:#8E3140;color:#FFF8F1;font-size:10px;font-weight:600;border-radius:999px;padding:1px 5px;font-variant-numeric:tabular-nums">11</span>
+          </div>
+          <span class="cap">Saturday, 26 July</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.4 5.4l1.9 1.9M16.7 16.7l1.9 1.9M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:14px">
+          <!-- streak strip -->
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="30" height="26" viewBox="0 0 48 40"><path d="M6 14h36c-1.2 12-8 19-18 19S7.2 26 6 14z" fill="#2E2344" stroke="#453A5C"/><path d="M17 36h14" stroke="#B98A6E" stroke-width="2.5" stroke-linecap="round"/><path d="M20 20c1.6 1.9 2.6 3.5 2.6 5.2a2.9 2.9 0 1 1-5.8 0c0-1.7 1.5-3.3 3.2-5.2z" fill="#C04A5A"/><path d="M28 20c1.6 1.9 2.6 3.5 2.6 5.2a2.9 2.9 0 1 1-5.8 0c0-1.7 1.5-3.3 3.2-5.2z" fill="#C04A5A"/></svg>
+            <span class="body" style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">11 seeds <span class="mist" style="font-weight:400">· 11 days together</span></span>
+          </div>
+          <!-- question card -->
+          <div class="card" style="padding:16px;position:relative;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px"><span class="cap">Today’s question</span><span class="cap" style="opacity:.75">Starter collection</span></div>
+            <p class="q" style="font-size:25px">What’s one small moment from this week you didn’t want to end?</p>
+            <svg width="80" height="80" viewBox="0 0 80 80" style="position:absolute;bottom:-12px;right:-12px;opacity:.04" fill="none" stroke="#F3E7D7" stroke-width="1.6"><rect x="16" y="16" width="48" height="48"/><rect x="16" y="16" width="48" height="48" transform="rotate(45 40 40)"/></svg>
+          </div>
+          <!-- your answer, saved -->
+          <div class="card" style="padding:16px">
+            <p class="cap" style="margin-bottom:6px">You</p>
+            <p class="body">Friday evening — tea on the balcony, and you told the story about your grandmother’s garden again.</p>
+          </div>
+          <p class="cap sage" style="margin-top:-4px;padding:0 2px">Saved — you can edit until you both answer.</p>
+          <!-- partner slot, waiting -->
+          <div class="sealed" style="padding:34px 20px 22px;text-align:center">
+            <div style="position:absolute;top:0;left:0;right:0;height:26px;background:rgba(22,14,34,.28);border-bottom:1px solid #453A5C;clip-path:polygon(0 0,100% 0,100% 70%,0 100%)"></div>
+            <svg width="38" height="38" viewBox="0 0 48 48" fill="none" style="margin:0 auto;display:block"><path d="M22.5 33V15.5L10 10v17.5Z" stroke="#B98A6E" stroke-width="1.9" stroke-linejoin="round"/><path d="M25.5 33V15.5L40 6.5V24Z" stroke="#B98A6E" stroke-width="1.9" stroke-linejoin="round"/><path d="M24 14v20" stroke="#F3E7D7" stroke-width="1.9" stroke-linecap="round" opacity=".85"/></svg>
+            <p class="body" style="font-size:15px;margin-top:10px">Your side is done. Aylin’s answer will unfold here.</p>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Paired home — waiting (your side is done)</b>Streak strip replaces the Material heart: miniature vessel glyph + tabular count; tap → Us. The unfold glyph sits half-open — patient, no loop, no countdown (the hourglass is retired). “Saved — you can edit until you both answer.” survives every visual pass, in Sage <span class="hex">#8FAE8B</span>. Question card: 4% lattice watermark bottom-end, pack chip Caption Mist <span class="hex">#B9AFC6</span>.</figcaption>
+  </figure>
+
+  <!-- Paired home · revealed -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">21:32</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><path d="M4.5 10.5h15c-.6 5-3.6 8-7.5 8s-6.9-3-7.5-8z"/><path d="M9.5 21h5"/><circle cx="10" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/><circle cx="14.2" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/></svg>
+            <span style="position:absolute;top:-4px;right:-8px;background:#8E3140;color:#FFF8F1;font-size:10px;font-weight:600;border-radius:999px;padding:1px 5px;font-variant-numeric:tabular-nums">12</span>
+          </div>
+          <span class="cap">Saturday, 26 July</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.4 5.4l1.9 1.9M16.7 16.7l1.9 1.9M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:10px;padding-top:12px">
+          <!-- streak strip with fresh seed -->
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="30" height="26" viewBox="0 0 48 40"><path d="M6 14h36c-1.2 12-8 19-18 19S7.2 26 6 14z" fill="#2E2344" stroke="#453A5C"/><path d="M17 36h14" stroke="#B98A6E" stroke-width="2.5" stroke-linecap="round"/><path d="M20 20c1.6 1.9 2.6 3.5 2.6 5.2a2.9 2.9 0 1 1-5.8 0c0-1.7 1.5-3.3 3.2-5.2z" fill="#C04A5A"/><path d="M28 20c1.6 1.9 2.6 3.5 2.6 5.2a2.9 2.9 0 1 1-5.8 0c0-1.7 1.5-3.3 3.2-5.2z" fill="#C04A5A"/><path d="M28 16.4c1 1.2 1.6 2.2 1.6 3.2" stroke="#8FAE8B" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+            <span class="body" style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">12 seeds <span class="mist" style="font-weight:400">· 12 days together</span></span>
+          </div>
+          <p class="body em" style="text-align:center;margin-top:2px">You both showed up today.</p>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">You</p>
+            <p class="body" style="font-size:15px">Friday evening — tea on the balcony, and you told the story about your grandmother’s garden again.</p>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">Aylin</p>
+            <p class="body" style="font-size:15px">The drive home on Sunday. Neither of us said much, and it was still my favorite part of the week.</p>
+            <div class="reacts">
+              <span class="react sel">❤️</span><span class="react">🥰</span><span class="react">😂</span><span class="react">🤲</span><span class="react">🌹</span><span class="react">✨</span>
+            </div>
+            <div class="input" style="margin-top:10px;padding:11px 14px"><span class="mist" style="font-size:14px">Say something back — only Aylin sees it.</span></div>
+          </div>
+          <p class="cap" style="text-align:center;margin-top:4px">Tomorrow’s question arrives after midnight.</p>
+          <!-- below the fold: quiet tiles -->
+          <div class="tile" style="margin-top:2px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.9" r="1.2"/><path d="M8.4 8.6c0-2.2 1.5-3.5 3.6-3.5s3.6 1.3 3.6 3.5l.9 6.5H7.5z"/><path d="M7.5 15.1 6.8 17.7h10.4l-.7-2.6"/></svg>
+            <div style="flex:1"><p class="body" style="font-size:15px">Coach</p><p class="cap" style="font-size:12px">Advice, date ideas, and gifts — for the two of you</p></div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6l6 6-6 6"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>The Reveal — settled state after the three beats</b>Both cards as a pair, 8dp gap, names over labels (“You” / “Aylin”, Caption Mist). The reaction row (❤️ 🥰 😂 🤲 🌹 + register slot ✨; selected fills Pomegranate Deep <span class="hex">#8E3140</span>) and one-line reply sit under the partner’s card — couple-visible only, frozen with the day. Count crossfaded 11→12; the topmost seed carries the Sage glint. Come-back footer in Mist. Choreography: unfoldReveal 300ms → settlePair (haptic) → seedDrop 420ms; ≤1.2s total, reduce-motion collapses to a crossfade with the haptic preserved.</figcaption>
+  </figure>
+</div>
+
+<!-- ══════════ ROW 2 · solo + AR RTL ══════════ -->
+<div class="row">
+
+  <!-- Solo home -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="hdr">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><path d="M4.5 10.5h15c-.6 5-3.6 8-7.5 8s-6.9-3-7.5-8z"/><path d="M9.5 21h5"/><circle cx="10" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/><circle cx="14.2" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/></svg>
+          <span class="cap">Tuesday, 22 July</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.4 5.4l1.9 1.9M16.7 16.7l1.9 1.9M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:14px;padding-top:14px">
+          <!-- invite nudge, illustrated -->
+          <div class="card" style="padding:16px">
+            <svg viewBox="0 0 320 56" style="width:100%;height:56px;display:block">
+              <path d="M0 44 C70 34 120 30 152 26" stroke="#B98A6E" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+              <path d="M320 50 C260 44 220 38 176 30" stroke="#453A5C" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-dasharray="1 7"/>
+              <ellipse cx="96" cy="34" rx="8" ry="3.4" fill="#B98A6E" transform="rotate(-10 96 34)"/>
+              <path d="M158 14c2.4 2.9 4 5.4 4 7.9a4.4 4.4 0 1 1-8.8 0c0-2.5 2.4-5 4.8-7.9z" fill="#C04A5A"/>
+            </svg>
+            <p class="h2" style="font-size:18px;margin-top:6px">Hayati is better together.</p>
+            <p class="cap" style="margin-top:4px">Invite your partner — your reflections will be waiting when you pair up.</p>
+            <div class="btn" style="height:44px;margin-top:12px;font-size:15px">Invite your partner</div>
+          </div>
+          <!-- seven-seed row -->
+          <div style="display:flex;align-items:center;gap:12px">
+            <svg width="188" height="28" viewBox="0 0 188 28">
+              <defs><linearGradient id="sg3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C04A5A"/><stop offset="1" stop-color="#8E3140"/></linearGradient></defs>
+              <path d="M13 3c3.3 3.9 6 7.4 6 10.8a6 6 0 1 1-12 0C7 10.4 9.7 6.9 13 3z" fill="url(#sg3)"/>
+              <path transform="translate(26 0)" d="M13 3c3.3 3.9 6 7.4 6 10.8a6 6 0 1 1-12 0C7 10.4 9.7 6.9 13 3z" fill="url(#sg3)"/>
+              <path transform="translate(52 0)" d="M13 3c3.3 3.9 6 7.4 6 10.8a6 6 0 1 1-12 0C7 10.4 9.7 6.9 13 3z" fill="url(#sg3)"/>
+              <path transform="translate(78 0)" d="M13 3c3.3 3.9 6 7.4 6 10.8a6 6 0 1 1-12 0C7 10.4 9.7 6.9 13 3z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+              <path transform="translate(104 0)" d="M13 3c3.3 3.9 6 7.4 6 10.8a6 6 0 1 1-12 0C7 10.4 9.7 6.9 13 3z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+              <path transform="translate(130 0)" d="M13 3c3.3 3.9 6 7.4 6 10.8a6 6 0 1 1-12 0C7 10.4 9.7 6.9 13 3z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+              <path transform="translate(156 0)" d="M13 3c3.3 3.9 6 7.4 6 10.8a6 6 0 1 1-12 0C7 10.4 9.7 6.9 13 3z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+            </svg>
+            <span class="cap">Day 3 of 7</span>
+          </div>
+          <p class="q" style="font-size:25px">What does “home” feel like to you these days?</p>
+          <div class="input" style="min-height:88px"><span class="mist">This one’s just for you.</span></div>
+          <div class="btn" style="flex:none">Save answer</div>
+          <p class="cap sage">Saved for today.</p>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Solo home — the streak language taught before pairing</b>Seven seed slots replace “Day 3 of 7” as the progression visual (the caption stays); filled seeds carry the sanctioned gradient <span class="hex">#C04A5A</span>→<span class="hex">#8E3140</span>, empty slots Veil <span class="hex">#453A5C</span> at the 1.75 stroke. On save the day’s seed fills with a 240ms scale-settle. The invite nudge is an illustrated card (branch inclining toward a not-yet-there branch), never a text box; day 8+ keeps the completed state plus the weekly solo reflection.</figcaption>
+  </figure>
+
+  <!-- AR RTL revealed -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen" dir="rtl" lang="ar">
+        <div class="sbar" dir="ltr"><span class="t">21:32</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><path d="M4.5 10.5h15c-.6 5-3.6 8-7.5 8s-6.9-3-7.5-8z"/><path d="M9.5 21h5"/><circle cx="10" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/><circle cx="14.2" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/></svg>
+            <span style="position:absolute;top:-4px;left:-8px;background:#8E3140;color:#FFF8F1;font-size:10px;font-weight:600;border-radius:999px;padding:1px 5px;font-variant-numeric:tabular-nums">12</span>
+          </div>
+          <span class="cap">السبت، 26 يوليو</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.4 5.4l1.9 1.9M16.7 16.7l1.9 1.9M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:10px;padding-top:12px">
+          <p class="body em" style="text-align:center;margin-top:2px">كلاكما حاضر اليوم.</p>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">أنت ◆</p>
+            <p class="body" style="font-size:15px">مساء الخميس على الشرفة — الشاي، والحديث الذي نسينا معه الوقت.</p>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">فهد</p>
+            <p class="body" style="font-size:15px">طريق العودة يوم الجمعة. لم نقل الكثير، وكان أجمل ما في الأسبوع.</p>
+            <div class="reacts">
+              <span class="react sel">❤️</span><span class="react">🥰</span><span class="react">😂</span><span class="react">🤲</span><span class="react">🌹</span><span class="react">🌙</span>
+            </div>
+            <div class="input" style="margin-top:10px;padding:11px 14px"><span class="mist" style="font-size:14px">اكتب ردًّا قصيرًا — لا يراه إلا فهد. ◆</span></div>
+          </div>
+          <p class="cap" style="text-align:center;margin-top:4px">سيصل سؤال الغد بعد منتصف الليل. ◆</p>
+          <div class="tile" style="margin-top:2px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3.9" r="1.2"/><path d="M8.4 8.6c0-2.2 1.5-3.5 3.6-3.5s3.6 1.3 3.6 3.5l.9 6.5H7.5z"/><path d="M7.5 15.1 6.8 17.7h10.4l-.7-2.6"/></svg>
+            <div style="flex:1"><p class="body" style="font-size:15px">المدرب</p><p class="cap" style="font-size:12px">نصائح وأفكار مواعيد وهدايا — لكما معًا ◆</p></div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><path d="M9.5 6l6 6-6 6"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>The Reveal — Arabic, RTL (dir="rtl")</b>«كلاكما حاضر اليوم.» is the canonical revealed caption. Register slot is 🌙 (Gulf-respectful — modest, never neon-dating); Arabic Body at line-height 1.7. In RTL the partner’s card unfolds from the mirrored start side (unfoldReveal is directional); the seed-count badge and chevrons flip via logical properties; the vessel itself is RTL-neutral. Lines marked ◆ are drafts pending Gulf register sign-off; the rest verbatim from product-copy.md. Answers are sample user content.</figcaption>
+  </figure>
+</div>
+
+<!-- ══════════ ROW 3 · empty state ══════════ -->
+<div class="row">
+  <figure class="fig wide">
+    <div class="night-panel">
+      <p class="plabel">No question yet — the honest empty state, “dawn branch”</p>
+      <div style="display:flex;gap:20px;align-items:center">
+        <svg width="150" height="96" viewBox="0 0 160 100" style="flex:none">
+          <g stroke="#F3E7D7" stroke-width="1" opacity=".05" fill="none">
+            <rect x="6" y="6" width="26" height="26"/><rect x="6" y="6" width="26" height="26" transform="rotate(45 19 19)"/>
+          </g>
+          <path d="M126 14 a16 16 0 1 0 11.5 27.5 a12.5 12.5 0 1 1 -11.5 -27.5 Z" fill="#F3E7D7" opacity=".5"/>
+          <path d="M137 13 l5 -5" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round"/>
+          <path d="M6 88 C42 84 74 70 98 48" stroke="#B98A6E" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <path d="M98 48 C92 44 88 38 88 32 a10 10 0 0 1 20 0 C108 39 104 45 98 48 Z" fill="#8E3140"/>
+          <path d="M98 46 C95 43 93 38.5 93 34.5 a5.5 5.5 0 0 1 11 0 C104 39 101.5 43 98 46 Z" fill="#C04A5A"/>
+        </svg>
+        <div>
+          <p class="h2">No question yet today.</p>
+          <p class="cap" style="margin-top:6px">Today’s question is on its way — it arrives shortly after your midnight.</p>
+        </div>
+      </div>
+    </div>
+    <figcaption class="figcap"><b>No-day-yet state</b>The “dawn branch” spot (closed bud against a crescent-cut fruit silhouette — asymmetric and stemmed, never a religious crescent) above the kept honest copy, streaming in live. Pack-lag keeps “Update Hayati. / Today’s question needs a newer version of the app.”; loading is the seed-pulse. Empty states are quiet: 96–160dp spot, Night + two accents, no faces, ever.</figcaption>
+  </figure>
+</div>
+
+<footer style="border-top:1px solid #E4E1DB;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center">
+  <span style="font-size:11px;font-weight:600;color:#26212E;letter-spacing:.04em;text-transform:uppercase">Tokens used</span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#231A33;display:inline-block"></i>Night <span class="hex">#231A33</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#2E2344;display:inline-block"></i>Night Raised <span class="hex">#2E2344</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#F3E7D7;display:inline-block;border:1px solid #E4E1DB"></i>Sand <span class="hex">#F3E7D7</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B9AFC6;display:inline-block"></i>Mist <span class="hex">#B9AFC6</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#453A5C;display:inline-block"></i>Veil <span class="hex">#453A5C</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#C04A5A;display:inline-block"></i>Pomegranate <span class="hex">#C04A5A</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8E3140;display:inline-block"></i>Pom. Deep <span class="hex">#8E3140</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#FFF8F1;display:inline-block;border:1px solid #E4E1DB"></i>Moonlight <span class="hex">#FFF8F1</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B98A6E;display:inline-block"></i>Clay <span class="hex">#B98A6E</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8FAE8B;display:inline-block"></i>Sage <span class="hex">#8FAE8B</span></span>
+  <span style="font-size:11px;color:#6F697A">Question 28/300 (scaled in frame) · reveal ≤1.2s: unfoldReveal 300 · settlePair 180 (haptic) · seedDrop 420 · Elevation L1 y2 blur8 <span class="hex">#160E22</span> 28%</span>
+</footer>
+
+</div>
+</body>
+</html>

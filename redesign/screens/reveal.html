@@ -1,0 +1,403 @@
+<!-- @dsCard group="Screens" name="The Reveal" subtitle="Three-beat choreography (<=1.2s) as annotated frames · seed-drop into the streak · reaction row + one-line reply · AR/RTL" width="960" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hayati — The Reveal</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300..800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F5F5F4;font-family:'Rubik',-apple-system,'Segoe UI',sans-serif;color:#4A4552;padding:44px 20px 72px}
+.wrap{max-width:960px;margin:0 auto}
+.card-head{margin-bottom:30px}
+.card-head h1{font-size:20px;font-weight:700;color:#26212E}
+.card-head p{font-size:13.5px;line-height:1.55;color:#6F697A;margin-top:6px;max-width:78ch}
+.row{display:flex;flex-wrap:wrap;gap:36px 16px;margin-bottom:48px;align-items:flex-start}
+.fig{width:390px}
+.figS{width:309px}
+.fig.wide{flex:1;min-width:300px;max-width:520px}
+.figcap{margin-top:14px;font-size:12px;line-height:1.55;color:#6F697A}
+.figcap b{display:block;font-size:12.5px;font-weight:600;color:#26212E;margin-bottom:2px}
+.hex{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#7A7484;background:#ECEAE5;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.beatlbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8E3140;margin-bottom:8px}
+.phone{width:390px;height:844px;background:#231A33;border-radius:54px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 12px #160E22,0 30px 60px -18px rgba(22,14,34,.5)}
+.pscale{width:309px;height:668px;position:relative}
+.pscale .phone{transform:scale(.79);transform-origin:top left}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:122px;height:34px;background:#160E22;border-radius:20px;z-index:6}
+.sbar{height:56px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 34px 8px;position:relative;z-index:5}
+.sbar .t{font-size:15px;font-weight:600;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.homebar{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#F3E7D7;opacity:.32;z-index:6}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.q{font-size:22px;font-weight:300;line-height:1.35;color:#F3E7D7}
+[dir=rtl] .q{line-height:1.6}
+.body{font-size:16px;font-weight:400;line-height:1.5;color:#F3E7D7}
+[dir=rtl] .body{line-height:1.7}
+.em{font-weight:600}
+.cap{font-size:13px;font-weight:400;line-height:1.45;color:#B9AFC6}
+[dir=rtl] .cap{line-height:1.7}
+.mist{color:#B9AFC6}.sage{color:#8FAE8B}
+.card{background:#2E2344;border-radius:16px;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28)}
+.sealed{position:relative;background:#2E2344;border:1px solid #453A5C;border-radius:16px;box-shadow:0 2px 8px rgba(22,14,34,.28);overflow:hidden}
+.flap{position:absolute;top:0;left:0;right:0;height:26px;background:rgba(22,14,34,.28);border-bottom:1px solid #453A5C;clip-path:polygon(0 0,100% 0,100% 70%,0 100%)}
+.input{background:#2E2344;border:1px solid #453A5C;border-radius:16px;padding:11px 14px;font-size:16px;color:#F3E7D7}
+.gut{padding-left:20px;padding-right:20px}
+.hdr{display:flex;justify-content:space-between;align-items:center;padding:6px 20px 0}
+.badge{position:absolute;top:-4px;right:-8px;background:#8E3140;color:#FFF8F1;font-size:10px;font-weight:600;border-radius:999px;padding:1px 5px;font-variant-numeric:tabular-nums}
+[dir=rtl] .badge{right:auto;left:-8px}
+.strip{display:flex;align-items:center;gap:10px}
+.cnt{font-size:15px;font-weight:600;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.cnt span{font-weight:400;color:#B9AFC6}
+.ghost{position:relative;display:inline-block}
+.ghost i{position:absolute;left:0;top:0;font-style:normal;opacity:.25;transform:translateY(-9px)}
+.reacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.react{width:44px;height:44px;border-radius:22px;background:#231A33;border:1px solid #453A5C;display:inline-flex;align-items:center;justify-content:center;font-size:18px}
+.react.sel{background:#8E3140;border-color:#8E3140}
+.replyq{margin-top:10px;border-left:2px solid #453A5C;padding-left:10px}
+[dir=rtl] .replyq{border-left:0;border-right:2px solid #453A5C;padding-left:0;padding-right:10px}
+.anno{position:absolute;z-index:8;font-size:10px;font-weight:600;letter-spacing:.02em;color:#E38E99;background:rgba(35,26,51,.88);border:1px dashed #E38E99;border-radius:6px;padding:2px 7px;white-space:nowrap}
+.target{border:1.5px dashed #E38E99;border-radius:16px;opacity:.5}
+.foldwrap{perspective:700px}
+.folding{transform:rotateX(34deg);transform-origin:50% 100%;position:relative;overflow:hidden;border-radius:16px 16px 6px 6px}
+.folding .shade{position:absolute;inset:0;background:rgba(22,14,34,.38)}
+.night-panel{background:#231A33;border-radius:24px;padding:24px;box-shadow:0 6px 24px rgba(22,14,34,.36)}
+.plabel{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#B9AFC6;margin-bottom:14px}
+.timeline{width:100%;margin:-18px 0 48px}
+.tl{display:flex;height:34px;border-radius:8px;overflow:hidden;font-variant-numeric:tabular-nums}
+.tl div{display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;letter-spacing:.03em;color:#FFF8F1}
+.tlmarks{display:flex;justify-content:space-between;font-size:10px;color:#7A7484;margin-top:4px;font-variant-numeric:tabular-nums}
+.rule{font-size:12.5px;color:#B9AFC6;line-height:1.6}
+.rule b{color:#F3E7D7;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="card-head">
+  <h1>Screens · The Reveal — the product’s one choreographed event</h1>
+  <p>Both answers unfold toward each other the moment the second one lands. Three beats, ≤1.2 seconds, one light haptic, one seed — the loudest thing Hayati ever does, and everything else stays calm so it can land. Frames below are annotated stills of the live waiting→revealed transition (motion tokens: unfoldReveal 300ms → settlePair 180ms → seedDrop 420ms); annotations in Rose are redlines, not UI. Strings verbatim from product-copy.md unless marked ◆; answers are sample user content.</p>
+</header>
+
+<!-- shared glyph defs -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="seedG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C04A5A"/><stop offset="1" stop-color="#8E3140"/>
+    </linearGradient>
+    <g id="stat"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></g>
+    <g id="usg" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><path d="M4.5 10.5h15c-.6 5-3.6 8-7.5 8s-6.9-3-7.5-8z"/><path d="M9.5 21h5"/><circle cx="10" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/><circle cx="14.2" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/></g>
+    <g id="gear" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.4 5.4l1.9 1.9M16.7 16.7l1.9 1.9M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9"/></g>
+    <g id="vesselmini"><path d="M6 14h36c-1.2 12-8 19-18 19S7.2 26 6 14z" fill="#2E2344" stroke="#453A5C"/><path d="M17 36h14" stroke="#B98A6E" stroke-width="2.5" stroke-linecap="round"/><path d="M20 20c1.6 1.9 2.6 3.5 2.6 5.2a2.9 2.9 0 1 1-5.8 0c0-1.7 1.5-3.3 3.2-5.2z" fill="#C04A5A"/><path d="M28 20c1.6 1.9 2.6 3.5 2.6 5.2a2.9 2.9 0 1 1-5.8 0c0-1.7 1.5-3.3 3.2-5.2z" fill="#C04A5A"/></g>
+    <g id="glint"><path d="M28 16.4c1 1.2 1.6 2.2 1.6 3.2" stroke="#8FAE8B" stroke-width="1.6" fill="none" stroke-linecap="round"/></g>
+    <g id="seed"><path d="M0,-13 C5,-6.5 7,-1.5 7,3.5 C7,9.2 4,13 0,13 C-4,13 -7,9.2 -7,3.5 C-7,-1.5 -5,-6.5 0,-13 Z" fill="url(#seedG)"/><ellipse cx="2.8" cy="-3.5" rx="1.5" ry="3.4" transform="rotate(18 2.8 -3.5)" fill="#FFF8F1" opacity="0.78"/></g>
+    <g id="latfrag" fill="none" stroke="#F3E7D7" stroke-width="1.6"><rect x="16" y="16" width="48" height="48"/><rect x="16" y="16" width="48" height="48" transform="rotate(45 40 40)"/></g>
+  </defs>
+</svg>
+
+<!-- ══════════ ROW 1 · the three beats ══════════ -->
+<div class="row" style="gap:36px 12px">
+
+  <!-- BEAT 1 -->
+  <figure class="figS">
+    <p class="beatlbl">Beat 1 · unfoldReveal · 0–300ms</p>
+    <div class="pscale">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><use href="#stat"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative"><svg width="26" height="26" viewBox="0 0 24 24"><use href="#usg"/></svg><span class="badge">11</span></div>
+          <span class="cap">Saturday, 26 July</span>
+          <svg width="24" height="24" viewBox="0 0 24 24"><use href="#gear"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:14px">
+          <div class="strip">
+            <svg width="30" height="26" viewBox="0 0 48 40"><use href="#vesselmini"/></svg>
+            <span class="cnt">11 seeds <span>· 11 days together</span></span>
+          </div>
+          <div class="card" style="padding:14px 16px;position:relative;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="cap">Today’s question</span><span class="cap" style="opacity:.75">Starter collection</span></div>
+            <p class="q">What’s one small moment from this week you didn’t want to end?</p>
+            <svg width="80" height="80" viewBox="0 0 80 80" style="position:absolute;bottom:-12px;right:-12px;opacity:.04" aria-hidden="true"><use href="#latfrag"/></svg>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">You</p>
+            <p class="body" style="font-size:15px">Friday evening — tea on the balcony, and you told the story about your grandmother’s garden again.</p>
+          </div>
+          <div style="position:relative;margin-top:2px">
+            <span class="anno" style="top:-11px;right:10px">enters toward your card</span>
+            <div class="target" style="height:84px"></div>
+            <svg width="26" height="34" viewBox="0 0 26 34" style="position:absolute;left:50%;top:86px;transform:translateX(-50%)" aria-hidden="true">
+              <path d="M13 30 L13 8" stroke="#E38E99" stroke-width="1.5" stroke-dasharray="3 4" stroke-linecap="round" fill="none"/>
+              <path d="M7.5 13.5 L13 6.5 L18.5 13.5" stroke="#E38E99" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div class="foldwrap" style="margin-top:38px">
+              <div class="folding card" style="padding:12px 16px 8px">
+                <p class="cap" style="margin-bottom:4px">Aylin</p>
+                <p class="body" style="font-size:15px">The drive home on Sunday. Neither of us said much…</p>
+                <div class="shade"></div>
+              </div>
+            </div>
+            <div class="sealed" style="height:22px;margin-top:-2px;opacity:.5"><div class="flap" style="height:20px"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    </div>
+    <figcaption class="figcap"><b>The unfold begins</b>Aylin’s card enters from the partner-slot position with a subtle 3D fold flattening (rotateX shown mid-flight), translating toward your card — the dashed outline is its settle target, 8dp below yours. Fold shading is flat plum <span class="hex">#160E22</span>, never black; the sealed flap dissolves beneath it. 300ms, easeOut, cards tappable mid-unfold.</figcaption>
+  </figure>
+
+  <!-- BEAT 2 -->
+  <figure class="figS">
+    <p class="beatlbl">Beat 2 · settlePair · 300–650ms · haptic</p>
+    <div class="pscale">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><use href="#stat"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative"><svg width="26" height="26" viewBox="0 0 24 24"><use href="#usg"/></svg><span class="badge">11</span></div>
+          <span class="cap">Saturday, 26 July</span>
+          <svg width="24" height="24" viewBox="0 0 24 24"><use href="#gear"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:14px">
+          <div class="strip">
+            <svg width="30" height="26" viewBox="0 0 48 40"><use href="#vesselmini"/></svg>
+            <span class="cnt">11 seeds <span>· 11 days together</span></span>
+          </div>
+          <p class="body em" style="text-align:center;margin-top:2px">You both showed up today.</p>
+          <div style="position:relative">
+            <div class="card" style="padding:14px 16px">
+              <p class="cap" style="margin-bottom:5px">You</p>
+              <p class="body" style="font-size:15px">Friday evening — tea on the balcony, and you told the story about your grandmother’s garden again.</p>
+            </div>
+            <div class="card" style="padding:14px 16px;margin-top:8px">
+              <p class="cap" style="margin-bottom:5px">Aylin</p>
+              <p class="body" style="font-size:15px">The drive home on Sunday. Neither of us said much, and it was still my favorite part of the week.</p>
+            </div>
+            <span class="anno" style="right:-6px;top:calc(50% - 22px)">8dp</span>
+            <span class="anno" style="left:-6px;bottom:-13px">lightImpact fires at settle</span>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    </div>
+    <figcaption class="figcap"><b>The pair settles</b>Both cards settle side by side as equals — 8dp gap, simultaneous 2dp settle, names over labels (“You” / “Aylin”, Caption Mist <span class="hex">#B9AFC6</span>). The single light haptic (shipped, sacred — the app’s anchor haptic) fires here; optional soft chime, off by default. “You both showed up today.” lands with the pair — the ritual is about showing up, not homework.</figcaption>
+  </figure>
+
+  <!-- BEAT 3 -->
+  <figure class="figS">
+    <p class="beatlbl">Beat 3 · seedDrop · 650–1200ms</p>
+    <div class="pscale">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><use href="#stat"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative"><svg width="26" height="26" viewBox="0 0 24 24"><use href="#usg"/></svg><span class="badge">12</span></div>
+          <span class="cap">Saturday, 26 July</span>
+          <svg width="24" height="24" viewBox="0 0 24 24"><use href="#gear"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:8px">
+          <div class="strip" style="position:relative;align-items:flex-end">
+            <svg width="34" height="44" viewBox="0 0 48 62">
+              <use href="#seed" transform="translate(24,11) scale(0.6)"/>
+              <path d="M24 21 L24 33" stroke="#E38E99" stroke-width="1.5" stroke-dasharray="2 4" stroke-linecap="round"/>
+              <g transform="translate(0,22)"><use href="#vesselmini"/></g>
+            </svg>
+            <span class="cnt" style="padding-bottom:2px"><span class="ghost"><i>11</i>12</span> seeds <span>· 12 days together</span></span>
+            <span class="anno" style="right:0;top:-8px">count crossfades 11→12 · 120ms</span>
+          </div>
+          <p class="body em" style="text-align:center;margin-top:2px">You both showed up today.</p>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">You</p>
+            <p class="body" style="font-size:15px">Friday evening — tea on the balcony, and you told the story about your grandmother’s garden again.</p>
+          </div>
+          <div class="card" style="padding:14px 16px;margin-top:-2px">
+            <p class="cap" style="margin-bottom:5px">Aylin</p>
+            <p class="body" style="font-size:15px">The drive home on Sunday. Neither of us said much, and it was still my favorite part of the week.</p>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    </div>
+    <figcaption class="figcap"><b>The seed drops — the celebration is the pair itself</b>One seed falls into the streak strip’s vessel: gravity fall then spring settle, overshoot ≤4dp; 2–3 neighbours displace 1–2dp and re-settle; the count crossfades in tabular figures so layout never jitters. No confetti, no takeover — gold stays reserved for the 7/30/100 milestone overlay. The Us badge ticks to 12 with the vessel.</figcaption>
+  </figure>
+</div>
+
+<!-- timeline -->
+<div class="timeline">
+  <div class="tl">
+    <div style="flex:300;background:#8E3140">unfoldReveal 300ms</div>
+    <div style="flex:350;background:#C04A5A">settlePair · haptic</div>
+    <div style="flex:550;background:#8E3140">seedDrop 420ms</div>
+  </div>
+  <div class="tlmarks"><span>0ms</span><span>300ms</span><span>650ms</span><span>1200ms</span></div>
+</div>
+
+<!-- ══════════ ROW 2 · settled reveal, EN + AR ══════════ -->
+<div class="row" style="gap:44px 40px">
+
+  <!-- EN settled -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><use href="#stat"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative"><svg width="26" height="26" viewBox="0 0 24 24"><use href="#usg"/></svg><span class="badge">12</span></div>
+          <span class="cap">Saturday, 26 July</span>
+          <svg width="24" height="24" viewBox="0 0 24 24"><use href="#gear"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:10px;padding-top:12px">
+          <div class="strip">
+            <svg width="30" height="26" viewBox="0 0 48 40"><use href="#vesselmini"/><use href="#glint"/></svg>
+            <span class="cnt">12 seeds <span>· 12 days together</span></span>
+          </div>
+          <p class="body em" style="text-align:center;margin-top:2px">You both showed up today.</p>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">You</p>
+            <p class="body" style="font-size:15px">Friday evening — tea on the balcony, and you told the story about your grandmother’s garden again.</p>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">Aylin</p>
+            <p class="body" style="font-size:15px">The drive home on Sunday. Neither of us said much, and it was still my favorite part of the week.</p>
+            <div class="reacts" role="group" aria-label="Reactions">
+              <span class="react sel">❤️</span><span class="react">🥰</span><span class="react">😂</span><span class="react">🤲</span><span class="react">🌹</span><span class="react">✨</span>
+            </div>
+            <div class="replyq">
+              <p class="body" style="font-size:14px">It was my favorite part too.</p>
+              <p class="cap" style="font-size:12px;margin-top:2px">Sent.</p>
+            </div>
+          </div>
+          <p class="cap" style="text-align:center;margin-top:4px">Tomorrow’s question arrives after midnight.</p>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Settled — reaction row + one-line reply (EN)</b>Reaction set ❤️ 🥰 😂 🤲 🌹 + register-aware sixth slot (EN/TR-respectful ✨ · TR-playful 🫶 · AR-Gulf 🌙); selected chip fills Pomegranate Deep <span class="hex">#8E3140</span>, reactPop 150ms + selection haptic, 48dp padded targets. The reply renders beneath Aylin’s answer with the “Sent.” caption; both are couple-visible only and freeze with the day (“Past days stay just as you left them.”). The topmost seed carries the Sage glint <span class="hex">#8FAE8B</span>; the come-back footer closes the loop with a forward pull. TR revealed captions (canonical): respectful “Bugün de birliktesiniz.” · playful “Bugün de buradasınız. Güzel.”</figcaption>
+  </figure>
+
+  <!-- AR settled, RTL -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen" dir="rtl" lang="ar">
+        <div class="sbar" dir="ltr"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><use href="#stat"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative"><svg width="26" height="26" viewBox="0 0 24 24"><use href="#usg"/></svg><span class="badge">12</span></div>
+          <span class="cap">السبت، 26 يوليو</span>
+          <svg width="24" height="24" viewBox="0 0 24 24"><use href="#gear"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:10px;padding-top:12px">
+          <div class="strip">
+            <svg width="30" height="26" viewBox="0 0 48 40"><use href="#vesselmini"/><use href="#glint"/></svg>
+            <span class="cnt">12 بذرة <span>· 12 يومًا معًا ◆</span></span>
+          </div>
+          <p class="body em" style="text-align:center;margin-top:2px">كلاكما حاضر اليوم.</p>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">أنت ◆</p>
+            <p class="body" style="font-size:15px">مساء الخميس على الشرفة — الشاي، والحديث الذي نسينا معه الوقت.</p>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">فهد</p>
+            <p class="body" style="font-size:15px">طريق العودة يوم الجمعة. لم نقل الكثير، وكان أجمل ما في الأسبوع.</p>
+            <div class="reacts" role="group" aria-label="التفاعلات">
+              <span class="react sel">❤️</span><span class="react">🥰</span><span class="react">😂</span><span class="react">🤲</span><span class="react">🌹</span><span class="react">🌙</span>
+            </div>
+            <div class="input" style="margin-top:10px"><span class="mist" style="font-size:14px">اكتب ردًّا قصيرًا — لا يراه إلا فهد. ◆</span></div>
+          </div>
+          <p class="cap" style="text-align:center;margin-top:4px">سيصل سؤال الغد بعد منتصف الليل. ◆</p>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Settled — Arabic, RTL (dir="rtl")</b>«كلاكما حاضر اليوم.» is the canonical revealed caption; the register slot is 🌙 — Gulf-respectful, modest, never neon-dating. Shown pre-send: the one-line reply placeholder (drafted ◆); after sending it renders beneath the answer with the sent caption, exactly as the EN frame. Arabic Body at line-height 1.7, equal optical weight to Latin; the streak strip, badge, and chevrons mirror via logical properties while the vessel stays RTL-neutral. Latin digits until the Eastern Arabic numerals (٠١٢٣) setting ships.</figcaption>
+  </figure>
+</div>
+
+<!-- ══════════ ROW 3 · RTL choreography + rules ══════════ -->
+<div class="row" style="gap:44px 40px">
+
+  <!-- AR beat 1, RTL -->
+  <figure class="fig">
+    <p class="beatlbl">Beat 1 in RTL · unfoldReveal mirrors</p>
+    <div class="phone"><div class="island"></div>
+      <div class="screen" dir="rtl" lang="ar">
+        <div class="sbar" dir="ltr"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><use href="#stat"/></svg></div>
+        <div class="hdr">
+          <div style="position:relative"><svg width="26" height="26" viewBox="0 0 24 24"><use href="#usg"/></svg><span class="badge">11</span></div>
+          <span class="cap">السبت، 26 يوليو</span>
+          <svg width="24" height="24" viewBox="0 0 24 24"><use href="#gear"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:14px">
+          <div class="strip">
+            <svg width="30" height="26" viewBox="0 0 48 40"><use href="#vesselmini"/></svg>
+            <span class="cnt">11 بذرة <span>· 11 يومًا معًا ◆</span></span>
+          </div>
+          <div class="card" style="padding:14px 16px;position:relative;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="cap">سؤال اليوم ◆</span><span class="cap" style="opacity:.75">المجموعة الأولى ◆</span></div>
+            <p class="q">ما اللحظة الصغيرة من هذا الأسبوع التي تمنّيت لو طالت؟</p>
+            <svg width="80" height="80" viewBox="0 0 80 80" style="position:absolute;bottom:-12px;left:-12px;opacity:.04;transform:scaleX(-1)" aria-hidden="true"><use href="#latfrag"/></svg>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <p class="cap" style="margin-bottom:5px">أنت ◆</p>
+            <p class="body" style="font-size:15px">مساء الخميس على الشرفة — الشاي، والحديث الذي نسينا معه الوقت.</p>
+          </div>
+          <div style="position:relative;margin-top:2px">
+            <span class="anno" style="top:-11px;left:10px">تتفتّح نحو بطاقتك ◆</span>
+            <div class="target" style="height:84px"></div>
+            <svg width="26" height="34" viewBox="0 0 26 34" style="position:absolute;left:50%;top:86px;transform:translateX(-50%)" aria-hidden="true">
+              <path d="M13 30 L13 8" stroke="#E38E99" stroke-width="1.5" stroke-dasharray="3 4" stroke-linecap="round" fill="none"/>
+              <path d="M7.5 13.5 L13 6.5 L18.5 13.5" stroke="#E38E99" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div class="foldwrap" style="margin-top:38px">
+              <div class="folding card" style="padding:12px 16px 8px">
+                <p class="cap" style="margin-bottom:4px">فهد</p>
+                <p class="body" style="font-size:15px">طريق العودة يوم الجمعة. لم نقل الكثير…</p>
+                <div class="shade"></div>
+              </div>
+            </div>
+            <div class="sealed" style="height:22px;margin-top:-2px;opacity:.5"><div class="flap" style="height:20px"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>The unfold, mirrored</b>In RTL the partner’s card unfolds from the mirrored start side — fold crease, labels, and lattice watermark all flip via logical start/end; the rise toward your card is vertical and identical. Beat 2 is direction-symmetric and Beat 3’s vessel is certified RTL-neutral, so only this beat carries a mirrored variant. Annotations in Rose <span class="hex">#E38E99</span> are redlines, not UI.</figcaption>
+  </figure>
+
+  <!-- rules panel -->
+  <figure class="fig wide">
+    <div class="night-panel">
+      <p class="plabel">Reduce motion · VoiceOver · the rules of the moment</p>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <p class="rule"><b>Reduce motion.</b> The whole sequence collapses to an instant crossfade <b>with the haptic preserved</b> — the reveal must remain operable and feelable without animation. Milestones become a static card; nothing is lost but the flight.</p>
+        <p class="rule"><b>VoiceOver.</b> One event, in order: “Both answers revealed. Aylin’s answer: …” — then “One seed added. 12-day streak.” The haptic accompanies the announcement. Reaction chips carry labels: Love · Sweet · Laughing · Gratitude · A rose · the register label.</p>
+        <p class="rule"><b>Fairness.</b> Neither answer is readable until both exist — server-enforced. If the reveal happened while you were away, cold-open plays the seed-drop alone, without beats 1–2.</p>
+        <p class="rule"><b>Restraint.</b> No confetti, no full-screen takeover, no new copy — the answers are the content and the celebration is the pair itself. Gold (<span style="font-variant-numeric:tabular-nums">#D9A441</span> on Night) belongs to the 7/30/100 milestone overlay only, never to the nightly reveal. Motion never delays interactivity.</p>
+        <p class="rule"><b>Freeze.</b> Reactions and the one-line reply are couple-visible only and freeze with the day: “Past days stay just as you left them.”</p>
+      </div>
+    </div>
+    <figcaption class="figcap"><b>Why everything else stays calm</b>“The reveal is the product” (Principle 3): the daily mutual unfold gets the entire polish budget — staging, seed, haptic — and every other surface is deliberately quieter so this contrast exists. It is the loudest thing Hayati ever does, and it is 1.2 seconds long.</figcaption>
+  </figure>
+</div>
+
+<footer style="border-top:1px solid #E4E1DB;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center">
+  <span style="font-size:11px;font-weight:600;color:#26212E;letter-spacing:.04em;text-transform:uppercase">Tokens used</span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#231A33;display:inline-block"></i>Night <span class="hex">#231A33</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#2E2344;display:inline-block"></i>Night Raised <span class="hex">#2E2344</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#F3E7D7;display:inline-block;border:1px solid #E4E1DB"></i>Sand <span class="hex">#F3E7D7</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B9AFC6;display:inline-block"></i>Mist <span class="hex">#B9AFC6</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#453A5C;display:inline-block"></i>Veil <span class="hex">#453A5C</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#C04A5A;display:inline-block"></i>Pomegranate <span class="hex">#C04A5A</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8E3140;display:inline-block"></i>Pom. Deep <span class="hex">#8E3140</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#E38E99;display:inline-block"></i>Rose <span class="hex">#E38E99</span> (redlines)</span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#FFF8F1;display:inline-block;border:1px solid #E4E1DB"></i>Moonlight <span class="hex">#FFF8F1</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B98A6E;display:inline-block"></i>Clay <span class="hex">#B98A6E</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8FAE8B;display:inline-block"></i>Sage <span class="hex">#8FAE8B</span></span>
+  <span style="font-size:11px;color:#6F697A">Choreography ≤1.2s: unfoldReveal 300 · settlePair 180 (haptic) · seedDrop 420 · spring overshoot ≤4dp · Elevation L1 y2 blur8 <span class="hex">#160E22</span> 28% · seed gradient <span class="hex">#C04A5A</span>→<span class="hex">#8E3140</span> (the one sanctioned gradient)</span>
+</footer>
+
+</div>
+</body>
+</html>
