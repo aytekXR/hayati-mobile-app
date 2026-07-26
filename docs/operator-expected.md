@@ -10,7 +10,30 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-26, **Session 043 close** — the MVP is code-complete and the last dated engineering debt is gone._
+_Last refreshed: 2026-07-26, **Session 045 close**._
+
+> # 🔴 READ THIS FIRST — a purchase on production would take your customer's money and not unlock Premium
+>
+> **Issue #115.** Your production **RevenueCat webhook is deployed and `ACTIVE`, but it is not reachable from the internet** — its Cloud Run service has no public-invoker permission, so Google rejects RevenueCat's calls *before* your code ever runs. Verified directly: the endpoint returns Google's own HTML 403/401, while a known-public function on the same domain returns normal JSON.
+>
+> **What that means in practice:** RevenueCat can never tell your backend that someone subscribed, renewed or cancelled. The charge goes through; Premium never turns on; **nothing anywhere reports an error.**
+>
+> **The fix is one command**, and it is in #115 along with how to check it worked:
+> ```sh
+> gcloud run services add-iam-policy-binding revenuecatwebhook >   --region=europe-west1 --project=hayatiapp-prod >   --member=allUsers --role=roles/run.invoker
+> ```
+> **How to tell it worked:** POST to the webhook with no token. A **JSON** refusal is correct — that is your own code turning it away. **HTML is still broken.** Then replay an event from the RevenueCat dashboard.
+>
+> A session did not do this for you: making a production endpoint publicly reachable is a security decision on your live system, the RevenueCat wiring is another session's in-flight work, and a session cannot read your webhook token to confirm it matches what RevenueCat sends.
+
+> ### Also true of production, and not what this file used to say
+>
+> **Your production backend is LIVE — all eleven functions.** These pages previously said prod was undeployed; that is out of date, and the rest of this file may lag your real setup in the same way. Two things follow that you may want to act on together, in **one redeploy** from the current code:
+>
+> 1. **Prod runs code from before the coach shipped.** `coachProxy` there was deployed 2026-07-25 21:54 UTC and carries no AI key binding — so **the coach on prod says "unavailable" even though your `LLM_API_KEY` is sitting in prod Secret Manager**, unused.
+> 2. **Prod runs Node 20, which Google decommissions 2026-10-30.** Dev was moved to Node 22 this run; prod was stood up before that. Deploys from prod's current runtime stop working after that date.
+>
+> Neither is urgent this week, and **a redeploy of prod is your call** — but both are fixed by the same single action whenever you want it.
 
 _**🧹 Nothing on the engineering side now carries a deadline.** Session 043 moved the backend to **Node 22** before the old runtime's 2026-10-30 cut-off could ever block a deploy (it was the one item on this page with a date on it), and verified it the honest way — the seasonal-calendar self-check reported healthy from the new runtime in production. **Nothing was required from you and nothing you can see changed.** From here, essentially everything that moves the product forward is on this page, i.e. yours._
 

@@ -1325,3 +1325,43 @@ peer firebase-admin@"^11.10.0 || ^12.0.0 || ^13.0.0" from firebase-functions@7.2
 **Notes / debt:** `firebase-functions` is now 7.3.0 (the peer range forced it, and it also cleared the long-standing "outdated firebase-functions" deploy warning). **#70** remains open and conflicted. The concurrent session's signing branch remains theirs.
 
 **Next objective written to resume-prompt.md:** Session 045 — the tracked engineering queue is genuinely empty of anything both unblocked and undone. Re-derive it; if it is still empty, say so with the derivation and stop.
+
+## Session 045 — 2026-07-26 — **the verification session that found prod is live, behind, and silently broken in one place**
+
+**Objective (from resume-prompt.md):** re-derive the queue; if nothing is both unblocked and undone, show the derivation and stop. **The derivation found something instead** — which is the argument for running the session rather than asserting its conclusion. (S044 reached this verdict conversationally and never executed the session; that gap is why this entry exists.)
+
+**Preemptions, live:** `RC_WEBHOOK_TOKEN` **ABSENT on dev** but **PRESENT on prod** · #15/#48/#67/#63/#71 all still zero comments · **#103 CLOSED** at 06:04Z (the concurrent session's fastlane-`match` work landed, exactly as the S043 handoff predicted) · zero open PRs.
+
+**THE HEADLINE: `hayatiapp-prod` is fully deployed — ELEVEN functions, all `ACTIVE` — and `main`'s documentation says it is undeployed.** The founder and a concurrent session stood prod up during this run. Verified directly against the Cloud Functions API rather than inferred:
+
+| Fact | State |
+|---|---|
+| Functions deployed | **11 / 11**, all `ACTIVE`, `europe-west1` |
+| Runtime | **`nodejs20`** — the runtime **decommissioned 2026-10-30** |
+| `coachProxy` | deployed **2026-07-25T21:54Z**, `secrets: NONE` → a **pre-M5.3 build** |
+| `LLM_API_KEY` (prod) | **present** in Secret Manager |
+| `RC_WEBHOOK_TOKEN` (prod) | **present** in Secret Manager |
+| `revenueCatWebhook` | `ACTIVE` — **but see below** |
+
+Two consequences fall straight out and neither was recorded anywhere: **prod runs code that predates M5.3**, so the coach answers "unavailable" *despite the key existing*; and **prod was stood up on a runtime with an end date** — the precise situation ADR-030 argued to avoid ("fix it before prod is stood up, never after"). Both are repaired by a single redeploy from current `main`, which is the founder's call, not a session's.
+
+**AND THE FINDING THAT MATTERS MOST — issue #115: the production RevenueCat webhook is not publicly invocable, so RevenueCat cannot deliver to it.** Its Cloud Run service has **no IAM bindings at all**:
+
+```
+PROD revenuecatwebhook  -> NO bindings
+PROD invitepreview      -> roles/run.invoker -> allUsers     (the control)
+```
+
+Both of its URLs reject *before the function runs* — the bodies are **Google's HTML error pages**, not our JSON (403 with no auth, 401 with a bearer token), while the public control on the same alias returns `{"status":"unknown"}` from our own code. **That HTML-versus-JSON distinction is the whole diagnosis**, and it is why a deploy-time check would not have caught this: the function deployed fine, is `ACTIVE`, and reports healthy.
+
+RevenueCat delivers a plain POST carrying a **static `Authorization` value** — the verbatim token ADR-013 specifies. Cloud Run's IAM tries to read that as a **Google identity token**, fails, and returns 401 before invoking anything. No RevenueCat setting can satisfy Google IAM. **So entitlement events never arrive: a real purchase would charge the customer and never unlock Premium, silently.** That is M4's acceptance line failing in the one manner that emits no signal at all. The absence is also *anomalous* — firebase-tools normally grants `allUsers` `run.invoker` to an `onRequest` function, which is why `invitePreview` has it — so the cause is worth understanding before patching, in case an org policy re-breaks it on the next deploy.
+
+**Not fixed, deliberately, and the reasoning is the point.** Granting `allUsers` on a production endpoint is a **security-posture change on the founder's live system**, even though it is the *intended* design — ADR-013 is explicit that the token then becomes the only thing between the public internet and couples' entitlement state. The RevenueCat wiring is a concurrent session's in-flight work (S022: parallel work is safe only when file sets are disjoint by design). And the token's **value cannot be read by a session**, so opening the endpoint without confirming it matches the RevenueCat dashboard would swap a closed door for one that rejects everything. The issue carries the exact `gcloud` command and — more usefully — the exact way to tell success from failure: **a correct result is JSON from our fail-closed check, not HTML from Google's.**
+
+**#41's window, flagged in the same pass.** Its remediation is gated on "before real purchases exist", and it was *"blocked on operator item 0"* — which is now done. Both halves of its own "why this is not currently exploitable" paragraph (*no key to steal, no project to post to*) are **false now**. Left as a comment, not a fix: it edits the entitlement identity path the concurrent session is inside, and if purchases already exist it becomes a **migration of live billing identity** — a founder decision.
+
+**#70 closed with evidence rather than merged.** It existed to flag two post-merge runs left unread during a GitHub 503 outage at the S028 close. Session 045 read them: `29708998595` **success** (including the `integration-emulator` that was mid-flight) and `29709354780` **success**. Merging it would have injected a "Session 029's first action" instruction into a Session-045 resume prompt and rewritten a **prior** `past-prompts.md` entry, which project-rules #2 forbids — and its `CI: green` line turns out to be simply true.
+
+**Verdict on the derivation:** of nine open issues, **none is both unblocked and safe to act on alone.** #115 and #41 need the founder (production security posture; live billing identity). #99 is subsumed by the merged `match` work. #48 is gated on device observation *by its own text*. #100 needs runner-queue measurement and is low value. #71/#67/#63 are brandkit/founder. #15 needs a device crash log. #13 is M6.5. **No code changed this session** — it was verification, and verification is what it produced.
+
+**Next objective written to resume-prompt.md:** Session 046 — re-verify #115 (it is the founder's money), reconcile `main`'s documentation with prod's real state, and pick up whatever the concurrent branch's merge leaves behind.
