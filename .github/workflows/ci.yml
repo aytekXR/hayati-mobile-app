@@ -298,9 +298,17 @@ jobs:
   integration-emulator:
     name: integration-emulator
     # ci-debt #6. Full simulator debug compile + auth/firestore emulator
-    # round-trips (~10-14 min wall, ~100-140 billed min at 10x macOS). Cost-
-    # driven MAIN-ONLY + on-demand trigger (Session-004 billing incident;
-    # resume-prompt blessing). It is a POST-MERGE signal: a broken emulator flow
+    # round-trips (~10-14 min wall).
+    #
+    # MAIN-ONLY + on-demand. The original reason was cost — "~100-140 billed min
+    # at 10x macOS", from the Session-004 billing incident — and that reason is
+    # FACTUALLY VOID: this repo is PUBLIC, and GitHub-hosted standard runners,
+    # macOS included, are free for public repositories (corrected S041, ADR-029
+    # D6; the same false premise is corrected at line 225). The gate stands on
+    # its remaining justification, LATENCY: macOS runners queue far longer than
+    # ubuntu, so per-PR macOS legs cost every review cycle even at zero dollars.
+    # Whether to relax it now is issue #100, deliberately not decided here.
+    # It is a POST-MERGE signal: a broken emulator flow
     # reaches main before CI catches it, so run the suite locally before merge
     # (see integration_test/*_test.dart headers). Prove green on a PR branch via
     # `gh workflow run ci.yml --ref <branch>` (workflow_dispatch on a branch ref).
