@@ -1293,3 +1293,35 @@ store_metadata ⏭️  SKIPPED — no store copy reached App Store Connect
 **Notes / debt:** **#107** filed. **#103** (the release lane's Apple provisioning gap) unchanged and operator-owned. **#70** still open and conflicted. **#105** is the concurrent session's.
 
 **Next objective written to resume-prompt.md:** Session 044 — with the MVP code-complete and #96 closed, the tracked-debt queue is down to founder-gated items and #107/#70. The honest next unit is the standing preemptions plus **#107** if nothing else has opened; the *product* now waits almost entirely on the founder.
+
+## Session 044 — 2026-07-26 — **#107 closed: firebase-admin v14 — and `npm ci` caught what `npm install` hid**
+
+**Objective (from resume-prompt.md):** #107 — `firebase-admin` was pinned `^13` for one recorded reason, *"v14 requires Node ≥22"*, which ADR-030 had just made void. **I had licensed stopping instead; that was wrong** — #107 is undated maintenance, but undated is not the same as blocked, and the goal directive says continue until a human dependency blocks progress. It doesn't block this.
+
+**Preemptions re-derived (none fired).** Also verified before starting: **#107's file set (`functions/package*.json`, docs) is disjoint by design from the concurrent session's in-flight branch** (`release.yml`, `fastlane/Fastfile`) — S022's condition for safe parallel work, checked rather than assumed.
+
+**THE FINDING THAT MATTERS, and it is a process one.** `npm install firebase-admin@^14` succeeded, everything typechecked, and the full suite passed 979/979. Then **`npm ci` — the command CI actually runs — refused the tree**:
+
+```
+peer firebase-admin@"^11.10.0 || ^12.0.0 || ^13.0.0" from firebase-functions@7.2.5
+```
+
+`firebase-functions@7.2.5`'s peer range **explicitly excludes** firebase-admin v14. So the local tree that had passed everything was a tree **CI could not reproduce** — the S042 false-green shape in a new costume. And ADR-031 rev 1 had written that leaving `firebase-functions` alone was *"deliberate restraint"*, the same choice ADR-030 made. **It was not a choice at all.** `firebase-functions@7.3.0` is the first version whose peer range adds `^14.0.0`; the two are **mandatorily coupled**. (`7.3.2-rc.0` holds the `latest` dist-tag and was deliberately not taken — a release candidate has no business in a runtime dependency of a special-category path.) **Standing lesson: verify with the command CI runs, not the convenient one.** `npm install` resolves permissively and rewrites the lockfile to fit; `npm ci` asserts the lockfile is already coherent, and only that answers "will this work in CI".
+
+**The version number understates the change badly: 48 packages move.** The headline is **`@google-cloud/firestore` 7.11.6 → 8.7.0** — a Firestore *client* major, on the library ADR-019's resumable cascade runs its transactions and cursors through, and 22 of the 29 `firebase-admin` imports here are `firebase-admin/firestore`. Also moving: `google-gax` 4→5, `jose` **4→6** (skipping a major), `jwks-rsa` 3→4, `proto3-json-serializer` 2→3, `lru-cache` 6→11, and `farmhash-modern` **dropped**.
+
+**Verification, targeted at the two surfaces #107 named:** ADR-019's cascade against the real emulator — **58 pass** (the resumable `deletions/{uid}` cursor, the partner-cursor-seeding transaction, kill-mid-cascade convergence, `deleteUsers` idempotency); ADR-013/015's entitlement core + the fast-check LWW order-independence property — **109 pass**; whole suite **979 / 50 files**.
+
+**And the strongest evidence: a controlled A/B on the same tree.** The coverage numbers are *lower* than ADR-030's, which invites the wrong conclusion. So the baseline was measured, not reasoned about — `main` checked out, `npm ci` back to **13.10.0**, same suite: `979 passed · 97.28% (1646/1692) · 92.45% (1079/1167)`. **Identical.** The delta versus ADR-030 is entirely `creator-question.ts` arriving from the concurrent PR #105.
+
+**A FALSE ALARM WORTH RECORDING.** One re-run of the identical tree reported **52 failures**, another a 1645-vs-1646 coverage blip. Neither was real: **a review agent I had launched was running its own `firebase emulators:exec` on the same fixed ports.** Confirmed by watching `ss -ltn` (8080/9099/5001 busy during the bad window, free during the good ones), then re-running twice back-to-back in a clean window — **979 / 97.28% / 92.45% bit-for-bit both times.** This repo's emulator suite binds fixed ports and is **not safe to run concurrently with anything else that boots emulators, including your own review agents.** I nearly attributed a contaminated red to a Firestore client major.
+
+**Review: 17 findings, all real, zero refuted** (12 agents alive). The most valuable: **the `firebase-functions` fix was sitting UNCOMMITTED** — the branch as committed would have gone red in CI at the install step. Also: the dependency table listed five packages and called that "the real change" (it is 48); `@google-cloud/firestore`'s "before" was the **declared range floor** `7.11.0` paired against a **resolved** "after" (it is 7.11.6); and `gaxios` was shown as a clean 6→7 when the top level **stays** at 6.7.1 and 7.3.0 appears *nested* under `google-gax` — which is, precisely, the copy the Firestore gRPC path uses.
+
+**An honest bound stated plainly rather than buried:** `jose` v4→v6 and `jwks-rsa` v3→v4 are firebase-admin's **ID-token verification stack**, and the emulator **does not perform real token verification** — so **nothing in `functions/test/` exercises the code that moved most**. The app calls neither library directly; the risk sits with firebase-admin's own tests. Recorded with its consequence: *if real-device sign-in ever fails with a token error, look here first.*
+
+**Deployed and smoke-tested on `hayatiapp-dev`:** ten functions redeployed on the v14 build via the named-exclusion command; `coachProxy` and `createInvite` return a clean **401**; **`invitePreview` with a bogus code returns `{"status":"unknown"}` HTTP 200** — a *real Firestore read through the v8 client in production*, returning the designed not-found shape rather than an error. The scheduled sweep on the new client is the remaining production signal.
+
+**Notes / debt:** `firebase-functions` is now 7.3.0 (the peer range forced it, and it also cleared the long-standing "outdated firebase-functions" deploy warning). **#70** remains open and conflicted. The concurrent session's signing branch remains theirs.
+
+**Next objective written to resume-prompt.md:** Session 045 — the tracked engineering queue is genuinely empty of anything both unblocked and undone. Re-derive it; if it is still empty, say so with the derivation and stop.
