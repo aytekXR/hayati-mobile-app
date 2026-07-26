@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'color_tokens.dart';
+import 'elevation_tokens.dart';
 import 'radius_tokens.dart';
 import 'spacing_tokens.dart';
 import 'typography_tokens.dart';
@@ -23,14 +24,14 @@ ThemeData hayatiTheme({required String languageCode}) {
   const colorScheme = ColorScheme(
     brightness: Brightness.dark,
     primary: ColorTokens.pomegranate,
-    // sand-on-pomegranate is 3.94:1 — BELOW the 4.5 bar. The brandkit only
-    // mandates >=4.5 against night and defines no on-pomegranate token, so sand
-    // is chosen as onPrimary and logged as a recorded brandkit gap
-    // (docs/frontend-brandkit.md gap note, written in Stage 3).
-    onPrimary: ColorTokens.sand,
+    // moonlight-on-pomegranate 4.7:1 — the redesign's dedicated on-accent
+    // token (ui-ux §9.1) closes the recorded brandkit gap 1 (sand was 3.94:1,
+    // an AA failure).
+    onPrimary: ColorTokens.moonlight,
     primaryContainer: ColorTokens.pomegranateDeep,
-    // sand-on-pomegranateDeep 6.46:1 OK — deep is the selected-chip surface.
-    onPrimaryContainer: ColorTokens.sand,
+    // moonlight-on-pomegranateDeep 7.5:1 — selected chips carry the Moonlight
+    // label per ui-ux §9.4.
+    onPrimaryContainer: ColorTokens.moonlight,
     secondary: ColorTokens.clay,
     onSecondary: ColorTokens.night,
     tertiary: ColorTokens.sage,
@@ -40,6 +41,13 @@ ThemeData hayatiTheme({required String languageCode}) {
     onError: ColorTokens.night,
     surface: ColorTokens.night,
     onSurface: ColorTokens.sand,
+    // Secondary text (M3 ListTile subtitles, supporting text) — Mist, 7.9:1
+    // on night / 7.0:1 on nightRaised; kills the Material-grey leak recorded
+    // as gap #67. Boundaries (M3 Divider reads outlineVariant, focus/borders
+    // read outline) — Veil, a deliberately quiet non-text role (ui-ux §9.1).
+    onSurfaceVariant: ColorTokens.mist,
+    outline: ColorTokens.veil,
+    outlineVariant: ColorTokens.veil,
     // ── The raised-surface family (ADR-025 slice 1) ──────────────────────────
     // Material 3 resolves component backgrounds through these slots, and an
     // UNSET slot does not fall back to something sensible — Flutter falls
@@ -87,7 +95,13 @@ ThemeData hayatiTheme({required String languageCode}) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: ColorTokens.pomegranate,
-        foregroundColor: ColorTokens.sand,
+        // Moonlight on pomegranate 4.7:1 (ui-ux §9.4 "all CTAs") — closes the
+        // recorded AA failure (sand was 3.94:1, brandkit §10 gap 1).
+        foregroundColor: ColorTokens.moonlight,
+        // Disabled: Night Raised fill, Mist label (ui-ux §9.4) — never
+        // Material's onSurface-at-opacity grey.
+        disabledBackgroundColor: ColorTokens.nightRaised,
+        disabledForegroundColor: ColorTokens.mist,
         // >=44dp touch target (frontend-brandkit §8); 48 keeps a comfortable
         // margin. Stadium (full) radius per the chip/button token.
         minimumSize: const Size.fromHeight(48),
@@ -98,41 +112,90 @@ ThemeData hayatiTheme({required String languageCode}) {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        // pomegranate text on night is 3.45:1 — fails >=4.5, so link/secondary
-        // labels use sand, never pomegranate.
-        foregroundColor: ColorTokens.sand,
+        // Rose 6.8:1 on night (ui-ux §9.1) — links/TextButtons finally read as
+        // links: color PLUS the labelLarge w600 weight, never color alone.
+        // (pomegranate itself stays a fill/accent — 3.45:1 as text, gap 2.)
+        foregroundColor: ColorTokens.rose,
         shape: RadiusTokens.stadium,
         textStyle: textTheme.labelLarge,
       ),
     ),
-    inputDecorationTheme: InputDecorationTheme(
+    inputDecorationTheme: const InputDecorationTheme(
       filled: true,
       fillColor: ColorTokens.nightRaised,
-      border: const OutlineInputBorder(
+      // ui-ux §9.4 inputs: Veil hairline at rest -> 2dp pomegranate when
+      // focused; error carries the Alert line. The base `border` keeps the
+      // card radius as the shared shape.
+      border: OutlineInputBorder(
         borderRadius: RadiusTokens.cardRadius,
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: ColorTokens.veil),
       ),
-      // Labels/hints are sand at reduced opacity (still derived from onSurface).
-      // The hint renders over the nightRaised fill, so its floor is the >=4.5:1
-      // brandkit rule against THAT surface: 0.5 blends to 4.12:1 (fails), 0.6
-      // blends to 5.29:1 (passes, and 6.01:1 against night).
-      labelStyle: TextStyle(color: ColorTokens.sand.withValues(alpha: 0.7)),
-      hintStyle: TextStyle(color: ColorTokens.sand.withValues(alpha: 0.6)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: RadiusTokens.cardRadius,
+        borderSide: BorderSide(color: ColorTokens.veil),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: RadiusTokens.cardRadius,
+        borderSide: BorderSide(color: ColorTokens.pomegranate, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: RadiusTokens.cardRadius,
+        borderSide: BorderSide(color: ColorTokens.alert),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: RadiusTokens.cardRadius,
+        borderSide: BorderSide(color: ColorTokens.alert, width: 2),
+      ),
+      // Labels/hints in Mist (ui-ux §9.4). The hint renders over the
+      // nightRaised fill, so its floor is the >=4.5:1 brandkit rule against
+      // THAT surface: mist-on-nightRaised is 7.0:1 (and 7.9:1 against night)
+      // — comfortably past the bar the old sand-alpha blends scraped.
+      labelStyle: TextStyle(color: ColorTokens.mist),
+      hintStyle: TextStyle(color: ColorTokens.mist),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: ColorTokens.nightRaised,
-      // Selected ChoiceChip surface — pomegranateDeep (sand-on-deep 6.46:1 OK).
+      // Selected ChoiceChip surface — pomegranateDeep with a Moonlight label
+      // (7.5:1; ui-ux §9.4 "no checkmarks" — the fill is the signal, and the
+      // label color shift keeps color from being the sole signal's partner).
       selectedColor: ColorTokens.pomegranateDeep,
-      labelStyle: textTheme.bodyMedium,
-      secondaryLabelStyle: textTheme.bodyMedium,
+      labelStyle: textTheme.bodyMedium?.copyWith(
+        color: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? ColorTokens.moonlight
+              : ColorTokens.sand,
+        ),
+      ),
+      secondaryLabelStyle: textTheme.bodyMedium?.copyWith(
+        color: ColorTokens.moonlight,
+      ),
       shape: RadiusTokens.stadium,
-      side: BorderSide.none,
+      // Veil hairline on the resting chip; the selected fill needs no border
+      // (ui-ux §9.4 "Night Raised + Veil border -> selected Pomegranate Deep
+      // fill + Moonlight label").
+      side: WidgetStateBorderSide.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? BorderSide.none
+            : const BorderSide(color: ColorTokens.veil),
+      ),
       showCheckmark: false,
       padding: const EdgeInsets.symmetric(
         horizontal: SpacingTokens.x3,
         vertical: SpacingTokens.x2,
       ),
     ),
+    // Veil hairlines (ui-ux §9.1) — the app finally has a divider color that
+    // is not Material grey. M3 `Divider` also reads outlineVariant; both point
+    // at the same token so the explicit theme is documentation, not override.
+    dividerTheme: const DividerThemeData(
+      color: ColorTokens.veil,
+      thickness: 1,
+    ),
+    // Tile glyphs/chevrons in Clay — the kept secondary-icon role (ui-ux
+    // §9.4). Without this, M3 ListTile icons would follow onSurfaceVariant
+    // into Mist, conflating the icon role with secondary TEXT. Subtitles are
+    // deliberately NOT pinned here: they inherit Mist via onSurfaceVariant.
+    listTileTheme: const ListTileThemeData(iconColor: ColorTokens.clay),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
       color: ColorTokens.pomegranate,
     ),
@@ -151,6 +214,12 @@ ThemeData hayatiTheme({required String languageCode}) {
       // A dialog is a sheet-scale surface -> the sheet token (24).
       backgroundColor: ColorTokens.nightRaised,
       surfaceTintColor: Colors.transparent,
+      // ui-ux §9.3 Level 2 (sheets/dialogs), Material-approximated: Material
+      // derives blur/offset from `elevation`, so only the plum tint is exact
+      // here — widgets that own their decoration use
+      // `ElevationTokens.level2` directly for the y6/blur24/36% spec.
+      elevation: 6,
+      shadowColor: ElevationTokens.shadowBase,
       shape: const RoundedRectangleBorder(
         borderRadius: RadiusTokens.sheetRadius,
       ),
