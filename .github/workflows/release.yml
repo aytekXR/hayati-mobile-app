@@ -329,6 +329,19 @@ jobs:
       - name: pub get
         working-directory: app
         run: flutter pub get
+      - name: inject automatic-signing team (dev-box local-only pbxproj edit — ADR-023)
+        # DEVELOPMENT_TEAM is deliberately NOT committed — it lives as a local-only
+        # working-tree edit on the dev Mac (ADR-023). Automatic cloud signing needs
+        # it, so CI injects the team (the non-secret APPLE_TEAM_ID repo variable)
+        # after every automatic-style config, mirroring the dev box exactly. This is
+        # the "Mac-era fix the DEVELOPMENT_TEAM build setting no secret carries" the
+        # fastlane step below anticipated.
+        working-directory: app/ios
+        run: |
+          perl -0pi -e "s/(CODE_SIGN_STYLE = Automatic;)/\$1\n\t\t\t\tDEVELOPMENT_TEAM = ${{ vars.APPLE_TEAM_ID }};/g" Runner.xcodeproj/project.pbxproj
+          n=$(grep -c "DEVELOPMENT_TEAM = ${{ vars.APPLE_TEAM_ID }};" Runner.xcodeproj/project.pbxproj)
+          echo "injected DEVELOPMENT_TEAM into $n config(s)"
+          test "$n" -ge 1
       - name: fastlane beta (cloud sign + TestFlight)
         # `flutter build ipa` cloud signing + upload_to_testflight + deliver, all
         # authenticated by the one ASC API key. UNVERIFIABLE from a Linux session
@@ -340,6 +353,9 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_PATH: ${{ runner.temp }}/AuthKey.p8
+          # Publishable RevenueCat iOS SDK key (repo variable, not a secret — it
+          # ships in the app binary); baked into the build via --dart-define.
+          REVENUECAT_IOS_API_KEY: ${{ vars.REVENUECAT_IOS_API_KEY }}
         run: bundle exec fastlane ios beta
       - name: fastlane store_metadata (deliver per locale)
         # Pushes fastlane/metadata TR/EN via deliver(skip_binary_upload). Gated

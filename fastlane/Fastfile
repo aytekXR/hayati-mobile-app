@@ -66,8 +66,14 @@ platform :ios do
       key_filepath: ENV["ASC_KEY_P8_PATH"],
     )
 
-    # Prod flavor: TestFlight builds carry prod config (operator runbook).
-    sh("cd ../app && flutter build ipa --release -t lib/main_prod.dart")
+    # Prod flavor: TestFlight builds carry prod config (operator runbook). The
+    # RevenueCat iOS SDK key is a PUBLISHABLE client key (ships in the binary),
+    # injected at build time via --dart-define; the release.yml sign-upload job
+    # carries it as the non-secret `REVENUECAT_IOS_API_KEY` env (a repo variable).
+    # Absent -> empty -> RevenueCat stays unconfigured (fail-safe), never a crash.
+    rc_key = ENV["REVENUECAT_IOS_API_KEY"].to_s
+    sh("cd ../app && flutter build ipa --release -t lib/main_prod.dart " \
+       "--dart-define=REVENUECAT_IOS_API_KEY=#{rc_key}")
 
     # The ipa path must be explicit: the build ran through raw `sh` (not gym),
     # so lane_context carries no IPA_OUTPUT_PATH and pilot's fallback globs
