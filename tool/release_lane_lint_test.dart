@@ -169,11 +169,65 @@ void _writeTree(
       fastfile: fastfile ?? _healthyFastfile,
       names: names,
     );
+    // Rule 5 reads these; without them every other rule's mutant would exit 64
+    // as an input error and the assertions below would test nothing.
+    File('${temp.path}/Gemfile').writeAsStringSync(_healthyGemfile);
+    File('${temp.path}/Gemfile.lock').writeAsStringSync(_lockWith('2.237.0'));
     return _run(temp.path);
   } finally {
     temp.deleteSync(recursive: true);
   }
 }
+
+/// A `Gemfile.lock` whose only interesting line is the resolved fastlane version.
+String _lockWith(String version) =>
+    'GEM\n  remote: https://rubygems.org/\n  specs:\n'
+    '    fastlane ($version)\n\nPLATFORMS\n  arm64-darwin-23\n  ruby\n\n'
+    'DEPENDENCIES\n  fastlane (~> 2.225)\n\nBUNDLED WITH\n   2.5.22\n';
+
+const String _healthyGemfile =
+    'source "https://rubygems.org"\n\ngem "fastlane", "~> 2.225"\n';
+
+/// Like [_mutant], but also writes a Gemfile and (unless [lock] is explicitly
+/// null) a Gemfile.lock, so rule 5 has something to read. Passing `lock: null`
+/// is the missing-lock case.
+(int, String, String) _mutantWithGems({
+  String? workflow,
+  String? fastfile,
+  Map<String, String>? names,
+  String? gemfile,
+  Object? lock = _sentinel,
+}) {
+  final temp = Directory.systemTemp.createTempSync('hayati_rll_gems');
+  try {
+    _writeTree(
+      temp.path,
+      workflow: workflow ?? _healthyWorkflow,
+      fastfile: fastfile ?? _healthyFastfile,
+      names: names,
+    );
+    File('${temp.path}/Gemfile').writeAsStringSync(gemfile ?? _healthyGemfile);
+    final lockBody = identical(lock, _sentinel) ? _lockWith('2.237.0') : lock;
+    if (lockBody != null) {
+      File('${temp.path}/Gemfile.lock').writeAsStringSync(lockBody as String);
+    }
+    return _run(temp.path);
+  } finally {
+    temp.deleteSync(recursive: true);
+  }
+}
+
+/// Writes the healthy Gemfile + lock. Raw-temp-tree cases need this explicitly:
+/// without it rule 5 reports an INPUT error (exit 64) and whichever rule the case
+/// was written to exercise is never reached — the assertion would pass or fail
+/// for the wrong reason.
+void _writeGems(String root) {
+  File('$root/Gemfile').writeAsStringSync(_healthyGemfile);
+  File('$root/Gemfile.lock').writeAsStringSync(_lockWith('2.237.0'));
+}
+
+/// Distinguishes "caller did not pass lock" from "caller passed null on purpose".
+const Object _sentinel = Object();
 
 void main() {
   // ---------------------------------------------------------------- GREEN ---
@@ -530,6 +584,7 @@ void main() {
         fastfile: _healthyFastfile,
         names: const {},
       );
+      _writeGems(temp.path);
       Directory('${temp.path}/fastlane/metadata').createSync(recursive: true);
       final (code, _, err) = _run(temp.path);
       _check('R4: a metadata dir with no locales fails', code == 1);
@@ -546,6 +601,7 @@ void main() {
         workflow: _healthyWorkflow,
         fastfile: _healthyFastfile,
       );
+      _writeGems(temp.path);
       File('${temp.path}/fastlane/metadata/tr/name.txt').deleteSync();
       final (code, _, err) = _run(temp.path);
       _check('R4: a missing name.txt fails', code == 1);
@@ -556,6 +612,102 @@ void main() {
     } finally {
       temp.deleteSync(recursive: true);
     }
+  }
+
+  // ------------------------------------------------------ RULE 5 mutants ---
+  // Gemfile.lock presence + agreement with the Gemfile (issue #120).
+  {
+    final (code, out, _) = _mutantWithGems();
+    _check('R5: a satisfying lock passes', code == 0);
+    _check(
+      'R5: names the resolved version and the constraint',
+      out.contains('fastlane 2.237.0') && out.contains('~> 2.225'),
+    );
+  }
+  {
+    // THE defect this rule exists for: no lock, so every release resolves fresh.
+    final (code, _, err) = _mutantWithGems(lock: null);
+    _check('R5: a MISSING lock fails', code == 1);
+    _check('R5: says it is missing', err.contains('Gemfile.lock is MISSING'));
+    _check(
+      'R5: tells the reader how to regenerate it',
+      err.contains('gh workflow run gemfile-lock.yml'),
+    );
+  }
+  {
+    final (code, _, err) = _mutantWithGems(lock: _lockWith('2.224.0'));
+    _check('R5: a lock BELOW the constraint floor fails', code == 1);
+    _check('R5: names both versions', err.contains('2.224.0'));
+  }
+  {
+    // The boundary that matters most: `~> 2.225` must NOT admit 3.x. Getting the
+    // pessimistic upper bound backwards would silently accept a major bump —
+    // precisely the change a lock exists to catch.
+    final (code, _, err) = _mutantWithGems(lock: _lockWith('3.0.0'));
+    _check('R5: a MAJOR bump is rejected by "~> 2.225"', code == 1);
+    _check('R5: names the offending version', err.contains('3.0.0'));
+  }
+  {
+    // MUST STAY GREEN: a minor/patch bump inside the range is exactly what the
+    // constraint is for. A rule that reddened here would be a freeze, not a pin,
+    // and would be relaxed within a week.
+    final (code, _, _) = _mutantWithGems(lock: _lockWith('2.299.13'));
+    _check('R5: a bump INSIDE the range stays green', code == 0);
+  }
+  {
+    // The Gemfile moved and the lock did not — `bundle install` would fail
+    // inside the release job, past a 40-minute macOS leg.
+    final (code, _, err) = _mutantWithGems(
+      gemfile: 'source "https://rubygems.org"\ngem "fastlane", "~> 2.240"\n',
+    );
+    _check('R5: a Gemfile bump without a lock regen fails', code == 1);
+    _check('R5: names the disagreement', err.contains('does NOT satisfy'));
+  }
+  {
+    final (code, _, err) = _mutantWithGems(
+      lock: 'GEM\n  specs:\n    commander (4.6.0)\n\nPLATFORMS\n  ruby\n',
+    );
+    _check('R5: a lock with no fastlane spec line fails', code == 1);
+    _check(
+      'R5: says a lock without its gem is not a lock',
+      err.contains('no resolved `fastlane'),
+    );
+  }
+  {
+    // A three-segment constraint tightens the upper bound to the MINOR: this is
+    // the other half of the pessimistic operator, and the two must not be
+    // conflated.
+    final (code, _, _) = _mutantWithGems(
+      gemfile: 'source "https://rubygems.org"\ngem "fastlane", "~> 2.225.1"\n',
+      lock: _lockWith('2.225.9'),
+    );
+    _check('R5: "~> 2.225.1" admits 2.225.9', code == 0);
+    final (code2, _, _) = _mutantWithGems(
+      gemfile: 'source "https://rubygems.org"\ngem "fastlane", "~> 2.225.1"\n',
+      lock: _lockWith('2.226.0'),
+    );
+    _check('R5: "~> 2.225.1" REJECTS 2.226.0', code2 == 1);
+  }
+  {
+    final (code, _, _) = _mutantWithGems(
+      gemfile: 'source "https://rubygems.org"\ngem "fastlane"\n',
+    );
+    _check(
+      'R5: a Gemfile with no ~> constraint fails (not vacuous)',
+      code == 1,
+    );
+  }
+  {
+    // MUST STAY GREEN: the real Gemfile carries a long comment block that
+    // mentions `bundle install --frozen` and issue #120. Commentary is not a
+    // constraint declaration, and the rule reads code.
+    final (code, _, _) = _mutantWithGems(
+      gemfile:
+          '# gem "fastlane", "~> 9.9" would be wrong; see #120.\n'
+          'source "https://rubygems.org"\n'
+          'gem "fastlane", "~> 2.225"\n',
+    );
+    _check('R5: a commented-out constraint is ignored', code == 0);
   }
 
   // ------------------------------------------- input errors are NOT green ---
