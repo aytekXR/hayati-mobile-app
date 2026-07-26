@@ -371,9 +371,20 @@ jobs:
         # the same secret fastlane authenticates with — instead of requiring a
         # second, separately-maintained raw `ASC_API_KEY_P8`. Two secrets holding
         # one key is a rotation footgun: update one, forget the other, and the
-        # lane fails closed on a credential that is not actually wrong. One key,
-        # one secret. `openssl base64 -A` rather than `base64 -d` for the
-        # single-line input.
+        # lane fails closed on a credential that is not actually wrong.
+        #
+        # THE `tr` IS LOAD-BEARING, and it is the reason this edit is safe to
+        # make from a box that cannot run the lane. `openssl base64 -d -A`
+        # silently emits GARBAGE and still exits 0 when its input carries
+        # newlines (verified locally against a real PKCS#8 EC key). We do not
+        # know how this secret was pasted: fastlane consumes the same value
+        # through Ruby's Base64.decode64, which IGNORES newlines, so a wrapped
+        # secret works there and would have broken only here. Stripping all
+        # whitespace first decodes both forms identically.
+        #
+        # An App Store Connect key is PKCS#8, so its PEM header is
+        # `-----BEGIN PRIVATE KEY-----` (NOT `BEGIN EC PRIVATE KEY`, which is
+        # SEC1) — confirmed against a locally generated P-256 key.
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
@@ -381,13 +392,16 @@ jobs:
           umask 077
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           key_path="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          printf '%s' "$ASC_API_KEY_P8_BASE64" | openssl base64 -d -A > "$key_path"
+          printf '%s' "$ASC_API_KEY_P8_BASE64" \
+            | tr -d '[:space:]' \
+            | openssl base64 -d -A > "$key_path"
           chmod 600 "$key_path"
-          # Fail loudly if the secret was not valid base64 of a PEM key: a
-          # zero-byte or garbage file here would be a silent no-op, and this
-          # whole step exists because we are not certain nothing reads it.
+          # Fail loudly if the secret did not decode to a PEM key. A zero-byte or
+          # garbage file would otherwise be a silent no-op — and the whole reason
+          # this step survives is that we are NOT certain nothing reads it.
           head -1 "$key_path" | grep -q 'BEGIN PRIVATE KEY' || {
-            echo "::error::ASC_API_KEY_P8_BASE64 did not decode to a PEM private key."
+            echo "::error::ASC_API_KEY_P8_BASE64 did not decode to a PKCS#8 PEM private key."
+            echo "::error::Expected a first line of '-----BEGIN PRIVATE KEY-----'."
             exit 1
           }
       - uses: actions/checkout@v5

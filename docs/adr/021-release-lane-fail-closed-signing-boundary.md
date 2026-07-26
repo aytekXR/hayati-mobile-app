@@ -1,6 +1,6 @@
 # ADR-021: The release lane — tag-triggered `release.yml`, App Store Connect API-key cloud signing, and a fail-closed loud boundary where secrets don't exist yet
 
-- **Status:** Accepted
+- **Status:** Accepted — **D5 superseded by [ADR-032](032-release-signing-on-fastlane-match.md)** (API-key cloud signing → fastlane `match` + manual signing; cloud signing cannot work on a GitHub-hosted runner), and **D3's build-number clause superseded by ADR-032** (CI synthesizes the build number). D3's tag↔pubspec clause **stands** — ADR-032 restored it after PR #117 made it vacuous. Everything else here is current; the body is unchanged per the immutability rule.
 - **Date:** 2026-07-13 (Session 022, M6.3)
 - **Deciders:** session agent, per resume-prompt M6.3
 - **Related:** ADR-006 (iOS-first), `docs/architecture.md` §9, `docs/test-suite.md` (release-lane E2E promise), `docs/agent-workflows.md` W7, `fastlane/README.md`, operator-expected item 4

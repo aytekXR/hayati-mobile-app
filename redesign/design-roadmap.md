@@ -151,7 +151,7 @@ Internal dependency chain: **QW-1 → everything visual** (no screen work before
 
 ## Measurement
 
-Analytics (M-1) is the prerequisite for everything in this table; until it lands, checks run on the founder-couple dogfood build and TestFlight cohorts (operational proof is currently 0% — nothing deployed).
+Analytics (M-1) is the prerequisite for everything in this table; until it lands, checks run on the founder-couple dogfood build and TestFlight cohorts. *(S047: the parenthetical here used to read "operational proof is currently 0% — nothing deployed"; both backends are deployed and TestFlight builds ship from CI. Analytics remains the real prerequisite.)*
 
 | Change | Primary metric | How to check |
 | --- | --- | --- |

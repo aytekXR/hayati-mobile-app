@@ -94,9 +94,11 @@ scoped:
   change on production: one `gcloud` command, the founder's), #15 (needs a
   Mac/device crash log), #13 (M6.5 Android), #63/#71 (founder/brandkit calls),
   #100 (a cost-posture re-decision needing runner-queue measurement).
-  **#67 looks CLOSABLE** — the redesign waves added `mist`/`veil` to brandkit
-  v1.1, which is what it asked for; a session should verify against the issue's
-  own acceptance rather than assume.
+  **#67 is CLOSED** (S047, verified rather than assumed): the redesign waves added
+  `mist`/`veil` to brandkit v1.1 and `hayati_theme.dart` wires them to
+  `onSurfaceVariant` / `outline` / `outlineVariant` — exactly the option (a) the
+  issue recommended — held by the brandkit→Dart parity test. **#71 stays open**:
+  motion still has no token in `hayati-tokens.json`.
 
 **Nothing on the engineering side is both unblocked and undone as of S047**, so
 the next unit is either a founder decision above or M6.5 (Gate-3 gated).

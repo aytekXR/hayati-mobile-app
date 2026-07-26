@@ -179,12 +179,21 @@ List<String> checkLaneCredentialHelpers(String fastfile, List<String> passes) {
     }
     if (!body.contains(expected)) {
       final found = RegExp(r'ensure_\w+!').firstMatch(body)?.group(0);
+      // The rationale is DIRECTION-AWARE. The two mistakes are opposites and a
+      // message that explains only one of them argues for the wrong fix — a
+      // reader told "a lane that signs nothing must not require signing
+      // credentials" about the SIGNING lane would go and weaken its check.
+      final tooNarrow = expected == 'ensure_release_credentials!';
       violations.add(
         'lane :$lane must call $expected; found '
-        '${found ?? '(no credential helper call)'}. A lane that signs nothing '
-        'must not require signing credentials — it aborts before doing its '
-        'job, and inside a continue-on-error step that abort renders the job '
-        'GREEN (ADR-032 D5).',
+        '${found ?? '(no credential helper call)'}. '
+        '${tooNarrow ? 'This lane signs and uploads, so it needs the match '
+                  'inputs too. With only the ASC check it reaches match() with no '
+                  'certificate and fails opaquely, deep in fastlane, instead of at '
+                  'the named gate (ADR-021 D4).' : 'A lane that signs nothing must '
+                  'not require signing credentials — it aborts before doing its '
+                  'job, and because its step is continue-on-error that abort '
+                  'renders the job GREEN (ADR-032 D5).'}',
       );
       continue;
     }
@@ -215,10 +224,26 @@ List<String> checkGateCoversConsumedSecrets(
   // invents inputs from commentary would fail the build over a secret nobody
   // can create.
   final secretRef = RegExp(r'\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}');
-  final consumed = secretRef.allMatches(job).map((m) => m.group(1)!).toSet();
 
   final violations = <String>[];
   final gate = gateStep(job);
+
+  // CONSUMPTION IS MEASURED OVER THE WORK STEPS, WITH THE GATE STEP EXCLUDED —
+  // and that exclusion is the difference between a real check and a vacuous one.
+  //
+  // The gate must bind every secret it tests (`X: ${{ secrets.X }}`) or `$X` is
+  // empty in its shell and it fails closed on X forever. So the gate's own env
+  // block necessarily mentions everything it checks. Measure "consumed" over the
+  // WHOLE job and `checked ⊆ consumed` holds unconditionally, by construction:
+  // the orphan direction can never fire, and reports a pass that means nothing.
+  // Excluding the gate makes "consumed" mean what the name says — what the steps
+  // that do the WORK actually read.
+  final workSteps = gate == null ? job : job.replaceFirst(gate, '');
+  final consumed = secretRef
+      .allMatches(workSteps)
+      .map((m) => m.group(1)!)
+      .toSet();
+
   if (gate == null) {
     violations.add(
       'the `sign-upload` job has no step named "signing secrets gate". That '

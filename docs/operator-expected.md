@@ -232,7 +232,8 @@ CI secrets) so every later build is a one-line tag push.
 ## Step 2 — Create the App Store Connect app record (once — this is half of item 0)
 
 1. **appstoreconnect.apple.com** → **My Apps** → **`+`** → **New App**.
-2. **Platform** iOS · **Name** `Hayati` (the public/TestFlight display name — if
+2. ✅ **DONE — the record exists, named `İkimiz`.** (Historical instructions follow.)
+   **Platform** iOS · **Name** `İkimiz` (the public/TestFlight display name — if
    Apple says it's taken, pick a variant; it can change before launch — see item
    8(a)) · **Primary language** Turkish or English (your call) · **Bundle ID**
    `com.beyondkaira.hayati` (appears in the dropdown after Step 1) · **SKU** `hayati-ios`

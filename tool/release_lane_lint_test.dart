@@ -52,12 +52,14 @@ jobs:
       - name: signing secrets gate
         env:
           ASC_KEY_ID: \${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: \${{ secrets.ASC_ISSUER_ID }}
           ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}
           MATCH_GIT_URL: \${{ secrets.MATCH_GIT_URL }}
           MATCH_PASSWORD: \${{ secrets.MATCH_PASSWORD }}
         run: |
           missing=()
           [ -n "\$ASC_KEY_ID" ] || missing+=("ASC_KEY_ID")
+          [ -n "\$ASC_ISSUER_ID" ] || missing+=("ASC_ISSUER_ID")
           [ -n "\$ASC_API_KEY_P8_BASE64" ] || missing+=("ASC_API_KEY_P8_BASE64")
           [ -n "\$MATCH_GIT_URL" ] || missing+=("MATCH_GIT_URL")
           [ -n "\$MATCH_PASSWORD" ] || missing+=("MATCH_PASSWORD")
@@ -65,6 +67,7 @@ jobs:
       - name: fastlane beta
         env:
           ASC_KEY_ID: \${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: \${{ secrets.ASC_ISSUER_ID }}
           ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}
           MATCH_GIT_URL: \${{ secrets.MATCH_GIT_URL }}
           MATCH_PASSWORD: \${{ secrets.MATCH_PASSWORD }}
@@ -73,6 +76,7 @@ jobs:
         continue-on-error: true
         env:
           ASC_KEY_ID: \${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: \${{ secrets.ASC_ISSUER_ID }}
           ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}
         run: bundle exec fastlane ios store_metadata
 
@@ -88,14 +92,14 @@ const String _healthyFastfile = r'''
 default_platform(:ios)
 
 def ensure_asc_credentials!
-  required = %w[ASC_KEY_ID ASC_API_KEY_P8_BASE64]
+  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64]
   missing = required.select { |key| (ENV[key] || "").strip.empty? }
   return if missing.empty?
   UI.user_error!("missing #{missing.join(', ')}")
 end
 
 def ensure_release_credentials!
-  required = %w[ASC_KEY_ID ASC_API_KEY_P8_BASE64 MATCH_GIT_URL MATCH_PASSWORD]
+  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64 MATCH_GIT_URL MATCH_PASSWORD]
   missing = required.select { |key| (ENV[key] || "").strip.empty? }
   return if missing.empty?
   UI.user_error!("missing #{missing.join(', ')}")
@@ -336,6 +340,70 @@ void main() {
     _check('R3: names the missing job', err.contains('no `sign-upload:` job'));
   }
 
+  {
+    // THE ORPHAN DIRECTION, made real. `consumed` is measured with the GATE STEP
+    // EXCLUDED. Measured over the whole job it was vacuous by construction: the
+    // gate must bind every secret it tests, so `checked ⊆ consumed` always held
+    // and this branch could never fire. Here the work step that reads MATCH_* is
+    // deleted while the gate keeps demanding them — the realistic shape (a lane
+    // narrowed, its gate not) that the old version reported as clean.
+    final betaRemoved = _healthyWorkflow.replaceFirst(
+      '''      - name: fastlane beta
+        env:
+          ASC_KEY_ID: \${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: \${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          MATCH_GIT_URL: \${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: \${{ secrets.MATCH_PASSWORD }}
+        run: bundle exec fastlane ios beta
+''',
+      '',
+    );
+    final (code, _, err) = _mutant(workflow: betaRemoved);
+    _check('R3: a gate demand no WORK step reads is orphaned', code == 1);
+    _check(
+      'R3: names both newly-unread secrets',
+      err.contains('demands MATCH_GIT_URL, MATCH_PASSWORD'),
+    );
+  }
+  {
+    // F2's row: ASC_ISSUER_ID is what `app_store_connect_api_key(issuer_id:)`
+    // dies on, and until this row existed no mutant removed it from a step.
+    final noIssuer = _healthyWorkflow.replaceFirst(
+      '''          ASC_ISSUER_ID: \${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: bundle exec fastlane ios store_metadata''',
+      '''          ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: bundle exec fastlane ios store_metadata''',
+    );
+    final (code, _, err) = _mutant(workflow: noIssuer);
+    _check('R3b: a store_metadata step missing ASC_ISSUER_ID fails', code == 1);
+    _check(
+      'R3b: names the step and ASC_ISSUER_ID',
+      err.contains('fastlane ios store_metadata') &&
+          err.contains('ASC_ISSUER_ID'),
+    );
+  }
+  {
+    // The INVERSE of the store_metadata defect: the signing lane narrowed to the
+    // ASC-only helper. The rule must fire AND must not explain it with the
+    // opposite lane's rationale — a message telling someone that "a lane that
+    // signs nothing must not require signing credentials", about the lane that
+    // signs, argues for exactly the wrong fix.
+    final (code, _, err) = _mutant(
+      fastfile: _healthyFastfile.replaceFirst(
+        '    ensure_release_credentials!\n    build_number',
+        '    ensure_asc_credentials!\n    build_number',
+      ),
+    );
+    _check('R2: the SIGNING lane on the narrow helper fails', code == 1);
+    _check(
+      'R2: explains it as a signing lane, not a non-signing one',
+      err.contains('This lane signs and uploads') &&
+          !err.contains('A lane that signs nothing must not require'),
+    );
+  }
+
   // ----------------------------------------------------- RULE 3b mutants ---
   {
     // A step starved of an input its lane requires — job-level checking is
@@ -385,7 +453,7 @@ void main() {
   // catch. These two rows are the mutation check for that resolution.
   {
     final delegating = _healthyFastfile.replaceFirst(
-      '  required = %w[ASC_KEY_ID ASC_API_KEY_P8_BASE64 MATCH_GIT_URL MATCH_PASSWORD]',
+      '  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64 MATCH_GIT_URL MATCH_PASSWORD]',
       '  ensure_asc_credentials!\n  required = %w[MATCH_GIT_URL MATCH_PASSWORD]',
     );
 
@@ -397,6 +465,7 @@ void main() {
     // delegate. Pre-resolution this was invisible.
     final starvedWorkflow = _healthyWorkflow.replaceFirst(
       '          ASC_KEY_ID: \${{ secrets.ASC_KEY_ID }}\n'
+          '          ASC_ISSUER_ID: \${{ secrets.ASC_ISSUER_ID }}\n'
           '          ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}\n'
           '          MATCH_GIT_URL: \${{ secrets.MATCH_GIT_URL }}\n'
           '          MATCH_PASSWORD: \${{ secrets.MATCH_PASSWORD }}\n'
@@ -419,9 +488,9 @@ void main() {
     // A delegation cycle must not hang the lint. It is nonsense Ruby, but a
     // guard that spins forever on malformed input is worse than one that fails.
     final cyclic = _healthyFastfile.replaceFirst(
-      'def ensure_asc_credentials!\n  required = %w[ASC_KEY_ID ASC_API_KEY_P8_BASE64]',
+      'def ensure_asc_credentials!\n  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64]',
       'def ensure_asc_credentials!\n  ensure_release_credentials!\n'
-          '  required = %w[ASC_KEY_ID ASC_API_KEY_P8_BASE64]',
+          '  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64]',
     );
     final (code, _, _) = _mutant(fastfile: cyclic);
     _check('R3b: a helper delegation CYCLE terminates', code == 0 || code == 1);

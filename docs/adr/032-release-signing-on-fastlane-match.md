@@ -120,30 +120,50 @@ both places that still describe it as one — `release.yml`'s preflight comment 
 corrected in this diff. Anyone who "restores" D3 by deleting the synthesis would ship build 4 into a version
 whose builds already reach 109, and App Store Connect would reject it.
 
-### Decision 4 — The fail-closed gate checks what the job consumes; the `.p8` step is deliberately NOT touched
+### Decision 4 — The fail-closed gate checks what the job consumes; the `.p8` step is kept but de-duplicated
 
 ADR-021 D4's guarantee is that `sign-upload`'s **first** step fails closed, names the **full** missing set at
 once, and ensures *"a partial secret set must not reach fastlane to die on an opaque auth error."* The match
 swap left it checking `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_API_KEY_P8` while the job also consumes
 `ASC_API_KEY_P8_BASE64`, `MATCH_GIT_URL` and `MATCH_PASSWORD`. A missing `MATCH_PASSWORD` sailed through the
-gate and died inside fastlane — precisely the outcome D4 was written to prevent. The gate now checks all six.
+gate and died inside fastlane — precisely the outcome D4 was written to prevent.
+
+**The gate now checks the five secrets the job consumes:** `ASC_KEY_ID` and `ASC_ISSUER_ID` (the `release`
+environment) plus `ASC_API_KEY_P8_BASE64`, `MATCH_GIT_URL` and `MATCH_PASSWORD` (repository secrets).
 
 **The "write App Store Connect API key" step is KEPT, though the evidence says nothing reads it.** Under
 manual signing, xcodebuild's `~/.appstoreconnect/private_keys` auto-discovery path is consulted only by
 `-allowProvisioningUpdates`, and fastlane receives the key through `app_store_connect_api_key(key_content:)`
 instead — so the step looks inert, and deleting it would drop a private key off the runner's disk and retire a
-redundant secret.
+secret.
 
-It is kept anyway, on this project's own precedent. ADR-029 D2 left `CODE_SIGN_IDENTITY` alone for exactly
-this reason:
+It is kept on this project's own precedent. ADR-029 D2 left `CODE_SIGN_IDENTITY` alone for exactly this
+reason:
 
 > Changing it is not required, not proven necessary, and would be a blind edit to a signing path from a Linux
 > box with no Mac — exactly what ADR-021 D5's honesty bound forbids.
 
 The lane demonstrably works *with* the step. "Very likely dead" is not "proven dead", and the cost of being
-wrong is a broken release the founder cannot debug from their side. The observation is recorded as an issue
-for a session that can watch a real run, and `ASC_API_KEY_P8` stays legitimately in the gate because the job
-genuinely still consumes it.
+wrong is a broken release the founder cannot debug from their side. The observation is issue **#121**, for a
+session that can watch a real run.
+
+**What DID change inside that step, and why it is not a blind edit.** It now derives the key by base64-decoding
+`ASC_API_KEY_P8_BASE64` — the same secret fastlane authenticates with — instead of requiring a second,
+separately-maintained raw `ASC_API_KEY_P8`. **Two secrets holding one key is a rotation footgun**: update one,
+forget the other, and the lane fails closed on a credential that is not actually wrong. So `ASC_API_KEY_P8`
+drops out of the required set entirely; it may stay in the `release` environment unused, and no founder action
+is requested.
+
+**The decode carries a trap that this ADR is the right place to record**, because it nearly shipped:
+`openssl base64 -d -A` **silently emits nothing and still exits 0** when its input contains newlines — verified
+locally against a real PKCS#8 EC key. Whether this secret is line-wrapped is unknowable from here, and it does
+not matter to fastlane, which decodes the same value through Ruby's `Base64.decode64` — a function that
+**ignores** newlines. So a wrapped secret works in fastlane and would have broken **only** in this step, and
+the sanity check added alongside would have been the thing that reddened a lane that previously worked. The
+pipeline therefore strips whitespace (`tr -d '[:space:]'`) before decoding, which handles both forms
+identically. The step then asserts the result begins `-----BEGIN PRIVATE KEY-----` — the PKCS#8 header an App
+Store Connect key actually carries, not the SEC1 `BEGIN EC PRIVATE KEY` — so a bad decode fails loudly instead
+of leaving an empty file behind.
 
 ### Decision 5 — `store_metadata` gets its own, narrower credential check
 
@@ -243,6 +263,7 @@ guarantee surface, and a comment naming a retired mechanism misleads the next re
 
 ### Neutral
 
-- The `release` environment's `ASC_API_KEY_P8` stays in use (D4); no founder action is requested.
+- The `release` environment's `ASC_API_KEY_P8` becomes **unused** rather than deleted (D4). Nothing reads it
+  and nothing breaks if it stays; no founder action is requested either way.
 - #100 (CI cost posture on a public repo) is untouched. It is a separate decision with its own measurement,
   and bundling it here would be the "one decision per file" violation the ADR README forbids.

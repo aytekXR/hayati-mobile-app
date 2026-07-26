@@ -32,7 +32,7 @@ A flagged assumption shapes the whole activation design: **the installing partne
 
 **Core loop:** open → read today's question → write your answer (sealed) → partner answers → **mutual reveal** (both answers unfold together) → a pomegranate seed joins the couple's shared streak → return tomorrow. Server-enforced fairness: neither answer is readable until both exist (`firestore.rules` `exists()` gate, mutation-tested). The reveal is the product; everything else exists to deliver couples to that moment daily.
 
-**Validation gates the design must serve:** G1 content virality (TikTok slideshows; questions double as content assets), G2 activation (≥40% paired ≤7d, D7 couple retention ≥25% — the invitee flow and push notifications are the levers), G3 monetization (trial→paid ≥30% — the paywall and premium's perceived value are the levers). Pre-launch reality: engineering ~95%, operational proof 0%; first release target is the founder couple's devices.
+**Validation gates the design must serve:** G1 content virality (TikTok slideshows; questions double as content assets), G2 activation (≥40% paired ≤7d, D7 couple retention ≥25% — the invitee flow and push notifications are the levers), G3 monetization (trial→paid ≥30% — the paywall and premium's perceived value are the levers). Pre-launch reality (updated S047): engineering ~100% of MVP scope; **operational proof is no longer 0%** — both backends are deployed and TestFlight build 109 shipped from CI. The one unproven link is the first real purchase (gated on issue #115 + Apple's pricing propagation). First release target is still the founder couple's devices.
 
 ---
 
