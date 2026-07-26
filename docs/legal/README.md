@@ -53,8 +53,11 @@ A material change to any document — for example, naming the AI provider at M5.
    - the app's `currentLegalVersion` Dart const,
    - the Functions `CURRENT_LEGAL_VERSION` constant.
    The three-way source-sentinel test fails red on any partial bump — both the app-ahead brick direction and the silent under-gate direction (documents changed but no re-consent fires).
-3. Deploy ordering: the Functions constant must deploy **before, or together with**, the app binary that raises the gate's expectation. This is moot today — nothing is deployed anywhere, and the first deploy ships rules, functions, and binary together — but it is binding for the deploy era, so the gate never expects a version the server has not yet stamped.
-4. Record, in the pull request and in the ADR/operator trail, what changed and why re-consent is needed. A non-material fix (typo, clarification that changes no substance) does not bump the version and does not re-gate.
+3. **Update the two places the sentinel does NOT cover** (added S042, each found the hard way when the v1→v2 bump left them behind):
+   - **`shippedPolicyVersionLine`** in `app/test/features/legal/presentation/legal_document_screen_test.dart` — it pins a line of the *shipped asset* (`Version N. Effective <date>.`) to prove the bundle seam delivered the real document, so it is outside the constant-pin by design but still reddens on every bump.
+   - **The goldens.** The version string and the processors notice RENDER, so a bump moves the `legal_screen`, `legal_document_screen` and `consent_gate_screen` golden sets. **Declare the expected set before regenerating** (ADR-025's goldens rule) and diff the actual changed set against your declaration — anything outside it is a defect, not churn. Goldens are **Linux-canonical**: they cannot be produced correctly on a macOS box (this is why PR #95 arrived red).
+4. Deploy ordering: the Functions constant must deploy **before, or together with**, the app binary that raises the gate's expectation. This is moot today — nothing is deployed anywhere, and the first deploy ships rules, functions, and binary together — but it is binding for the deploy era, so the gate never expects a version the server has not yet stamped.
+5. Record, in the pull request and in the ADR/operator trail, what changed and why re-consent is needed. A non-material fix (typo, clarification that changes no substance) does not bump the version and does not re-gate.
 
 ## Authoring rules (the in-app renderer is plain)
 
