@@ -1,111 +1,124 @@
-# Fastfile — Hayati release automation.
+# Fastfile — Hayati release automation (Flutter + fastlane match).
 #
-# Scope (M6.3): iOS lanes only. `build_debug` mirrors the ci.yml iOS build
-# smoke and runs with zero signing secrets. `beta` (TestFlight) and
-# `store_metadata` (App Store copy) are implemented up to the App Store Connect
-# secrets boundary — both FAIL CLOSED with a doc-pointing message when the
-# three ASC_* inputs are absent (ADR-021 D4), rather than skip and look green.
-# The signing/upload half is UNVERIFIABLE from this Linux dev box (no Ruby, no
-# secrets, no Mac); the first real run after Apple Developer enrollment may
-# need a Mac-era fix (ADR-021 D5, honesty bound).
+# Signing model (Session 039): GitHub-hosted macOS runners have NO Xcode-managed
+# Apple ID and NO signing certificate, so `flutter build ipa`'s automatic cloud
+# signing fails ("No valid code signing certificates were found"). fastlane
+# `match` fixes this the way the sibling Unhooked app does: it stores the Apple
+# Distribution certificate + App Store profile (encrypted) in MATCH_GIT_URL and
+# installs them into the CI keychain, then the build signs MANUALLY against them.
 #
-# iOS-first (ADR-006): there is deliberately NO `platform :android` block in
-# this file. Android lanes (Play internal/production tracks, Play app signing)
-# arrive with M6.5 — Android enablement & Play release. That absence is
-# documented, not an oversight — see docs/adr/006-ios-first-release-sequencing.md
-# and docs/implementation-plan.md (M6.5).
+# iOS-first (ADR-006): no `platform :android` block until M6.5.
 #
-# Lanes shell out to the Flutter app at ../app, relative to this fastlane/
-# directory (architecture.md §2).
+# Lanes shell out to the Flutter app at ../app, relative to this fastlane/ dir.
 
 default_platform(:ios)
 
-# The three App Store Connect API-key inputs the signing + upload + metadata
-# lanes share. In CI they arrive as GitHub `release` environment secrets
-# (ADR-021 D4); locally they come from the founder's shell. Missing any one
-# fails CLOSED with a message that names exactly what is absent and why —
-# never a silent skip, never an opaque xcodebuild stack trace (ADR-021 D5).
-def ensure_asc_credentials!
-  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_PATH]
+# Inputs the signing + upload lanes share (GitHub `release` env / repo secrets).
+# Missing any one fails CLOSED with a message naming exactly what is absent.
+def ensure_release_credentials!
+  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64 MATCH_GIT_URL MATCH_PASSWORD]
   missing = required.select { |key| (ENV[key] || "").strip.empty? }
   return if missing.empty?
 
   UI.user_error!(
-    "App Store Connect signing is not configured: #{missing.join(', ')} " \
-    "#{missing.length == 1 ? 'is' : 'are'} unset.\n" \
-    "The signed-build + TestFlight upload half of M6 is operator-blocked on " \
-    "Apple Developer enrollment (operator-expected item 4). Once enrolled, " \
-    "create an App Store Connect API key and provide ASC_KEY_ID, " \
-    "ASC_ISSUER_ID, and ASC_KEY_P8_PATH (the path to AuthKey_<KEY_ID>.p8). " \
-    "In CI these are the `release` environment secrets (architecture.md §9); " \
-    "see the TestFlight runbook in docs/operator-expected.md (item 4)."
+    "Release signing is not configured: #{missing.join(', ')} " \
+    "#{missing.length == 1 ? 'is' : 'are'} unset. Provide the App Store Connect " \
+    "API key (ASC_KEY_ID, ASC_ISSUER_ID, ASC_API_KEY_P8_BASE64) and the fastlane " \
+    "match inputs (MATCH_GIT_URL, MATCH_PASSWORD). In CI these are hayati repo " \
+    "secrets; see docs/operator-expected.md."
   )
 end
 
 platform :ios do
   desc "Build iOS unsigned (debug) — mirrors the ci.yml build smoke; no signing required"
   lane :build_debug do
-    # Same command the CI macos runner runs (ci.yml). Runnable with zero secrets.
     sh("cd ../app && flutter build ios --no-codesign --debug")
   end
 
-  desc "Build + upload to TestFlight (closed beta) — App Store Connect API-key cloud signing"
+  desc "Build (Flutter) + sign (match, manual) + upload to TestFlight"
   lane :beta do
-    ensure_asc_credentials!
+    ensure_release_credentials!
+    setup_ci
 
-    # API-key auth for BOTH the archive's cloud signing and the TestFlight
-    # upload. `flutter build ipa` already passes `-allowProvisioningUpdates` to
-    # xcodebuild's archive + export steps unconditionally, and xcodebuild
-    # auto-discovers the key at ~/.appstoreconnect/private_keys/
-    # AuthKey_<KEY_ID>.p8 — so cloud signing needs no xcargs plumbing here
-    # (ADR-021 D5, rev 2). The release.yml `sign-upload` job is responsible for
-    # placing the .p8 at that auto-discovery path and exporting ASC_KEY_P8_PATH.
-    app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_filepath: ENV["ASC_KEY_P8_PATH"],
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_API_KEY_P8_BASE64"),
+      is_key_content_base64: true
     )
 
-    # Prod flavor: TestFlight builds carry prod config (operator runbook). The
-    # RevenueCat iOS SDK key is a PUBLISHABLE client key (ships in the binary),
-    # injected at build time via --dart-define; the release.yml sign-upload job
-    # carries it as the non-secret `REVENUECAT_IOS_API_KEY` env (a repo variable).
-    # Absent -> empty -> RevenueCat stays unconfigured (fail-safe), never a crash.
-    rc_key = ENV["REVENUECAT_IOS_API_KEY"].to_s
-    sh("cd ../app && flutter build ipa --release -t lib/main_prod.dart " \
-       "--dart-define=REVENUECAT_IOS_API_KEY=#{rc_key}")
+    # match: distribution cert + App Store profile for com.beyondkaira.hayati.
+    # FIRST run only: set repo Variable MATCH_BOOTSTRAP=true so match CREATES +
+    # pushes them to MATCH_GIT_URL, then delete it (CI stays read-only after).
+    match(
+      type: "appstore",
+      readonly: ENV["MATCH_BOOTSTRAP"] != "true",
+      app_identifier: "com.beyondkaira.hayati",
+      git_url: ENV.fetch("MATCH_GIT_URL"),
+      api_key: api_key
+    )
+    profile = ENV.fetch("sigh_com.beyondkaira.hayati_appstore_profile-name")
 
-    # The ipa path must be explicit: the build ran through raw `sh` (not gym),
-    # so lane_context carries no IPA_OUTPUT_PATH and pilot's fallback globs
-    # fastlane's OWN working directory — which never contains the Flutter
-    # output at ../app/build/ios/ipa/ (post-implementation review, Session 022).
-    # Fail closed with a pointed message rather than pilot's generic one.
+    # Flutter ships CODE_SIGN_STYLE Automatic; pin MANUAL signing onto the Runner
+    # target with the match profile so the archive uses the installed cert+profile.
+    update_code_signing_settings(
+      path: "../app/ios/Runner.xcodeproj",
+      targets: ["Runner"],
+      use_automatic_signing: false,
+      team_id: "UH7MXG7Z94",
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile
+    )
+
+    # Manual-signing export options referencing the match profile.
+    export_plist = File.expand_path("../app/ios/ExportOptions.plist", __dir__)
+    File.write(export_plist, <<~PLIST)
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0"><dict>
+        <key>method</key><string>app-store</string>
+        <key>teamID</key><string>UH7MXG7Z94</string>
+        <key>signingStyle</key><string>manual</string>
+        <key>provisioningProfiles</key><dict>
+          <key>com.beyondkaira.hayati</key><string>#{profile}</string>
+        </dict>
+        <key>uploadSymbols</key><true/>
+      </dict></plist>
+    PLIST
+
+    # Build number: monotonic per CI run, offset past the manual builds 1-3.
+    build_number = 100 + ENV.fetch("GITHUB_RUN_NUMBER", "1").to_i
+    rc_key = ENV["REVENUECAT_IOS_API_KEY"].to_s
+
+    sh("cd ../app && flutter build ipa --release -t lib/main_prod.dart " \
+       "--build-name=0.1.0 --build-number=#{build_number} " \
+       "--dart-define=REVENUECAT_IOS_API_KEY=#{rc_key} " \
+       "--export-options-plist ios/ExportOptions.plist")
+
     ipa_path = Dir["../app/build/ios/ipa/*.ipa"].first
     UI.user_error!(
-      "No .ipa found under app/build/ios/ipa/ — `flutter build ipa` did not " \
-      "produce its output where this lane expects it (ADR-021 D5)."
+      "No .ipa under app/build/ios/ipa/ — flutter build ipa did not export."
     ) if ipa_path.nil?
-    upload_to_testflight(
+
+    pilot(
+      api_key: api_key,
       ipa: ipa_path,
       skip_waiting_for_build_processing: true,
+      distribute_external: false
     )
   end
 
   desc "Push App Store metadata (no binary) from fastlane/metadata — App Store Connect API key"
   lane :store_metadata do
-    ensure_asc_credentials!
+    ensure_release_credentials!
 
     app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_filepath: ENV["ASC_KEY_P8_PATH"],
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_API_KEY_P8_BASE64"),
+      is_key_content_base64: true
     )
 
-    # Metadata only — the binary rides the `beta` lane. `force: true` skips the
-    # interactive HTML preview (there is no TTY in CI). Copy is native-review
-    # PENDING (fastlane/README.md) but that gate is a human step, not a deliver
-    # flag. The store-metadata lint (tool/store_metadata_lint.dart) guards the
-    # files' shape before they ever reach here.
     deliver(
       skip_binary_upload: true,
       skip_screenshots: true,
@@ -114,4 +127,4 @@ platform :ios do
   end
 end
 
-# platform :android — intentionally absent until M6.5 (ADR-006). See header note.
+# platform :android — intentionally absent until M6.5 (ADR-006).
