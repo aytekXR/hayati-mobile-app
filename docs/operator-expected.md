@@ -124,9 +124,9 @@ blueprint on every touched surface, in all six locale×direction golden cells.
 |---|---|---|---|
 | **6** | ~~Pick the AI provider + make an API key~~ **DONE — `LLM_API_KEY` exists in dev Secret Manager** | ~~the live coach~~ (its code is PR #95, next session's work) | — |
 | **2** | ~~Turn on Firebase **Blaze** billing~~ **DONE — and the dev backend is deployed** | ~~the first backend deploy~~ (prod still undeployed, deliberately) | — |
-| **4** | ~~enrollment~~ **DONE** · ~~the three `ASC_*` secrets~~ **DONE** — the lane RAN and stopped at Apple: **check the App ID is registered (Step 1) + that your API key may manage profiles** (issue #103), then the app record (Step 2) + the on-device checks ↓ | the first TestFlight build | ~10 min |
-| **0** | RevenueCat account + App Store Connect subscription products | the real sandbox purchase | ~30 min |
-| **3** | Enable Apple + Phone sign-in in the Firebase console | real-device sign-in | ~5 min |
+| **4** | ~~enrollment~~ **DONE** · ~~`ASC_*` secrets~~ **DONE** · ~~the release lane~~ **DONE — IT WORKS**: the `match` lane (#117) built, signed and **uploaded a build to TestFlight from CI** (verified end-to-end). **From Linux now:** `git tag vX.Y.Z && git push --tags` → automatic TestFlight, no Mac. Save your `MATCH_PASSWORD`. | hands-free builds | — |
+| **0** | ~~RevenueCat + subscription products~~ **DONE — fully wired via the v2 API** (app, `premium` entitlement, both products, `default` offering, In-App Purchase key) + ASC products created (Family Sharing OFF). **Two things still gate a real purchase:** the webhook's public invoker (**#115**, the `gcloud` one-liner above) and **Apple finishing the pricing processing** (409s today; Business all green). Then run the **sandbox purchase test** + revoke the RevenueCat `sk_` key. | the paid loop | #115 + Apple's time |
+| **3** | ~~Enable Apple + Phone sign-in~~ **DONE** — Apple + Phone + Google enabled | — | — |
 | **5** | **Security:** rotate the leaked Slack webhook | (also switches CI alerts on) | ~10 min |
 
 **Before PUBLIC launch (not blocking TestFlight/on-device):** native content
@@ -134,10 +134,15 @@ review (**1**), the crisis-content safety review (**★**), the legal bundle
 (**9**), and the store-listing decisions (**8**). **Non-blocking decisions:**
 coach retention (**7**) and the two/three design questions (**#67 / #63 / #71**).
 
-**The single most important next move for you right now, since you're doing
-TestFlight:** the enrollment is behind you — go straight to **Step 1** (register
-`com.beyondkaira.hayati`), then **Step 2**, **Step 4** and **Step 5 Path A**.
-Everything before Step 1 is done.
+**The single most important next move for you right now:** nothing is blocked on a
+*decision* anymore. (1) Grant the prod webhook its public invoker (**#115**, one
+`gcloud` command above) — until then a real purchase charges the customer and never
+unlocks Premium. (2) When Apple's pricing propagation clears, run the **sandbox
+purchase test** to prove the paid loop end-to-end, then revoke the RevenueCat `sk_`
+key. A **prod redeploy** (brings the M5.3 coach live + moves off the Node-20 EOL
+runtime) is also waiting on your go. Everything else on this page a session drives.
+_(The Apple registration roadmap below is now reference-only — Steps 0–5 are all
+done; the lane ships from CI.)_
 
 ---
 
