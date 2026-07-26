@@ -97,9 +97,10 @@ platform :ios do
        "--dart-define=REVENUECAT_IOS_API_KEY=#{rc_key} " \
        "--export-options-plist ios/ExportOptions.plist")
 
-    # Repo-root-relative (Ruby CWD is the repo root, like fastlane actions) — the
-    # build ran through `sh` which is fastlane/-relative, hence the path asymmetry.
-    ipa_path = Dir["app/build/ios/ipa/*.ipa"].first
+    # ABSOLUTE glob (CWD-agnostic): raw Ruby Dir[] uses Dir.pwd (= fastlane/), while
+    # fastlane ACTIONS like pilot expand paths from the repo root — so a relative
+    # path is ambiguous. __dir__ is fastlane/; the IPA lands at <repo>/app/build/….
+    ipa_path = Dir[File.expand_path("../app/build/ios/ipa/*.ipa", __dir__)].first
     UI.user_error!(
       "No .ipa under app/build/ios/ipa/ — flutter build ipa did not export."
     ) if ipa_path.nil?
