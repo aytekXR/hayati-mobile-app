@@ -56,6 +56,8 @@
   "invitePreviewInvitedBy": "دعاك {name}",
   "invitePreviewInvitedBySomeone": "شريكك دعاك",
   "invitePreviewValidBody": "الدعوة جاهزة. اقترنا لتبدآ الإجابة معًا عن سؤال كل يوم.",
+  "invitePreviewCreatorAnswered": "إجابة {name} جاهزة — تنكشف عندما تكتب إجابتك.",
+  "invitePreviewCreatorAnsweredNoName": "إجابة شريكك جاهزة — تنكشف عندما تكتب إجابتك.",
   "joinAcceptButton": "قبول الدعوة",
   "invitePreviewUnavailableTitle": "هذه الدعوة غير متاحة",
   "invitePreviewUnavailableBody": "ربما انتهت صلاحيتها أو استُخدمت من قبل. اطلب من شريكك رمزًا جديدًا.",

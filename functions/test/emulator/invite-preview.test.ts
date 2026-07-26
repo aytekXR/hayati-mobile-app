@@ -9,7 +9,9 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { FUNCTIONS_REGION } from '../../src/invites/create-invite';
+import { utcDayKey } from '../../src/invites/creator-question';
 import { PREVIEW_RATE_LIMIT } from '../../src/invites/invite-preview';
+import { loadQuestionPack } from '../../src/rollover/pack-loader';
 import {
   EMULATOR_PROJECT_ID,
   adminFirestore,
@@ -32,6 +34,8 @@ const CODE_EXPIRED_STATUS = 'CCCC4444';
 const CODE_EXPIRED_PAST = 'DDDD5555';
 const CODE_ABSENT = 'EEEE6666';
 const CODE_JOINED = 'FFFF7777';
+const CODE_HOOK_ANSWERED = 'GGGG2222';
+const CODE_HOOK_UNANSWERED = 'HHHH3333';
 const MALFORMED = 'not-a-code';
 
 function seedInvite(
@@ -105,6 +109,82 @@ describe('invitePreview (functions emulator)', () => {
     expect(body).toEqual({ status: 'valid' });
     expect(Object.keys(body).sort()).toEqual(['status']);
     expect(JSON.stringify(body)).not.toContain(creatorUid);
+  });
+
+  // The PRD F1 question hook (redesign ui-ux §5.3): a creator WITH a users
+  // doc grows the projection by questionText + creatorAnswered — question
+  // text only, never answer content (the §4 invariant, asserted below).
+  it('a creator who answered today adds questionText + creatorAnswered: true '
+    + '— and never their answer text', async () => {
+    const creatorUid = 'creator-hook-answered-uid';
+    const answerText = 'PRIVATE-ANSWER-MUST-NEVER-LEAK';
+    await putCreator(creatorUid, 'Amir');
+    await db.collection('users').doc(creatorUid).set({
+      contentLanguage: 'en',
+      createdAt: Timestamp.now(),
+    });
+    await db
+      .collection('users')
+      .doc(creatorUid)
+      .collection('soloAnswers')
+      .doc(utcDayKey(new Date()))
+      .set({
+        questionId: 'solo_en_001',
+        text: answerText,
+        answeredAt: Timestamp.now(),
+      });
+    await seedInvite(CODE_HOOK_ANSWERED, {
+      creatorUid,
+      status: 'pending',
+      expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
+    });
+
+    const response = await getPreview(CODE_HOOK_ANSWERED);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+
+    expect(body).toEqual({
+      status: 'valid',
+      creatorDisplayName: 'Amir',
+      questionText: loadQuestionPack('solo_en').questions[0].text,
+      creatorAnswered: true,
+    });
+    // Field-surface invariant: EXACTLY the documented keys; never the uid,
+    // never a byte of the answer.
+    expect(Object.keys(body).sort()).toEqual([
+      'creatorAnswered',
+      'creatorDisplayName',
+      'questionText',
+      'status',
+    ]);
+    expect(JSON.stringify(body)).not.toContain(creatorUid);
+    expect(JSON.stringify(body)).not.toContain(answerText);
+  });
+
+  it('a creator profile with no solo answers adds the day-1 question, '
+    + 'unanswered', async () => {
+    const creatorUid = 'creator-hook-unanswered-uid';
+    await putCreator(creatorUid, 'Amir');
+    await db.collection('users').doc(creatorUid).set({
+      contentLanguage: 'en',
+      createdAt: Timestamp.now(),
+    });
+    await seedInvite(CODE_HOOK_UNANSWERED, {
+      creatorUid,
+      status: 'pending',
+      expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
+    });
+
+    const response = await getPreview(CODE_HOOK_UNANSWERED);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+
+    expect(body).toEqual({
+      status: 'valid',
+      creatorDisplayName: 'Amir',
+      questionText: loadQuestionPack('solo_en').questions[0].text,
+      creatorAnswered: false,
+    });
   });
 
   it("a doc already marked 'expired' returns status 'expired' only", async () => {

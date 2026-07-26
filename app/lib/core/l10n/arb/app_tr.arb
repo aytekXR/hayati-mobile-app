@@ -56,6 +56,8 @@
   "invitePreviewInvitedBy": "{name} seni davet etti",
   "invitePreviewInvitedBySomeone": "Partnerin seni davet etti",
   "invitePreviewValidBody": "Davet hazır. Eşleşin ve her gün birlikte bir soruyu yanıtlamaya başlayın.",
+  "invitePreviewCreatorAnswered": "{name} çoktan cevapladı. Cevabı, sen de yazınca açılır.",
+  "invitePreviewCreatorAnsweredNoName": "Partnerin çoktan cevapladı. Cevabı, sen de yazınca açılır.",
   "joinAcceptButton": "Daveti kabul et",
   "invitePreviewUnavailableTitle": "Bu davet artık geçerli değil",
   "invitePreviewUnavailableBody": "Süresi dolmuş ya da daha önce kullanılmış olabilir. Partnerinden yeni bir kod iste.",

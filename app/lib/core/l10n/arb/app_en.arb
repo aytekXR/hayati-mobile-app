@@ -247,6 +247,20 @@
   "@invitePreviewValidBody": {
     "description": "Validity framing under the invited-by line on a valid invite preview"
   },
+  "invitePreviewCreatorAnswered": "{name} has already answered. Their answer unlocks when you write yours.",
+  "@invitePreviewCreatorAnswered": {
+    "description": "Sealed-answer caption under the preview's question hook (PRD F1 restore), shown only when the server reports the inviter answered today's question",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Aylin"
+      }
+    }
+  },
+  "invitePreviewCreatorAnsweredNoName": "Your partner has already answered. Their answer unlocks when you write yours.",
+  "@invitePreviewCreatorAnsweredNoName": {
+    "description": "No-name fallback of invitePreviewCreatorAnswered (server resolved no display name)"
+  },
   "joinAcceptButton": "Accept invitation",
   "@joinAcceptButton": {
     "description": "Primary CTA on a valid invite preview that redeems the code for the signed-in user (M2.3)"
