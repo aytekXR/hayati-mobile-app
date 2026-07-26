@@ -1377,3 +1377,131 @@ This entry records the **concurrent operator session** Sessions 043–045 kept r
 **The deliverable that merged — #117, the Linux→TestFlight `match` lane.** The founder develops on Linux (no Mac), so the goal was `git tag → macOS CI → TestFlight`. Automatic cloud signing failed on hosted runners ("No valid code signing certificates were found"); rebuilt on **fastlane `match`** (the sibling Unhooked model — cert+profile in an encrypted git repo, manual signing) adapted for Flutter. Fresh certs repo `aytekXR/hayati-match-certs` (the Unhooked match password was unrecoverable), new `MATCH_PASSWORD`, a fine-grained PAT for CI. **Verified end-to-end**: run `30193322224` → *"Successfully uploaded the new binary to App Store Connect"* (build 106). Getting green took, after `match` itself worked, four fixes: two fastlane path asymmetries (actions resolve from repo root, `sh`/`Dir[]` from `fastlane/` — the IPA is now globbed by an ABSOLUTE path), and `runs-on: macos-26` + an explicit Xcode-26 select (Apple now rejects the iOS-18 SDK). `MATCH_BOOTSTRAP` removed after the mint (CI read-only). Merged via a detached worktree so the diverged `main` (icons/pbxproj/legal) and a dirty local tree were untouched; only `release.yml` + `fastlane/Fastfile` + `pubspec` landed. **From `main` now: `git tag vX.Y.Z && git push --tags` → TestFlight.**
 
 **Also this change:** the `İkimiz` display name, and this reconciliation note. Coach (Anthropic Sonnet 5, ADR-028) is still on **PR #95**, blocked only on Linux golden regen. Operator items 6/2/3/0 and the item-4 CI half are done; what's left for the founder is **#115's invoker binding**, the ASC pricing wait, then the sandbox test (+ revoke the RevenueCat `sk_` key after).
+
+## Session 047 — 2026-07-26 — **the session that read the release lane's own log and found `store_metadata` had never once run**
+
+> **Session-number note (S038 addendum): the ordinal 046 was already taken.** The concurrent operator
+> track merged its `past-prompts.md` entry as "Session 046" (PR #118) while `resume-prompt.md` — written
+> at the S045 close — was still addressing *its* next session as 046. Numbers are per-tree and collide;
+> this entry takes **047**. Trust the dates and the PR numbers.
+
+**Objective (from `resume-prompt.md`):** re-verify #115, reconcile `main`'s documentation with prod's real
+state, and pick up whatever the merged `match` work left behind.
+
+**Preemptions, all five run.** **#115 is STILL BROKEN** — `curl -i -X POST` to the prod webhook returns
+Google's **HTML 403** from `Google Frontend`, i.e. IAM refusing before our code runs. The founder has not
+run the `gcloud` one-liner; it stays the top operator item and a session must not do it. **`RC_WEBHOOK_TOKEN`
+still absent on dev** (dev has ten functions, prod eleven — queried live, not inferred). **#41** unchanged in
+mechanism, and the fact its decision hinges on — whether purchases already exist under Firebase-uid
+`app_user_id`s — is not establishable from here without touching the founder's live RevenueCat project, so it
+stays a founder decision. **#15/#48** still zero comments. **Gate 3** unchanged. Platform queried directly per
+addendum 41: **prod = 11 functions, ALL `nodejs20`; dev = 10, ALL `nodejs22`.**
+
+**THE FINDING, and it came from reading a log rather than reading source.** The `match` lane's one successful
+run (`30193322224`) reports `sign-upload` → **`success`**. Inside it:
+
+```
+[!] Release signing is not configured: MATCH_GIT_URL, MATCH_PASSWORD are unset.
+[08:15:36]: fastlane finished with errors
+##[error]Process completed with exit code 1
+```
+
+`store_metadata` calls `ensure_release_credentials!`, which requires the two `MATCH_*` inputs — inputs a
+metadata-only lane never uses, and which `release.yml` does not pass to that step. So **`deliver` has never
+once run**, on any release, and `continue-on-error: true` (correct, per ADR-020 D8) rendered the failure
+green. This is S042 addendum 25 exactly: *a bound justified by one caller's constraints is not safe for
+another caller.* **I had this backwards first** — I reasoned from source that `deliver` *had* run and was
+pushing a stale app name — and the run log corrected me. Reading the artefact beat reasoning about it.
+
+**And the coupling that made it dangerous.** `fastlane/metadata/*/name.txt` said `Hayati` while the live App
+Store record says **`İkimiz`**. `deliver(force: true)` skips the confirmation prompt. So fixing the credential
+bug **alone** would have converted a silent no-op into a **silent rename of the founder's live listing** on
+the next release. The two changes are one change, and the lint now pins the name so they cannot drift apart.
+
+**The other two defects, both guarantee-vs-mechanism gaps.** (1) `--build-name=0.1.0` was hardcoded, so
+`preflight`'s tag↔pubspec gate — which exists to make pubspec the single source of version truth — guards a
+string the build ignores; tag `v0.2.0` against pubspec `0.2.0` passes green and ships a binary stamped
+`0.1.0`. Fixed by **deletion**. (2) The fail-closed secrets gate still named the retired mechanism's three
+secrets, so a missing `MATCH_PASSWORD` passed the boundary and died inside fastlane — the precise outcome
+ADR-021 D4 exists to prevent.
+
+**ADR-032, written after the fact and saying so.** PR #117 replaced the entire signing architecture with no
+ADR (`project-rules.md` #8; W6 wants it in the same commit). The record supersedes **ADR-021 D5** and **D3's
+build-number clause**, **restores** D3's tag↔pubspec clause, amends **ADR-029 D2's rationale** — whose
+justification *inverted*, because the lane now performs the `Automatic`→`Manual` flip that decision existed
+to catch — and closes **ADR-029 D4 / issue #99**.
+
+**On the build number, the evidence overturned a reasoned decision.** ADR-021 D3 forbade CI auto-increment so
+that re-running a tag is idempotent. The lane's history answers it: **six consecutive release runs failed
+before one succeeded**, each needing a fresh number, and under pubspec-`+N` every retry costs a commit *and* a
+re-tag. Synthesis stays; the lost idempotency is written down rather than glossed. A trap worth naming: the
+shipped build for `0.1.0` is **109** while pubspec reads **`+4`**, so anyone "restoring" D3 by deleting the
+synthesis would ship build 4 into a version whose builds already reach 109.
+
+**The deliverable that outlives the fixes: `tool/release_lane_lint.dart` + 50 mutation checks.** It shipped
+**RED first**, reproducing all four defects from source alone — including deriving the exact production error
+text. `release.yml` runs only on a tag or dispatch, so its internals can drift between releases with every
+required check green; the lint runs per-PR on ubuntu and in `preflight`. **Rule 3b is deliberately per-STEP,
+because the real defect was GREEN at job level** — the job *did* pass the match inputs, to a different step.
+Two rules earned their keep during the session itself: my own fix comment naming the old helper tripped rule
+3b (comments are now stripped), and the transitive-helper resolution was mutation-checked by deleting it and
+confirming exactly two assertions redden.
+
+**Where I chose NOT to act, and why.** The audit confirmed at *high* severity that the `write App Store
+Connect API key` step is orphaned under manual signing. I kept it. **ADR-029 D2's own precedent** refused to
+touch `CODE_SIGN_IDENTITY` because that would be "a blind edit to a signing path from a Linux box with no
+Mac"; the lane demonstrably works *with* the step, "very likely dead" is not "proven dead", and the cost of
+being wrong is a broken release the founder cannot debug. **But the redundancy went**: the file is now decoded
+from `ASC_API_KEY_P8_BASE64` instead of a second raw `ASC_API_KEY_P8`, because two secrets holding one key is
+a rotation footgun. Filed as **#121** for a session that can watch a real run.
+
+**Audit workflow: 34 findings, 32 confirmed, 2 refuted, 0 unverified — 39 agents, 0 errors** (addendum 18's
+check passes, so the verdict distribution is trustworthy). It caught four things I had not: `operator-expected`
+Step 3 told the founder the **wrong secret names** and omitted `MATCH_*` entirely; `ci.yml`'s
+`integration-emulator` still cited "100–140 billed min at 10x macOS" as its motive on a **public** repo where
+those runners are free; `roadmap.md` still named **#88** as "the next AI-chosen unit" long after it shipped;
+and **#67 is closable** — the redesign waves added `mist`/`veil` to brandkit v1.1 and wired them to
+`onSurfaceVariant`/`outline`, which is precisely the option (a) that issue recommended. One refutation was
+useful: **#71 is NOT closable** — a `motion_tokens_test.dart` does range-check 150–300ms, but the brandkit
+JSON still carries no motion block, which is what #71 actually asks for.
+
+**A trap that fired and was already documented.** `flutter analyze` reported **58 errors** on an untouched
+app tree — the S042 addendum-24 stale gitignored `gen/` l10n directory. `flutter gen-l10n` then: **no issues**.
+Recording it because it cost minutes and would have cost a false diagnosis.
+
+**Issues: #99 CLOSED** (mechanism removed — `match(readonly:)` means CI cannot mint a certificate at all, and
+the residual is named: re-setting `MATCH_BOOTSTRAP` re-arms it). **#67 CLOSED** with the token evidence.
+**#120 filed** — `Gemfile.lock` is still absent though ADR-021 D6's discharge condition ("until the signing job
+first runs") has been met three times over; every release resolves fastlane fresh within `~> 2.225` **on the
+signing path**, and the original blocker (no Ruby on this box) still stands, so the fix is to generate it in
+CI. **#121 filed** — confirm-then-delete the orphaned `.p8` step.
+
+**Docs reconciled by sweeping for the CLAIM, not the instance** (addendum 19, broken three sessions running):
+`architecture.md` §9 (cloud signing, "zero keys in repo", the build-number sentence, the ADR-029 rationale,
+and the "still operator-owned: the ASC app record" line the build-109 run disproved), `fastlane/README.md`
+(which named a helper that no longer exists, a secret `ASC_KEY_P8_PATH` that never existed, and
+`CFBundleDisplayName` "Hayati App"), `fastlane/Appfile`, the ADR index's 021/029 rows, `roadmap.md`,
+`ci.yml`, the signing sentinel's now-inverted reason, and `operator-expected.md` throughout — including the
+Session-039 snapshot still claiming *"operational proof 0%, nothing has ever been deployed, no real purchase
+has ever happened."* Two thirds of that is false; the true third (no purchase yet) is now stated plainly as
+the last unproven link.
+
+**The prod redeploy is PREPARED, not run** — the exact named-exclusion command for all eleven, the four
+post-deploy re-verifications, and the point that the redeploy **may or may not restore `revenueCatWebhook`'s
+public-invoker binding**: if it comes back HTML after a fresh deploy, something is actively removing it and
+would re-break every future deploy. Deploying prod is the founder's call.
+
+**Verification:** app **1565 tests / 87.26% coverage** (gate 68), functions **979 tests / 50 files, 97.28%
+stmts / 92.45% branches** (gates 80 hard, 85 target), `flutter analyze` clean after the l10n regen,
+`dart format` clean, both repo-root lints green, release-lane self-tests **50/50**, both workflow YAMLs parse.
+`main` did not move under the branch (addendum 28, re-checked at merge).
+
+**And I nearly accepted a FALSE GREEN on that functions run, which is worth more than the number.** The first
+invocation was launched from `functions/`, so `emulators:exec`'s inner `cd functions` failed — the suite never
+executed — and my `; echo "EXIT=$?"` after a pipe to `tail` read the **pipe's** status, not the command's, so
+it printed `EXIT=0` over `Error: Script ... exited with code 2`. Two independent mistakes composing into a
+green that meant nothing. The standing note says *run the full suite **from the repo root***, and it says so
+for exactly this reason. Re-run correctly: 979/979.
+
+**Operator action required: YES — and it is unchanged and singular.** #115's one `gcloud` command. Everything
+else this session produced needs nothing from the founder.
