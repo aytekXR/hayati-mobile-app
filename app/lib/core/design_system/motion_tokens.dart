@@ -26,4 +26,29 @@ abstract final class MotionTokens {
   /// The reveal group's enter slide distance — a gentle rise, in dp. VERTICAL
   /// only, so it is direction-neutral and needs no RTL mirror variant.
   static const double revealSlide = 12;
+
+  // ── The reveal three-beat choreography (redesign ui-ux §9 motion table) ───
+  // The product's ONE choreography budget: partner's card unfolds toward
+  // yours → both settle as a pair → one seed drops into the vessel. Total
+  // ≤1.2s, pinned by `motion_tokens_test.dart`. Reduce-motion collapses the
+  // whole sequence to an instant crossfade with the haptic preserved.
+
+  /// Beat 1 — `unfoldReveal`: the partner card unfolds toward its pair.
+  static const Duration revealBeatUnfold = Duration(milliseconds: 300);
+
+  /// Beat 2 — `settlePair`: both cards settle as a pair (the light haptic
+  /// fires at this settle).
+  static const Duration revealBeatSettle = Duration(milliseconds: 180);
+
+  /// Beat 3 — `seedDrop`: the seed into the vessel; also the solo-day seed
+  /// fill. The one sanctioned spring (overshoot ≤4dp — keep travel small).
+  static const Duration revealBeatSeedDrop = Duration(milliseconds: 420);
+
+  /// The seed-drop's gentle spring character (§9 "gentle spring, overshoot
+  /// ≤4dp"): easeOutBack overshoots ~10% of travel, so callers keep the drop
+  /// distance ≤40dp for the ≤4dp budget to hold.
+  static const Curve seedDropCurve = Curves.easeOutBack;
+
+  /// All button presses — `pressTouch`: 120ms · easeOut · scale 0.98.
+  static const Duration pressTouch = Duration(milliseconds: 120);
 }
