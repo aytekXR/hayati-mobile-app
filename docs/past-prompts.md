@@ -1503,5 +1503,42 @@ it printed `EXIT=0` over `Error: Script ... exited with code 2`. Two independent
 green that meant nothing. The standing note says *run the full suite **from the repo root***, and it says so
 for exactly this reason. Re-run correctly: 979/979.
 
+**BUILT-DIFF REVIEW: 15 findings, 15 CONFIRMED, 0 refuted, 0 unverified** (20 agents, 0 errors — so the
+distribution is trustworthy). Every one applied. Three deserve recording because they are about *my own work*,
+and two of them are the exact failure classes this project keeps paying for.
+
+**(1) The guard I wrote had a branch that could never fire.** Rule 3's orphan direction — "the gate demands no
+secret the job ignores" — measured consumption over the *whole* `sign-upload` job. But the gate must bind every
+secret it tests (`X: ${{ secrets.X }}`) or `$X` is empty and it fails closed on X forever. So the gate's own
+env block always contributed every checked secret to "consumed", `checked ⊆ consumed` held **by construction**,
+and the branch printed a pass that meant nothing. My mutation row missed it because it added `missing+=("X")`
+*without* an env entry — a shape no human writes. Fixed by excluding the gate step; mutation-checked by
+restoring the old line and confirming exactly the two new assertions redden. **A vacuous branch inside a guard
+written specifically to catch vacuity.**
+
+**(2) My "safety" check would have reddened the working lane.** Switching the `.p8` step to decode
+`ASC_API_KEY_P8_BASE64` looked strictly safer. It is not: **`openssl base64 -d -A` silently emits nothing and
+still exits 0 when its input contains newlines.** fastlane consumes the *same secret* through Ruby's
+`Base64.decode64`, which **ignores** newlines — so if that secret was pasted line-wrapped it works in fastlane
+and fails only in my step, where the `grep BEGIN PRIVATE KEY` guard I added "to be safe" is precisely what
+would have failed a release that previously worked. Found by testing against a real PKCS#8 EC key rather than
+reasoning; fixed with `tr -d '[:space:]'`, which handles both forms. (The same test settled the header: an ASC
+key is PKCS#8, so `BEGIN PRIVATE KEY`, not SEC1's `BEGIN EC PRIVATE KEY`.) **The edit I made to avoid a blind
+change to a signing path was itself very nearly one.**
+
+**(3) ADR-032 lied about its own diff — S037 addendum 10, verbatim.** D4 said the gate "now checks all six",
+that the `.p8` step "is deliberately NOT touched", and that `ASC_API_KEY_P8` "stays legitimately in the gate".
+All three were true when written and **all three were false two commits later**, because the ADR landed before
+the last implementation commit. The lesson the review states better than I would: an ADR written mid-sequence
+describes an intermediate state. It should be the last commit, not the middle one.
+
+The remaining eleven were sweep misses and convention gaps, all real: `architecture.md`'s own **newly written**
+paragraph still named the three-secret gate; ADR-021 and ADR-029 never got the `Status:` supersession the ADR
+README's convention requires (only their index rows); the ADR-020 index row still said the name was "Hayati";
+`operator-expected` Step 2 still instructed the founder to *create* the App Store record as "Hayati" eight
+lines from a banner saying it is İkimiz; `implementation-plan.md` M6.3 and **both** `redesign/` documents
+carried stale "cloud signing" / "operational proof 0%" claims the sweep never reached; and `roadmap.md` told a
+future session to "verify #67 before assuming" in the same diff that closed #67 with evidence.
+
 **Operator action required: YES — and it is unchanged and singular.** #115's one `gcloud` command. Everything
 else this session produced needs nothing from the founder.

@@ -12,6 +12,22 @@
 
 _Last refreshed: 2026-07-26, **Session 047 close**. (Session 046 was the concurrent operator track — its block is kept below.)_
 
+> ### ✅ Session 047 — nothing here needs you, but one thing is worth knowing
+>
+> **A silent failure in your release pipeline is fixed.** Every time CI shipped a build, the step that pushes
+> your App Store listing text (name, description, keywords) **aborted before doing anything** — and reported
+> success. It had never run, not once. Nothing was broken *by* it; the listing text simply never left the repo.
+>
+> **And it was about to matter.** The repo still called the app "Hayati" while your App Store record says
+> **İkimiz**. The moment that step started working, it would have **renamed your live listing back to
+> "Hayati"** without asking. Both are fixed together, and a CI check now fails if the two ever disagree again.
+>
+> Also this session: the release lane's documentation was rewritten to describe the lane you actually have
+> (it still described the old signing method for four days), a version-number bug that would have shipped a
+> build labelled `0.1.0` under a `v0.2.0` tag was removed, and two issues you were being asked to watch —
+> **#99** (a worry that CI might exhaust your 3-certificate Apple limit) and **#67** (two missing brand
+> colours) — are **closed**. **Nothing on this page changed for you as a result.**
+
 > ### 🆕 Session 046 (concurrent operator track) — three things landed, one confirms #115
 >
 > 1. **Linux → TestFlight is now LIVE (#117 merged).** The release lane was rebuilt on fastlane `match` and **verified end-to-end** (CI uploaded build 106). From `main`: `git tag vX.Y.Z && git push --tags` → macOS CI builds, signs, and uploads to TestFlight — no Mac needed. Save your new `MATCH_PASSWORD` (given in-session; it protects `aytekXR/hayati-match-certs`).
