@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/app.dart';
 import 'package:hayati_app/core/config/app_config.dart';
 import 'package:hayati_app/core/config/app_config_provider.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/core/storage/pin_lock_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_exception.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
@@ -10,6 +11,7 @@ import 'package:hayati_app/features/auth/domain/auth_state.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
 import 'package:hayati_app/features/auth/presentation/state/auth_controller.dart';
+import 'package:hayati_app/features/auth/presentation/state/ritual_preview_seen.dart';
 import 'package:hayati_app/features/coach/domain/coach_persona.dart';
 import 'package:hayati_app/features/coach/domain/coach_reply.dart';
 import 'package:hayati_app/features/coach/presentation/state/coach_transcript.dart';
@@ -17,6 +19,7 @@ import 'package:hayati_app/features/data_rights/domain/data_rights_repository_pr
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/privacy_lock/domain/biometric_authenticator.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
+import 'package:hayati_app/features/profile/presentation/state/name_capture_done.dart';
 // flutter_riverpod's curated export omits Override; riverpod_annotation exposes it.
 import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
 
@@ -24,6 +27,7 @@ import 'support/fake_auth_repository.dart';
 import 'support/fake_biometric_authenticator.dart';
 import 'support/fake_data_rights_repository.dart';
 import 'support/fake_deep_link_source.dart';
+import 'support/fake_local_flag_store.dart';
 import 'support/fake_pin_lock_store.dart';
 import 'support/fake_profile_repository.dart';
 import 'support/pin_lock_fixtures.dart';
@@ -40,6 +44,16 @@ List<Override> lockSeams() => [
     const PinLockSnapshot(record: null),
   ),
 ];
+
+/// The device-flag seam every full-app boot binds (the entrypoints override it
+/// by value): the M-5 ritual preview is seen and the QW-6 name step done, so
+/// these root-wiring tests land on the shell/gate surfaces they always did —
+/// each onboarding step is proven by its own suite.
+Override flagSeam() => localFlagStoreProvider.overrideWithValue(
+  FakeLocalFlagStore(
+    initial: {ritualPreviewSeenKey, nameCaptureDoneKey('uid-1')},
+  ),
+);
 
 void main() {
   Future<void> pumpFlavor(WidgetTester tester, AppFlavor flavor) async {
@@ -58,6 +72,7 @@ void main() {
           // (runHayati extraOverrides) with a fake instead of Firebase.
           authRepositoryProvider.overrideWith((ref) => fake),
           deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+          flagSeam(),
           ...lockSeams(),
         ],
         child: const HayatiApp(),
@@ -112,6 +127,7 @@ void main() {
           // A null profile routes the signed-in gate to the self-contained
           // capture screen (no couple/solo repos needed for this test).
           profileRepositoryProvider.overrideWith((ref) => profiles),
+          flagSeam(),
           ...lockSeams(),
         ],
       );
@@ -196,6 +212,7 @@ void main() {
           deepLinkSourceProvider.overrideWith((ref) => deepLinks),
           profileRepositoryProvider.overrideWith((ref) => profiles),
           dataRightsRepositoryProvider.overrideWith((ref) => dataRights),
+          flagSeam(),
           pinLockStoreProvider.overrideWithValue(store),
           initialLockSnapshotProvider.overrideWithValue(
             PinLockSnapshot(record: lockRecord()),

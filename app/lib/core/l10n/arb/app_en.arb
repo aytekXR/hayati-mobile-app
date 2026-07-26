@@ -24,6 +24,38 @@
   "@signOut": {
     "description": "Sign-out action"
   },
+  "ritualPreviewHeadline1": "One question a day, for two.",
+  "@ritualPreviewHeadline1": {
+    "description": "Ritual preview card 1 headline — the primary tagline verbatim (redesign M-5, pre-sign-in)"
+  },
+  "ritualPreviewBody1": "A five-minute ritual that keeps you close — in your own language, in your own culture.",
+  "@ritualPreviewBody1": {
+    "description": "Ritual preview card 1 body"
+  },
+  "ritualPreviewHeadline2": "Sealed until you both answer.",
+  "@ritualPreviewHeadline2": {
+    "description": "Ritual preview card 2 headline — the seal mechanic"
+  },
+  "ritualPreviewBody2": "No peeking, and no pressure to perform: just a moment that belongs to the two of you.",
+  "@ritualPreviewBody2": {
+    "description": "Ritual preview card 2 body — reuses the store description's best line verbatim (one pitch, everywhere)"
+  },
+  "ritualPreviewHeadline3": "What's between you stays between you.",
+  "@ritualPreviewHeadline3": {
+    "description": "Ritual preview card 3 headline — the privacy tagline verbatim"
+  },
+  "ritualPreviewBody3": "PIN lock, a discreet icon, and answers no one else ever sees. Not therapy, not a feed — just you two.",
+  "@ritualPreviewBody3": {
+    "description": "Ritual preview card 3 body"
+  },
+  "ritualPreviewCta": "Get started",
+  "@ritualPreviewCta": {
+    "description": "Card 3 primary CTA into sign-in (cards 1–2 use continueAction)"
+  },
+  "ritualPreviewSkip": "Sign in",
+  "@ritualPreviewSkip": {
+    "description": "The skip affordance on every preview page — skipping IS sign-in (ui-ux §6.1)"
+  },
   "nameCaptureTitle": "What should we call you?",
   "@nameCaptureTitle": {
     "description": "Name-capture step title (redesign QW-6, between sign-in and profile capture); nicknames explicitly welcome"

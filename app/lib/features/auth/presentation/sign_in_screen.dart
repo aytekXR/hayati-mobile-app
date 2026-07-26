@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_config_provider.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/storage/local_flag_store.dart';
 import '../../pairing/presentation/partner_preview_screen.dart';
 import '../../pairing/presentation/state/pending_invite.dart';
 import '../../profile/presentation/onboarding_gate.dart';
 import '../domain/auth_exception.dart';
 import '../domain/auth_state.dart';
+import 'ritual_preview_screen.dart';
 import 'state/auth_controller.dart';
+import 'state/ritual_preview_seen.dart';
 import 'widgets/provider_actions.dart';
 
 /// Minimal auth shell for M1.1: one widget per [AuthState]. Brand styling comes
@@ -39,6 +42,18 @@ class SignInScreen extends ConsumerWidget {
     // retry resumes the preview / join flow.
     if (authState is! AuthError && ref.watch(pendingInviteProvider) != null) {
       return const PartnerPreviewScreen();
+    }
+    // The first-launch ritual preview (redesign M-5, ui-ux §5.1 step 1):
+    // three swipeable cards before the sign-in ask, once per device. Ranked
+    // BELOW the pending-invite branch — an invitee came for a person, not a
+    // pitch (§5.3) — and only on the settled signed-out state: a session
+    // restore in flight keeps its spinner, and an AuthError must surface its
+    // error view, never be swallowed by the pitch.
+    if (authState is AuthSignedOut) {
+      ref.watch(ritualPreviewSeenProvider);
+      if (!ref.read(localFlagStoreProvider).isSet(ritualPreviewSeenKey)) {
+        return const RitualPreviewScreen();
+      }
     }
     return Scaffold(
       body: SafeArea(

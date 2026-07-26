@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/config/app_config.dart';
 import 'package:hayati_app/core/config/app_config_provider.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_exception.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/presentation/phone_sign_in_screen.dart';
+import 'package:hayati_app/features/auth/presentation/ritual_preview_screen.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/features/auth/presentation/state/ritual_preview_seen.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_answers_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
@@ -22,16 +25,14 @@ import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
-
-import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/profile/presentation/state/name_capture_done.dart';
 
 import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_deep_link_source.dart';
-import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_invite_share_launcher.dart';
+import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/fake_solo_answers_repository.dart';
 import '../../../support/fake_solo_question_pack_repository.dart';
@@ -53,6 +54,7 @@ void main() {
     RelationshipProfile? profile,
     Uri? initialLink,
     Locale locale = const Locale('en'),
+    FakeLocalFlagStore? overrideFlags,
   }) async {
     final fake = FakeAuthRepository(initialUser: initialUser);
     final fakeProfiles = FakeProfileRepository(
@@ -72,13 +74,15 @@ void main() {
     final fakePacks = FakeSoloQuestionPackRepository();
     final fakeAnswers = FakeSoloAnswersRepository();
     final fakeLauncher = FakeInviteShareLauncher();
-    // The QW-6 name-capture step is already done on this device so the
-    // signed-in gate lands on profile capture exactly as before the step
-    // existed — the step itself is proven by onboarding_gate_test and
-    // name_capture_screen_test.
-    final flags = FakeLocalFlagStore(
-      initial: {nameCaptureDoneKey(testUser.uid)},
-    );
+    // Defaults: the M-5 ritual preview is already seen on this device (its
+    // own group below un-sets it) and the QW-6 name-capture step is done, so
+    // the long-standing shell/routing assertions hold — each step is proven
+    // by its dedicated tests.
+    final flags =
+        overrideFlags ??
+        FakeLocalFlagStore(
+          initial: {ritualPreviewSeenKey, nameCaptureDoneKey(testUser.uid)},
+        );
     addTearDown(fake.dispose);
     addTearDown(fakeProfiles.dispose);
     addTearDown(fakeInvites.dispose);
@@ -249,6 +253,132 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.errorGeneric), findsOneWidget);
+    });
+  });
+
+  group('ritual preview (redesign M-5, first launch)', () {
+    testWidgets('an unseen device shows the three-card preview before the '
+        'auth shell', (tester) async {
+      await pumpScreen(tester, overrideFlags: FakeLocalFlagStore());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RitualPreviewScreen), findsOneWidget);
+      expect(find.text(en.ritualPreviewHeadline1), findsOneWidget);
+      expect(find.text(en.continueWithGoogle), findsNothing);
+    });
+
+    testWidgets('Continue advances through the cards; card 3 carries the '
+        '"Get started" CTA', (tester) async {
+      await pumpScreen(tester, overrideFlags: FakeLocalFlagStore());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(en.continueAction));
+      await tester.pumpAndSettle();
+      expect(find.text(en.ritualPreviewHeadline2), findsOneWidget);
+
+      await tester.tap(find.text(en.continueAction));
+      await tester.pumpAndSettle();
+      expect(find.text(en.ritualPreviewHeadline3), findsOneWidget);
+      expect(find.text(en.ritualPreviewCta), findsOneWidget);
+      expect(find.text(en.continueAction), findsNothing);
+    });
+
+    testWidgets('"Get started" completes to the auth shell and sets the '
+        'device flag (never shown again)', (tester) async {
+      final flags = FakeLocalFlagStore();
+      await pumpScreen(tester, overrideFlags: flags);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(en.continueAction));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.continueAction));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.ritualPreviewCta));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RitualPreviewScreen), findsNothing);
+      expect(find.text(en.continueWithGoogle), findsOneWidget);
+      expect(flags.isSet(ritualPreviewSeenKey), isTrue);
+    });
+
+    testWidgets('the "Sign in" skip on page 1 lands on the auth shell and '
+        'sets the flag (skipping IS sign-in)', (tester) async {
+      final flags = FakeLocalFlagStore();
+      await pumpScreen(tester, overrideFlags: flags);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(en.ritualPreviewSkip));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RitualPreviewScreen), findsNothing);
+      expect(find.text(en.continueWithGoogle), findsOneWidget);
+      expect(flags.isSet(ritualPreviewSeenKey), isTrue);
+    });
+
+    testWidgets('a seen device goes straight to the auth shell', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        overrideFlags: FakeLocalFlagStore(initial: {ritualPreviewSeenKey}),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RitualPreviewScreen), findsNothing);
+      expect(find.text(en.continueWithGoogle), findsOneWidget);
+    });
+
+    testWidgets('a pending invite OUTRANKS the preview — the invitee came '
+        'for a person, not a pitch (§5.3)', (tester) async {
+      await pumpScreen(
+        tester,
+        initialLink: Uri.parse('hayati://invite/ABCD2345'),
+        overrideFlags: FakeLocalFlagStore(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PartnerPreviewScreen), findsOneWidget);
+      expect(find.byType(RitualPreviewScreen), findsNothing);
+    });
+
+    testWidgets('an AuthError surfaces its error view, never the pitch', (
+      tester,
+    ) async {
+      final flags = FakeLocalFlagStore();
+      final fake = await pumpScreen(tester, overrideFlags: flags);
+      await tester.pumpAndSettle();
+      // Leave via skip so the shell renders, then fail a sign-in.
+      await tester.tap(find.text(en.ritualPreviewSkip));
+      await tester.pumpAndSettle();
+
+      fake.onSignInWithGoogle = () async {
+        throw const AuthNetworkException(message: 'offline');
+      };
+      await tester.tap(find.text(en.continueWithGoogle));
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.signInFailedTitle), findsOneWidget);
+      expect(find.byType(RitualPreviewScreen), findsNothing);
+    });
+
+    testWidgets('renders localized on every locale', (tester) async {
+      for (final locale in supportedTestLocales) {
+        final l10n = l10nFor(locale);
+        await pumpScreen(
+          tester,
+          locale: locale,
+          overrideFlags: FakeLocalFlagStore(),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text(l10n.ritualPreviewHeadline1), findsOneWidget);
+        expect(find.text(l10n.ritualPreviewSkip), findsOneWidget);
+        expect(
+          Directionality.of(tester.element(find.byType(RitualPreviewScreen))),
+          locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+        );
+        expect(tester.takeException(), isNull);
+      }
     });
   });
 
