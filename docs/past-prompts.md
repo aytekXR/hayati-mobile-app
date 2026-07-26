@@ -1154,3 +1154,69 @@ Two more things the same log lines prove: the sweep runs on the **nominal schedu
 **Notes / debt logged:** **issue #96** (Node 20 decommission, dated). The webhook + its token remain the founder's, now the *only* thing standing between the current state and a fully live dev backend. A **budget alert** is recommended to the founder in `operator-expected.md` — billing is live now, and setting an alert is the one thing a session cannot do for them that they would most want in place before a surprise.
 
 **Next objective written to resume-prompt.md:** Session 041 — the standing preemptions (item 6, the `ASC_*` secrets, the RC webhook token), and then the *remaining* observation work. The headline observation was pulled forward into this session because the evidence was already sitting in the logs and the answer mattered: the deployed rollover is clean and the ICU guard is green. What is left to watch is the part that needs data — a real couple, a real invite, a real answer pair — which is the founder's device work, not a session's.
+
+## Session 041 — 2026-07-26 — **two preemptions fired at once; the release lane RAN for the first time and got all the way to Apple**
+
+**Objective (from resume-prompt.md):** run the standing preemptions factually, then observe the deployed backend. **Two preemptions fired**, and the second changed the session.
+
+**The derivation, run factually (addendum 12 — derive, never inherit):**
+
+| # | Item | Verdict |
+|---|---|---|
+| 1 | LLM provider + API key | **FIRED** — `LLM_API_KEY` **exists** in `hayatiapp-dev` Secret Manager; PR **#95** (a concurrent session) implements the Anthropic adapter, **CI red** |
+| 2 | `RC_WEBHOOK_TOKEN` | not fired — Secret Manager 404 |
+| 3 | Three `ASC_*` secrets | **FIRED** — `total_count: 3`, created **2026-07-25T23:36Z** (S040 read `0`) |
+| 4 | Gate 3 / Android | not fired |
+| 5 | On-device defect | not fired — #15 and #48 both have **zero** comments |
+| 6 | #67 / #63 / #71 | not fired — all three open, unanswered |
+
+**Observation (the rest of the prior objective), done and clean.** A third clean hourly sweep since S040's two: `00:00:03Z … {"buckets":0,"failed":0,"seasonalCalendarUnavailable":false}`. The ADR-026 guard keeps reporting healthy from the deployed runtime.
+
+**A third thing the founder did that no preemption named:** they registered **`Hayati iOS (beyondkaira)`** apps in **both** Firebase projects. That was ADR-027 D3's stated precondition for "Phase 2" — so the session checked, and found **Phase 2 had already landed inside ADR-027's own commit** (`ce80908`). Verified two independent ways: `apps:sdkconfig` for both projects matches every committed value byte-for-byte, and `git show ce80908` shows the change. **Four documents still said it was pending.**
+
+**Objective chosen: preemption 3 — the release-lane first run (ADR-029).** Preemption 1 ranks higher in the resume-prompt's own order, and the inversion is recorded deliberately: preemption 3's work was already in flight (ADR committed, design review burning) and is independent, and M5.3 lands next session rather than never. Both get done in the same run.
+
+**ADR-029 (drafted as 028, renumbered).** PR #95 had claimed 028 four hours earlier — **ADR numbers collide across trees the same way session ordinals do** (S038 addendum), and the ADR README now records the rule and the reserved gap.
+
+**What shipped:** `DEVELOPMENT_TEAM = UH7MXG7Z94` + an explicit `CODE_SIGN_STYLE = Automatic` on the three app-target build configs, and `app/test/release/signing_sentinel_test.dart` to defend them. The team id is committed as an **identifier, not a credential** — four verified grounds (already in four repo docs on a **public** repo; published in every distributed IPA's embedded profile; grants nothing without the private key; withholding it would cost a **fourth operator secret** to hide a public string). `architecture.md` §9's "zero keys in repo" is untouched.
+
+**THE BLOCKING PRE-CODE FINDING, and it is the session's best lesson.** The sentinel was specified to reuse the channel-parity mold's global `allMatches` count. That mold is sound **for its own key** — `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` occurs only in app-target blocks, so the global count *is* the app-target count. **`CODE_SIGN_STYLE = Automatic` is the exact inverse: 3× in RunnerTests, 0× in Runner.** A global `expect(count, 3)` would have been **green when broken, red when correct, and green again when re-broken** — a guard that inverts its own meaning, shipped while citing this project's anti-vacuity addendum. The mechanism is now **per-`XCBuildConfiguration`-block parsing**, classifying each block by the bundle id *inside* it.
+
+**Mutation matrix, 11/11 as designed** — and two of the rows are the point: a team id or `Manual` added to a **RunnerTests** block must stay **GREEN**, because a file-wide grep wearing a scope's clothing passes rows 1–8 identically to a correct test and only rows 9–10 tell them apart. Row 11 breaks the pbxproj's block shape and must redden, or a parser matching nothing would make every scoped assertion vacuous. pbxproj restored **byte-identical** to the pre-mutation backup (S025 addendum). **The matrix was re-run from scratch after the review tightened the parser census**, because changing a guard invalidates the matrix that proved it.
+
+**Two adversarial passes, 13 findings, ZERO refuted.** Pre-code: 6 findings (1 blocking, 3 serious, 2 minor), one valuable **split verdict** where the skeptic and adjudicator were each right about a different half. Built-diff: 9 raw / 7 distinct, **all seven real**.
+
+**⚠️ A REVIEW WHOSE VERIFIERS DIED IS A REVIEW WITH NO VERDICT.** The built-diff pass's **ten verifier agents all died on an API session limit**. The workflow therefore returned an empty `surfaced` list and put all seven findings in its `refuted` bucket — **and reading that at face value would have discarded seven true findings.** Each was hand-adjudicated by direct inspection instead. New standing practice: check `agents_error` before trusting a review's verdict distribution; an empty verdict is *unverified*, and the tooling renders it as the opposite.
+
+**THE MOST INSTRUCTIVE FINDING — "the rule you just invoked applies to you", three times in one session.** ADR-029 D6 corrected `architecture.md` §9's false *"macOS minutes bill at 10× on this **private** repo"* (the repo is **PUBLIC**; public-repo GitHub-hosted runners are free) — **in one place, leaving the identical claim in nine others**, including six `ci.yml` comments, one of which says *"on private repos"* outright, and a second clause of the very paragraph it rewrote. Earlier in the same session, D5 corrected three stale ADR-027 surfaces and left a **fourth** standing in the founder-facing checklist; and rev 1's `Appfile` claim ("all three stay commented out") was false of its own diff, which deletes one stub. **Standing lesson, narrower and more useful than "review twice": when a diff corrects a claim, grep the whole repo for that claim before declaring it corrected.** All swept; `past-prompts.md` deliberately untouched (project-rules #2 — history may record what was believed then).
+
+**THE RESULT — the release lane ran, and it went further than it ever has** ([run 30184464450](https://github.com/aytekXR/hayati-mobile-app/actions/runs/30184464450), `workflow_dispatch` on merged `main`):
+
+```
+preflight     ✅   metadata lint + version pin
+integration   ✅   the full emulator suite, on macOS
+build-report  ✅   real prod --release build + the 200 MB size gate
+sign-upload   ❌   secrets gate ✅ · API key written ✅ · bundle install ✅ · pub get ✅
+                   → fastlane beta ❌
+store_metadata ⏭️  SKIPPED — no store copy reached App Store Connect
+```
+
+**The fail-closed boundary passed for the first time in this project's history**, and the `Gemfile.lock` debt ADR-021 D6 left open was exercised for the first time (`bundle install` resolved clean on macOS). Then:
+
+```
+▸ Automatically signing iOS for device deployment using specified
+  development team in Xcode project: UH7MXG7Z94
+▸ Error (Xcode): No profiles for 'com.beyondkaira.hayati' were found:
+  Xcode couldn't find any iOS App Development provisioning profiles
+  matching 'com.beyondkaira.hayati'.
+```
+
+**That first line is ADR-029 working.** Flutter read the committed team out of the pbxproj; the pre-ADR-029 error (*"requires a development team"*) is gone and a strictly later one replaced it. **And it is not a missing flag** — checked against the pinned Flutter 3.44.5 source rather than from memory (addendum 17): `mac.dart:383` adds `-allowProvisioningUpdates` to the archive and `build_ios.dart:567` to the export, so ADR-021 D5 rev 2's claim holds. **Xcode was permitted to create a profile and could not**, which puts the blocker on the Apple side of the key. Filed as **issue #103** with the two operator checks (is the App ID registered — roadmap Step 1; may the API key manage Certificates/Identifiers/Profiles) and, now that it is evidence-backed rather than speculative, the design for the **ASC preflight probe** the session had deliberately declined to build on spec.
+
+**A founder-facing correction that came out of the failure:** roadmap Step 3 told the founder *"Role: App Manager is enough"* for the API key. That was written for **uploading**; creating a provisioning profile is a different permission, and it is a plausible cause of this exact failure. Corrected in place.
+
+**Notes / debt logged:** **#99** (fresh-runner Apple Distribution certificate cap of 3, with the expected symptom named), **#100** (the repo is public — re-decide the cost-motivated CI gates; deliberately *not* decided by the session that found the error), **#103** (the provisioning gap + preflight design). **Three stale open PRs found that no session had closed** — #95 (M5.3, red), #76 (green **and** clean since 2026-07-22, one gitignore line), #70 (docs, conflicted since 2026-07-20). Addendum 12 says to re-derive the backlog from the whole **issue** list every session; it never said **PRs**, and three sat unnoticed. It says PRs now.
+
+**CI:** PR #102 all green; **post-merge `main` run fully green including `integration-emulator`** — which is what proves the pbxproj change breaks neither `--no-codesign` builds nor the simulator suites, the highest-risk regression the review flagged.
+
+**Next objective written to resume-prompt.md:** Session 042 — **PR #95 / M5.3**, the last MVP code unit. Preemption 1 has fired (the key exists), the code is written, and its red is mechanical (a legal-version bump left one widget test expecting "Version 1" and every consent-gate golden stale). Fix, adversarially review the inherited diff, merge, redeploy `coachProxy`.
