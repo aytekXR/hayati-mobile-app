@@ -251,7 +251,7 @@ jobs:
     # (ADR-021 D4 rev 2, REL-2). Referencing a not-yet-existing environment is safe
     # (GitHub auto-creates it; with no secrets the gate fails closed as designed).
     needs: [preflight, integration, build-report]
-    runs-on: macos-15
+    runs-on: macos-26          # Apple requires the iOS 26 SDK (Xcode 26) for App Store uploads
     timeout-minutes: 45
     environment: release
     steps:
@@ -329,6 +329,11 @@ jobs:
       - name: pub get
         working-directory: app
         run: flutter pub get
+      - name: select Xcode 26 (Apple rejects uploads built with an older SDK)
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
       - name: fastlane beta (match sign + TestFlight)
         # match installs the Apple Distribution cert + App Store profile from the
         # encrypted MATCH_GIT_URL into the CI keychain, then the Flutter build signs
