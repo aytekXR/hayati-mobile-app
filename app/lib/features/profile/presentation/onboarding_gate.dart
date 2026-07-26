@@ -14,7 +14,9 @@ import '../../legal/presentation/consent_gate_screen.dart';
 import '../../pairing/presentation/partner_preview_screen.dart';
 import '../../pairing/presentation/state/pending_invite.dart';
 import '../domain/profile_exception.dart';
+import 'name_capture_screen.dart';
 import 'profile_capture_screen.dart';
+import 'state/name_capture_done.dart';
 import 'state/profile_providers.dart';
 
 /// Post-sign-in routing (docs/implementation-plan.md M1 criterion, extended at
@@ -23,7 +25,9 @@ import 'state/profile_providers.dart';
 /// user's other device swaps this one without a restart. Settled-data
 /// precedence, in order:
 ///
-///  1. profile == null            → capture (onboarding isn't done);
+///  1. profile == null            → capture (onboarding isn't done) — the
+///     name-capture step (redesign QW-6) first, until this device's done flag
+///     is set, then profile capture;
 ///  2. !hasCurrentConsent(profile) → the special-category consent gate
 ///     (ADR-023 D3), evaluated immediately after capture and BEFORE every home
 ///     and notice: profile fields (status/contentLanguage/register) are ordinary
@@ -71,6 +75,18 @@ class OnboardingGate extends ConsumerWidget {
     }
     final value = profile.value;
     if (value == null) {
+      // The name-capture step (redesign QW-6) precedes profile capture inside
+      // the not-yet-onboarded branch ONLY: an existing profile short-circuits
+      // past both, so shipped users see nothing new. The durable flag is read
+      // synchronously off the store; the watched notifier is the change signal
+      // that re-runs this build when the capture completes (the
+      // coupleEndedSeen idiom).
+      ref.watch(nameCaptureDoneProvider);
+      if (!ref
+          .read(localFlagStoreProvider)
+          .isSet(nameCaptureDoneKey(user.uid))) {
+        return NameCaptureScreen(user: user);
+      }
       return ProfileCaptureScreen(uid: user.uid);
     }
     // The special-category consent gate (ADR-023 D3): evaluated immediately

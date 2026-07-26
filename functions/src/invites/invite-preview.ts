@@ -5,6 +5,11 @@ import { type Request, onRequest } from 'firebase-functions/v2/https';
 import type { Response } from 'express';
 
 import { FUNCTIONS_REGION } from './create-invite';
+import {
+  type CreatorQuestionHook,
+  type CreatorQuestionLookup,
+  resolveCreatorQuestionHook,
+} from './creator-question';
 import { normalizeInviteCode } from './invite-code';
 
 /**
@@ -22,27 +27,45 @@ export const PREVIEW_RATE_WINDOW_MS = 60_000;
 export type InvitePreviewStatus = 'valid' | 'expired' | 'unknown';
 
 /**
- * The ENTIRE surface the preview exposes. Designed to grow a `questionText`
- * field at M3; `invitePreviewResult` is the ONE place that builds it, so the
- * projection stays explicit and nothing (creatorUid, other invites) can leak.
+ * The ENTIRE surface the preview exposes. The designed M3 growth has landed
+ * (PRD F1 restore, redesign ui-ux §5.3): `questionText` — today's question on
+ * the inviter's side — and `creatorAnswered`, whether they already answered
+ * it. QUESTION TEXT ONLY, never answer content (the §4 invariant), and only
+ * on a `valid` invite. `invitePreviewResult` is still the ONE place that
+ * builds the body, so the projection stays explicit and nothing (creatorUid,
+ * other invites, answer text) can leak.
  */
 export interface InvitePreview {
   status: InvitePreviewStatus;
   creatorDisplayName?: string;
+  questionText?: string;
+  creatorAnswered?: boolean;
 }
 
 /**
  * Sole constructor of the response body: `creatorDisplayName` is included ONLY
- * when it is a non-empty string. Keeping the projection here means the leaked
- * surface is auditable in one spot.
+ * when it is a non-empty string; the question hook only when it resolved with
+ * a non-empty question, and `creatorAnswered` never travels without its
+ * question (a bare boolean would invite the client to render a claim it
+ * cannot show). Keeping the projection here means the leaked surface is
+ * auditable in one spot.
  */
 function invitePreviewResult(
   status: InvitePreviewStatus,
   creatorDisplayName?: string,
+  questionHook?: CreatorQuestionHook,
 ): InvitePreview {
   const result: InvitePreview = { status };
   if (typeof creatorDisplayName === 'string' && creatorDisplayName.length > 0) {
     result.creatorDisplayName = creatorDisplayName;
+  }
+  if (
+    questionHook !== undefined &&
+    typeof questionHook.questionText === 'string' &&
+    questionHook.questionText.length > 0
+  ) {
+    result.questionText = questionHook.questionText;
+    result.creatorAnswered = questionHook.creatorAnswered === true;
   }
   return result;
 }
@@ -70,6 +93,7 @@ export async function previewInvite(
   db: Firestore,
   code: string,
   lookupName: CreatorNameLookup = authCreatorName,
+  lookupQuestion: CreatorQuestionLookup = resolveCreatorQuestionHook,
 ): Promise<InvitePreview> {
   const snapshot = await db.collection('invites').doc(code).get();
   if (!snapshot.exists) {
@@ -98,7 +122,18 @@ export async function previewInvite(
       error,
     });
   }
-  return invitePreviewResult('valid', creatorDisplayName);
+  let questionHook: CreatorQuestionHook | undefined;
+  try {
+    questionHook = await lookupQuestion(db, data.creatorUid as string);
+  } catch (error) {
+    // The PRD F1 hook is best-effort: a hook failure never downgrades a
+    // valid invite (the name-lookup contract, applied again).
+    logger.warn('invitePreview question hook failed', {
+      codePrefix: code.slice(0, 3),
+      error,
+    });
+  }
+  return invitePreviewResult('valid', creatorDisplayName, questionHook);
 }
 
 /** Allow-or-reject one request for `key` under the fixed window. */

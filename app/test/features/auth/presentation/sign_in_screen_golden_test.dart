@@ -1,14 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/config/app_config.dart';
 import 'package:hayati_app/core/config/app_config_provider.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_exception.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/features/auth/presentation/state/ritual_preview_seen.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 
 import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_deep_link_source.dart';
+import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/golden/golden_harness.dart';
 import '../../../support/localized_app.dart';
@@ -38,6 +41,11 @@ void main() {
           authRepositoryProvider.overrideWith((ref) => auth),
           profileRepositoryProvider.overrideWith((ref) => profiles),
           deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+          // M-5 ritual preview already seen: these goldens capture the auth
+          // shell; the preview has its own golden matrix.
+          localFlagStoreProvider.overrideWithValue(
+            FakeLocalFlagStore(initial: {ritualPreviewSeenKey}),
+          ),
         ],
       );
       await tester.pumpAndSettle();
@@ -73,6 +81,11 @@ void main() {
           authRepositoryProvider.overrideWith((ref) => auth),
           profileRepositoryProvider.overrideWith((ref) => profiles),
           deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+          // M-5 ritual preview already seen: these goldens capture the auth
+          // shell; the preview has its own golden matrix.
+          localFlagStoreProvider.overrideWithValue(
+            FakeLocalFlagStore(initial: {ritualPreviewSeenKey}),
+          ),
         ],
       );
       await tester.pumpAndSettle();

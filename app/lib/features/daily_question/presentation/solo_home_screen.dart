@@ -12,6 +12,7 @@ import '../../auth/presentation/state/auth_controller.dart';
 import '../../pairing/presentation/invite_share_screen.dart';
 import '../../profile/domain/relationship_profile.dart';
 import '../../profile/presentation/state/profile_providers.dart';
+import '../../settings/presentation/widgets/privacy_spotlight_card.dart';
 import '../../settings/presentation/widgets/settings_gear_overlay.dart';
 import '../domain/question.dart';
 import '../domain/solo_answer.dart';
@@ -183,6 +184,11 @@ class _QuestionViewState extends ConsumerState<_QuestionView> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // The one-time privacy spotlight (redesign M-6) atop the first
+                // home — renders nothing once handled, so it mounts
+                // unconditionally and the day-question layout below is
+                // byte-identical for every returning user.
+                PrivacySpotlightCard(uid: widget.uid),
                 _InviteNudgeCard(uid: widget.uid),
                 const SizedBox(height: SpacingTokens.x6),
                 Text(

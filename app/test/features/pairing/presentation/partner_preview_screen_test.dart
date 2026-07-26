@@ -218,6 +218,123 @@ void main() {
     });
   });
 
+  group('question hook (PRD F1 restore, ui-ux §5.3)', () {
+    const answeredResult = InvitePreviewResult(
+      status: InvitePreviewStatus.valid,
+      creatorDisplayName: 'Aylin',
+      questionText: 'What made you smile today?',
+      creatorAnswered: true,
+    );
+
+    testWidgets('a projected question renders in the hook card with the '
+        'sealed answered caption', (tester) async {
+      await pumpScreen(
+        tester,
+        initialUser: _user,
+        initialLink: Uri.parse('hayati://invite/$_code'),
+        previewResult: answeredResult,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.pairedQuestionTitle), findsOneWidget);
+      expect(find.text('What made you smile today?'), findsOneWidget);
+      expect(
+        find.text(en.invitePreviewCreatorAnswered('Aylin')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    });
+
+    testWidgets('an UNANSWERED question renders without the sealed card — '
+        'no claim without an answer', (tester) async {
+      await pumpScreen(
+        tester,
+        initialUser: _user,
+        initialLink: Uri.parse('hayati://invite/$_code'),
+        previewResult: const InvitePreviewResult(
+          status: InvitePreviewStatus.valid,
+          creatorDisplayName: 'Aylin',
+          questionText: 'What made you smile today?',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('What made you smile today?'), findsOneWidget);
+      expect(find.text(en.invitePreviewCreatorAnswered('Aylin')), findsNothing);
+      expect(find.byIcon(Icons.lock_outline), findsNothing);
+    });
+
+    testWidgets('the answered caption falls back gracefully with no name', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        initialUser: _user,
+        initialLink: Uri.parse('hayati://invite/$_code'),
+        previewResult: const InvitePreviewResult(
+          status: InvitePreviewStatus.valid,
+          questionText: 'What made you smile today?',
+          creatorAnswered: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.invitePreviewCreatorAnsweredNoName), findsOneWidget);
+    });
+
+    testWidgets('no projected question degrades to exactly the shipped '
+        'preview (older deploys, hook failures)', (tester) async {
+      await pumpScreen(
+        tester,
+        initialUser: _user,
+        initialLink: Uri.parse('hayati://invite/$_code'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.invitePreviewInvitedBy('Aylin')), findsOneWidget);
+      expect(find.text(en.pairedQuestionTitle), findsNothing);
+      expect(find.byIcon(Icons.lock_outline), findsNothing);
+    });
+
+    testWidgets('signed OUT, the hook renders ABOVE the sign-in choice — '
+        'value before the toll (the activation moment)', (tester) async {
+      await pumpScreen(
+        tester,
+        initialLink: Uri.parse('hayati://invite/$_code'),
+        previewResult: answeredResult,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('What made you smile today?'), findsOneWidget);
+      expect(
+        find.text(en.invitePreviewCreatorAnswered('Aylin')),
+        findsOneWidget,
+      );
+      expect(find.text(en.continueWithApple), findsOneWidget);
+    });
+
+    testWidgets('renders localized in every locale', (tester) async {
+      for (final locale in supportedTestLocales) {
+        final l10n = l10nFor(locale);
+        await pumpScreen(
+          tester,
+          initialUser: _user,
+          initialLink: Uri.parse('hayati://invite/$_code'),
+          previewResult: answeredResult,
+          locale: locale,
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text(l10n.pairedQuestionTitle), findsOneWidget);
+        expect(
+          find.text(l10n.invitePreviewCreatorAnswered('Aylin')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    });
+  });
+
   group('join (signed in)', () {
     testWidgets('tapping Accept redeems the code and KEEPS the pending invite '
         'on success (the users-doc stream re-routes the gate)', (tester) async {

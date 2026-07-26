@@ -41,6 +41,17 @@ abstract interface class AuthRepository {
   /// other failures follow the shared taxonomy. Throws only [AuthException].
   Future<AuthUser> confirmPhoneCode(PhoneSignInSession session, String smsCode);
 
+  /// Writes [displayName] onto the signed-in user's AUTH record — the exact
+  /// surface the zero-auth invite preview resolves the inviter's name from
+  /// (`functions/src/invites/invite-preview.ts` reads `getUser(uid)
+  /// .displayName`; `users/{uid}` stores no name by design). The name-capture
+  /// onboarding step (redesign QW-6) calls this so a phone sign-up's invite
+  /// never degrades to the no-name fallback. Callers pass a trimmed,
+  /// non-empty string. Throws only [AuthException] subtypes; throws
+  /// [AuthUnknownException] when no user is signed in (the capture screen is
+  /// only reachable signed-in, so that is a broken-state signal, not a flow).
+  Future<void> updateDisplayName(String displayName);
+
   Future<void> signOut();
 
   /// Tears down the LOCAL session after the server has already deleted the

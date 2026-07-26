@@ -4,9 +4,7 @@ import '../design_system/motion_tokens.dart';
 
 /// Default testing handle on the [Opacity] the reveal animates, so a widget test
 /// can read the climbing opacity mid-unfold. A caller may override it via
-/// [SoftUnfoldReveal.opacityKey] — the daily-question reveal passes its own
-/// `@visibleForTesting` `revealUnfoldOpacityKey` (defined in
-/// `paired_home_screen.dart`), the pairing preview takes this default. The
+/// [SoftUnfoldReveal.opacityKey]; the pairing preview takes this default. The
 /// [Transform.translate] is this Opacity's direct child, so a test reaches the
 /// rise via `find.descendant(of: find.byKey(opacityKey), matching:
 /// find.byType(Transform))` — the "gentle rise" half of §6 is proven, not just
@@ -17,16 +15,17 @@ const softUnfoldOpacityKey = ValueKey<String>('soft-unfold-opacity');
 /// A one-shot "soft unfold" enter animation for a reveal moment: a fade plus a
 /// gentle vertical rise, per brandkit §6 ("reveal moment = soft unfold …").
 ///
-/// The single shared realisation of the §6 unfold, used by both reveal moments:
-/// the pairing activation moment (the invitee's first sight of who invited them,
-/// `partner_preview_screen.dart` `_ValidPreview`) and the daily-question reveal
-/// (`paired_home_screen.dart`). Slice 2 first built it inline as `_RevealUnfold`
-/// and slice 3 re-created it here rather than extract it, to keep slice 2's
-/// goldens untouched mid-slice; issue #74 then folded the daily-reveal copy back
-/// onto this one — still pixel-neutral, so no golden moved. Each caller pins its
-/// own `@visibleForTesting` [opacityKey] so a test targets that surface's unfold
-/// unambiguously (the daily reveal passes `revealUnfoldOpacityKey`, the pairing
-/// preview takes [softUnfoldOpacityKey]).
+/// The base unfold verb (redesign ui-ux §11 `unfoldSoft`), used by the pairing
+/// activation moment (the invitee's first sight of who invited them,
+/// `partner_preview_screen.dart` `_ValidPreview`). Slice 2 first built it
+/// inline as `_RevealUnfold` and slice 3 re-created it here rather than
+/// extract it, to keep slice 2's goldens untouched mid-slice; issue #74 then
+/// folded the daily-reveal copy back onto this one — still pixel-neutral, so
+/// no golden moved. The daily-question reveal has since GRADUATED to the
+/// three-beat `RevealChoreography` (redesign wave 2) — this widget remains the
+/// quiet single-beat verb for everything that is not the daily reveal. Each
+/// caller pins its own `@visibleForTesting` [opacityKey] so a test targets
+/// that surface's unfold unambiguously.
 ///
 /// Motion values come from [MotionTokens] (§6's 150–300ms band, ease-out
 /// entering). The slide is VERTICAL-only, so it is direction-neutral and needs

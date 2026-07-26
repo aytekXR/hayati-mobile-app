@@ -152,6 +152,50 @@ void main() {
     });
   }
 
+  // VALID + QUESTION HOOK (PRD F1 restore, ui-ux §5.3): today's question in
+  // the Question style + the sealed answered card. Per-locale question text so
+  // the ar cells capture real Arabic shaping in the Question style.
+  const hookQuestions = {
+    'en': 'What made you smile today?',
+    'tr': 'Bugün seni ne gülümsetti?',
+    'ar': 'ما الذي رسم البسمة على وجهك اليوم؟',
+  };
+  for (final cell in sixCells) {
+    testWidgets('valid_question_hook ${cell.suffix}', (tester) async {
+      final fakes = arrange(
+        user: _joiner,
+        link: _link,
+        result: InvitePreviewResult(
+          status: InvitePreviewStatus.valid,
+          creatorDisplayName: 'Aylin',
+          questionText: hookQuestions[cell.locale.languageCode]!,
+          creatorAnswered: true,
+        ),
+      );
+      tearDownFakes(fakes);
+
+      await pumpGolden(
+        tester,
+        const PartnerPreviewScreen(),
+        locale: cell.locale,
+        direction: cell.direction,
+        overrides: fakes.overrides,
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(PartnerPreviewScreen),
+        matchesGoldenFile(
+          goldenFile(
+            'partner_preview_screen',
+            'valid_question_hook',
+            cell.suffix,
+          ),
+        ),
+      );
+    });
+  }
+
   // EXPIRED-OR-UNKNOWN: the single unavailable state.
   for (final cell in sixCells) {
     testWidgets('unavailable ${cell.suffix}', (tester) async {
