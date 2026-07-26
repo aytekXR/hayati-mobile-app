@@ -62,6 +62,33 @@ never appear. This is part of item 1's content work, not a new demand._
 
 ---
 
+## ⚡ Redesign waves 1–2 LANDED (external operator-instructed session, 2026-07-26) — what it needs from you
+
+The full redesign program you commissioned (blueprint #94) was implemented and merged at your
+instruction ("take all the designs live, don't wait for my approval"): **wave 1** (#101 — the four
+gap-closing tokens applied across the whole Material theme, the AA button-label failure closed,
+elevation + reveal-beat motion tokens) and **wave 2** (#105 — the reveal three-beat choreography,
+the seed vessel + streak strip, the question card in redesign chrome, the name-capture step, the
+privacy spotlight, the code-first invite message, the pre-sign-in ritual preview, and the PRD F1
+partner-preview hook restored in functions/, 549/549 green). The app now looks and moves like the
+blueprint on every touched surface, in all six locale×direction golden cells.
+
+**Open items this created — yours:**
+
+- [ ] **Native register review (the standing gate, now URGENT):** every TR/AR string these waves
+      shipped is an AI draft flagged "native register review pending" per commit. The TR founder
+      couple + the Gulf-dialect AR reviewer pass is now the single biggest quality risk in the
+      product. Bundle it with the ◆-marked strings in the design-system screen cards.
+- [ ] **Bidi isolation defect (found during golden review, fix is agent work but you should see
+      it):** Turkish content rendered inside the Arabic RTL chrome reorders trailing punctuation
+      (`revealed_streak.ar.rtl` golden: "küçük bir şey ne?" renders as "?şey ne"). Mixed-language
+      couples are a real segment; scheduled for the next agent session with directional isolates.
+- [ ] **Unchanged operator infrastructure (still gating activation):** the domain purchase + AASA
+      (universal links — the invite is still code-first partly BECAUSE links can't be tappable),
+      analytics wiring decision (app/lib/core/analytics/ remains empty — G2/G3 unfalsifiable
+      without it), APNs key (the ritual has no heartbeat), the G1 content bank, and the ADR-027
+      trademark decision.
+
 ## TL;DR — the whole remaining product is a handful of your decisions
 
 | # | What | Blocks | Effort |
