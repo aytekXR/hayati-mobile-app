@@ -187,10 +187,7 @@ ThemeData hayatiTheme({required String languageCode}) {
     // Veil hairlines (ui-ux §9.1) — the app finally has a divider color that
     // is not Material grey. M3 `Divider` also reads outlineVariant; both point
     // at the same token so the explicit theme is documentation, not override.
-    dividerTheme: const DividerThemeData(
-      color: ColorTokens.veil,
-      thickness: 1,
-    ),
+    dividerTheme: const DividerThemeData(color: ColorTokens.veil, thickness: 1),
     // Tile glyphs/chevrons in Clay — the kept secondary-icon role (ui-ux
     // §9.4). Without this, M3 ListTile icons would follow onSurfaceVariant
     // into Mist, conflating the icon role with secondary TEXT. Subtitles are

@@ -34,7 +34,8 @@ void main() {
 
   group('MotionTokens — the reveal three-beat (redesign ui-ux §9)', () {
     test('the three beats fit the ≤1.2s choreography budget', () {
-      final total = MotionTokens.revealBeatUnfold +
+      final total =
+          MotionTokens.revealBeatUnfold +
           MotionTokens.revealBeatSettle +
           MotionTokens.revealBeatSeedDrop;
       expect(total.inMilliseconds, lessThanOrEqualTo(1200));

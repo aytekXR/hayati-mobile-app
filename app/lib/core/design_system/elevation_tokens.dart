@@ -22,28 +22,16 @@ abstract final class ElevationTokens {
 
   /// Level 1 — cards. y2 blur8 at 28%.
   static const List<BoxShadow> level1 = [
-    BoxShadow(
-      color: Color(0x47160E22),
-      offset: Offset(0, 2),
-      blurRadius: 8,
-    ),
+    BoxShadow(color: Color(0x47160E22), offset: Offset(0, 2), blurRadius: 8),
   ];
 
   /// Level 2 — sheets and dialogs. y6 blur24 at 36%.
   static const List<BoxShadow> level2 = [
-    BoxShadow(
-      color: Color(0x5C160E22),
-      offset: Offset(0, 6),
-      blurRadius: 24,
-    ),
+    BoxShadow(color: Color(0x5C160E22), offset: Offset(0, 6), blurRadius: 24),
   ];
 
   /// Level 3 — the milestone overlay. y12 blur40 at 44%.
   static const List<BoxShadow> level3 = [
-    BoxShadow(
-      color: Color(0x70160E22),
-      offset: Offset(0, 12),
-      blurRadius: 40,
-    ),
+    BoxShadow(color: Color(0x70160E22), offset: Offset(0, 12), blurRadius: 40),
   ];
 }
