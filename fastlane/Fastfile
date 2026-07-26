@@ -13,19 +13,46 @@
 
 default_platform(:ios)
 
-# Inputs the signing + upload lanes share (GitHub `release` env / repo secrets).
-# Missing any one fails CLOSED with a message naming exactly what is absent.
+# Credential checks, scoped PER LANE (ADR-032 D5). Missing any input fails
+# CLOSED with a message naming exactly what is absent.
+#
+# The split is load-bearing, not tidiness. `store_metadata` signs nothing and
+# touches no certificate, but it was routed through the match-aware check below
+# — so it aborted before `deliver` on EVERY release, inside a step that is
+# `continue-on-error: true` by design (ADR-020 D8), which rendered the failure
+# GREEN. Store metadata was never once delivered. That is this repo's own
+# recorded lesson repeating: a bound justified by one caller's constraints is
+# not safe for another caller. `tool/release_lane_lint.dart` now pins which
+# lane calls which.
+
+# The App Store Connect API key alone — everything `deliver` needs.
+def ensure_asc_credentials!
+  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64]
+  missing = required.select { |key| (ENV[key] || "").strip.empty? }
+  return if missing.empty?
+
+  UI.user_error!(
+    "App Store Connect credentials are not configured: #{missing.join(', ')} " \
+    "#{missing.length == 1 ? 'is' : 'are'} unset (ASC_KEY_ID, ASC_ISSUER_ID, " \
+    "ASC_API_KEY_P8_BASE64). In CI these are hayati repo secrets; see " \
+    "docs/operator-expected.md."
+  )
+end
+
+# The above PLUS the fastlane match inputs — required only by lanes that sign.
 def ensure_release_credentials!
-  required = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8_BASE64 MATCH_GIT_URL MATCH_PASSWORD]
+  ensure_asc_credentials!
+
+  required = %w[MATCH_GIT_URL MATCH_PASSWORD]
   missing = required.select { |key| (ENV[key] || "").strip.empty? }
   return if missing.empty?
 
   UI.user_error!(
     "Release signing is not configured: #{missing.join(', ')} " \
-    "#{missing.length == 1 ? 'is' : 'are'} unset. Provide the App Store Connect " \
-    "API key (ASC_KEY_ID, ASC_ISSUER_ID, ASC_API_KEY_P8_BASE64) and the fastlane " \
-    "match inputs (MATCH_GIT_URL, MATCH_PASSWORD). In CI these are hayati repo " \
-    "secrets; see docs/operator-expected.md."
+    "#{missing.length == 1 ? 'is' : 'are'} unset. Provide the fastlane match " \
+    "inputs (MATCH_GIT_URL, MATCH_PASSWORD) — they carry the Apple " \
+    "Distribution certificate and App Store profile. In CI these are hayati " \
+    "repo secrets; see docs/operator-expected.md."
   )
 end
 
@@ -88,12 +115,25 @@ platform :ios do
       </dict></plist>
     PLIST
 
-    # Build number: monotonic per CI run, offset past the manual builds 1-3.
+    # Build NUMBER: synthesized here, monotonic per CI run, offset past the
+    # manual builds 1-3 (ADR-032 D3 supersedes ADR-021 D3's "no auto-increment
+    # magic in CI"). The evidence for the reversal is this lane's own history:
+    # six consecutive runs failed before one succeeded, and under pubspec's +N
+    # every retry would have cost a commit AND a re-tag to get a fresh number.
+    # Accepted cost, stated plainly: re-running the same tag now produces a
+    # DIFFERENT build, so App Store Connect — not this repo — answers "which
+    # build was v0.1.0?".
     build_number = 100 + ENV.fetch("GITHUB_RUN_NUMBER", "1").to_i
     rc_key = ENV["REVENUECAT_IOS_API_KEY"].to_s
 
+    # Build NAME: deliberately NOT passed. `flutter build ipa` then reads
+    # app/pubspec.yaml, which is what `preflight`'s tag<->pubspec gate checks.
+    # This lane used to pass `--build-name=0.1.0` as a literal, which made that
+    # gate vacuous — it still ran, still passed, and guarded a string the build
+    # ignored (tag v0.2.0 + pubspec 0.2.0 would have shipped a binary stamped
+    # 0.1.0). Pinned by tool/release_lane_lint.dart. ADR-032 D3.
     sh("cd ../app && flutter build ipa --release -t lib/main_prod.dart " \
-       "--build-name=0.1.0 --build-number=#{build_number} " \
+       "--build-number=#{build_number} " \
        "--dart-define=REVENUECAT_IOS_API_KEY=#{rc_key} " \
        "--export-options-plist ios/ExportOptions.plist")
 
@@ -115,7 +155,11 @@ platform :ios do
 
   desc "Push App Store metadata (no binary) from fastlane/metadata — App Store Connect API key"
   lane :store_metadata do
-    ensure_release_credentials!
+    # ASC credentials ONLY — this lane signs nothing (ADR-032 D5). It called
+    # ensure_release_credentials! until S047, which required the two MATCH_*
+    # inputs that release.yml does not pass to this step, so the lane aborted
+    # before `deliver` on every release while the job reported success.
+    ensure_asc_credentials!
 
     app_store_connect_api_key(
       key_id: ENV.fetch("ASC_KEY_ID"),

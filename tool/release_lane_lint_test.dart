@@ -212,6 +212,24 @@ void main() {
     _check('...and no phantom ASC_ secret is reported', !err.contains('ASC_,'));
   }
 
+  // MUST STAY GREEN: a lane whose COMMENT names the helper it used to call is
+  // still correct. Not hypothetical — the store_metadata fix ships with exactly
+  // that comment, and it tripped rule 3b before laneBody stripped comments.
+  {
+    final commented = _healthyFastfile.replaceFirst(
+      '    ensure_asc_credentials!\n    deliver',
+      '    # Was ensure_release_credentials! until S047; this lane signs\n'
+          '    # nothing (ADR-032 D5).\n'
+          '    ensure_asc_credentials!\n    deliver',
+    );
+    final (code, _, err) = _mutant(fastfile: commented);
+    _check('a lane comment naming the OLD helper stays green', code == 0);
+    _check(
+      '...and no phantom starvation is reported',
+      !err.contains('fastlane ios store_metadata'),
+    );
+  }
+
   // ------------------------------------------------------ RULE 1 mutants ---
   {
     final (code, _, err) = _mutant(
@@ -357,6 +375,56 @@ void main() {
       'R3b: says the wiring is gone',
       err.contains('no step in the sign-upload job invokes a fastlane lane'),
     );
+  }
+
+  // ------------------------------------ RULE 3b: transitive requirements ---
+  // The shipped Fastfile DELEGATES: ensure_release_credentials! calls
+  // ensure_asc_credentials! and declares only the match inputs itself. A lint
+  // reading one %w[...] per helper would conclude the signing lane needs no ASC
+  // key at all — and would go quiet on exactly the starvation rule 3b exists to
+  // catch. These two rows are the mutation check for that resolution.
+  {
+    final delegating = _healthyFastfile.replaceFirst(
+      '  required = %w[ASC_KEY_ID ASC_API_KEY_P8_BASE64 MATCH_GIT_URL MATCH_PASSWORD]',
+      '  ensure_asc_credentials!\n  required = %w[MATCH_GIT_URL MATCH_PASSWORD]',
+    );
+
+    // Healthy + delegating still passes: delegation is not itself a defect.
+    final (okCode, _, _) = _mutant(fastfile: delegating);
+    _check('R3b: a DELEGATING helper chain stays green when fed', okCode == 0);
+
+    // Now starve the beta step of an input it inherits ONLY through the
+    // delegate. Pre-resolution this was invisible.
+    final starvedWorkflow = _healthyWorkflow.replaceFirst(
+      '          ASC_KEY_ID: \${{ secrets.ASC_KEY_ID }}\n'
+          '          ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}\n'
+          '          MATCH_GIT_URL: \${{ secrets.MATCH_GIT_URL }}\n'
+          '          MATCH_PASSWORD: \${{ secrets.MATCH_PASSWORD }}\n'
+          '        run: bundle exec fastlane ios beta',
+      '          MATCH_GIT_URL: \${{ secrets.MATCH_GIT_URL }}\n'
+          '          MATCH_PASSWORD: \${{ secrets.MATCH_PASSWORD }}\n'
+          '        run: bundle exec fastlane ios beta',
+    );
+    final (code, _, err) = _mutant(
+      workflow: starvedWorkflow,
+      fastfile: delegating,
+    );
+    _check('R3b: an INHERITED requirement is enforced', code == 1);
+    _check(
+      'R3b: names the inherited input',
+      err.contains('fastlane ios beta') && err.contains('ASC_KEY_ID'),
+    );
+  }
+  {
+    // A delegation cycle must not hang the lint. It is nonsense Ruby, but a
+    // guard that spins forever on malformed input is worse than one that fails.
+    final cyclic = _healthyFastfile.replaceFirst(
+      'def ensure_asc_credentials!\n  required = %w[ASC_KEY_ID ASC_API_KEY_P8_BASE64]',
+      'def ensure_asc_credentials!\n  ensure_release_credentials!\n'
+          '  required = %w[ASC_KEY_ID ASC_API_KEY_P8_BASE64]',
+    );
+    final (code, _, _) = _mutant(fastfile: cyclic);
+    _check('R3b: a helper delegation CYCLE terminates', code == 0 || code == 1);
   }
 
   // ------------------------------------------------------ RULE 4 mutants ---

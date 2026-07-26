@@ -278,20 +278,7 @@ List<String> checkEachLaneStepIsFed(
   List<String> passes,
   RegExp secretRef,
 ) {
-  final helperRequirements = <String, Set<String>>{};
-  for (final m in RegExp(
-    r'def (ensure_\w+!)(.*?)^end',
-    multiLine: true,
-    dotAll: true,
-  ).allMatches(fastfile)) {
-    final names = RegExp(r'%w\[([^\]]*)\]')
-        .firstMatch(m.group(2)!)
-        ?.group(1)!
-        .split(RegExp(r'\s+'))
-        .where((s) => s.isNotEmpty)
-        .toSet();
-    if (names != null) helperRequirements[m.group(1)!] = names;
-  }
+  final helperRequirements = resolveHelperRequirements(fastfile);
   if (helperRequirements.isEmpty) {
     return [
       'no `def ensure_*!` credential helper found in $_fastfileSubpath. The '
@@ -379,6 +366,56 @@ List<String> checkStoreName(Directory metadataDir, List<String> passes) {
   return violations;
 }
 
+/// Every `def ensure_*!` helper mapped to the env names it requires,
+/// **including the ones it inherits by delegating to another helper**.
+///
+/// The transitive union matters: `ensure_release_credentials!` delegates the
+/// App Store Connect inputs to `ensure_asc_credentials!` and declares only the
+/// match inputs itself. A lint that read one `%w[...]` per helper would believe
+/// the signing lane needs no ASC key, and rule 3b would go quiet on exactly the
+/// starvation it exists to catch. The guard follows the code; the code is not
+/// bent to suit the guard.
+Map<String, Set<String>> resolveHelperRequirements(String fastfile) {
+  final bodies = <String, String>{};
+  for (final m in RegExp(
+    r'^def (ensure_\w+!)$(.*?)^end',
+    multiLine: true,
+    dotAll: true,
+  ).allMatches(stripRubyComments(fastfile))) {
+    bodies[m.group(1)!] = m.group(2)!;
+  }
+
+  final resolved = <String, Set<String>>{};
+  Set<String> requirementsOf(String helper, Set<String> visiting) {
+    final cached = resolved[helper];
+    if (cached != null) return cached;
+    // A cycle would otherwise recurse forever. Returning empty is safe: the
+    // names still arrive through whichever helper in the cycle declares them.
+    if (!visiting.add(helper)) return const {};
+    final body = bodies[helper];
+    if (body == null) return const {};
+
+    final names = <String>{};
+    for (final w in RegExp(r'%w\[([^\]]*)\]').allMatches(body)) {
+      names.addAll(
+        w.group(1)!.split(RegExp(r'\s+')).where((s) => s.isNotEmpty),
+      );
+    }
+    for (final call in RegExp(r'\bensure_\w+!').allMatches(body)) {
+      final callee = call.group(0)!;
+      if (callee != helper) names.addAll(requirementsOf(callee, visiting));
+    }
+    visiting.remove(helper);
+    resolved[helper] = names;
+    return names;
+  }
+
+  for (final helper in bodies.keys) {
+    requirementsOf(helper, <String>{});
+  }
+  return resolved;
+}
+
 /// Drops whole-line Ruby comments, keeping `#{...}` interpolation intact.
 ///
 /// Only lines whose first non-space character is `#` are removed — a trailing
@@ -393,7 +430,13 @@ String stripRubyComments(String source) => source
 /// The body of `lane :<name> do ... end`, delimited by indentation rather than
 /// by counting `end`s: lanes sit two spaces inside `platform :ios do`, so the
 /// lane ends at the next line that is exactly `  end`.
-String? laneBody(String fastfile, String lane) {
+/// Comments are stripped FIRST, for the same reason rule 1 strips them: a lane
+/// whose comment explains which helper it *used* to call would otherwise be
+/// read as still calling it. That is not hypothetical — the fix for the
+/// store_metadata defect ships with exactly such a comment, and it tripped this
+/// lint before the strip was added.
+String? laneBody(String rawFastfile, String lane) {
+  final fastfile = stripRubyComments(rawFastfile);
   final start = RegExp(
     '^  lane :$lane do\\s*\$',
     multiLine: true,

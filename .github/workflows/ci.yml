@@ -112,6 +112,15 @@ jobs:
         run: dart tool/store_metadata_lint_test.dart
       - name: store metadata lint
         run: dart tool/store_metadata_lint.dart --allow-empty-urls tr en-US
+      # ADR-032 — release-lane self-agreement, per-PR. release.yml only runs on a
+      # tag or a dispatch, so between two releases its internals can drift with
+      # every required check green; that is exactly what happened when PR #117
+      # swapped the signing mechanism. Self-tests then the lint, same shape as
+      # the store-metadata pair above; plain dart:-only, so pre-pub-get.
+      - name: release lane lint self-tests
+        run: dart tool/release_lane_lint_test.dart
+      - name: release lane lint
+        run: dart tool/release_lane_lint.dart
       # ADR-024 D1: the Slack notifier is bash, and bash gets neither
       # `dart format` (it silently ignores *.sh) nor `dart analyze`. shellcheck
       # is the static half of that gate (SC2086-class unquoted expansions); the
