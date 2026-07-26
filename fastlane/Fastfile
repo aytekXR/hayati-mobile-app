@@ -97,7 +97,9 @@ platform :ios do
        "--dart-define=REVENUECAT_IOS_API_KEY=#{rc_key} " \
        "--export-options-plist ios/ExportOptions.plist")
 
-    ipa_path = Dir["../app/build/ios/ipa/*.ipa"].first
+    # Repo-root-relative (Ruby CWD is the repo root, like fastlane actions) — the
+    # build ran through `sh` which is fastlane/-relative, hence the path asymmetry.
+    ipa_path = Dir["app/build/ios/ipa/*.ipa"].first
     UI.user_error!(
       "No .ipa under app/build/ios/ipa/ — flutter build ipa did not export."
     ) if ipa_path.nil?
