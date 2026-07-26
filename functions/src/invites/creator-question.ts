@@ -141,13 +141,21 @@ export async function resolveCreatorQuestionHook(
   loadPack: typeof loadQuestionPack = loadQuestionPack,
   now: () => Date = () => new Date(),
 ): Promise<CreatorQuestionHook | undefined> {
+  const at = now();
   const userRef = db.collection('users').doc(creatorUid);
-  const [userSnap, latestSnap] = await Promise.all([
+  // The ±1-UTC-day window as an ASCENDING documentId range, not a descending
+  // max-key scan: the firestore EMULATOR rejects `orderBy(documentId, desc)`
+  // outright ("Firestore does not support descending key scans", code 9), and
+  // the pure core ignores an out-of-window latest answer anyway — so querying
+  // only the window is semantically identical, emulator-safe, and bounded to
+  // ≤3 docs. Ids sort ascending by default; the last doc is the max in window.
+  const day = 86_400_000;
+  const [userSnap, windowSnap] = await Promise.all([
     userRef.get(),
     userRef
       .collection('soloAnswers')
-      .orderBy(FieldPath.documentId(), 'desc')
-      .limit(1)
+      .where(FieldPath.documentId(), '>=', utcDayKey(new Date(at.getTime() - day)))
+      .where(FieldPath.documentId(), '<=', utcDayKey(new Date(at.getTime() + day)))
       .get(),
   ]);
   if (!userSnap.exists) return undefined;
@@ -162,7 +170,7 @@ export async function resolveCreatorQuestionHook(
     typeof (createdAtRaw as Timestamp).toDate === 'function'
       ? (createdAtRaw as Timestamp).toDate()
       : undefined;
-  const latestDoc = latestSnap.docs[0];
+  const latestDoc = windowSnap.docs[windowSnap.docs.length - 1];
   const latestAnswer =
     latestDoc === undefined
       ? undefined
@@ -172,6 +180,6 @@ export async function resolveCreatorQuestionHook(
     createdAt,
     latestAnswer,
     pack: loadPack(`solo_${contentLanguage}`),
-    now: now(),
+    now: at,
   });
 }
