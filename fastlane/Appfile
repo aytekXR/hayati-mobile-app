@@ -7,10 +7,27 @@
 
 app_identifier("com.beyondkaira.hayati")  # iOS bundle id — renamed S037; com.hayati.app was squatted on Apple (ADR-027)
 
-# --- Provided from GitHub environment secrets in M6; do NOT commit values ---
-# apple_id("...")        # App Store Connect login (Apple ID email)
-# itc_team_id("...")     # App Store Connect team id
-# team_id("...")         # Apple Developer portal team id
+# --- All three stay COMMENTED: App Store Connect API-key auth needs none of
+# them (the key is team-scoped). Kept as documentation of what a
+# password/Apple-ID lane would have required.
+#
+# They are NOT equivalent, and grouping them under one "never commit" rule was
+# over-broad (corrected S041, ADR-029 D1):
+#   apple_id    — the founder's EMAIL. Never commit: PII, and a phishing target.
+#   itc_team_id — an internal App Store Connect numeric id. No public artifact
+#                 carries it and nothing needs it here; no reason to commit.
+#   team_id     — the Apple Developer portal Team ID. An IDENTIFIER, not a
+#                 credential: it is published in every distributed IPA's
+#                 embedded provisioning profile, it grants nothing without the
+#                 private key, and it already appears in four repo documents.
+#                 It IS committed — as `DEVELOPMENT_TEAM` in
+#                 `app/ios/Runner.xcodeproj/project.pbxproj`, where xcodebuild
+#                 actually needs it, pinned by
+#                 `app/test/release/signing_sentinel_test.dart`.
+#
+# architecture.md §9's "zero keys in repo" is untouched by any of this.
+# apple_id("...")
+# itc_team_id("...")
 
 # No Android block here: Play account credentials (json_key_file) arrive with
 # the Android lanes in M6.5 (ADR-006).

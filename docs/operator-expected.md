@@ -37,9 +37,19 @@ never appear. This is part of item 1's content work, not a new demand._
 > `com.beyondkaira.hayati`** (the founder's own namespace, same as the Ballast
 > app; ADR-027); every `com.hayati.app` reference in the roadmap below now
 > reads `com.beyondkaira.hayati`. Android keeps `com.hayati.app`, deferred to
-> M6.5. **Net:** Step 1 will now register successfully; the only added work is
-> two Firebase iOS-app registrations + a Dart config regen (a session does the
-> code half).
+> M6.5. **Net:** Step 1 will now register successfully.
+>
+> **✅ Update (Session 041): the "added work" in that Net line is FINISHED —
+> nothing here is asking you for anything.** Both halves are done: **you**
+> registered the new iOS app in *both* Firebase projects (verified live —
+> `Hayati iOS (beyondkaira)` on `hayatiapp-dev` and `hayatiapp-prod`, both
+> reporting `BUNDLE_ID = com.beyondkaira.hayati`), and the **Dart config regen
+> landed in the same merge as the rename itself** (commit `ce80908`, PR #90) —
+> `firebase_options_{dev,prod}.dart`, the Google client ids, the Info.plist URL
+> schemes and the bootstrap test all carry the new values on `main`, re-verified
+> byte-for-byte against `firebase apps:sdkconfig`. This paragraph previously
+> asked you for work that was already complete; that was the exact kind of stale
+> line this file exists to prevent, and it was caught by ADR-029's review.
 
 ---
 
