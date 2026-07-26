@@ -100,6 +100,18 @@ class FirebaseAuthRepository implements AuthRepository {
   });
 
   @override
+  Future<void> updateDisplayName(String displayName) => _guarded(() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw const AuthUnknownException(
+        code: 'no-current-user',
+        message: 'updateDisplayName called while signed out.',
+      );
+    }
+    await user.updateDisplayName(displayName);
+  });
+
+  @override
   Future<void> signOut() => _guarded(() async {
     // Google first: clears the account chooser so the next sign-in prompts,
     // then revoke the Firebase session.

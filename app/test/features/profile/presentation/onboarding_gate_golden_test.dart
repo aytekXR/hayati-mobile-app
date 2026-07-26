@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/profile/domain/profile_exception.dart';
@@ -6,6 +7,7 @@ import 'package:hayati_app/features/profile/domain/profile_repository_provider.d
 import 'package:hayati_app/features/profile/presentation/onboarding_gate.dart';
 
 import '../../../support/fake_auth_repository.dart';
+import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/golden/golden_harness.dart';
 
@@ -31,6 +33,10 @@ void main() {
         overrides: [
           profileRepositoryProvider.overrideWith((ref) => profiles),
           authRepositoryProvider.overrideWith((ref) => auth),
+          // The gate's profile-null branch now reads the QW-6 name-capture
+          // flag before routing; the transient pre-error frame renders the
+          // name-capture step either way, so an empty store suffices.
+          localFlagStoreProvider.overrideWithValue(FakeLocalFlagStore()),
         ],
       );
       // Leave the loading frame, then push a stream failure → _GateErrorView.

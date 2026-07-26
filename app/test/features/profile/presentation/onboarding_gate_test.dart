@@ -23,8 +23,10 @@ import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.
 import 'package:hayati_app/features/profile/domain/profile_exception.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
+import 'package:hayati_app/features/profile/presentation/name_capture_screen.dart';
 import 'package:hayati_app/features/profile/presentation/onboarding_gate.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
+import 'package:hayati_app/features/profile/presentation/state/name_capture_done.dart';
 
 import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_couple_answers_repository.dart';
@@ -58,6 +60,13 @@ const pairedProfile = RelationshipProfile(
   coupleId: 'couple-42',
   consent: currentConsent,
 );
+
+/// A flag store with the QW-6 name-capture step already completed on this
+/// device — the fixture most routing tests want, so the gate's profile-null
+/// branch lands on capture exactly as it did before the step existed. The
+/// name-capture group below covers the unset-flag path explicitly.
+FakeLocalFlagStore nameCaptured() =>
+    FakeLocalFlagStore(initial: {nameCaptureDoneKey(user.uid)});
 
 void main() {
   Future<FakeProfileRepository> pumpGate(
@@ -146,9 +155,59 @@ void main() {
     });
   });
 
-  group('content states', () {
-    testWidgets('fresh signup (no profile) routes to capture', (tester) async {
+  group('name capture step (redesign QW-6)', () {
+    testWidgets('fresh signup (no profile, flag unset) routes to name capture '
+        'BEFORE profile capture', (tester) async {
       await pumpGate(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NameCaptureScreen), findsOneWidget);
+      expect(find.byType(ProfileCaptureScreen), findsNothing);
+      expect(find.byType(SoloHomeScreen), findsNothing);
+    });
+
+    testWidgets('completing name capture swaps to profile capture live '
+        '(flag written + reactive bump)', (tester) async {
+      final flags = FakeLocalFlagStore();
+      await pumpGate(tester, flags: flags);
+      await tester.pumpAndSettle();
+      expect(find.byType(NameCaptureScreen), findsOneWidget);
+
+      final en = l10nFor(const Locale('en'));
+      await tester.enterText(find.byType(TextField), 'Aytek');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(en.continueAction));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileCaptureScreen), findsOneWidget);
+      expect(find.byType(NameCaptureScreen), findsNothing);
+      expect(flags.isSet(nameCaptureDoneKey(user.uid)), isTrue);
+    });
+
+    testWidgets('a device that already completed the step goes straight to '
+        'profile capture', (tester) async {
+      await pumpGate(tester, flags: nameCaptured());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileCaptureScreen), findsOneWidget);
+      expect(find.byType(NameCaptureScreen), findsNothing);
+    });
+
+    testWidgets('an existing profile never sees the step, whatever the flag '
+        '(shipped users see nothing new)', (tester) async {
+      await pumpGate(tester, profile: existingProfile);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NameCaptureScreen), findsNothing);
+      expect(find.byType(SoloHomeScreen), findsOneWidget);
+    });
+  });
+
+  group('content states', () {
+    testWidgets('fresh signup (name captured) routes to capture', (
+      tester,
+    ) async {
+      await pumpGate(tester, flags: nameCaptured());
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfileCaptureScreen), findsOneWidget);
@@ -209,7 +268,7 @@ void main() {
 
     testWidgets('a profile arriving from another device swaps to the '
         'solo home live', (tester) async {
-      final fake = await pumpGate(tester);
+      final fake = await pumpGate(tester, flags: nameCaptured());
       await tester.pumpAndSettle();
       expect(find.byType(ProfileCaptureScreen), findsOneWidget);
 
@@ -430,7 +489,7 @@ void main() {
   group('error state', () {
     testWidgets('a stream failure shows the retry affordance and retrying '
         'resubscribes', (tester) async {
-      final fake = await pumpGate(tester);
+      final fake = await pumpGate(tester, flags: nameCaptured());
       await tester.pumpAndSettle();
       fake.emitError(user.uid, const ProfileNetworkException(message: 'off'));
       await tester.pumpAndSettle();
@@ -452,7 +511,11 @@ void main() {
         tester,
       ) async {
         final l10n = l10nFor(locale);
-        final fake = await pumpGate(tester, locale: locale);
+        final fake = await pumpGate(
+          tester,
+          locale: locale,
+          flags: nameCaptured(),
+        );
 
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
         await tester.pumpAndSettle();

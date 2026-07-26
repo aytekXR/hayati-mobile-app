@@ -10,12 +10,15 @@ import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/auth/domain/phone_sign_in_session.dart';
 import 'package:hayati_app/features/auth/presentation/phone_sign_in_screen.dart';
 import 'package:hayati_app/features/auth/presentation/sign_in_screen.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
+import 'package:hayati_app/features/profile/presentation/state/name_capture_done.dart';
 
 import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_deep_link_source.dart';
+import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/localized_app.dart';
 
@@ -222,6 +225,11 @@ void main() {
             authRepositoryProvider.overrideWith((ref) => fake),
             profileRepositoryProvider.overrideWith((ref) => fakeProfiles),
             deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+            // QW-6 already done on this device → the fresh-signup gate is
+            // profile capture, as before the name step existed.
+            localFlagStoreProvider.overrideWithValue(
+              FakeLocalFlagStore(initial: {nameCaptureDoneKey(testUser.uid)}),
+            ),
           ],
         ),
       );

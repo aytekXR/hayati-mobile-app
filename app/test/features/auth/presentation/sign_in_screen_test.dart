@@ -23,8 +23,12 @@ import 'package:hayati_app/features/profile/domain/profile_repository_provider.d
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 import 'package:hayati_app/features/profile/presentation/profile_capture_screen.dart';
 
+import 'package:hayati_app/core/storage/local_flag_store.dart';
+import 'package:hayati_app/features/profile/presentation/state/name_capture_done.dart';
+
 import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_deep_link_source.dart';
+import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_invite_share_launcher.dart';
@@ -68,6 +72,13 @@ void main() {
     final fakePacks = FakeSoloQuestionPackRepository();
     final fakeAnswers = FakeSoloAnswersRepository();
     final fakeLauncher = FakeInviteShareLauncher();
+    // The QW-6 name-capture step is already done on this device so the
+    // signed-in gate lands on profile capture exactly as before the step
+    // existed — the step itself is proven by onboarding_gate_test and
+    // name_capture_screen_test.
+    final flags = FakeLocalFlagStore(
+      initial: {nameCaptureDoneKey(testUser.uid)},
+    );
     addTearDown(fake.dispose);
     addTearDown(fakeProfiles.dispose);
     addTearDown(fakeInvites.dispose);
@@ -91,6 +102,7 @@ void main() {
           soloQuestionPackRepositoryProvider.overrideWith((ref) => fakePacks),
           soloAnswersRepositoryProvider.overrideWith((ref) => fakeAnswers),
           inviteShareLauncherProvider.overrideWith((ref) => fakeLauncher),
+          localFlagStoreProvider.overrideWithValue(flags),
         ],
       ),
     );

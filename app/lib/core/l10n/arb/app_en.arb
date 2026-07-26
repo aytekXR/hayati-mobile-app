@@ -24,6 +24,18 @@
   "@signOut": {
     "description": "Sign-out action"
   },
+  "nameCaptureTitle": "What should we call you?",
+  "@nameCaptureTitle": {
+    "description": "Name-capture step title (redesign QW-6, between sign-in and profile capture); nicknames explicitly welcome"
+  },
+  "nameCaptureHelper": "Your partner will see this on your invitation.",
+  "@nameCaptureHelper": {
+    "description": "Mist caption under the name-capture title — the honest reason the name is asked for (it feeds the invite preview hero line)"
+  },
+  "nameCaptureHint": "Your name or nickname",
+  "@nameCaptureHint": {
+    "description": "Placeholder for the single name field; nickname explicitly welcome (many Gulf users prefer not to use full names)"
+  },
   "onboardingTitle": "About you two",
   "@onboardingTitle": {
     "description": "Profile capture screen title; sets the couple-first tone"
