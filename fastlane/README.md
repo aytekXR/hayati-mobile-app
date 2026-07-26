@@ -20,11 +20,22 @@ silent skip that looks green (ADR-021 D4). Cloud signing rides
 `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8` auto-discovery location;
 `release.yml`'s `sign-upload` job places the key there and exports the path.
 
-**Honesty bound (ADR-021 D5):** the signing/upload half is UNVERIFIABLE from
-the Linux dev box (no Ruby, no secrets, no Mac). The first real tag run after
-enrollment may need a Mac-era fix (likeliest: an automatic-signing
-`DEVELOPMENT_TEAM` build setting no secret currently carries). The fail-closed
-gate guarantees that failure is loud and attributed, never a fake green.
+**Honesty bound (ADR-021 D5) — partly discharged, S041.** The signing/upload
+half was UNVERIFIABLE from the Linux dev box (no Ruby, no secrets, no Mac), and
+ADR-021 D5 predicted the first real run would need a Mac-era fix, *likeliest: an automatic-signing `DEVELOPMENT_TEAM` build setting no secret
+currently carries*. **That prediction came true and is resolved** (ADR-029):
+the founder added the three `ASC_*` secrets, and `DEVELOPMENT_TEAM =
+UH7MXG7Z94` plus an explicit `CODE_SIGN_STYLE = Automatic` are now committed on
+all three Runner build configs, pinned by
+`app/test/release/signing_sentinel_test.dart`.
+
+**What is still unverified from Linux**, and deliberately not asserted: that
+Apple accepts the signing, that the **App Store Connect app record** for
+`com.beyondkaira.hayati` exists (`upload_to_testflight` hard-fails without it —
+operator roadmap Step 2), and whether a fresh runner keychain makes xcodebuild
+mint a new distribution certificate each run (**issue #99**, cap 3/account).
+The fail-closed gate guarantees any of those failures is loud and attributed,
+never a fake green.
 
 No Android platform block. Play tracks, Play app signing, and Play Console
 metadata arrive with **M6.5 — Android enablement & Play release** (ADR-006).
