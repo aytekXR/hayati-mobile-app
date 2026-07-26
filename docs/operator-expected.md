@@ -41,26 +41,35 @@ never appear. This is part of item 1's content work, not a new demand._
 
 ---
 
-## TL;DR — the whole remaining product is a handful of your decisions
+## TL;DR — Session 040 closed almost everything; here is what's actually left
 
-| # | What | Blocks | Effort |
+**DONE this session** (see past-prompts S040): **#6** live coach = Anthropic Sonnet 5
+(on PR #95); **#2** Blaze on + backend deployed; **#3** Apple/Phone/Google sign-in
+on; **#0** RevenueCat fully wired (webhook + entitlement + products + offering +
+In-App Purchase key, all via API) and ASC subscription products created (Family
+Sharing OFF); **#4** the three `ASC_*` secrets set + the CI TestFlight lane rebuilt
+on fastlane match. The app is on **TestFlight (builds 1–3, build 3 = "İkimiz" name +
+real icon)**.
+
+| # | What's LEFT | Blocks | Who / status |
 |---|---|---|---|
-| **6** | Pick the AI provider + make an API key | the live coach (M5.3) | ~15 min + a billing acct |
-| **2** | Turn on Firebase **Blaze** billing | the first backend deploy | ~5 min |
-| **4** | ~~Apple Developer enrollment~~ **DONE** — what remains is **Step 3's three `ASC_*` secrets** (still absent) + the on-device checks ↓ | hands-free CI builds; the on-device proofs | ~15 min for the secrets |
-| **0** | RevenueCat account + App Store Connect subscription products | the real sandbox purchase | ~30 min |
-| **3** | Enable Apple + Phone sign-in in the Firebase console | real-device sign-in | ~5 min |
-| **5** | **Security:** rotate the leaked Slack webhook | (also switches CI alerts on) | ~10 min |
+| **0a** | **Wait on Apple** to finish processing the Paid-Apps agreement/banking/tax, then the subscription **prices** save (they 409 today — pure propagation, W-8BEN submitted 26 Jul) | the sandbox purchase | a session retries automatically; you just wait |
+| **0b** | Once priced: run the **sandbox purchase test** (your TR sandbox tester → build 3 → paywall → buy → premium + coach unlock), then **revoke the `sk_` RevenueCat key** | proving the paid loop | you (a session guides) |
+| **4a** | **Verify the match CI bootstrap** run is green, then a session merges the lane — after that **`git tag vX.Y.Z && git push --tags` from Linux = automatic TestFlight** | hands-free Linux→TestFlight | a session (may need you to elevate the ASC key's role) |
+| **PR #95** | Regenerate the sign-in goldens on CI/Linux → merge → deploy the coach to prod | the coach going live | a session |
+| **5** | **Security:** rotate the leaked Slack webhook | (also switches CI alerts on) | you (~10 min) |
+| **icon** | Replace the **launch/splash** placeholder image (app icon is already done) | polish | brandkit/you |
 
 **Before PUBLIC launch (not blocking TestFlight/on-device):** native content
 review (**1**), the crisis-content safety review (**★**), the legal bundle
 (**9**), and the store-listing decisions (**8**). **Non-blocking decisions:**
 coach retention (**7**) and the two/three design questions (**#67 / #63 / #71**).
 
-**The single most important next move for you right now, since you're doing
-TestFlight:** the enrollment is behind you — go straight to **Step 1** (register
-`com.beyondkaira.hayati`), then **Step 2**, **Step 4** and **Step 5 Path A**.
-Everything before Step 1 is done.
+**Your single most useful next move:** nothing is blocked on a decision right now —
+the pricing just needs Apple's processing time. When a session tells you prices are
+set, do the **sandbox purchase test (0b)**. Everything else on this list a session
+drives; you only step in for #5 and to elevate the ASC key's role if the match
+bootstrap (4a) asks for it.
 
 ---
 
