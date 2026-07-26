@@ -329,6 +329,22 @@
   "@streakMercyUsed": {
     "description": "Compact caption beside the Sage leaf glyph on the streak strip when this ISO week's grace token has been consumed (product-copy 'Streak strip, mercy indicator'; graceTokens == 0 on the server streak) — forgiveness framing, never 'streak freeze' mechanics. TR/AR renderings are drafts pending native register review."
   },
+  "privacySpotlightTitle": "Keep Hayati between you two",
+  "@privacySpotlightTitle": {
+    "description": "One-time privacy spotlight card title on the first solo home (redesign M-6); care, never paranoia"
+  },
+  "privacySpotlightBody": "Add a 6-digit PIN so only you can open the app — and switch to a plain home-screen icon if you'd like. You can do both later in Settings.",
+  "@privacySpotlightBody": {
+    "description": "Spotlight body: honest, unhurried; names both privacy features and that Settings remains their permanent home"
+  },
+  "privacySpotlightCta": "Set up my PIN",
+  "@privacySpotlightCta": {
+    "description": "Primary spotlight action — routes into the existing PIN setup flow"
+  },
+  "privacySpotlightLater": "Maybe later",
+  "@privacySpotlightLater": {
+    "description": "Secondary spotlight action; never \"Skip\" — no judgment (product-copy)"
+  },
   "soloDayProgress": "Day {day} of 7",
   "@soloDayProgress": {
     "description": "Progress caption above the solo reflection question (M2.4 solo week, day 1-7)",

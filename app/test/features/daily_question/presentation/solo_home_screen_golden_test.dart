@@ -11,10 +11,12 @@ import 'package:hayati_app/features/daily_question/domain/solo_clock.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_day.dart';
 import 'package:hayati_app/features/daily_question/domain/solo_question_pack_repository_provider.dart';
 import 'package:hayati_app/features/daily_question/presentation/solo_home_screen.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
 import 'package:hayati_app/features/pairing/domain/invite_share_launcher.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
+import 'package:hayati_app/features/settings/presentation/widgets/privacy_spotlight_card.dart';
 // flutter_riverpod's curated export omits Override; riverpod_annotation
 // exposes it — same seam the other golden tests use.
 import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
@@ -22,6 +24,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
 import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_invite_share_launcher.dart';
+import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/fake_solo_answers_repository.dart';
 import '../../../support/fake_solo_question_pack_repository.dart';
@@ -63,6 +66,7 @@ void main() {
     GoldenCell cell, {
     SoloAnswer? todayAnswer,
     bool fixturePacks = false,
+    bool privacySpotlight = false,
   }) {
     final packs = FakeSoloQuestionPackRepository();
     final answers = FakeSoloAnswersRepository(
@@ -98,6 +102,15 @@ void main() {
         authRepositoryProvider.overrideWith((ref) => auth),
         inviteRepositoryProvider.overrideWith((ref) => invites),
         inviteShareLauncherProvider.overrideWith((ref) => launcher),
+        // The M-6 one-time spotlight: handled by default so the long-standing
+        // states stay byte-identical; the dedicated state below un-sets it.
+        localFlagStoreProvider.overrideWithValue(
+          FakeLocalFlagStore(
+            initial: privacySpotlight
+                ? <String>{}
+                : {privacySpotlightSeenKey(_user.uid)},
+          ),
+        ),
       ],
       packs: packs,
     );
@@ -120,6 +133,30 @@ void main() {
         find.byType(SoloHomeScreen),
         matchesGoldenFile(
           goldenFile('solo_home_screen', 'day1_unanswered', cell.suffix),
+        ),
+      );
+    });
+  }
+
+  // The M-6 one-time privacy spotlight atop the first home (day 1, flag
+  // unset): the card above the nudge, the ritual untouched beneath it.
+  for (final cell in sixCells) {
+    testWidgets('privacy_spotlight ${cell.suffix}', (tester) async {
+      final fakes = arrange(cell, privacySpotlight: true);
+
+      await pumpGolden(
+        tester,
+        SoloHomeScreen(uid: _user.uid, profile: _profileFor(cell, day: 1)),
+        locale: cell.locale,
+        direction: cell.direction,
+        overrides: fakes.overrides,
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(SoloHomeScreen),
+        matchesGoldenFile(
+          goldenFile('solo_home_screen', 'privacy_spotlight', cell.suffix),
         ),
       );
     });

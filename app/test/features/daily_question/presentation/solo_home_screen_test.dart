@@ -16,14 +16,18 @@ import 'package:hayati_app/features/pairing/domain/invite_repository_provider.da
 import 'package:hayati_app/features/pairing/domain/invite_share_launcher.dart';
 import 'package:hayati_app/features/pairing/presentation/invite_share_screen.dart';
 import 'package:hayati_app/features/pairing/presentation/partner_preview_screen.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/profile/domain/profile_repository_provider.dart';
 import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
+import 'package:hayati_app/features/settings/presentation/pin_setup_screen.dart';
+import 'package:hayati_app/features/settings/presentation/widgets/privacy_spotlight_card.dart';
 
 import '../../../support/fake_auth_repository.dart';
 import '../../../support/fake_deep_link_source.dart';
 import '../../../support/fake_invite_preview_repository.dart';
 import '../../../support/fake_invite_repository.dart';
 import '../../../support/fake_invite_share_launcher.dart';
+import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/fake_solo_answers_repository.dart';
 import '../../../support/fake_solo_question_pack_repository.dart';
@@ -73,6 +77,7 @@ void main() {
     )?
     onSaveAnswer,
     Future<QuestionPack> Function(ContentLanguage language)? onLoadPack,
+    FakeLocalFlagStore? flags,
   }) async {
     final packs = FakeSoloQuestionPackRepository()..onLoadPack = onLoadPack;
     final answers = FakeSoloAnswersRepository(initialAnswers: initialAnswers)
@@ -114,6 +119,15 @@ void main() {
           inviteShareLauncherProvider.overrideWith((ref) => launcher),
           deepLinkSourceProvider.overrideWith((ref) => deepLinks),
           invitePreviewRepositoryProvider.overrideWith((ref) => previews),
+          // The one-time privacy spotlight (M-6) is already handled by
+          // default so the long-standing day-question assertions hold; the
+          // spotlight group below passes an empty store to exercise it.
+          localFlagStoreProvider.overrideWithValue(
+            flags ??
+                FakeLocalFlagStore(
+                  initial: {privacySpotlightSeenKey(user.uid)},
+                ),
+          ),
         ],
       ),
     );
@@ -464,6 +478,104 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('EN solo question 1'), findsOneWidget);
+    });
+  });
+
+  group('privacy spotlight (redesign M-6, one-time)', () {
+    testWidgets('renders atop the first home while the per-uid flag is unset', (
+      tester,
+    ) async {
+      await pumpSolo(
+        tester,
+        profile: profileWith(createdAt: DateTime(2026, 7, 10, 9)),
+        flags: FakeLocalFlagStore(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.privacySpotlightTitle), findsOneWidget);
+      expect(find.text(en.privacySpotlightCta), findsOneWidget);
+      expect(find.text(en.privacySpotlightLater), findsOneWidget);
+      // Never a modal, never blocking: the day question renders beneath it.
+      expect(find.text('EN solo question 1'), findsOneWidget);
+    });
+
+    testWidgets('a handled flag hides it (never re-prompts across launches)', (
+      tester,
+    ) async {
+      await pumpSolo(
+        tester,
+        profile: profileWith(createdAt: DateTime(2026, 7, 10, 9)),
+        flags: FakeLocalFlagStore(initial: {privacySpotlightSeenKey(user.uid)}),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.privacySpotlightTitle), findsNothing);
+    });
+
+    testWidgets('"Maybe later" dismisses in place and sets the durable flag', (
+      tester,
+    ) async {
+      final flags = FakeLocalFlagStore();
+      await pumpSolo(
+        tester,
+        profile: profileWith(createdAt: DateTime(2026, 7, 10, 9)),
+        flags: flags,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(en.privacySpotlightLater));
+      await tester.pumpAndSettle();
+
+      expect(find.text(en.privacySpotlightTitle), findsNothing);
+      expect(flags.isSet(privacySpotlightSeenKey(user.uid)), isTrue);
+      // The rest of the home is untouched by the dismissal.
+      expect(find.text('EN solo question 1'), findsOneWidget);
+    });
+
+    testWidgets('"Set up my PIN" pushes the SHIPPED PIN setup flow and spends '
+        'the card', (tester) async {
+      final flags = FakeLocalFlagStore();
+      await pumpSolo(
+        tester,
+        profile: profileWith(createdAt: DateTime(2026, 7, 10, 9)),
+        flags: flags,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(en.privacySpotlightCta));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PinSetupScreen), findsOneWidget);
+      expect(flags.isSet(privacySpotlightSeenKey(user.uid)), isTrue);
+
+      // Backing out of setup lands on the home WITHOUT the card: the
+      // invitation was answered, Settings remains the permanent home.
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text(en.privacySpotlightTitle), findsNothing);
+      expect(find.text('EN solo question 1'), findsOneWidget);
+    });
+
+    testWidgets('the card renders localized in every locale', (tester) async {
+      for (final locale in supportedTestLocales) {
+        final l10n = l10nFor(locale);
+        await pumpSolo(
+          tester,
+          profile: profileWith(
+            createdAt: DateTime(2026, 7, 10, 9),
+            language: ContentLanguage.values.byName(locale.languageCode),
+          ),
+          locale: locale,
+          flags: FakeLocalFlagStore(),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text(l10n.privacySpotlightTitle), findsOneWidget);
+        expect(find.text(l10n.privacySpotlightBody), findsOneWidget);
+        expect(find.text(l10n.privacySpotlightCta), findsOneWidget);
+        expect(find.text(l10n.privacySpotlightLater), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
     });
   });
 
