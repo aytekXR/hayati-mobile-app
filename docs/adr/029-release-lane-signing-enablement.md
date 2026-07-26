@@ -1,7 +1,8 @@
-# ADR-028: Release-lane signing enablement — the committed `DEVELOPMENT_TEAM`, explicitly-pinned automatic signing, and a signing source-sentinel
+# ADR-029: Release-lane signing enablement — the committed `DEVELOPMENT_TEAM`, explicitly-pinned automatic signing, and a signing source-sentinel
 
-- **Status:** Accepted
+- **Status:** Accepted (**rev 2** — six pre-code review findings applied; see the review record at the end)
 - **Date:** 2026-07-26 (Session 041)
+- **Numbering note:** drafted as ADR-028 and renumbered to **029** on discovery that the concurrent session's open PR #95 (the M5.3 live coach adapter) had already claimed 028 four hours earlier. Per the S038 addendum, ordinals collide across trees; the earlier-created number wins.
 - **Deciders:** session agent. The founder's action — adding the three `ASC_*` secrets — is what unblocked this; the identifier-vs-credential judgement in Decision 1 is recorded explicitly so the founder can overturn it with one line if they disagree.
 - **Related:** ADR-021 (the release lane and its fail-closed boundary — **D5's named "likeliest Mac-era fix" is this ADR's subject**), ADR-027 (**D3 parked the `DEVELOPMENT_TEAM` commit question "until the release lane's signing is wired"** — that is now), ADR-006 (iOS-first), ADR-020 (store identity — the metadata `deliver` this lane also runs), ADR-022 (the refusal to assert what CI cannot see), `docs/architecture.md` §9, operator-expected item 4
 
@@ -24,7 +25,7 @@ That revisit is this ADR. Two prior predictions coming true on schedule is the c
 
 A Team ID is an **identifier, not a credential**. Four independent reasons, each verified rather than asserted:
 
-1. **This repo already commits it, four times.** `docs/adr/027-bundle-id-rename-hayati-app-squatted.md`, `docs/adr/README.md`, `docs/operator-expected.md` and `docs/past-prompts.md` all print `UH7MXG7Z94` in plain text today (`grep -rn UH7MXG7Z94`). Refusing to write the same string into `project.pbxproj` on secrecy grounds would be incoherent with what the repo already publishes — **and the repo is public** (`gh repo view` → `PUBLIC`). The string is already on the internet, published by this project, on purpose.
+1. **This repo already commits it, in four prior documents.** `docs/adr/027-bundle-id-rename-hayati-app-squatted.md`, `docs/adr/README.md`, `docs/operator-expected.md` and `docs/past-prompts.md` all print `UH7MXG7Z94` in plain text (`grep -rln UH7MXG7Z94`, run before this ADR existed). Refusing to write the same string into `project.pbxproj` on secrecy grounds would be incoherent with what the repo already publishes — **and the repo is public** (`gh repo view` → `PUBLIC`). The string is already on the internet, published by this project, on purpose. *(Rev 2, review finding F5: the count is stated as "four prior documents" deliberately. "Four times" was self-falsifying — the moment this ADR is committed the grep returns five, and citing this document as evidence that the string was already committed would be circular.)*
 2. **Apple publishes it in every artifact the team ships.** The Team ID is the `AppIdentifierPrefix` / `com.apple.developer.team-identifier` inside the embedded provisioning profile of every distributed IPA, and this same team already ships `com.beyondkaira.ballast` on the App Store. It is not a secret that leaks; it is a public fact about a published app.
 3. **It grants nothing.** Signing requires a private key — the `.p8` (a GitHub environment secret) or a certificate's private key. The Team ID is the *subject* of an authorization decision, never the authorization. An attacker holding it holds nothing they can sign, upload, or read with.
 4. **Withholding it costs a new operator dependency.** Keeping it out of the repo means a **fourth secret** (`APPLE_TEAM_ID`) the founder must create — re-blocking a lane they just unblocked, in order to hide a string the repo already prints four times. That trade is strictly negative in both directions.
@@ -68,19 +69,52 @@ New: `app/test/release/signing_sentinel_test.dart`, reading `ios/Runner.xcodepro
 - `ci.yml`'s `ios-build-smoke` builds with `--no-codesign` — it compiles the Swift, but signing is *disabled*, so it is structurally incapable of noticing that signing is broken.
 - `release.yml` runs only on a `v*.*.*` tag or a manual dispatch.
 
-So between two releases, a signing setting can be deleted by one Xcode click and **every required check stays green**. The failure would surface as a red release lane, weeks later, on the day someone wants to ship — the worst possible moment to discover it. That is the identical argument `device_privacy_channel_parity_test.dart` makes for the platform channel, and this ADR reuses its mold on purpose, including its count-based assertion shape (*"must be declared in all THREE build configs — a missing one ships a build where the discreet icon does not exist"*).
+So between two releases, a signing setting can be deleted by one Xcode click and **every required check stays green**. The failure would surface as a red release lane, weeks later, on the day someone wants to ship — the worst possible moment to discover it. That is the identical argument `device_privacy_channel_parity_test.dart` makes for the platform channel, and this ADR reuses its **motivation** and its "all THREE build configs" *shape* (*"a missing one ships a build where the discreet icon does not exist"*) — but **deliberately NOT its global-count mechanism.** See the rev-2 note below: for these settings a global count is wrong in both directions.
 
-**What it asserts** — identifying the app target by *what it is* (its bundle id) rather than by a UUID that Xcode could regenerate:
+### Rev 2 (review finding F1, blocking) — the mechanism is **per-block parsing**, never a file-wide count
 
-1. Exactly **3** `XCBuildConfiguration` blocks carry `PRODUCT_BUNDLE_IDENTIFIER = com.beyondkaira.hayati;` (the app target's Debug/Release/Profile), and exactly **3** carry `…hayati.RunnerTests;`.
-2. **Every** app-target block carries `DEVELOPMENT_TEAM = UH7MXG7Z94;`.
-3. **Every** app-target block carries `CODE_SIGN_STYLE = Automatic;`.
-4. `CODE_SIGN_STYLE = Manual` occurs **nowhere** in the file, and no block carries a `DEVELOPMENT_TEAM` value other than `UH7MXG7Z94`.
-5. `com.hayati.app` occurs **nowhere** in the file — the ADR-027 rename, which on the iOS project side is currently asserted by nothing at all.
+The mold counts `RegExp(...).allMatches(pbxproj).length == 3`. That is sound **for the mold's own key**: `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` occurs at lines 398/579/603, all three in Runner app-target blocks and none in `RunnerTests` — so the global count *is* the Runner count.
 
-**Mutation matrix (the deliverable, per the standing addendum — both directions of every drift axis):** team deleted from one config / from all three; team value corrupted; `CODE_SIGN_STYLE` flipped to `Manual` in one config; `CODE_SIGN_STYLE` deleted; a bundle id reverted to `com.hayati.app`; a Runner config block deleted; a `DEVELOPMENT_TEAM` added to a *non*-app target (must NOT red — the test scopes to the app target by design, and a vacuous scope would read identically to a real one).
+**`CODE_SIGN_STYLE = Automatic;` is the exact inverse**, and verified in the file today: it occurs at lines 421/438/453 — **all three in `RunnerTests` blocks (`331C8088`/`331C8089`/`331C808A`), and zero times in any Runner block.** A naive `expect(count, 3)` therefore:
+
+- **passes vacuously today**, before the fix exists — it can never be red-first, which strict TDD (project-rules #6) requires;
+- **fails on the correctly-fixed file**, where the global count becomes **6**;
+- and **passes again** on a post-fix regression that strips the setting from all three Runner blocks, returning the count to 3.
+
+A test that is green when broken, red when correct, and green when re-broken is worse than no test. This is the project's vacuous-guard failure mode (S038 addendum 13) in a new costume, and the mold cannot be followed literally here.
+
+**Prescribed mechanism, binding on the implementation:** split `project.pbxproj` into its `XCBuildConfiguration` blocks, classify each block by the `PRODUCT_BUNDLE_IDENTIFIER` *inside that block*, and assert within the classified sets. Identification is by **what the target is** (its bundle id), never by a UUID Xcode could regenerate. Verified block census of the file today: 9 `XCBuildConfiguration` blocks — 3 app-target (`com.beyondkaira.hayati`: Debug `97C147061…`, Release `97C147071…`, Profile `249021D4…`), 3 `RunnerTests`, 3 project-level with no bundle id.
+
+**What it asserts:**
+
+1. Exactly **3** blocks carry `PRODUCT_BUNDLE_IDENTIFIER = com.beyondkaira.hayati;` and exactly **3** carry `…hayati.RunnerTests;` (a deleted, added or renamed config is a defect, not churn).
+2. **Every app-target block** carries `DEVELOPMENT_TEAM = UH7MXG7Z94;`.
+3. **Every app-target block** carries `CODE_SIGN_STYLE = Automatic;`.
+4. **No app-target block** carries a `DEVELOPMENT_TEAM` other than `UH7MXG7Z94`, and **no app-target block** carries `CODE_SIGN_STYLE = Manual`.
+5. `com.hayati.app` occurs **nowhere** in the file — the ADR-027 rename, which on the iOS-project side is asserted by nothing at all today.
+
+Assertions 2–4 are **scoped to app-target blocks** (rev 2, review finding F4). Rev 1 wrote assertion 4 file-wide, which contradicted rev 1's own "must NOT red" mutation case: a team id on a `RunnerTests` block is harmless, but a file-wide "no other team value" check would redden on it. Scoping resolves it, and the scoping is what makes the must-NOT-red case meaningful rather than decorative.
+
+**Mutation matrix (the deliverable, per the standing addendum — both directions of every axis):**
+
+| # | Mutation | Expected |
+|---|---|---|
+| 1 | `DEVELOPMENT_TEAM` deleted from **one** app-target block | RED |
+| 2 | `DEVELOPMENT_TEAM` deleted from **all three** | RED |
+| 3 | `DEVELOPMENT_TEAM` value corrupted in one app-target block | RED |
+| 4 | `CODE_SIGN_STYLE` flipped to `Manual` in one app-target block | RED |
+| 5 | `CODE_SIGN_STYLE` deleted from one app-target block | RED |
+| 6 | an app-target `PRODUCT_BUNDLE_IDENTIFIER` reverted to `com.hayati.app` | RED |
+| 7 | an entire app-target config block deleted | RED |
+| 8 | a **4th** app-target config block added | RED |
+| 9 | `DEVELOPMENT_TEAM = UH7MXG7Z94;` added to a **`RunnerTests`** block | **GREEN** — harmless, and the case that proves the scope is real rather than vacuous |
+| 10 | `CODE_SIGN_STYLE = Manual` added to a **`RunnerTests`** block | **GREEN** — same reason (RunnerTests signs nothing) |
+
+Axes 9 and 10 are the ones that distinguish a genuinely scoped test from a file-wide grep wearing a scope's clothing; a file-wide implementation passes 1–8 and fails 9–10 identically to a correct one on the first eight.
 
 **Bound, recorded:** the sentinel proves the settings are present and correctly valued. It **cannot** prove Apple accepts them — only the lane run does, and its verdict rides operator item 4.
+
+**Where it is recorded (rev 2, review finding F6).** `docs/test-suite.md` is this repo's authoritative inventory of sentinels-with-mutation-matrices (§1 names the lock-screen forbidden-API sentinel, the brandkit token-parity test and the frozen-sentence digest; §2 names ADR-022's entrypoint await-set sentinel). A new sentinel that is recorded only in its own ADR is a guard a future session will not know to keep — so §2 gains an entry naming the file, the per-block scoping mechanism (**not** a global count, and why), and the ten-row matrix. project-rules #8: docs-with-code, same commit.
 
 ## Decision 4 — the first run's known risk is **recorded, not pre-solved**: fresh-runner distribution certificates
 
@@ -101,11 +135,14 @@ Verified this session, two independent ways:
 - **Live:** both Firebase projects carry a **`Hayati iOS (beyondkaira)`** app whose `apps:sdkconfig` reports `BUNDLE_ID = com.beyondkaira.hayati` — dev `1:870954957461:ios:98d074e9af5ced5c17f99c`, prod `1:419979715508:ios:c8c0e5c1fdfadf9d64c8e1`. Every value in `firebase_options_{dev,prod}.dart` (`appId`, `apiKey`, `iosBundleId`), `google_sign_in_config.dart` (both iOS client ids) and the Info.plist `CFBundleURLSchemes` (both `REVERSED_CLIENT_ID`s) matches those configs **byte-for-byte**.
 - **Historical:** `git show ce80908` shows the iOS `appId` and `iosBundleId` changing to the new values, plus `google_sign_in_config.dart`, `Info.plist` and `firebase_bootstrap_test.dart`, **inside ADR-027's own commit**.
 
-So ADR-027's "Phase 2" **landed inside ADR-027's own merge**. Three surfaces still claim otherwise, and a stale claim is worse than no claim (standing addendum 10: *an ADR's promises about its own diff are guarantee surfaces*):
+So ADR-027's "Phase 2" **landed inside ADR-027's own merge**. **Four** surfaces still claim otherwise, and a stale claim is worse than no claim (standing addendum 10: *an ADR's promises about its own diff are guarantee surfaces*):
 
 1. **ADR-027 D3** — *"Until that Phase 2 lands, those files knowingly retain `com.hayati.app`"* was false as of its own merge. Amended with a dated rev note. The two-phase *reasoning* is kept, because it is why the change was safe; only the outcome is stated.
 2. **`docs/adr/README.md`**'s ADR-027 row repeats the same pending framing — corrected.
 3. **`firebase_options_dev.dart` and `firebase_options_prod.dart`** both credit the change to **"(ADR-026)"** — which is *seasonal question windows*, an unrelated document. A comment naming the wrong ADR sends the next reader to the wrong place; this project has already recorded that exact class (S039's four Dart comments naming a retired API — addendum 15, *"a comment that names a retired API misleads the next reader of a security path"*, and *"the rule you just invoked applies to you"*). Both comments also describe the change as *"hand-updated"* where D3 specified regeneration; the **values are correct either way** (verified above), so what is corrected is the ADR pointer and the stale expectation — not the values, and not a claim about which command S037 ran.
+4. **`docs/operator-expected.md` lines 40–42** (rev 2, review finding F3) — the Session 037 callout still reads *"the only added work is two Firebase iOS-app registrations + a Dart config regen (a session does the code half)"*. **Both halves are done**: the founder registered the two iOS apps (verified live), and the Dart regen landed in `ce80908`. This is the **worst** of the four to leave stale, because it is the canonical founder checklist — the one document the founder reads instead of the session log — and it asks them for work that is already finished. Rev 1 found three surfaces and applied the "a stale claim is worse than no claim" principle to them while leaving a fourth standing in the founder-facing file; that is the *"the rule you just invoked applies to you"* addendum firing on this ADR, caught by the review rather than by a reader.
+
+`docs/past-prompts.md` was checked for the same drift and is **correct** — the Session 037-B entry already records *"Both phases are in"*. It needs no change, and is cited here so a later session does not re-audit it.
 
 ## Decision 6 — `architecture.md` §9's "this private repo" is a factual error and is corrected; the cost decisions it motivated are **not** reopened
 
@@ -117,10 +154,12 @@ The claim is load-bearing in reasoning a future session inherits, and it is the 
 
 **Positive:**
 
-- The single setting standing between "the founder added three secrets" and "a signed build reaches their phone" is removed, and the removal is **defended by a test** rather than by the memory of the session that made it.
+- The single **uncommitted project setting** that blocked the archive and export steps is removed, and the removal is **defended by a test** rather than by the memory of the session that made it.
+
+  *Rev 2, review finding F2 — the scoping in that sentence is load-bearing and rev 1 got it wrong.* Rev 1 claimed this was "the single setting standing between 'the founder added three secrets' and 'a signed build reaches their phone'". That is **false**, and falsely reassuring in the founder-facing direction: `fastlane/Fastfile` calls `upload_to_testflight(ipa:)` with no `app_identifier` override, so `pilot` resolves the app by the `Appfile`'s bundle id and **hard-fails with "No app found with bundle identifier com.beyondkaira.hayati"** if the **App Store Connect app record does not exist** — which is operator roadmap **Step 2**, and nothing in this ADR checks for it. `deliver` in the `store_metadata` lane needs the same record. So the honest statement is: this ADR removes the last *repo-side* blocker to a signed archive; whether a build reaches TestFlight additionally depends on an **operator-owned** prerequisite this session cannot verify from Linux (no ASC credential is readable here). The first lane run resolves it either way — a green upload proves the record exists, and a `pilot` "No app found" proves it does not and names the exact operator step. That is a guarantee-vs-mechanism gap the review caught before the founder could read the ADR and conclude the lane was ready.
 - The `com.beyondkaira.hayati` rename gains its **first iOS-project-side assertion**. ADR-027's rename was previously protected on the Dart side (`firebase_bootstrap_test.dart`) and nowhere on the Xcode side.
 - Two long-standing predictions (ADR-021 D5, ADR-027 D3) are **closed by outcome** rather than left as open parentheses in old documents.
-- Three stale claims and one factual error leave the docs, none of which a build would ever have caught.
+- **Four** stale claims and one factual error leave the docs, none of which a build would ever have caught — including one sitting in the founder-facing checklist asking for work already done.
 
 **Negative / accepted trade-offs:**
 
@@ -133,5 +172,19 @@ The claim is load-bearing in reasoning a future session inherits, and it is the 
 
 1. `grep -c 'DEVELOPMENT_TEAM = UH7MXG7Z94;' app/ios/Runner.xcodeproj/project.pbxproj` → `3`.
 2. `flutter test test/release/signing_sentinel_test.dart` green; the full app suite green; coverage gate ≥ 68; `flutter analyze` clean; `dart format` clean.
-3. The mutation matrix in Decision 3 executed and recorded — every mutant killed, and the one deliberate non-firing case (a team on a non-app target) confirmed non-firing.
+3. The **ten-row** mutation matrix in Decision 3 executed and recorded: mutants 1–8 each kill the test, and mutants **9–10 leave it GREEN** — the two rows that prove the scoping is real. A run where all ten redden means the test is a file-wide grep and the scope is decorative.
 4. `release.yml` dispatched on `main` and its outcome **read and recorded**, whatever it is. A red that names a missing Apple-side prerequisite is a successful session outcome (it converts an unknown into a named operator step); a green that puts a build in TestFlight is the M6 accept line's signing half, proven.
+5. All four stale surfaces from Decision 5 corrected in this diff, and `grep -rn 'ADR-026' app/lib/core/firebase/` returns nothing (the misattribution is gone, not merely described as gone — standing addendum 10).
+
+## Pre-code adversarial review record (Session 041 — twenty-fourth consecutive pass with real findings)
+
+4 lenses (over-claim/honesty, Apple & release-engineering domain, governing-docs consistency, test-integrity/mutation-soundness) × 2 independent verifiers (a refuting skeptic + a governing-docs adjudicator), aggregated so a finding surfaces when **either** verifier says real (S030 addendum). **6 raw findings, 6 deduped, 5 verified (1 minor deferred by the verification cap and hand-adjudicated), ZERO refuted.** All six applied above:
+
+- **F1 (blocking, test-integrity — both verifiers CONFIRMED).** The mold's global-count mechanism would have produced a test that is **green when broken, red when correct, and green when re-broken**, because `CODE_SIGN_STYLE = Automatic` already occurs 3× in `RunnerTests` and 0× in Runner — the exact inverse of the mold's own key. Decision 3 now prescribes per-block parsing and explains why the mold cannot be followed literally. *This is the single most valuable finding of the pass: rev 1 would have shipped a vacuous guard while citing the project's own anti-vacuity addendum.*
+- **F2 (serious, Apple/release-eng — both CONFIRMED).** The Consequences over-claimed an end-to-end guarantee ("a signed build reaches their phone") that `upload_to_testflight` cannot honour without an operator-owned App Store Connect app record. Scoped honestly; the operator prerequisite is named.
+- **F3 (serious, governing-docs — both CONFIRMED).** Decision 5 corrected three stale Phase-2 surfaces and **left a fourth standing in `operator-expected.md`** — the founder-facing one. Now four.
+- **F4 (serious, test-integrity — SPLIT: skeptic REFUTED, adjudicator CONFIRMED).** The valuable split. The skeptic was right that a careful reader of rev 1's *assertion text* would infer per-block scoping and the contradiction would dissolve; the adjudicator was right that rev 1's file-wide assertion 4 still reddened on the "must NOT red" mutation, so the matrix contradicted the assertions as written. Both are correct about different halves — assertions 2–4 are now explicitly scoped, and the matrix gained a second must-stay-green row.
+- **F5 (minor, over-claim — both CONFIRMED).** "Four times" was self-falsifying the moment this ADR was committed. Reworded to "four prior documents" rather than "five", because citing this document as evidence that the string was already committed is circular.
+- **F6 (minor, governing-docs — deferred by the cap, hand-adjudicated CONFIRMED).** A sentinel recorded only in its own ADR is a guard the next session will not know to keep; `test-suite.md` §2 gains the entry.
+
+Not raised by any lens and worth recording as **checked**: `app/ios/Flutter/{Debug,Release}.xcconfig` contain only `#include "Generated.xcconfig"` and carry no signing settings, so the pbxproj is the sole source for these values and no xcconfig can shadow them.
