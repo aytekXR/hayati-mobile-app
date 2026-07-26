@@ -1565,3 +1565,28 @@ stands on **latency**, not the billing premise ADR-029 D6 corrected (issue #100)
 **Operator action required: YES — and it is unchanged and singular.** #115's one `gcloud` command, re-probed at
 the close and still returning Google's **HTML 403**. Everything else this session produced needs nothing from
 the founder.
+
+## Session 048 — 2026-07-27 — **#120: the lockfile the repo could not generate, generated and proved by CI**
+
+**Objective (from `resume-prompt.md`):** re-derive the queue; act on what is genuinely unblocked. Exactly one issue was: **#120**.
+
+**Preemptions, run live, all three founder-gated and unchanged.** **#115 still returns Google's HTML 403** — the webhook is still unreachable, so a prod purchase would still charge and not unlock. **Prod is still 11 × `nodejs20`** with a pre-M5.3 `coachProxy`; the redeploy is prepared and waiting on a go. **Dev still has 10 functions** (`RC_WEBHOOK_TOKEN` absent — ADR-013 work to do *with* the founder). **Zero open PRs.** Of ten open issues: #41/#115 founder (live billing identity, production security posture), #48/#15 need the device, #13 is M6.5, #63/#71 are brandkit calls, #121 needs a real release run, #100 needs runner measurement — leaving **#120**.
+
+**What #120 actually was.** ADR-021 D6 deferred `Gemfile.lock` *"until the signing job first runs."* It ran, several releases ago, and **nothing noticed the condition had been met** — so every release resolved fastlane freshly within `~> 2.225`, on the one lane that owns certificate custody and rewrites the pbxproj. The lock now shows how much drift that was: the pin's floor is **2.225** and the resolution had been picking up **2.237.0**, twelve minors past it.
+
+**The constraint that shaped the solution: there is no Ruby on this box, and that has not changed.** So the lock could not be generated here, and hand-authoring one from a CI log would look authoritative while being a guess. CI generates it — `.github/workflows/gemfile-lock.yml`, dispatch-only — and two choices are what make its output trustworthy rather than merely present:
+
+1. **It resolves on `macos-26` / ruby 3.3, the same runner and Ruby `sign-upload` installs on.** A lock resolved on ubuntu can omit the darwin platform entirely, and `bundle install` on macOS then refuses it outright. Resolving where it will be installed avoids that by construction rather than by a flag. (`bundle lock --add-platform ruby` is applied too, so a future image arch bump does not invalidate it.)
+2. **It installs `--frozen` before publishing.** This is **S044's lesson in a different ecosystem**: `npm install` succeeded, typechecked and passed 979 tests while `npm ci` — the command CI runs — refused the tree. `--frozen` asserts the lock is already coherent instead of rewriting it to fit. A lock that cannot install frozen never becomes an artifact. A checksum brackets the install, because `git diff` cannot see an untracked file and would have passed vacuously.
+
+The workflow deliberately **never commits its own output**: a job that writes a lockfile back to the branch is a supply-chain path of its own, and the artifact hand-off exists so a human reads the diff. It also had to merge *before* it could be dispatched — `workflow_dispatch` registers only from the default branch, which is a thing this repo already learned once (ADR-021 D1 rev 2) and which cost nothing this time because it was read rather than rediscovered.
+
+**Rule 5, and why it earns its place.** The lock's resolved fastlane must satisfy the Gemfile's `~>` constraint. So a deleted lock, a lock whose gem drifted out of range, or a Gemfile bump without a regen reddens the **cheap ubuntu preflight** — not the release job, past a 40-minute macOS leg. Matrix: **56 → 74 checks.**
+
+**The pessimistic operator is mutation-checked in BOTH halves, and the second half is what caught the dangerous mutant.** Making the constraint always-satisfied kills seven assertions — an obvious mutant, easily caught. Incrementing the *wrong version segment*, which would silently admit a **major** bump (the single case a lockfile most exists to catch), is caught by **exactly one row**: the three-segment `~> 2.225.1` rejects `2.226.0` boundary. The two-segment cases alone cannot distinguish those implementations. That is the argument for testing both halves rather than one.
+
+**And the matrix caught a vacuity the new rule itself introduced.** Adding rule 5 made four pre-existing raw-temp-tree cases return an **input error (exit 64)** instead of the violation they assert — so those assertions were passing for the wrong reason, invisibly. Found by the mutants, not by reading. This is S042 addendum 29 generalised: *a new rule can make old rows vacuous*, so re-run the whole matrix after adding one, never just the new rows.
+
+**Verification:** the generator run `30224530405` green at every step (frozen install succeeded and the lock was **byte-identical** afterwards; `fastlane lanes` enumerated under the locked bundle); lint 10/10; self-tests **74/74**; `dart format` clean; PR #124 and #125 green; post-merge main green. **#120 CLOSED.**
+
+**No operator action was created by this session.** The single outstanding founder item is unchanged: **#115's one `gcloud` command**, re-probed at close and still HTML.
