@@ -15,15 +15,22 @@
 
 ## Decision 1 — Upgrade to `^14.2.0`, and be honest about what that actually is
 
-The version number understates it. The dependency delta shows the real change:
+The version number understates it badly. **48 packages move** in the lockfile (measured, rev 2 — the first draft listed five and called that "the real change", which was an under-statement the review caught). The ones that matter:
 
-| Package | Before | After |
-|---|---|---|
-| `firebase-admin` | 13.10.0 | **14.2.0** |
-| **`@google-cloud/firestore`** | **7.11.0** | **8.7.0** |
-| `google-gax` | 4.x | **5.0.8** |
-| `gaxios` | 6.x | **7.3.0** |
-| `@firebase/database-compat` | ^2.0.0 | ^2.1.4 |
+| Package | Before | After | Why it matters |
+|---|---|---|---|
+| `firebase-admin` | 13.10.0 | **14.2.0** | the nominal change |
+| `firebase-functions` | 7.2.5 | **7.3.0** | **mandatory, not optional — see Decision 3** |
+| **`@google-cloud/firestore`** | **7.11.6** | **8.7.0** | **the headline: a client MAJOR on the cascade's path** |
+| `google-gax` | 4.6.1 | **5.0.8** | the gRPC/transport layer under Firestore |
+| `proto3-json-serializer` | 2.0.2 | **3.0.4** | serialization inside google-gax |
+| `jose` | 4.15.9 | **6.2.4** | **auth-token verification — skips v5 entirely** |
+| `jwks-rsa` | 3.2.2 | **4.1.0** | **JWKS key fetching, the auth path** |
+| `lru-cache` / `lru-memoizer` | 6.0.0 / 2.3.0 | 11.5.2 / 3.0.0 | caching under the auth path |
+| `farmhash-modern` | 1.1.0 | **dropped** | a native dep leaves the tree |
+| `gaxios` | 6.7.1 | **6.7.1 top-level, plus a nested 7.3.0** | the nested copy is the one the Firestore gRPC path uses |
+
+Two corrections the review earned, recorded rather than quietly fixed: the "before" column originally read `7.11.0` for `@google-cloud/firestore`, which was the **declared range floor** paired against a **resolved** "after" — mixing two different kinds of number in one row. And `gaxios` was shown as a clean 6→7 move when in fact **the top level stays at 6.7.1** and 7.3.0 appears *nested* under `google-gax`.
 
 **`@google-cloud/firestore` going v7 → v8 is the headline.** That is the client library every Firestore call in this codebase runs through — 22 of the 29 `firebase-admin` imports are `firebase-admin/firestore` — and, critically, it is the library that implements the **transactions and query cursors ADR-019's resumable delete cascade is built on**. A reviewer reading "firebase-admin minor-looking bump" would mis-price this change; a reviewer reading "Firestore client major on the cascade path" would price it correctly. The ADR is written for the second reader.
 
@@ -35,9 +42,24 @@ Type-level agreement is necessary and nowhere near sufficient: `tsc` cannot see 
 - **ADR-013/015's entitlement core** — `entitlement-convergence.property.test.ts` + `entitlement-core.test.ts`: **109 tests pass**, including the fast-check order-independence property over a two-couple world with transfers mixed into the event multiset.
 - **Whole suite: 979 tests / 50 files**, coverage 97.28% statements / 92.45% branches — both above the 80 hard / 85 target gates. `eslint`, both `tsc` projects, and the build are clean.
 
-## Decision 3 — `firebase-functions` v7 is again **not** bundled
+## Decision 3 — `firebase-functions` 7.2.5 → **7.3.0 is MANDATORY**, not a scope choice — rev 2 corrects this ADR's own framing
 
-The deploy warns that `firebase-functions` is outdated. It is left alone for the third time, for the same reason ADR-030 left it alone: one dependency major per change, so that when something breaks the bisect is a single step. It stays on **#107**'s successor rather than being smuggled in here.
+The first draft of this ADR said `firebase-functions` was *"again not bundled"*, presenting it as the same deliberate restraint ADR-030 exercised. **That was wrong, and the way it was found is the point.**
+
+`npm install` accepted firebase-admin v14 happily. **`npm ci` — the command CI actually runs — refused it:**
+
+```
+npm error While resolving: firebase-functions@7.2.5
+npm error Found: firebase-admin@14.2.0
+npm error Could not resolve dependency:
+npm error peer firebase-admin@"^11.10.0 || ^12.0.0 || ^13.0.0" from firebase-functions@7.2.5
+```
+
+**`firebase-functions@7.2.5` declares a peer range that explicitly excludes firebase-admin v14.** So the upgrade is not possible alone — and the local tree that had passed 979 tests was a tree **CI could not reproduce**. That is the S042 false-green shape in a new costume: a local state that works and a CI state that cannot exist.
+
+`firebase-functions@7.3.0` is the first version whose peer range adds `^14.0.0` (verified with `npm view`). It is a **minor** bump, and it also clears the *"package.json indicates an outdated version of firebase-functions"* warning the deploy has been printing. `7.3.2-rc.0` currently holds the `latest` dist-tag and was **deliberately not taken** — a release candidate has no place in a runtime dependency of a special-category data path.
+
+**The general lesson, recorded because this project keeps paying for its cousin: verify with the command CI runs, not the one that is convenient.** `npm install` resolves permissively and mutates the lockfile to fit; `npm ci` asserts the lockfile is already coherent. Only the second answers "will this work in CI".
 
 ## Consequences
 
