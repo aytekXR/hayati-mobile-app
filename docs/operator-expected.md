@@ -10,7 +10,9 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-26, **Session 042 close** — the session that finished the coach. **The MVP feature set is now code-complete.**_
+_Last refreshed: 2026-07-26, **Session 043 close** — the MVP is code-complete and the last dated engineering debt is gone._
+
+_**🧹 Nothing on the engineering side now carries a deadline.** Session 043 moved the backend to **Node 22** before the old runtime's 2026-10-30 cut-off could ever block a deploy (it was the one item on this page with a date on it), and verified it the honest way — the seasonal-calendar self-check reported healthy from the new runtime in production. **Nothing was required from you and nothing you can see changed.** From here, essentially everything that moves the product forward is on this page, i.e. yours._
 
 _**🚀 The backend is LIVE on `hayatiapp-dev`** (you flipped Blaze in S040): ten of eleven Cloud Functions deployed in `europe-west1`, the hourly rollover an ENABLED Scheduler job, the reveal trigger ACTIVE with retries. Verified again at S041 close — the sweep has now run cleanly every hour since, including the seasonal-calendar self-check reporting healthy from the real runtime._
 

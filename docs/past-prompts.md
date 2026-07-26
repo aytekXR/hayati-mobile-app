@@ -1257,3 +1257,39 @@ store_metadata ⏭️  SKIPPED — no store copy reached App Store Connect
 **Notes / debt:** three stale open PRs remain — **#76** (green **and** mergeable since 2026-07-22, one gitignore line), **#70** (docs, conflicted). Issue **#103** (the release lane's Apple provisioning gap) is unchanged and operator-owned.
 
 **Next objective written to resume-prompt.md:** Session 043 — the MVP is code-complete and every remaining *product* step is operator-owned, so the honest unit is the small tracked engineering that is genuinely unblocked: **#96** (Node 20 is decommissioned 2026-10-30 — dated, and it gates the first prod deploy) with **#76** as a trivial adjacent cleanup, plus the standing preemptions.
+
+## Session 043 — 2026-07-26 — **#96 closed five months early: the Functions runtime is Node 22, and the review found that ICU never moved — tzdata did**
+
+**Objective (from resume-prompt.md):** clear the dated debt that gates the first prod deploy — **#96**, `nodejs20` decommissioned **2026-10-30** — plus **PR #76**, green and mergeable for four days.
+
+**Preemptions re-derived (none fired):** `RC_WEBHOOK_TOKEN` still 404 · #103 zero comments · #15/#48 zero comments · #67/#63/#71 zero comments. A new concurrent PR **#105** (redesign wave 2) appeared and was left alone — not this session's objective.
+
+**PR #76, merged — but not blind-merged.** One line adding `**/xcshareddata/swiftpm/` to `app/ios/.gitignore`. Before merging, the thing worth checking: that path is where **`Package.resolved`** lives, and `Package.resolved` is SwiftPM's **lockfile**. Verified it costs nothing here — **zero `XCRemoteSwiftPackageReference` entries** in `project.pbxproj`; the only Swift package is Flutter's *path-based* `FlutterGeneratedPluginSwiftPackage` under `Flutter/ephemeral/`, and a path dependency has no version to pin. The PR author had reasoned this out correctly **in the PR body** — so the session moved it into the file, per project-rules #9, together with the condition that invalidates it (*if a remote Swift package is ever added, the line goes*). **A PR body is not the repo.**
+
+**#96 — the decision, taken from firebase-tools' own lifecycle table rather than from memory.**
+
+| Runtime | Deprecated | **Decommissioned** |
+|---|---|---|
+| `nodejs20` | 2026-04-30 *(past)* | **2026-10-30** |
+| `nodejs22` | 2027-04-30 | **2028-10-31** |
+| `nodejs24` | 2028-04-30 | **2028-10-31** |
+
+**22 and 24 share a decommission date.** Node 24 buys a quieter 2027 and *no additional runway* — the next forced upgrade lands the same day either way. So: 22, the conservative option, at zero cost. And decisively, 22 is a major **this box can actually run** (nvm 22.23.1), so the suite was validated on the exact target instead of pushed to CI and hoped for. **A runtime upgrade validated only in CI is a runtime upgrade nobody has run.**
+
+**The deliverable was never the version string — it was the ICU re-verification.** ADR-026's whole premise is that `Intl` resolves an unsupported calendar to `gregory` **silently**, and a runtime upgrade is exactly the event that moves date machinery underneath the product. Run deliberately and read, not inferred from a green aggregate: `islamic-umalqura` **resolves** (ICU 78, `small-icu: false`) and `2026-03-20` → **`10/1/1447 AH`** — a real Hijri date, not Gregorian wearing a label. seasonal-window **48**, day-key parity **20 TS + 24 Dart**, whole suite **963 / 49 files**, coverage unchanged.
+
+**AND THE REVIEW FOUND THE THING THE ADR HAD FRAMED WRONG.** The ADR treated this as an ICU risk and checked ICU carefully. **ICU is identical on both local Nodes — 78.2.** What actually moved is the **timezone database, 2025c → 2026a.** A lens found it the only way it could be found: by running *both* Node binaries and diffing the output — at the Istanbul midnight boundary, `formatToParts` with `hour12:false` returns hour **`"24"` on Node 20 and `"00"` on Node 22**. Harmless here, verified rather than assumed (`day-key.ts` requests only year/month/day; its own header says *"no hour"*) — but **a tzdata revision changes UTC offsets, and a day key is a function of offsets**, so the guard that actually mattered was `day-key-parity.json`, not the ICU check. Honest bound recorded: the fixture covers the zones it pins. **The generalisation, and the session's best lesson: "a runtime upgrade" is at least THREE upgrades — engine, ICU, tzdata — and they move independently.**
+
+**An over-claim of mine, in the alarming direction.** The ADR said a non-configurable `resolvedOptions` "would **silently disarm** the test". False: `vi.spyOn` calls `Object.defineProperty`, which **throws** on a non-configurable property, so the test fails **loudly** with an install error. A lens verified it against vitest's spy source. Corrected because the two failure modes call for opposite responses, and this project's entire anti-vacuity posture depends on telling them apart.
+
+**And the grep rule failed on me for the third session running.** ADR-030 Decision 4 is *about* sweeping every surface that names the old runtime — and the sweep **missed two**, including **ADR-026's own line 88** (*"Node 20 (the pinned Functions runtime)"*), the ADR this entire bump exists to protect. The seasonal-window fixture header was the other. Both found by the review, both fixed.
+
+**Review: 11 findings, ALL REAL, zero refuted** (4 verified by agents, 7 cap-deferred and hand-applied; all 12 agents alive). One combined pass rather than the usual pair — proportionate by the S031 precedent, because here the design *is* the diff. The remainder were precision: the **safe named-exclusion deploy command** written down rather than merely practised (`--only functions` dies on `revenueCatWebhook`'s absent secret and can leave a **split-runtime backend**); what rollback concretely means **and that the option expires 2026-10-30**; Scheduler/Eventarc re-verification promoted into Acceptance; *"coverage byte-identical"* → the percentages actually compared.
+
+**DEPLOYED AND VERIFIED on `hayatiapp-dev`:** ten functions **`ACTIVE` on `nodejs22`**; **the decommission warning is gone** from the deploy output for the first time; the Scheduler job still **ENABLED** at `0 * * * *` UTC (ADR-011); `answerReveal` still **`RETRY_POLICY_RETRY`** on trigger `answerreveal-484370` with its document filter intact (ADR-012) — neither implied by `ACTIVE`, both re-checked because a runtime bump touches every function. And the decisive one: the **05:00:02Z sweep, the first on the new runtime**, logged `seasonalCalendarUnavailable: false`. **The guard ADR-026 built to catch a silent Gregorian fallback in production served as the acceptance test for a runtime migration.** That is a fixture paying for itself in a way its author did not have to foresee — worth remembering the next time someone asks whether a guard is worth the lines.
+
+**Scope held, and the held scope recorded rather than skipped:** `firebase-admin` stays `^13`, but `architecture.md`'s stated reason for the pin — *"v14 requires Node ≥22"* — is now **void**, so the reason was corrected in the same diff and the upgrade filed as **#107**. `firebase-functions` v7 likewise. Bundling a dependency major into a runtime bump turns one verifiable change into two entangled ones.
+
+**Notes / debt:** **#107** filed. **#103** (the release lane's Apple provisioning gap) unchanged and operator-owned. **#70** still open and conflicted. **#105** is the concurrent session's.
+
+**Next objective written to resume-prompt.md:** Session 044 — with the MVP code-complete and #96 closed, the tracked-debt queue is down to founder-gated items and #107/#70. The honest next unit is the standing preemptions plus **#107** if nothing else has opened; the *product* now waits almost entirely on the founder.
