@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
-import '../../../core/widgets/soft_unfold_reveal.dart';
+import '../../../core/widgets/reveal_choreography.dart';
 import '../../coach/presentation/coach_screen.dart';
 import '../../entitlements/presentation/pack_selection_screen.dart';
 import '../../entitlements/presentation/premium_gate.dart';
@@ -280,44 +280,27 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
   /// day can buzz again.
   bool _revealHapticFired = false;
 
-  @override
-  void didUpdateWidget(covariant _PairedQuestionView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // The signature reveal moment (brandkit §6, "gentle haptic"): a single
-    // gentle buzz the first time the reveal LANDS, marked by the partner slot
-    // going waiting→revealed. This is ONCE per instance and therefore once per
-    // dayKey per app session.
-    //
-    // Honest bound, discovered in testing: this fires on cold-open-into-revealed
-    // too, not only on the live "partner just answered" moment. The read chain
-    // settles Locked→Waiting→Revealed even when both answers already exist, so
-    // there is no cheap client signal that separates "the user was watching
-    // Waiting" from "the app just loaded a revealed day" — both are genuinely
-    // waiting→revealed. We choose the simple, §6-consistent behaviour (buzz once
-    // when the reveal appears) over a timing heuristic or a persisted per-day
-    // flag, which would add fragility for a marginal UX gain. App RESUME does
-    // NOT re-fire: the State (and this flag) survive, and a resumed revealed day
-    // is revealed→revealed, not waiting→revealed. The permission-denial self-heal
-    // (locked→revealed) is likewise silent — not a waiting→revealed transition,
-    // and the flag is already set. The soft-unfold MOTION is separate: it plays
-    // on every revealed-group mount (see SoftUnfoldReveal).
-    //
-    // Belt-and-suspenders, deliberately: `_revealHapticFired` is the at-most-once
-    // guarantee, and the `oldWidget.slot is PartnerSlotWaiting` check documents
-    // the intent (the reveal moment IS the partner answer arriving). They are
-    // redundant by the state machine — the partner watch attaches only after the
-    // own ack (Waiting), and a network Failure does not auto-retry
-    // (`partnerSlotProvider`), so the ONLY path to first-Revealed is
-    // Waiting→Revealed and every recovery (Locked/Failure→Revealed) can only
-    // happen with the flag already set. That is why the guard's specificity is
-    // inspection-verified rather than unit-tested: the transition that would
-    // distinguish it from a broad `!Revealed→Revealed` guard is unreachable.
-    if (!_revealHapticFired &&
-        oldWidget.slot is PartnerSlotWaiting &&
-        widget.slot is PartnerSlotRevealed) {
-      _revealHapticFired = true;
-      HapticFeedback.lightImpact();
-    }
+  /// The signature reveal haptic (brandkit §6, "gentle haptic" — kept,
+  /// sacred), now fired by [RevealChoreography.onSettle] the moment beat 2's
+  /// settle-pair lands (redesign ui-ux §11: "the light haptic fires at Beat 2
+  /// settle") rather than the instant the slot flips. Under reduce-motion the
+  /// choreography collapses but still calls this immediately — the haptic is
+  /// preserved without the animation.
+  ///
+  /// Honest bound (kept from the pre-choreography guard): the choreography —
+  /// and so this hook — also runs on cold-open-into-revealed, not only on the
+  /// live "partner just answered" moment; there is no cheap client signal that
+  /// separates them (the read chain settles Locked→Waiting→Revealed either
+  /// way). App RESUME does NOT re-fire: this State (and the flag) survive, and
+  /// the mounted choreography does not restart. The permission-denial
+  /// self-heal (locked→revealed) REMOUNTS the choreography — its motion
+  /// replays, its onSettle calls again — but the flag here is already set, so
+  /// the buzz stays at-most-once per instance and therefore once per dayKey
+  /// per app session.
+  void _fireRevealHaptic() {
+    if (_revealHapticFired) return;
+    _revealHapticFired = true;
+    HapticFeedback.lightImpact();
   }
 
   String get _entry => _controller.text.trim();
@@ -372,45 +355,41 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
                 const SizedBox(height: SpacingTokens.x6),
                 if (revealed)
                   // The reveal — the product (brandkit §9.3, "the reveal is the
-                  // product; spend polish budget there"). The revealed group
-                  // (streak + both answers) softly unfolds on entry (§6, "the
-                  // signature interaction"); the gentle haptic is fired once by
-                  // didUpdateWidget on the LIVE waiting→revealed transition, not
-                  // here (this branch also mounts on cold-open-into-revealed).
-                  // Own and partner render at EQUAL weight (brandkit §9.1, "two
-                  // people, one screen state") and GROUPED (x4 — tighter than the
-                  // x6 that sets the reveal apart from the affordances below), so
-                  // the two answers read as one shared moment, not a list.
-                  SoftUnfoldReveal(
+                  // product; spend polish budget there"), staged as the
+                  // three-beat choreography (redesign ui-ux §11): the partner's
+                  // card unfolds toward yours → both settle as a pair (the
+                  // gentle haptic fires at that settle, via onSettle — guarded
+                  // once per instance since this branch also mounts on
+                  // cold-open-into-revealed) → one seed drops into the streak
+                  // strip. Own and partner render at EQUAL weight (brandkit
+                  // §9.1, "two people, one screen state") and GROUPED (x4 —
+                  // tighter than the x6 that sets the reveal apart from the
+                  // affordances below), so the two answers read as one shared
+                  // moment, not a list. The streak strip renders ONLY when
+                  // count > 0 — a zero count renders nothing (reveal-trigger
+                  // lag must never surface as a real streak), which is why the
+                  // zero-streak revealed goldens carry no row.
+                  RevealChoreography(
                     opacityKey: revealUnfoldOpacityKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // The mutual-day streak (M3.4, ADR-012): shown ONLY here
-                        // and ONLY when count > 0 — a zero count renders nothing
-                        // (reveal-trigger lag must never surface as a real
-                        // streak), which is why the zero-streak revealed goldens
-                        // carry no row.
-                        if (widget.streak.count > 0) ...[
-                          _StreakRow(count: widget.streak.count),
-                          const SizedBox(height: SpacingTokens.x3),
-                        ],
-                        // Frozen by rules once both answered: read-only own card.
-                        _AnswerCard(
-                          label: l10n.pairedRevealedCaption,
-                          text: widget.persisted?.text ?? _entry,
-                        ),
-                        // Grouped with the own card (x4). Rendered DIRECTLY (not
-                        // via _PartnerSlotCard) because this branch is reached
-                        // only when the slot is revealed.
-                        const SizedBox(height: SpacingTokens.x4),
-                        _AnswerCard(
-                          label: l10n.pairedPartnerAnswerLabel,
-                          text:
-                              (widget.slot as PartnerSlotRevealed).answer.text,
-                        ),
-                      ],
+                    onSettle: _fireRevealHaptic,
+                    streakStripBuilder: widget.streak.count > 0
+                        ? (context, seedDrop) => SeedDropOverlay(
+                            progress: seedDrop,
+                            child: _StreakRow(count: widget.streak.count),
+                          )
+                        : null,
+                    stripGap: SpacingTokens.x3,
+                    pairGap: SpacingTokens.x4,
+                    // Frozen by rules once both answered: read-only own card.
+                    ownCard: _AnswerCard(
+                      label: l10n.pairedRevealedCaption,
+                      text: widget.persisted?.text ?? _entry,
+                    ),
+                    // Rendered DIRECTLY (not via _PartnerSlotCard) because this
+                    // branch is reached only when the slot is revealed.
+                    partnerCard: _AnswerCard(
+                      label: l10n.pairedPartnerAnswerLabel,
+                      text: (widget.slot as PartnerSlotRevealed).answer.text,
                     ),
                   )
                 else ...[
@@ -732,17 +711,14 @@ class _AnswerCard extends StatelessWidget {
   }
 }
 
-/// Test seam for the daily reveal's soft unfold: the [Opacity] whose value a
-/// widget test samples mid-animation (the animation is transient, so no golden
-/// captures it). Passed to [SoftUnfoldReveal.opacityKey] so this surface's
-/// unfold is addressable independently of the pairing preview's. Issue #74
-/// folded the once-inline `_RevealUnfold` onto the shared [SoftUnfoldReveal]
-/// (the §6 rationale — signature interaction, VERTICAL-only slide, reduce-motion
-/// collapse, pixel-neutral rest, `alwaysIncludeSemantics` — now lives there);
-/// the daily reveal's own x4 answer grouping stays in [_PairedQuestionView], and
-/// the haptic that distinguishes the LIVE transition stays in
-/// [_PairedQuestionViewState]. The seam and its tests are unchanged; no golden
-/// moved.
+/// Test seam for the daily reveal's group crossfade: the [Opacity] whose value
+/// a widget test samples mid-animation (the animation is transient, so no
+/// golden captures it). Passed to [RevealChoreography.opacityKey] so this
+/// surface's unfold is addressable independently of the pairing preview's
+/// `SoftUnfoldReveal` (which keeps the base §6 unfold). The redesign's
+/// three-beat choreography (ui-ux §11) replaced the single soft unfold here;
+/// the seam name and its tests carry over — at rest the choreography is
+/// pixel-neutral, so no settled golden moved with the swap.
 @visibleForTesting
 const revealUnfoldOpacityKey = ValueKey<String>('reveal-unfold-opacity');
 
