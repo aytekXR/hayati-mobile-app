@@ -395,6 +395,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
             SettingsErrorLine(resolve: _notificationPrivacyError),
+            // Veil hairlines between the screen's natural clusters (privacy /
+            // your data / account) — QW-2's de-grey: the color comes from the
+            // dividerTheme token, closing "the app has no dividers anywhere"
+            // (gap #67 note, ui-ux §6 Settings).
+            const Divider(),
             ListTile(
               title: Text(l10n.dataRightsExportRowTitle),
               subtitle: Text(l10n.dataRightsExportRowSubtitle),
@@ -416,6 +421,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               trailing: const Icon(Icons.delete_outline),
               onTap: _openDelete,
             ),
+            const Divider(),
             ListTile(
               title: Text(l10n.settingsSignOut),
               subtitle: Text(l10n.settingsSignOutSubtitle),
