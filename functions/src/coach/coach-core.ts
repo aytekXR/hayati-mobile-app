@@ -134,6 +134,13 @@ export const SCAN_CHAR_LIMIT = 4000;
  * Truncate a message to the first `SCAN_CHAR_LIMIT` chars for the crisis scan
  * (Decision 2). At double the 2,000-char legit maximum, no well-formed content is
  * ever truncated; the cap only bounds a hostile oversized payload.
+ *
+ * **USER INPUT ONLY.** That justification holds only where the 2,000-char input
+ * limit applies. Do NOT reuse this on a model REPLY: replies are bounded by the
+ * adapter's token budget, not by 2,000 chars, and can exceed this cap — truncating
+ * them would leave the tail of a long reply unscanned by a safety filter. The
+ * post-filter in `coach-proxy.ts` step 7 therefore scans `reply.text` in full
+ * (fixed S042 — it did reuse this, and the tail escaped).
  */
 export function truncateForScan(text: string): string {
   return text.length > SCAN_CHAR_LIMIT ? text.slice(0, SCAN_CHAR_LIMIT) : text;

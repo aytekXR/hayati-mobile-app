@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Discreet alternate app icon — plain grey list glyph">
+  <defs>
+    <clipPath id="disc-squircle"><path d="M60,0 C12.8,0 0,12.8 0,60 C0,107.2 12.8,120 60,120 C107.2,120 120,107.2 120,60 C120,12.8 107.2,0 60,0 Z"/></clipPath>
+    <linearGradient id="disc-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#454A54"/>
+      <stop offset="1" stop-color="#3B4049"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#disc-squircle)">
+    <rect width="120" height="120" fill="url(#disc-bg)"/>
+    <circle cx="31" cy="44" r="3.7" fill="#E8EAED"/>
+    <rect x="41.2" y="41.2" width="51.5" height="5.6" rx="2.8" fill="#E8EAED"/>
+    <circle cx="31" cy="60" r="3.7" fill="#E8EAED"/>
+    <rect x="41.2" y="57.2" width="51.5" height="5.6" rx="2.8" fill="#BEC1C6"/>
+    <circle cx="31" cy="75.8" r="3.7" fill="#E8EAED"/>
+    <rect x="41.2" y="73" width="28.4" height="5.6" rx="2.8" fill="#93979D"/>
+  </g>
+</svg>

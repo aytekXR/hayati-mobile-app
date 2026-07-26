@@ -1,7 +1,7 @@
 {
   "$schema": "https://design-tokens.github.io/community-group/format/",
   "brand": "Hayati",
-  "version": "1.0",
+  "version": "1.1",
   "color": {
     "night": { "value": "#231A33", "use": "Primary background (deep plum night)" },
     "night.raised": { "value": "#2E2344", "use": "Cards, sheets" },
@@ -11,7 +11,11 @@
     "gold": { "value": "#D9A441", "use": "Premium/celebration accents only" },
     "sage": { "value": "#8FAE8B", "use": "Success, streak-safe states" },
     "clay": { "value": "#B98A6E", "use": "Secondary/illustration tone" },
-    "alert": { "value": "#D96C5F", "use": "Errors, streak-at-risk. Never marketing." }
+    "alert": { "value": "#D96C5F", "use": "Errors, streak-at-risk. Never marketing." },
+    "moonlight": { "value": "#FFF8F1", "light": "#FFF8F1", "use": "Text/icons on pomegranate fills (4.7:1). Same value both modes." },
+    "mist": { "value": "#B9AFC6", "light": "#6B6178", "use": "Secondary text: subtitles, captions, timestamps (7.9:1 on night). Closes gap #67." },
+    "veil": { "value": "#453A5C", "light": "#E7DCCB", "use": "Hairline dividers, borders, card edges. Non-text decorative-boundary role." },
+    "rose": { "value": "#E38E99", "light": "#8E3140", "use": "Links, TextButtons, inline emphasis (6.8:1 on night; light mode uses Pomegranate Deep). Color plus weight, never color alone." }
   },
   "typography": {
     "family": { "value": "Rubik", "fallback": ["Noto Sans", "Noto Sans Arabic"] },

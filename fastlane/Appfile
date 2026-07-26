@@ -1,16 +1,37 @@
 # Appfile — app + account identifiers, loaded by every lane in the Fastfile.
 #
-# Secrets policy (architecture.md §9): ZERO credentials live in this repo.
-# The Apple Developer / App Store Connect identifiers below stay commented and
-# are injected at release time (M6, release.yml) from GitHub environment
-# secrets — never committed here.
+# Secrets policy (architecture.md §9): ZERO CREDENTIALS live in this repo, and
+# that is untouched — no key, certificate, .p8, password or token is committed.
+# The App Store Connect API key arrives at release time (release.yml) from
+# GitHub `release` environment secrets. Note the distinction this file used to
+# blur: an IDENTIFIER is not a credential (see the block below).
 
 app_identifier("com.beyondkaira.hayati")  # iOS bundle id — renamed S037; com.hayati.app was squatted on Apple (ADR-027)
 
-# --- Provided from GitHub environment secrets in M6; do NOT commit values ---
-# apple_id("...")        # App Store Connect login (Apple ID email)
-# itc_team_id("...")     # App Store Connect team id
-# team_id("...")         # Apple Developer portal team id
+# --- apple_id and itc_team_id stay COMMENTED below; team_id is GONE from this
+# file because its value now lives in project.pbxproj (DEVELOPMENT_TEAM),
+# where xcodebuild actually reads it — a commented stub here would read as
+# "still pending". App Store Connect API-key auth needs none of the three
+# (the key is team-scoped); the two stubs are kept only as documentation of
+# what a password/Apple-ID lane would have required.
+#
+# They are NOT equivalent, and grouping them under one "never commit" rule was
+# over-broad (corrected S041, ADR-029 D1):
+#   apple_id    — the founder's EMAIL. Never commit: PII, and a phishing target.
+#   itc_team_id — an internal App Store Connect numeric id. No public artifact
+#                 carries it and nothing needs it here; no reason to commit.
+#   team_id     — the Apple Developer portal Team ID. An IDENTIFIER, not a
+#                 credential: it is published in every distributed IPA's
+#                 embedded provisioning profile, it grants nothing without the
+#                 private key, and it already appears in four repo documents.
+#                 It IS committed — as `DEVELOPMENT_TEAM` in
+#                 `app/ios/Runner.xcodeproj/project.pbxproj`, where xcodebuild
+#                 actually needs it, pinned by
+#                 `app/test/release/signing_sentinel_test.dart`.
+#
+# architecture.md §9's "zero keys in repo" is untouched by any of this.
+# apple_id("...")
+# itc_team_id("...")
 
 # No Android block here: Play account credentials (json_key_file) arrive with
 # the Android lanes in M6.5 (ADR-006).

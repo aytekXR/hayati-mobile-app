@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Hayati app icon — The Lit Lattice">
+  <defs>
+    <clipPath id="lat-squircle"><path d="M60,0 C12.8,0 0,12.8 0,60 C0,107.2 12.8,120 60,120 C107.2,120 120,107.2 120,60 C120,12.8 107.2,0 60,0 Z"/></clipPath>
+    <radialGradient id="lat-bleed">
+      <stop offset="0" stop-color="#F3E7D7" stop-opacity=".3"/>
+      <stop offset=".78" stop-color="#F3E7D7" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#F3E7D7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="lat-core">
+      <stop offset="0" stop-color="#D9A441"/>
+      <stop offset=".34" stop-color="#D9A441"/>
+      <stop offset=".8" stop-color="#F3E7D7"/>
+      <stop offset="1" stop-color="#F3E7D7"/>
+    </radialGradient>
+  </defs>
+  <g clip-path="url(#lat-squircle)">
+    <rect width="120" height="120" fill="#231A33"/>
+    <circle cx="60" cy="60" r="33.5" fill="url(#lat-bleed)"/>
+    <path fill="url(#lat-core)" d="M60.0,30.0 L68.78,38.8 L81.21,38.79 L81.2,51.22 L90.0,60.0 L81.2,68.78 L81.21,81.21 L68.78,81.2 L60.0,90.0 L51.22,81.2 L38.79,81.21 L38.8,68.78 L30.0,60.0 L38.8,51.22 L38.79,38.79 L51.22,38.8 Z"/>
+    <g transform="translate(56.5,56.5) rotate(15) scale(0.29)">
+      <path fill="#8E3140" d="M0,0 C6.2,7.6 10.4,14.4 10.4,21.6 C10.4,28.6 5.8,33.6 0,33.6 C-5.8,33.6 -10.4,28.6 -10.4,21.6 C-10.4,14.4 -6.2,7.6 0,0 Z"/>
+    </g>
+    <g transform="translate(63,54.5) rotate(-15) scale(0.27)">
+      <path fill="#8E3140" d="M0,0 C6.2,7.6 10.4,14.4 10.4,21.6 C10.4,28.6 5.8,33.6 0,33.6 C-5.8,33.6 -10.4,28.6 -10.4,21.6 C-10.4,14.4 -6.2,7.6 0,0 Z"/>
+    </g>
+  </g>
+</svg>

@@ -10,10 +10,44 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-26, **Session 039 close**. The whole MVP is built,
-tested and merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX
-redesign), and **every item below still needs you** — accounts, keys, an
-enrollment, and a few reviews. Nothing on this page changed this session._
+_Last refreshed: 2026-07-26, **Session 045 close**._
+
+> # 🔴 READ THIS FIRST — a purchase on production would take your customer's money and not unlock Premium
+>
+> **Issue #115.** Your production **RevenueCat webhook is deployed and `ACTIVE`, but it is not reachable from the internet** — its Cloud Run service has no public-invoker permission, so Google rejects RevenueCat's calls *before* your code ever runs. Verified directly: the endpoint returns Google's own HTML 403/401, while a known-public function on the same domain returns normal JSON.
+>
+> **What that means in practice:** RevenueCat can never tell your backend that someone subscribed, renewed or cancelled. The charge goes through; Premium never turns on; **nothing anywhere reports an error.**
+>
+> **The fix is one command**, and it is in #115 along with how to check it worked:
+> ```sh
+> gcloud run services add-iam-policy-binding revenuecatwebhook >   --region=europe-west1 --project=hayatiapp-prod >   --member=allUsers --role=roles/run.invoker
+> ```
+> **How to tell it worked:** POST to the webhook with no token. A **JSON** refusal is correct — that is your own code turning it away. **HTML is still broken.** Then replay an event from the RevenueCat dashboard.
+>
+> A session did not do this for you: making a production endpoint publicly reachable is a security decision on your live system, the RevenueCat wiring is another session's in-flight work, and a session cannot read your webhook token to confirm it matches what RevenueCat sends.
+
+> ### Also true of production, and not what this file used to say
+>
+> **Your production backend is LIVE — all eleven functions.** These pages previously said prod was undeployed; that is out of date, and the rest of this file may lag your real setup in the same way. Two things follow that you may want to act on together, in **one redeploy** from the current code:
+>
+> 1. **Prod runs code from before the coach shipped.** `coachProxy` there was deployed 2026-07-25 21:54 UTC and carries no AI key binding — so **the coach on prod says "unavailable" even though your `LLM_API_KEY` is sitting in prod Secret Manager**, unused.
+> 2. **Prod runs Node 20, which Google decommissions 2026-10-30.** Dev was moved to Node 22 this run; prod was stood up before that. Deploys from prod's current runtime stop working after that date.
+>
+> Neither is urgent this week, and **a redeploy of prod is your call** — but both are fixed by the same single action whenever you want it.
+
+_**🧹 Nothing on the engineering side now carries a deadline.** Session 043 moved the backend to **Node 22** before the old runtime's 2026-10-30 cut-off could ever block a deploy (it was the one item on this page with a date on it), and verified it the honest way — the seasonal-calendar self-check reported healthy from the new runtime in production. **Nothing was required from you and nothing you can see changed.** From here, essentially everything that moves the product forward is on this page, i.e. yours._
+
+_**🚀 The backend is LIVE on `hayatiapp-dev`** (you flipped Blaze in S040): ten of eleven Cloud Functions deployed in `europe-west1`, the hourly rollover an ENABLED Scheduler job, the reveal trigger ACTIVE with retries. Verified again at S041 close — the sweep has now run cleanly every hour since, including the seasonal-calendar self-check reporting healthy from the real runtime._
+
+_**🔑 And you unblocked two more things overnight, which is why this page changed a lot.** You added the three `ASC_*` signing secrets (23:36 UTC) **and** created the `LLM_API_KEY` secret. Session 041 spent itself on the first: it removed the last repo-side blocker to a signed build and then **ran the release lane for real** — it got all the way to Apple before stopping on a provisioning prerequisite. **Item 4 below tells you the two small things to check (~10 min).** The coach key you added unblocks the live coach (item 6), whose code is sitting in an open PR and is the next session's work._
+
+_**🗣️ The coach is real now (Session 042).** The last piece of code in the MVP — the live AI adapter — is merged and **deployed**. Your `LLM_API_KEY` is bound to the running `coachProxy` on `hayatiapp-dev` (verified: revision `coachproxy-00004-van`, ACTIVE, the key wired, an unauthenticated call correctly refused). **The MVP feature set is code-complete**: there is no remaining feature a session is waiting to write._
+
+_**⚠️ One thing you will SEE, and it is deliberate: the app will ask you to agree to the privacy notice again.** Naming Anthropic as the coach's AI provider is a new recipient of your coach messages and a new cross-border transfer, so the legal version went from 1 to 2 and every user is re-asked — exactly what the consent design promised would happen when a provider was named. It is one screen, once. Doing it now, before launch, is free; doing it after would have re-asked real users._
+
+_**What the notice now says, and what it deliberately does not.** It says Anthropic processes your coach messages in the moment to write a reply and **does not use them to train its models** (true under their commercial API terms). It stops short of claiming Anthropic **retains nothing** — their default API retention is limited but not zero. **You can make that stronger:** enable **zero-data-retention** on your Anthropic organisation, and a session will tighten the wording to match. That is optional, not blocking._
+
+_Also new since your last read: the legal bundle's TR/AR/EN privacy policies all name Anthropic and carry **version 2**, and `docs/dpa-inventory.md` gained an Anthropic row — which adds a real legal to-do under item 9(d): Anthropic is a **US processor**, so the KVKK standard-contract leg + the 5-business-day Kurum filing now cover them too._
 
 _What did change: Session 037 shipped **seasonal question windows** (ADR-026)
 — the machinery that lets a question be tagged `ramadan`, `eid_fitr`,
@@ -35,41 +69,69 @@ never appear. This is part of item 1's content work, not a new demand._
 > `com.beyondkaira.hayati`** (the founder's own namespace, same as the Ballast
 > app; ADR-027); every `com.hayati.app` reference in the roadmap below now
 > reads `com.beyondkaira.hayati`. Android keeps `com.hayati.app`, deferred to
-> M6.5. **Net:** Step 1 will now register successfully; the only added work is
-> two Firebase iOS-app registrations + a Dart config regen (a session does the
-> code half).
+> M6.5. **Net:** Step 1 will now register successfully.
+>
+> **✅ Update (Session 041): the "added work" in that Net line is FINISHED —
+> nothing here is asking you for anything.** Both halves are done: **you**
+> registered the new iOS app in *both* Firebase projects (verified live —
+> `Hayati iOS (beyondkaira)` on `hayatiapp-dev` and `hayatiapp-prod`, both
+> reporting `BUNDLE_ID = com.beyondkaira.hayati`), and the **Dart config regen
+> landed in the same merge as the rename itself** (commit `ce80908`, PR #90) —
+> `firebase_options_{dev,prod}.dart`, the Google client ids, the Info.plist URL
+> schemes and the bootstrap test all carry the new values on `main`, re-verified
+> byte-for-byte against `firebase apps:sdkconfig`. This paragraph previously
+> asked you for work that was already complete; that was the exact kind of stale
+> line this file exists to prevent, and it was caught by ADR-029's review.
 
 ---
 
-## TL;DR — Session 040 closed almost everything; here is what's actually left
+## ⚡ Redesign waves 1–2 LANDED (external operator-instructed session, 2026-07-26) — what it needs from you
 
-**DONE this session** (see past-prompts S040): **#6** live coach = Anthropic Sonnet 5
-(on PR #95); **#2** Blaze on + backend deployed; **#3** Apple/Phone/Google sign-in
-on; **#0** RevenueCat fully wired (webhook + entitlement + products + offering +
-In-App Purchase key, all via API) and ASC subscription products created (Family
-Sharing OFF); **#4** the three `ASC_*` secrets set + the CI TestFlight lane rebuilt
-on fastlane match. The app is on **TestFlight (builds 1–3, build 3 = "İkimiz" name +
-real icon)**.
+The full redesign program you commissioned (blueprint #94) was implemented and merged at your
+instruction ("take all the designs live, don't wait for my approval"): **wave 1** (#101 — the four
+gap-closing tokens applied across the whole Material theme, the AA button-label failure closed,
+elevation + reveal-beat motion tokens) and **wave 2** (#105 — the reveal three-beat choreography,
+the seed vessel + streak strip, the question card in redesign chrome, the name-capture step, the
+privacy spotlight, the code-first invite message, the pre-sign-in ritual preview, and the PRD F1
+partner-preview hook restored in functions/, 549/549 green). The app now looks and moves like the
+blueprint on every touched surface, in all six locale×direction golden cells.
 
-| # | What's LEFT | Blocks | Who / status |
+**Open items this created — yours:**
+
+- [ ] **Native register review (the standing gate, now URGENT):** every TR/AR string these waves
+      shipped is an AI draft flagged "native register review pending" per commit. The TR founder
+      couple + the Gulf-dialect AR reviewer pass is now the single biggest quality risk in the
+      product. Bundle it with the ◆-marked strings in the design-system screen cards.
+- [ ] **Bidi isolation defect (found during golden review, fix is agent work but you should see
+      it):** Turkish content rendered inside the Arabic RTL chrome reorders trailing punctuation
+      (`revealed_streak.ar.rtl` golden: "küçük bir şey ne?" renders as "?şey ne"). Mixed-language
+      couples are a real segment; scheduled for the next agent session with directional isolates.
+- [ ] **Unchanged operator infrastructure (still gating activation):** the domain purchase + AASA
+      (universal links — the invite is still code-first partly BECAUSE links can't be tappable),
+      analytics wiring decision (app/lib/core/analytics/ remains empty — G2/G3 unfalsifiable
+      without it), APNs key (the ritual has no heartbeat), the G1 content bank, and the ADR-027
+      trademark decision.
+
+## TL;DR — the whole remaining product is a handful of your decisions
+
+| # | What | Blocks | Effort |
 |---|---|---|---|
-| **0a** | **Wait on Apple** to finish processing the Paid-Apps agreement/banking/tax, then the subscription **prices** save (they 409 today — pure propagation, W-8BEN submitted 26 Jul) | the sandbox purchase | a session retries automatically; you just wait |
-| **0b** | Once priced: run the **sandbox purchase test** (your TR sandbox tester → build 3 → paywall → buy → premium + coach unlock), then **revoke the `sk_` RevenueCat key** | proving the paid loop | you (a session guides) |
-| **4a** | **Verify the match CI bootstrap** run is green, then a session merges the lane — after that **`git tag vX.Y.Z && git push --tags` from Linux = automatic TestFlight** | hands-free Linux→TestFlight | a session (may need you to elevate the ASC key's role) |
-| **PR #95** | Regenerate the sign-in goldens on CI/Linux → merge → deploy the coach to prod | the coach going live | a session |
-| **5** | **Security:** rotate the leaked Slack webhook | (also switches CI alerts on) | you (~10 min) |
-| **icon** | Replace the **launch/splash** placeholder image (app icon is already done) | polish | brandkit/you |
+| **6** | ~~Pick the AI provider + make an API key~~ **DONE — `LLM_API_KEY` exists in dev Secret Manager** | ~~the live coach~~ (its code is PR #95, next session's work) | — |
+| **2** | ~~Turn on Firebase **Blaze** billing~~ **DONE — and the dev backend is deployed** | ~~the first backend deploy~~ (prod still undeployed, deliberately) | — |
+| **4** | ~~enrollment~~ **DONE** · ~~the three `ASC_*` secrets~~ **DONE** — the lane RAN and stopped at Apple: **check the App ID is registered (Step 1) + that your API key may manage profiles** (issue #103), then the app record (Step 2) + the on-device checks ↓ | the first TestFlight build | ~10 min |
+| **0** | RevenueCat account + App Store Connect subscription products | the real sandbox purchase | ~30 min |
+| **3** | Enable Apple + Phone sign-in in the Firebase console | real-device sign-in | ~5 min |
+| **5** | **Security:** rotate the leaked Slack webhook | (also switches CI alerts on) | ~10 min |
 
 **Before PUBLIC launch (not blocking TestFlight/on-device):** native content
 review (**1**), the crisis-content safety review (**★**), the legal bundle
 (**9**), and the store-listing decisions (**8**). **Non-blocking decisions:**
 coach retention (**7**) and the two/three design questions (**#67 / #63 / #71**).
 
-**Your single most useful next move:** nothing is blocked on a decision right now —
-the pricing just needs Apple's processing time. When a session tells you prices are
-set, do the **sandbox purchase test (0b)**. Everything else on this list a session
-drives; you only step in for #5 and to elevate the ASC key's role if the match
-bootstrap (4a) asks for it.
+**The single most important next move for you right now, since you're doing
+TestFlight:** the enrollment is behind you — go straight to **Step 1** (register
+`com.beyondkaira.hayati`), then **Step 2**, **Step 4** and **Step 5 Path A**.
+Everything before Step 1 is done.
 
 ---
 
@@ -143,9 +205,17 @@ CI secrets) so every later build is a one-line tag push.
 This is what lets CI sign and upload builds for you (Path B). Do it once.
 
 1. appstoreconnect.apple.com → **Users and Access** → **Integrations** → **Keys**
-   → generate a key. **Role: App Manager** is enough. Download the **`.p8`** file
-   (Apple lets you download it **once** — keep it safe) and note the **Key ID**
-   and **Issuer ID** shown on that page.
+   → generate a key. Download the **`.p8`** file (Apple lets you download it
+   **once** — keep it safe) and note the **Key ID** and **Issuer ID** shown on
+   that page.
+   - ⚠️ **Corrected S041:** this step used to say *"Role: App Manager is
+     enough."* That was true for **uploading a build**, but CI also has to
+     **create a provisioning profile**, which is a different permission —
+     and the first real lane run failed for exactly that class of reason
+     (**issue #103**). Give the key a role that can **manage Certificates,
+     Identifiers & Profiles**. If you already made an App-Manager key, you do
+     not have to start over: check whether it can, and only regenerate if it
+     cannot.
 2. Put the three values into GitHub as **environment** secrets (NOT plain repo
    secrets — the release pipeline reads only the environment, ADR-021):
    - GitHub repo → **Settings → Environments → `release`** (it exists / auto-creates) → add:
@@ -269,7 +339,27 @@ first deploy and the loop comes alive on the phone.
 
 # The gates that block remaining engineering
 
-## 6. **DUE NOW** — LLM provider decision + API key (the live coach, M5.3, waits on this alone)
+## 6. ~~LLM provider decision + API key~~ ✅ **YOU DID THIS** — the coach's code is next session's work
+
+**Verified at S041 close: the `LLM_API_KEY` secret EXISTS in `hayatiapp-dev`
+Secret Manager.** So the decision and the key are both behind you, and the
+provider is Anthropic Claude per the open PR (**#95**) that a concurrent session
+wrote for it.
+
+**What is left is engineering, not you.** PR #95 carries the live adapter plus
+the **re-consent** ADR-023 requires when an LLM provider is named — and its CI
+is currently **red** for a mechanical reason: bumping the legal version to 2
+left one widget test still expecting *"Version 1"* and every consent-gate golden
+image stale. **Session 042's job is to fix that, review the diff, and merge it.**
+Once merged it also needs a redeploy of `coachProxy` so the deployed function
+can see the secret.
+
+**One thing to be aware of, not to act on:** merging it will **re-ask you and
+your partner for consent** on next launch (a new legal version). That is the
+designed behaviour, not a bug — naming a third party that processes your
+reflections is exactly the event ADR-023 said must re-ask.
+
+<details><summary>The original item, kept for the record</summary>
 
 - **What:** pick the AI provider for the coach and create an API key. The server
   seam is provider-agnostic; nothing in the code commits to anyone, and the
@@ -285,29 +375,107 @@ first deploy and the loop comes alive on the phone.
   bumps the legal version, names the provider in the notice/policy, re-gates
   every user, and adds the provider row to `docs/dpa-inventory.md`.
 
-## 2. Blaze plan decision — deploying Cloud Functions requires it
+</details>
 
-- **What:** upgrade `hayatiapp-dev`/`hayatiapp-prod` from Spark (free) to **Blaze**
-  (pay-as-you-go).
-- **Status:** eleven Functions — the five loop/invite units (`createInvite`,
-  `invitePreview`, `joinInvite`, scheduled `questionRollover`, triggered
-  `answerReveal`), `revenueCatWebhook`, `coachProxy`, and the four data-rights
-  callables (`deleteAccount`, `exportData`, `updateNotificationPrivacy`,
-  `recordConsent`) — all emulator-proven; **nothing deployed yet.** Deploy-verified
-  only: the rollover's Cloud Scheduler trigger, `answerReveal`'s Eventarc retry,
-  and the webhook's `RC_WEBHOOK_TOKEN` Secret Manager binding + public URL.
-- **When needed:** the first deploy + real-device pairing test; hard requirement
-  before the first TestFlight of the live loop. The RC webhook can only be
-  configured against a deployed URL, so the live entitlement loop waits on this.
-- **Cost:** couple-scoped workload ≈ near-zero at dev scale; set budget alerts.
+## 2. Blaze ✅ ON — and the dev backend is DEPLOYED (Session 040)
 
-## 4. Apple: enrollment ✅ DONE — what remains is the **three `ASC_*` secrets** and the on-device checks
+**It is not just deployed — it is RUNNING.** Two real hourly sweeps are in the
+logs (22:00 and 23:00 UTC), both clean: `failed: 0`, no errors, and the
+seasonal-calendar self-check reporting healthy in the real runtime. The backend
+you paid for is alive and behaving.
+
+**Verified live on `hayatiapp-dev`, `europe-west1`, 256 MB** (all moved from Node 20 to **Node 22** in Session 043 — see the dated item below, now closed):
+
+| What | Status |
+|---|---|
+| `createInvite`, `joinInvite`, `coachProxy`, `deleteAccount`, `exportData`, `recordConsent`, `updateNotificationPrivacy` | ✅ deployed (auth-gated callables) |
+| `invitePreview` | ✅ deployed, public HTTPS by design — smoke-tested (a bogus code returns 400, not a crash) |
+| `questionRollover` | ✅ deployed **and** its Cloud Scheduler job `firebase-schedule-questionRollover-europe-west1` is **ENABLED** at `0 * * * *` UTC — exactly the hourly sweep ADR-011 specifies |
+| `answerReveal` | ✅ deployed, Eventarc trigger **ACTIVE** on `document.v1.created` with `RETRY_POLICY_RETRY` |
+| `revenueCatWebhook` | ⛔ **deliberately NOT deployed — see item 0** |
+
+**Why the eleventh is missing, and it is not an oversight.** The webhook declares
+`secrets: ['RC_WEBHOOK_TOKEN']`, so it cannot deploy until that secret exists in
+Secret Manager — and ADR-013 says that token is generated **with you**, not by a
+session on its own, because it is the only credential standing between the
+public internet and your couples' entitlement state. The deploy was run with the
+other ten explicitly named; the dry run confirmed the secret is the *only* thing
+blocking the eleventh. **Nothing else is waiting.**
+
+**Also deliberately not done: `hayatiapp-prod` is still undeployed.** Dev first
+is the point; prod should follow a session that has watched dev behave.
+
+- **Cost:** couple-scoped workload ≈ near-zero at dev scale. **Please set a
+  budget alert** now that billing is live — it is the one thing a session cannot
+  do for you and the one thing you would want in place before a surprise.
+- **✅ ~~Dated: Node.js 20 is decommissioned 2026-10-30~~ — FIXED (Session 043,
+  issue #96, ADR-030).** The deploy used to warn on every run that the runtime
+  had an end date after which deploys simply fail. The Functions now run on
+  **Node 22**, whose decommission date is **2028-10-31** — and Node 24 shares
+  that same date, so nothing was given up by taking the conservative option.
+  **Nothing is required from you**; this was moved *before* the first prod
+  deploy on purpose, so prod is never stood up on a runtime with a known end
+  date. The seasonal-calendar self-check was re-verified on the new runtime and
+  still reports healthy from production.
+
+## 4. Apple: enrollment ✅ DONE · the three `ASC_*` secrets ✅ DONE — what remains is the app record and the on-device checks
 
 The paid Apple Developer Program is active (Individual team `UH7MXG7Z94`), the
 bundle id is `com.beyondkaira.hayati` (ADR-027), and a dev build already runs on
-the iPhone over cable. The release lane is BUILT and fails-closed until the
-three `ASC_*` secrets land (roadmap Step 3) — verified at Session 038's close,
-the `release` environment still holds **zero** secrets.
+the iPhone over cable. **✅ You added the three `ASC_*` secrets at 2026-07-25 23:36 UTC** — verified
+this session (`release` environment: `total_count: 3`; Session 040 read `0`).
+So the release lane's fail-closed signing boundary now **passes** for the first
+time in this project's history, and Session 041 removed the last repo-side
+blocker behind it: `DEVELOPMENT_TEAM` was missing from the Xcode project, which
+would have failed the archive with *"Signing for 'Runner' requires a development
+team"* (ADR-029 — it is committed now, and a test keeps it there).
+
+### ⚠️ The lane RAN, and it needs two small things from you (~10 min total)
+
+Session 041 dispatched the release lane for real. It got **further than ever
+before** — metadata lint ✅, the full emulator suite ✅, a real prod release
+build ✅, your three secrets accepted ✅ — and then stopped at Apple with:
+
+> `No profiles for 'com.beyondkaira.hayati' were found: Xcode couldn't find any
+> iOS App Development provisioning profiles matching 'com.beyondkaira.hayati'.`
+
+**Nothing is broken and nothing was damaged** — the store-metadata step was
+skipped, so none of the AI-drafted store copy reached App Store Connect. Full
+evidence in **issue #103**. Two things to check, in this order:
+
+1. **Did you finish roadmap Step 1 — registering the App ID?**
+   developer.apple.com → **Certificates, Identifiers & Profiles** →
+   **Identifiers** → is **`com.beyondkaira.hayati`** listed? If not, that alone
+   explains the failure: create it (**Explicit** App ID, tick **Sign in with
+   Apple**). **This is the likeliest cause and the cheapest to check.**
+
+2. **Can your App Store Connect API key manage profiles and certificates?**
+   Step 3 above told you *"Role: App Manager is enough"* — that advice was
+   written for **uploading**, and CI additionally needs the key to **create a
+   provisioning profile**, which is a different permission. In App Store
+   Connect → **Users and Access → Integrations → Keys**, look at your key's
+   role. If it cannot manage Certificates/Identifiers/Profiles, either raise
+   its role or generate a second key with that access and replace
+   `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_API_KEY_P8` in
+   **Settings → Environments → `release`**.
+
+Tell a session which of the two it was (or just say "done") and it re-runs the
+lane — no Mac work needed on your side.
+
+**Also still ahead, and unchanged:** the upload itself needs the **App Store
+Connect app record** for `com.beyondkaira.hayati` (**roadmap Step 2**). The lane
+never got that far this time, so it is still unproven. If it is missing, the
+next run stops with *"No app found with bundle identifier
+com.beyondkaira.hayati"* — again a clear message, not a crash. A session cannot
+check any of these three from here: reading your Apple account needs the key,
+which lives only inside GitHub.
+
+One thing to watch, filed as **issue #99**: a CI runner starts with an empty
+keychain, so Xcode may **create a new "Apple Distribution" certificate** on each
+release run — and Apple allows only **3 per account**. *One* new certificate
+after the first run is expected and fine. If you see a *second* one appear after
+the second run, tell a session: it needs a real fix (a certificate-custody
+design) before it silently locks you out of releasing.
 
 **Newly reachable now that you have the Mac + device** (both were "impossible"
 before, so they are worth a pass): the on-device verification backlog below,

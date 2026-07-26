@@ -52,6 +52,74 @@ void main() {
     });
 
     test(
+      'maps the PRD F1 question hook (questionText + creatorAnswered)',
+      () async {
+        final repo = repoOn(
+          MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'status': 'valid',
+                'creatorDisplayName': 'Aylin',
+                'questionText': 'What made you smile today?',
+                'creatorAnswered': true,
+              }),
+              200,
+            ),
+          ),
+        );
+
+        expect(
+          await repo.preview('ABCD2345'),
+          const InvitePreviewResult(
+            status: InvitePreviewStatus.valid,
+            creatorDisplayName: 'Aylin',
+            questionText: 'What made you smile today?',
+            creatorAnswered: true,
+          ),
+        );
+      },
+    );
+
+    test('a question with creatorAnswered ABSENT reads unanswered', () async {
+      final repo = repoOn(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'status': 'valid',
+              'questionText': 'What made you smile today?',
+            }),
+            200,
+          ),
+        ),
+      );
+
+      expect(
+        await repo.preview('ABCD2345'),
+        const InvitePreviewResult(
+          status: InvitePreviewStatus.valid,
+          questionText: 'What made you smile today?',
+        ),
+      );
+    });
+
+    test('a bare creatorAnswered WITHOUT its question is ignored — the claim '
+        'never travels without the question it belongs to', () async {
+      final repo = repoOn(
+        MockClient(
+          (_) async => http.Response(
+            jsonEncode({'status': 'valid', 'creatorAnswered': true}),
+            200,
+          ),
+        ),
+      );
+
+      expect(
+        await repo.preview('ABCD2345'),
+        const InvitePreviewResult(status: InvitePreviewStatus.valid),
+      );
+    });
+
+    test(
       'maps expired and unknown as successful results, not errors',
       () async {
         final expired = repoOn(
@@ -95,8 +163,34 @@ void main() {
             ),
           ),
         );
+        final badQuestion = repoOn(
+          MockClient(
+            (_) async => http.Response(
+              jsonEncode({'status': 'valid', 'questionText': 7}),
+              200,
+            ),
+          ),
+        );
+        final badAnswered = repoOn(
+          MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'status': 'valid',
+                'questionText': 'Q?',
+                'creatorAnswered': 'yes',
+              }),
+              200,
+            ),
+          ),
+        );
 
-        for (final repo in [badJson, badStatus, badName]) {
+        for (final repo in [
+          badJson,
+          badStatus,
+          badName,
+          badQuestion,
+          badAnswered,
+        ]) {
           await expectLater(
             repo.preview('ABCD2345'),
             throwsA(

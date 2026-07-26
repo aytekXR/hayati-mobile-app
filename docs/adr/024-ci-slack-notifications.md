@@ -177,7 +177,7 @@ concurrency:
   cancel-in-progress: true
 ```
 
-A push to main now occupies its own group, so a later main push cannot cancel it; PR re-pushes are unaffected (same ref, same group → still cancelled, billing protection intact). The added cost is bounded and small: the extra main run that now survives is the *docs-only* one, which skips both 10×-billed macOS jobs by construction (ci-debt #17).
+A push to main now occupies its own group, so a later main push cannot cancel it; PR re-pushes are unaffected (same ref, same group → still cancelled, billing protection intact). The added cost is bounded and small: the extra main run that now survives is the *docs-only* one, which skips both (slow) macOS jobs by construction (ci-debt #17). *(S041, ADR-029 D6: this said "10×-billed"; the repo is public, so those minutes are free. The bounded-cost argument now reads as bounded wall-clock — the conclusion is unchanged.)*
 
 Alternatives rejected:
 

@@ -40,8 +40,11 @@ env:
 jobs:
   preflight:
     name: preflight
-    # Cheap ubuntu gate, fails fast before any 10x-billed macOS minute: store
-    # metadata must lint clean and, on a tag run, the tag must agree with pubspec.
+    # Cheap ubuntu gate, fails fast before the slow macOS legs: store metadata
+    # must lint clean and, on a tag run, the tag must agree with pubspec.
+    # (Was "before any 10x-billed macOS minute" — the repo is PUBLIC, so
+    # GitHub-hosted runners are free; the gate now stands on LATENCY and
+    # signal-ordering, not billing. Corrected S041, ADR-029 D6; issue #100.)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -118,10 +121,11 @@ jobs:
           distribution: temurin
           java-version: '21'
       # M2.2: the functions emulator serves the createInvite callable this
-      # suite exercises. Node 20 matches functions/package.json engines.
+      # suite exercises. Node 22 matches functions/package.json engines
+      # (bumped from 20 in S043/ADR-030 — nodejs20 is DECOMMISSIONED 2026-10-30).
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: functions/package-lock.json
       - name: npm ci (functions)

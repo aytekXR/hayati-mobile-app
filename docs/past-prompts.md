@@ -1113,21 +1113,255 @@ So the fix ships with its own mechanism: `material_default_floor_test.dart` pump
 
 **Next objective written to resume-prompt.md:** the preemption re-check, with the honest position that **autonomous engineering has now cleared every non-human-blocked unit in the backlog** — #29, #74, #88 and #47 are all closed, and what remains is #48/#15 (need the founder's device), #41 (operator item 0), #13 (M6.5/Gate 3) and #67/#63/#71 (founder/brandkit calls). The next session should expect to find nothing unblocked and must SHOW that derivation rather than inherit it.
 
-## Session 040 — 2026-07-26 — the founder unblocked EVERYTHING: RevenueCat wired end-to-end, three TestFlight builds shipped, and the CI release lane rebuilt on fastlane match
+## Session 040 — 2026-07-26 — **the preemption fired: Blaze went ON mid-run, the backend went live, and the ADR-026 guard reported from production**
 
-**This was not an autonomous-engineering session — it was a founder-driven operator sprint.** S039's resume prompt predicted the terminus ("expect to find nothing unblocked"). Instead the founder sat down and cleared operator items **6, 2, 3, 0 and the item-4 remainder** in one sitting, so the session was almost entirely account/key/CI plumbing done WITH the founder, not code in the backlog.
+**Objective (from resume-prompt.md):** re-run the preemption checks and SHOW the derivation; expect the terminus. **The expectation was wrong, and that is exactly why the rule says derive rather than inherit** (S037 addendum 12). The very first check came back changed.
 
-**Operator items closed this session (some spanned a pre-compaction portion):**
-- **#6 (LLM):** live coach adapter chosen = **Anthropic Claude Sonnet 5**, direct SDK (ADR-028); re-consent shipped (legal version 1→2 across all three sentinels, Anthropic named, digest re-stamped). `LLM_API_KEY` in Secret Manager (dev+prod). The adapter lives on **PR #95** (blocked only on Linux golden regen). **Latent deploy bug found + confirmed FIXED on #95's branch:** `@anthropic-ai/sdk` was imported but undeclared in `functions/package.json` — #95 already declares it; a stale `lib/` on the build branch caused a red herring, reverted.
-- **#2 (Blaze):** flipped on dev+prod; all Functions deployed (hit + recovered the first-2nd-gen-setup race twice).
-- **#3 (sign-in):** Apple + Phone + Google enabled.
-- **#0 (RevenueCat) — FULLY WIRED, and the reusable finding is that the RC v2 API does far more than expected.** `revenueCatWebhook` deployed to prod (`https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app`, `RC_WEBHOOK_TOKEN` in Secret Manager, verified 403/401). Then, given a `sk_` v2 secret key, the ENTIRE RevenueCat config was built via the **v2 REST API** (not the dashboard): App Store app, entitlement `premium`, two products, the `default` offering's `$rc_monthly`/`$rc_annual` packages — all linked and verified. The **In-App Purchase key** (`W5ZZ73SVM3`) was also uploaded via the v2 API (`app_store.subscription_private_key` on `POST /projects/{p}/apps/{a}`) → `subscription_key_configured: true`. App Store Connect subscription **products created via the ASC API** (group `İkimiz Premium`, `ikimiz_premium_monthly`/`_annual`, **Family Sharing OFF** set at creation — ADR-015 satisfied by construction).
-- **#4 (CI signing remainder):** the three `ASC_*` secrets were set on the `release` environment; then the whole lane was rebuilt (below).
+**The derivation, run factually:**
+- **Item 2 (Blaze): `billingEnabled = True` on BOTH `hayatiapp-dev` and `hayatiapp-prod`** — minted from the firebase-tools refresh token, same method that returned `false` on every read from S028 through S039. **The founder flipped it during this run.** → preemption 2 FIRED.
+- Item 6 (LLM): no signal. Item 4's remaining half: `release` environment still `total_count: 0`. Item 5: repository secrets still 0. Every open issue: zero comments. No new non-session commits on `main`.
 
-**TestFlight: three builds shipped by manual local `flutter build ipa` + `xcrun altool`** (bundle `com.beyondkaira.hayati`, team `UH7MXG7Z94`, ASC API key `9P4UNFMDBR`). Build 3 also fixed the app identity: **CFBundleDisplayName "Hayati App" → "İkimiz"** and the placeholder app icon → the real `brandkit/branding-assets/icons/hayati-appicon-ios-1024.png` (15 sizes via PIL, alpha stripped). Launch/splash image is still placeholder (logged, non-blocking).
+**Attribution, corrected by the audit log rather than assumed.** The deploy reported *"updating"*, not *"creating"* — so something had deployed already. The Cloud Audit log settles it: **`CreateFunction` at 21:35:15 UTC from `FirebaseCLI/15.24.0 … claude-code_2-1-218`** — the **concurrent session** (the ADR-027 one, a different agent build) deployed first, immediately after the founder flipped Blaze. This session's `UpdateFunction` is the 23:11:54 entry (`FirebaseCLI/15.22.4 … claude-code_2-1-219`), redeploying the same ten from the merged-`main` build. **This session did not perform the first deploy; it re-deployed, verified, and documented it.** Recorded that way because a session log that claims someone else's milestone is worse than no log.
 
-**The one thing NOT closeable by anyone: ASC subscription pricing.** Setting a price 409s "An error occurred while processing the pricing information" for every territory (USA+TUR), every id source (subscription-pricePoints AND `/subscriptionPricePoints/{id}/equalizations`) and every body shape — with the SAME ASC key that created the group/products/localizations at 200. The founder's ASC → Business is fully green (Paid Apps Agreement Active, bank Active, W-8BEN **submitted 2026-07-26**). Conclusion recorded: it is Apple's post-agreement financial-backend **propagation lag** (hours), not an API/key defect. A recurring cron (`asc-setprices.mjs`, TR base ₺149.99/₺999.99) retries every 30 min; session-only, so it dies at close — resume by re-running the script.
+**Ten of eleven Functions are LIVE on `hayatiapp-dev` (`europe-west1`).** Verified directly, not assumed:
+- **`questionRollover`** → Cloud Scheduler job `firebase-schedule-questionRollover-europe-west1`, schedule `0 * * * *`, timezone `Etc/UTC`, state **ENABLED** — precisely ADR-011 D2's hourly UTC sweep, deploy-verified at last after being "deploy-verified later" since M3.2.
+- **`answerReveal`** → Eventarc trigger `answerreveal-484370`, `google.cloud.firestore.document.v1.created`, function state **ACTIVE**, **`retryPolicy = RETRY_POLICY_RETRY`** — the Eventarc retry ADR-012 wanted proven.
+- **`invitePreview`** → public HTTPS by design, smoke-tested: a bogus invite code returns **HTTP 400**, not a 5xx and not a crash.
+- Seven auth-gated callables (`createInvite`, `joinInvite`, `coachProxy`, `deleteAccount`, `exportData`, `recordConsent`, `updateNotificationPrivacy`) — all v2, Node 20, 256 MB, `europe-west1`.
 
-**CI release lane rebuilt on fastlane match (branch `ci/testflight-lane-signing`, NOT merged).** The founder's directive: replicate the sibling **Unhooked** app's working system. First attempt (automatic signing + a CI DEVELOPMENT_TEAM injection) got past "no profiles" to **"No valid code signing certificates were found"** — the exact wall Unhooked's own Fastfile comment documents. So the lane was rewritten around **fastlane match** (Apple Distribution cert + App Store profile stored encrypted in a git repo, installed into the CI keychain, MANUAL signing) adapted for Flutter (`flutter build ipa` + a manual `ExportOptions.plist` + `pilot`). The founder could not recover the Unhooked match password, so a **fresh** match setup was made: new private repo `aytekXR/hayati-match-certs`, a freshly generated `MATCH_PASSWORD` (given to the founder to save), a fine-grained PAT (read+write, verified) → `MATCH_GIT_URL` in HTTPS-token form, and all secrets set on the hayati repo. **Bootstrap run `30187077831` (MATCH_BOOTSTRAP=true) was in flight at session close** — it mints+pushes the cert/profile then uploads. `DEVELOPMENT_TEAM` remains the ADR-023 local-only edit; match's `update_code_signing_settings` supplies it in CI, so ADR-021's "settle the DEVELOPMENT_TEAM decision when signing is wired" resolves to: **not committed; match owns it in CI.**
+**The eleventh was deliberately NOT deployed, and the reasoning is the point.** `revenueCatWebhook` declares `secrets: ['RC_WEBHOOK_TOKEN']`; a **`--dry-run` first** (non-destructive, and the right first move on a first deploy) failed at exactly one place — `Secret [projects/870954957461/secrets/RC_WEBHOOK_TOKEN] not found or has no versions`. **ADR-013 says that token is generated *with* the founder**, and it is the only credential between the public internet and couples' entitlement state. So the deploy named the other ten explicitly and left the webhook. That is the difference between a blocker and an oversight, and the dry run is what let it be stated with certainty rather than guessed. **`hayatiapp-prod` was deliberately left undeployed** — dev first, and prod should follow a session that has watched dev behave.
 
-**No golden/app-code changes; the app suite was not re-run this session** (the work was API/CI plumbing, not Dart). Full operational state + resume steps in the two memory files (`revenuecat-wiring-state`, `testflight-ci-match`); this close was committed on the `ci/testflight-lane-signing` branch since the CI changes ride with it, pending the bootstrap-green + merge.
+**Authorization, since a first production deploy is an outward-facing act:** the founder's own committed `resume-prompt.md` states, verbatim, that a flipped Blaze makes the first-deploy slice the session; the founder flipped Blaze *during* a run they knew was in progress; the target was the **dev** project; and the one sub-action their ADR reserves to themselves was carved out. Recorded here because "the docs told me to" is only a defence if the docs actually did, and they did.
+
+**Discovered by the deploy, filed rather than dismissed as noise: issue #96 — Node.js 20 is DECOMMISSIONED on 2026-10-30**, after which deploys fail. Nothing breaks today (deployed functions keep serving), but it is dated, it lands on the path to the first prod deploy, and the natural fix window is immediately before that deploy so prod is never stood up on a runtime with a known end date. The issue notes the upgrade also re-exercises ADR-026's ICU guard and the day-key parity fixture — which is a feature: those fixtures exist to make exactly this kind of runtime change loud.
+
+**THE RESULT THAT MATTERS MOST — the ADR-026 guard reported from production, and it is green.** Two real hourly sweeps had already fired by the time the logs were read:
+
+```
+22:00:03Z  question_rollover: sweep complete
+           {"assigned":0,"existing":0,"failed":0,"failedCoupleIds":[],"buckets":0,
+            "seasonalCalendarUnavailable":false,"at":"2026-07-25T22:00:00.000Z"}
+23:00:03Z  question_rollover: sweep complete
+           {... "seasonalCalendarUnavailable":false, "at":"2026-07-25T23:00:00.769Z"}
+```
+
+**`seasonalCalendarUnavailable: false` in the deployed Google Cloud Functions runtime.** That is the S037 guard answering the exact question it was built for — *does this runtime's ICU actually carry Umm al-Qura, or is `Intl` silently handing back Gregorian months?* — and answering it from production rather than from a developer box. Had it come back `true`, seasonal content would have been silently unreachable forever and nothing else would have said so. It is worth noting how cheap this was: the guard cost one boolean on a run summary, and it converted an unanswerable question into a line in a log.
+
+Two more things the same log lines prove: the sweep runs on the **nominal scheduled instant** (`at: 22:00:00.000Z`, not wall-clock drift) exactly as ADR-011's handler-validation design intended, and the **at-risk notification pass** runs clean alongside it (`checked:0, sent:0, failed:0`) — the ADR-012 D3 shared-bucketing path, exercised for real.
+
+**No code changed this session.** No tests were touched, no goldens moved; the deployed artifact is the `main` build (`npm run build` from the merged tree). CI is unaffected by a deploy.
+
+**Notes / debt logged:** **issue #96** (Node 20 decommission, dated). The webhook + its token remain the founder's, now the *only* thing standing between the current state and a fully live dev backend. A **budget alert** is recommended to the founder in `operator-expected.md` — billing is live now, and setting an alert is the one thing a session cannot do for them that they would most want in place before a surprise.
+
+**Next objective written to resume-prompt.md:** Session 041 — the standing preemptions (item 6, the `ASC_*` secrets, the RC webhook token), and then the *remaining* observation work. The headline observation was pulled forward into this session because the evidence was already sitting in the logs and the answer mattered: the deployed rollover is clean and the ICU guard is green. What is left to watch is the part that needs data — a real couple, a real invite, a real answer pair — which is the founder's device work, not a session's.
+
+## Session 041 — 2026-07-26 — **two preemptions fired at once; the release lane RAN for the first time and got all the way to Apple**
+
+**Objective (from resume-prompt.md):** run the standing preemptions factually, then observe the deployed backend. **Two preemptions fired**, and the second changed the session.
+
+**The derivation, run factually (addendum 12 — derive, never inherit):**
+
+| # | Item | Verdict |
+|---|---|---|
+| 1 | LLM provider + API key | **FIRED** — `LLM_API_KEY` **exists** in `hayatiapp-dev` Secret Manager; PR **#95** (a concurrent session) implements the Anthropic adapter, **CI red** |
+| 2 | `RC_WEBHOOK_TOKEN` | not fired — Secret Manager 404 |
+| 3 | Three `ASC_*` secrets | **FIRED** — `total_count: 3`, created **2026-07-25T23:36Z** (S040 read `0`) |
+| 4 | Gate 3 / Android | not fired |
+| 5 | On-device defect | not fired — #15 and #48 both have **zero** comments |
+| 6 | #67 / #63 / #71 | not fired — all three open, unanswered |
+
+**Observation (the rest of the prior objective), done and clean.** A third clean hourly sweep since S040's two: `00:00:03Z … {"buckets":0,"failed":0,"seasonalCalendarUnavailable":false}`. The ADR-026 guard keeps reporting healthy from the deployed runtime.
+
+**A third thing the founder did that no preemption named:** they registered **`Hayati iOS (beyondkaira)`** apps in **both** Firebase projects. That was ADR-027 D3's stated precondition for "Phase 2" — so the session checked, and found **Phase 2 had already landed inside ADR-027's own commit** (`ce80908`). Verified two independent ways: `apps:sdkconfig` for both projects matches every committed value byte-for-byte, and `git show ce80908` shows the change. **Four documents still said it was pending.**
+
+**Objective chosen: preemption 3 — the release-lane first run (ADR-029).** Preemption 1 ranks higher in the resume-prompt's own order, and the inversion is recorded deliberately: preemption 3's work was already in flight (ADR committed, design review burning) and is independent, and M5.3 lands next session rather than never. Both get done in the same run.
+
+**ADR-029 (drafted as 028, renumbered).** PR #95 had claimed 028 four hours earlier — **ADR numbers collide across trees the same way session ordinals do** (S038 addendum), and the ADR README now records the rule and the reserved gap.
+
+**What shipped:** `DEVELOPMENT_TEAM = UH7MXG7Z94` + an explicit `CODE_SIGN_STYLE = Automatic` on the three app-target build configs, and `app/test/release/signing_sentinel_test.dart` to defend them. The team id is committed as an **identifier, not a credential** — four verified grounds (already in four repo docs on a **public** repo; published in every distributed IPA's embedded profile; grants nothing without the private key; withholding it would cost a **fourth operator secret** to hide a public string). `architecture.md` §9's "zero keys in repo" is untouched.
+
+**THE BLOCKING PRE-CODE FINDING, and it is the session's best lesson.** The sentinel was specified to reuse the channel-parity mold's global `allMatches` count. That mold is sound **for its own key** — `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` occurs only in app-target blocks, so the global count *is* the app-target count. **`CODE_SIGN_STYLE = Automatic` is the exact inverse: 3× in RunnerTests, 0× in Runner.** A global `expect(count, 3)` would have been **green when broken, red when correct, and green again when re-broken** — a guard that inverts its own meaning, shipped while citing this project's anti-vacuity addendum. The mechanism is now **per-`XCBuildConfiguration`-block parsing**, classifying each block by the bundle id *inside* it.
+
+**Mutation matrix, 11/11 as designed** — and two of the rows are the point: a team id or `Manual` added to a **RunnerTests** block must stay **GREEN**, because a file-wide grep wearing a scope's clothing passes rows 1–8 identically to a correct test and only rows 9–10 tell them apart. Row 11 breaks the pbxproj's block shape and must redden, or a parser matching nothing would make every scoped assertion vacuous. pbxproj restored **byte-identical** to the pre-mutation backup (S025 addendum). **The matrix was re-run from scratch after the review tightened the parser census**, because changing a guard invalidates the matrix that proved it.
+
+**Two adversarial passes, 13 findings, ZERO refuted.** Pre-code: 6 findings (1 blocking, 3 serious, 2 minor), one valuable **split verdict** where the skeptic and adjudicator were each right about a different half. Built-diff: 9 raw / 7 distinct, **all seven real**.
+
+**⚠️ A REVIEW WHOSE VERIFIERS DIED IS A REVIEW WITH NO VERDICT.** The built-diff pass's **ten verifier agents all died on an API session limit**. The workflow therefore returned an empty `surfaced` list and put all seven findings in its `refuted` bucket — **and reading that at face value would have discarded seven true findings.** Each was hand-adjudicated by direct inspection instead. New standing practice: check `agents_error` before trusting a review's verdict distribution; an empty verdict is *unverified*, and the tooling renders it as the opposite.
+
+**THE MOST INSTRUCTIVE FINDING — "the rule you just invoked applies to you", three times in one session.** ADR-029 D6 corrected `architecture.md` §9's false *"macOS minutes bill at 10× on this **private** repo"* (the repo is **PUBLIC**; public-repo GitHub-hosted runners are free) — **in one place, leaving the identical claim in nine others**, including six `ci.yml` comments, one of which says *"on private repos"* outright, and a second clause of the very paragraph it rewrote. Earlier in the same session, D5 corrected three stale ADR-027 surfaces and left a **fourth** standing in the founder-facing checklist; and rev 1's `Appfile` claim ("all three stay commented out") was false of its own diff, which deletes one stub. **Standing lesson, narrower and more useful than "review twice": when a diff corrects a claim, grep the whole repo for that claim before declaring it corrected.** All swept; `past-prompts.md` deliberately untouched (project-rules #2 — history may record what was believed then).
+
+**THE RESULT — the release lane ran, and it went further than it ever has** ([run 30184464450](https://github.com/aytekXR/hayati-mobile-app/actions/runs/30184464450), `workflow_dispatch` on merged `main`):
+
+```
+preflight     ✅   metadata lint + version pin
+integration   ✅   the full emulator suite, on macOS
+build-report  ✅   real prod --release build + the 200 MB size gate
+sign-upload   ❌   secrets gate ✅ · API key written ✅ · bundle install ✅ · pub get ✅
+                   → fastlane beta ❌
+store_metadata ⏭️  SKIPPED — no store copy reached App Store Connect
+```
+
+**The fail-closed boundary passed for the first time in this project's history**, and the `Gemfile.lock` debt ADR-021 D6 left open was exercised for the first time (`bundle install` resolved clean on macOS). Then:
+
+```
+▸ Automatically signing iOS for device deployment using specified
+  development team in Xcode project: UH7MXG7Z94
+▸ Error (Xcode): No profiles for 'com.beyondkaira.hayati' were found:
+  Xcode couldn't find any iOS App Development provisioning profiles
+  matching 'com.beyondkaira.hayati'.
+```
+
+**That first line is ADR-029 working.** Flutter read the committed team out of the pbxproj; the pre-ADR-029 error (*"requires a development team"*) is gone and a strictly later one replaced it. **And it is not a missing flag** — checked against the pinned Flutter 3.44.5 source rather than from memory (addendum 17): `mac.dart:383` adds `-allowProvisioningUpdates` to the archive and `build_ios.dart:567` to the export, so ADR-021 D5 rev 2's claim holds. **Xcode was permitted to create a profile and could not**, which puts the blocker on the Apple side of the key. Filed as **issue #103** with the two operator checks (is the App ID registered — roadmap Step 1; may the API key manage Certificates/Identifiers/Profiles) and, now that it is evidence-backed rather than speculative, the design for the **ASC preflight probe** the session had deliberately declined to build on spec.
+
+**A founder-facing correction that came out of the failure:** roadmap Step 3 told the founder *"Role: App Manager is enough"* for the API key. That was written for **uploading**; creating a provisioning profile is a different permission, and it is a plausible cause of this exact failure. Corrected in place.
+
+**Notes / debt logged:** **#99** (fresh-runner Apple Distribution certificate cap of 3, with the expected symptom named), **#100** (the repo is public — re-decide the cost-motivated CI gates; deliberately *not* decided by the session that found the error), **#103** (the provisioning gap + preflight design). **Three stale open PRs found that no session had closed** — #95 (M5.3, red), #76 (green **and** clean since 2026-07-22, one gitignore line), #70 (docs, conflicted since 2026-07-20). Addendum 12 says to re-derive the backlog from the whole **issue** list every session; it never said **PRs**, and three sat unnoticed. It says PRs now.
+
+**CI:** PR #102 all green; **post-merge `main` run fully green including `integration-emulator`** — which is what proves the pbxproj change breaks neither `--no-codesign` builds nor the simulator suites, the highest-risk regression the review flagged.
+
+**Next objective written to resume-prompt.md:** Session 042 — **PR #95 / M5.3**, the last MVP code unit. Preemption 1 has fired (the key exists), the code is written, and its red is mechanical (a legal-version bump left one widget test expecting "Version 1" and every consent-gate golden stale). Fix, adversarially review the inherited diff, merge, redeploy `coachProxy`.
+
+## Session 042 — 2026-07-26 — **M5.3 merged: the MVP feature set is code-complete, and the inherited diff had a crisis filter that skipped the tail of long replies**
+
+**Objective (from resume-prompt.md):** merge M5.3 — the live coach adapter — by adopting **PR #95**, a concurrent session's red, stale PR. Preemption 1 had fired: `LLM_API_KEY` exists in `hayatiapp-dev` Secret Manager.
+
+**Preemptions re-derived (none fired):** `RC_WEBHOOK_TOKEN` still 404 · issue #103 zero comments · #15/#48 zero comments · #67/#63/#71 still open. *(#101, a concurrent merge, added the four colour tokens that close #67's gap — the issue stays open because the follow-up Settings polish is the founder's call.)*
+
+**Why the PR was red, and why this session could fix it.** Its own ADR said it: goldens **cannot be produced correctly on the macOS dev box**, where they all fail environmentally. This box is **Linux — the canonical golden platform**. The concurrent session wrote 29 files of correct work it physically could not finish.
+
+**A FALSE GREEN nearly wasted that, and it is the session's most transferable lesson.** `app/lib/core/l10n/gen/` is **gitignored**, and the local copy was **stale** — so `flutter test` was rendering the *pre-Anthropic* string and only **9** of the 18 goldens failed. Regenerating there would have produced 18 goldens CI rejects. `flutter gen-l10n` first, then the real set appeared. **A gitignored generated artifact is a baseline you do not control; regenerate it before you trust any test that renders it.**
+
+**ADR-025's goldens rule honoured, and it paid.** The expected set was **declared before regenerating** — 18 across three sets, with a reason per set — then the actual changed set diffed against the declaration: **exactly 18, no churn**. `gate.en.ltr.png` was then read **by eye** to confirm it renders the new Anthropic sentence, because a regenerated golden that renders the *wrong* thing is silently accepted by definition.
+
+**Root-caused, not patched.** The two text failures were one hardcoded string in two places: `Version N. Effective <date>.` is a **FOURTH carrier of the legal version**, outside ADR-023's three-way sentinel *by design* (it asserts the rendered asset, not the constant) — so it reddens on every bump with nothing warning. Centralised as `shippedPolicyVersionLine`, named in `legal_version.dart`'s source list, and `docs/legal/README.md`'s bump procedure gained **both** uncovered surfaces (this literal and the goldens, with the Linux-only note that explains why PR #95 arrived red).
+
+**Adversarial review of the inherited diff — 7 findings, ALL SEVEN REAL, zero refuted, 2 splits.** Treated as unreviewed (5 lenses × 2 verifiers; all 13 agents alive this time). The two that mattered:
+
+**🔴 A SAFETY DEFECT: the crisis post-filter skipped the tail of a long reply.** Step 7 ran `detect([truncateForScan(reply.text)])`. `SCAN_CHAR_LIMIT` is 4,000 and **its own comment justifies itself as "double the 2,000-char legit maximum"** — i.e. it is calibrated for **user input**, where it bounds a hostile payload. A model reply is bounded by `COACH_MAX_TOKENS` (1024), which can exceed 4,000 characters. So the last stretch of a maximum-length reply **was never scanned by the crisis filter**. Fixed: the reply is scanned in full (there is no hostile-payload risk in text from our own token-bounded call); `truncateForScan` now says *user input only, do not reuse on a reply*; an emulator regression test puts the crisis phrase past the old cap and is **mutation-verified** — restoring the truncation reddens exactly that test. **The general shape: a bound justified by one caller's constraints, reused on a caller with different constraints, and the justification travelled with the function while the constraint did not.**
+
+**🔴 The load-bearing no-leak test was VACUOUS.** *"NEVER lets upstream text reach the mapped error message"* fed `classifyUpstream` a **plain `Error`** → classifies as `unknown`, the one branch that provably cannot carry an SDK response body whatever the implementation does. It asserted the safe path and left the dangerous one untested.
+
+**THEN THE MUTATION MATRIX FOUND TWO MORE VACUITIES IN MY OWN REPLACEMENT.** This is the entry worth re-reading:
+- **`JSON.stringify` is useless as a leak scan.** `Error`'s `message`/`stack` are **non-enumerable**, so `JSON.stringify({cause: err})` is `{"cause":{}}`. A mutant attaching the upstream error as `cause` leaked the response body with my test **green**. Replaced with a recursive collector that reads the non-enumerable fields and follows `cause` chains.
+- **The fixture used invented enum values** (`personaId: 'perisi'`, `register: 'siz'`) behind an `as unknown as` cast, so `buildPersonaSystemPrompt` threw **inside the try block** and every case classified as `unknown` **without the SDK ever being reached** — the leak assertions were scanning an error the adapter raised about its own arguments. Real enum members, no cast, and `expect(create).toHaveBeenCalledTimes(1)` so *"the SDK was reached"* is asserted rather than assumed. **A cast that silences the compiler on a test fixture silences the one check that would have caught it.**
+- Added a **throw-site** test (a leak-free *mapping* does not prove the provider only ever throws the mapped error — the guarantee lives at the throw site) and a **request-time-key happy path**, which is what kills a module-load-read mutant. **Matrix: 7/7 killed**, including one that reddened *against* my expectation because the original author's own empty-key test already caught it.
+
+**Also fixed:** the untested `stop_reason: 'max_tokens'` path pinned as a **decision** (deliver the truncated turn — discarding it would fake an outage *and* burn the cap, and it is now scanned end-to-end); ADR-028's **wrong-goldens claim** (it named `ProviderActions`, which renders `legalFooterLine`; `consentProcessors` renders in **one** place and **zero** `sign_in_screen` goldens moved); the **post-implementation review record** ADR-028 lacked, whose absence the review judged the proximate cause of that error surviving; `architecture.md` §4/§8, stale the moment M5.3 shipped.
+
+**Verified from source, never from memory (addendum 17):** `'claude-sonnet-5'` is the **first entry** of the vendored SDK's `Model` union and `ThinkingConfigDisabled {type:'disabled'}` is a real param — both read out of `functions/node_modules/@anthropic-ai/sdk`, because a wrong model id would make the coach say "unavailable" forever behind a green suite. Also verified independently: all six legal docs byte-identical to `app/assets/legal/`; Anthropic named in all three policies; version 2 + date consistent across en/tr/ar; the cap-refund path logs `error.classification` (the closed enum) only.
+
+**DEPLOYED AND VERIFIED, which settled an open question empirically.** ADR-028's rev note recorded that the `RC_WEBHOOK_TOKEN` precedent proves only the **missing**-secret half; the **present**-secret path had never been exercised in this repo. It has now: `coachProxy` redeployed to `hayatiapp-dev`, revision **`coachproxy-00004-van`**, `state: ACTIVE`, carrying `secretEnvironmentVariables: [{key: LLM_API_KEY, version: '1'}]`, and the secret's IAM policy now holds **`roles/secretmanager.secretAccessor` → the runtime service account** — a binding nobody added by hand, so firebase-tools' auto-grant is now an in-repo finding rather than external knowledge. Cold start clean; an unauthenticated call returns **HTTP 401** *"coachProxy requires a signed-in caller."*, not a 5xx. The note was upgraded rather than left understated.
+
+**Process correction from the founder, mid-session:** *rebase the PR onto latest `main` **before** sending its diff to the review workflows.* The review lenses read `git diff main...HEAD`, so a `main` that moves afterwards means the reviewed diff is not the diff that merges. This session had rebased first, and `main` was re-checked at merge time (unmoved, `4201f56`), so the reviewed diff **is** what merged. Recorded as standing practice.
+
+**Notes / debt:** three stale open PRs remain — **#76** (green **and** mergeable since 2026-07-22, one gitignore line), **#70** (docs, conflicted). Issue **#103** (the release lane's Apple provisioning gap) is unchanged and operator-owned.
+
+**Next objective written to resume-prompt.md:** Session 043 — the MVP is code-complete and every remaining *product* step is operator-owned, so the honest unit is the small tracked engineering that is genuinely unblocked: **#96** (Node 20 is decommissioned 2026-10-30 — dated, and it gates the first prod deploy) with **#76** as a trivial adjacent cleanup, plus the standing preemptions.
+
+## Session 043 — 2026-07-26 — **#96 closed five months early: the Functions runtime is Node 22, and the review found that ICU never moved — tzdata did**
+
+**Objective (from resume-prompt.md):** clear the dated debt that gates the first prod deploy — **#96**, `nodejs20` decommissioned **2026-10-30** — plus **PR #76**, green and mergeable for four days.
+
+**Preemptions re-derived (none fired):** `RC_WEBHOOK_TOKEN` still 404 · #103 zero comments · #15/#48 zero comments · #67/#63/#71 zero comments. A new concurrent PR **#105** (redesign wave 2) appeared and was left alone — not this session's objective.
+
+**PR #76, merged — but not blind-merged.** One line adding `**/xcshareddata/swiftpm/` to `app/ios/.gitignore`. Before merging, the thing worth checking: that path is where **`Package.resolved`** lives, and `Package.resolved` is SwiftPM's **lockfile**. Verified it costs nothing here — **zero `XCRemoteSwiftPackageReference` entries** in `project.pbxproj`; the only Swift package is Flutter's *path-based* `FlutterGeneratedPluginSwiftPackage` under `Flutter/ephemeral/`, and a path dependency has no version to pin. The PR author had reasoned this out correctly **in the PR body** — so the session moved it into the file, per project-rules #9, together with the condition that invalidates it (*if a remote Swift package is ever added, the line goes*). **A PR body is not the repo.**
+
+**#96 — the decision, taken from firebase-tools' own lifecycle table rather than from memory.**
+
+| Runtime | Deprecated | **Decommissioned** |
+|---|---|---|
+| `nodejs20` | 2026-04-30 *(past)* | **2026-10-30** |
+| `nodejs22` | 2027-04-30 | **2028-10-31** |
+| `nodejs24` | 2028-04-30 | **2028-10-31** |
+
+**22 and 24 share a decommission date.** Node 24 buys a quieter 2027 and *no additional runway* — the next forced upgrade lands the same day either way. So: 22, the conservative option, at zero cost. And decisively, 22 is a major **this box can actually run** (nvm 22.23.1), so the suite was validated on the exact target instead of pushed to CI and hoped for. **A runtime upgrade validated only in CI is a runtime upgrade nobody has run.**
+
+**The deliverable was never the version string — it was the ICU re-verification.** ADR-026's whole premise is that `Intl` resolves an unsupported calendar to `gregory` **silently**, and a runtime upgrade is exactly the event that moves date machinery underneath the product. Run deliberately and read, not inferred from a green aggregate: `islamic-umalqura` **resolves** (ICU 78, `small-icu: false`) and `2026-03-20` → **`10/1/1447 AH`** — a real Hijri date, not Gregorian wearing a label. seasonal-window **48**, day-key parity **20 TS + 24 Dart**, whole suite **963 / 49 files**, coverage unchanged.
+
+**AND THE REVIEW FOUND THE THING THE ADR HAD FRAMED WRONG.** The ADR treated this as an ICU risk and checked ICU carefully. **ICU is identical on both local Nodes — 78.2.** What actually moved is the **timezone database, 2025c → 2026a.** A lens found it the only way it could be found: by running *both* Node binaries and diffing the output — at the Istanbul midnight boundary, `formatToParts` with `hour12:false` returns hour **`"24"` on Node 20 and `"00"` on Node 22**. Harmless here, verified rather than assumed (`day-key.ts` requests only year/month/day; its own header says *"no hour"*) — but **a tzdata revision changes UTC offsets, and a day key is a function of offsets**, so the guard that actually mattered was `day-key-parity.json`, not the ICU check. Honest bound recorded: the fixture covers the zones it pins. **The generalisation, and the session's best lesson: "a runtime upgrade" is at least THREE upgrades — engine, ICU, tzdata — and they move independently.**
+
+**An over-claim of mine, in the alarming direction.** The ADR said a non-configurable `resolvedOptions` "would **silently disarm** the test". False: `vi.spyOn` calls `Object.defineProperty`, which **throws** on a non-configurable property, so the test fails **loudly** with an install error. A lens verified it against vitest's spy source. Corrected because the two failure modes call for opposite responses, and this project's entire anti-vacuity posture depends on telling them apart.
+
+**And the grep rule failed on me for the third session running.** ADR-030 Decision 4 is *about* sweeping every surface that names the old runtime — and the sweep **missed two**, including **ADR-026's own line 88** (*"Node 20 (the pinned Functions runtime)"*), the ADR this entire bump exists to protect. The seasonal-window fixture header was the other. Both found by the review, both fixed.
+
+**Review: 11 findings, ALL REAL, zero refuted** (4 verified by agents, 7 cap-deferred and hand-applied; all 12 agents alive). One combined pass rather than the usual pair — proportionate by the S031 precedent, because here the design *is* the diff. The remainder were precision: the **safe named-exclusion deploy command** written down rather than merely practised (`--only functions` dies on `revenueCatWebhook`'s absent secret and can leave a **split-runtime backend**); what rollback concretely means **and that the option expires 2026-10-30**; Scheduler/Eventarc re-verification promoted into Acceptance; *"coverage byte-identical"* → the percentages actually compared.
+
+**DEPLOYED AND VERIFIED on `hayatiapp-dev`:** ten functions **`ACTIVE` on `nodejs22`**; **the decommission warning is gone** from the deploy output for the first time; the Scheduler job still **ENABLED** at `0 * * * *` UTC (ADR-011); `answerReveal` still **`RETRY_POLICY_RETRY`** on trigger `answerreveal-484370` with its document filter intact (ADR-012) — neither implied by `ACTIVE`, both re-checked because a runtime bump touches every function. And the decisive one: the **05:00:02Z sweep, the first on the new runtime**, logged `seasonalCalendarUnavailable: false`. **The guard ADR-026 built to catch a silent Gregorian fallback in production served as the acceptance test for a runtime migration.** That is a fixture paying for itself in a way its author did not have to foresee — worth remembering the next time someone asks whether a guard is worth the lines.
+
+**Scope held, and the held scope recorded rather than skipped:** `firebase-admin` stays `^13`, but `architecture.md`'s stated reason for the pin — *"v14 requires Node ≥22"* — is now **void**, so the reason was corrected in the same diff and the upgrade filed as **#107**. `firebase-functions` v7 likewise. Bundling a dependency major into a runtime bump turns one verifiable change into two entangled ones.
+
+**Notes / debt:** **#107** filed. **#103** (the release lane's Apple provisioning gap) unchanged and operator-owned. **#70** still open and conflicted. **#105** is the concurrent session's.
+
+**Next objective written to resume-prompt.md:** Session 044 — with the MVP code-complete and #96 closed, the tracked-debt queue is down to founder-gated items and #107/#70. The honest next unit is the standing preemptions plus **#107** if nothing else has opened; the *product* now waits almost entirely on the founder.
+
+## Session 044 — 2026-07-26 — **#107 closed: firebase-admin v14 — and `npm ci` caught what `npm install` hid**
+
+**Objective (from resume-prompt.md):** #107 — `firebase-admin` was pinned `^13` for one recorded reason, *"v14 requires Node ≥22"*, which ADR-030 had just made void. **I had licensed stopping instead; that was wrong** — #107 is undated maintenance, but undated is not the same as blocked, and the goal directive says continue until a human dependency blocks progress. It doesn't block this.
+
+**Preemptions re-derived (none fired).** Also verified before starting: **#107's file set (`functions/package*.json`, docs) is disjoint by design from the concurrent session's in-flight branch** (`release.yml`, `fastlane/Fastfile`) — S022's condition for safe parallel work, checked rather than assumed.
+
+**THE FINDING THAT MATTERS, and it is a process one.** `npm install firebase-admin@^14` succeeded, everything typechecked, and the full suite passed 979/979. Then **`npm ci` — the command CI actually runs — refused the tree**:
+
+```
+peer firebase-admin@"^11.10.0 || ^12.0.0 || ^13.0.0" from firebase-functions@7.2.5
+```
+
+`firebase-functions@7.2.5`'s peer range **explicitly excludes** firebase-admin v14. So the local tree that had passed everything was a tree **CI could not reproduce** — the S042 false-green shape in a new costume. And ADR-031 rev 1 had written that leaving `firebase-functions` alone was *"deliberate restraint"*, the same choice ADR-030 made. **It was not a choice at all.** `firebase-functions@7.3.0` is the first version whose peer range adds `^14.0.0`; the two are **mandatorily coupled**. (`7.3.2-rc.0` holds the `latest` dist-tag and was deliberately not taken — a release candidate has no business in a runtime dependency of a special-category path.) **Standing lesson: verify with the command CI runs, not the convenient one.** `npm install` resolves permissively and rewrites the lockfile to fit; `npm ci` asserts the lockfile is already coherent, and only that answers "will this work in CI".
+
+**The version number understates the change badly: 48 packages move.** The headline is **`@google-cloud/firestore` 7.11.6 → 8.7.0** — a Firestore *client* major, on the library ADR-019's resumable cascade runs its transactions and cursors through, and 22 of the 29 `firebase-admin` imports here are `firebase-admin/firestore`. Also moving: `google-gax` 4→5, `jose` **4→6** (skipping a major), `jwks-rsa` 3→4, `proto3-json-serializer` 2→3, `lru-cache` 6→11, and `farmhash-modern` **dropped**.
+
+**Verification, targeted at the two surfaces #107 named:** ADR-019's cascade against the real emulator — **58 pass** (the resumable `deletions/{uid}` cursor, the partner-cursor-seeding transaction, kill-mid-cascade convergence, `deleteUsers` idempotency); ADR-013/015's entitlement core + the fast-check LWW order-independence property — **109 pass**; whole suite **979 / 50 files**.
+
+**And the strongest evidence: a controlled A/B on the same tree.** The coverage numbers are *lower* than ADR-030's, which invites the wrong conclusion. So the baseline was measured, not reasoned about — `main` checked out, `npm ci` back to **13.10.0**, same suite: `979 passed · 97.28% (1646/1692) · 92.45% (1079/1167)`. **Identical.** The delta versus ADR-030 is entirely `creator-question.ts` arriving from the concurrent PR #105.
+
+**A FALSE ALARM WORTH RECORDING.** One re-run of the identical tree reported **52 failures**, another a 1645-vs-1646 coverage blip. Neither was real: **a review agent I had launched was running its own `firebase emulators:exec` on the same fixed ports.** Confirmed by watching `ss -ltn` (8080/9099/5001 busy during the bad window, free during the good ones), then re-running twice back-to-back in a clean window — **979 / 97.28% / 92.45% bit-for-bit both times.** This repo's emulator suite binds fixed ports and is **not safe to run concurrently with anything else that boots emulators, including your own review agents.** I nearly attributed a contaminated red to a Firestore client major.
+
+**Review: 17 findings, all real, zero refuted** (12 agents alive). The most valuable: **the `firebase-functions` fix was sitting UNCOMMITTED** — the branch as committed would have gone red in CI at the install step. Also: the dependency table listed five packages and called that "the real change" (it is 48); `@google-cloud/firestore`'s "before" was the **declared range floor** `7.11.0` paired against a **resolved** "after" (it is 7.11.6); and `gaxios` was shown as a clean 6→7 when the top level **stays** at 6.7.1 and 7.3.0 appears *nested* under `google-gax` — which is, precisely, the copy the Firestore gRPC path uses.
+
+**An honest bound stated plainly rather than buried:** `jose` v4→v6 and `jwks-rsa` v3→v4 are firebase-admin's **ID-token verification stack**, and the emulator **does not perform real token verification** — so **nothing in `functions/test/` exercises the code that moved most**. The app calls neither library directly; the risk sits with firebase-admin's own tests. Recorded with its consequence: *if real-device sign-in ever fails with a token error, look here first.*
+
+**Deployed and smoke-tested on `hayatiapp-dev`:** ten functions redeployed on the v14 build via the named-exclusion command; `coachProxy` and `createInvite` return a clean **401**; **`invitePreview` with a bogus code returns `{"status":"unknown"}` HTTP 200** — a *real Firestore read through the v8 client in production*, returning the designed not-found shape rather than an error. The scheduled sweep on the new client is the remaining production signal.
+
+**Notes / debt:** `firebase-functions` is now 7.3.0 (the peer range forced it, and it also cleared the long-standing "outdated firebase-functions" deploy warning). **#70** remains open and conflicted. The concurrent session's signing branch remains theirs.
+
+**Next objective written to resume-prompt.md:** Session 045 — the tracked engineering queue is genuinely empty of anything both unblocked and undone. Re-derive it; if it is still empty, say so with the derivation and stop.
+
+## Session 045 — 2026-07-26 — **the verification session that found prod is live, behind, and silently broken in one place**
+
+**Objective (from resume-prompt.md):** re-derive the queue; if nothing is both unblocked and undone, show the derivation and stop. **The derivation found something instead** — which is the argument for running the session rather than asserting its conclusion. (S044 reached this verdict conversationally and never executed the session; that gap is why this entry exists.)
+
+**Preemptions, live:** `RC_WEBHOOK_TOKEN` **ABSENT on dev** but **PRESENT on prod** · #15/#48/#67/#63/#71 all still zero comments · **#103 CLOSED** at 06:04Z (the concurrent session's fastlane-`match` work landed, exactly as the S043 handoff predicted) · zero open PRs.
+
+**THE HEADLINE: `hayatiapp-prod` is fully deployed — ELEVEN functions, all `ACTIVE` — and `main`'s documentation says it is undeployed.** The founder and a concurrent session stood prod up during this run. Verified directly against the Cloud Functions API rather than inferred:
+
+| Fact | State |
+|---|---|
+| Functions deployed | **11 / 11**, all `ACTIVE`, `europe-west1` |
+| Runtime | **`nodejs20`** — the runtime **decommissioned 2026-10-30** |
+| `coachProxy` | deployed **2026-07-25T21:54Z**, `secrets: NONE` → a **pre-M5.3 build** |
+| `LLM_API_KEY` (prod) | **present** in Secret Manager |
+| `RC_WEBHOOK_TOKEN` (prod) | **present** in Secret Manager |
+| `revenueCatWebhook` | `ACTIVE` — **but see below** |
+
+Two consequences fall straight out and neither was recorded anywhere: **prod runs code that predates M5.3**, so the coach answers "unavailable" *despite the key existing*; and **prod was stood up on a runtime with an end date** — the precise situation ADR-030 argued to avoid ("fix it before prod is stood up, never after"). Both are repaired by a single redeploy from current `main`, which is the founder's call, not a session's.
+
+**AND THE FINDING THAT MATTERS MOST — issue #115: the production RevenueCat webhook is not publicly invocable, so RevenueCat cannot deliver to it.** Its Cloud Run service has **no IAM bindings at all**:
+
+```
+PROD revenuecatwebhook  -> NO bindings
+PROD invitepreview      -> roles/run.invoker -> allUsers     (the control)
+```
+
+Both of its URLs reject *before the function runs* — the bodies are **Google's HTML error pages**, not our JSON (403 with no auth, 401 with a bearer token), while the public control on the same alias returns `{"status":"unknown"}` from our own code. **That HTML-versus-JSON distinction is the whole diagnosis**, and it is why a deploy-time check would not have caught this: the function deployed fine, is `ACTIVE`, and reports healthy.
+
+RevenueCat delivers a plain POST carrying a **static `Authorization` value** — the verbatim token ADR-013 specifies. Cloud Run's IAM tries to read that as a **Google identity token**, fails, and returns 401 before invoking anything. No RevenueCat setting can satisfy Google IAM. **So entitlement events never arrive: a real purchase would charge the customer and never unlock Premium, silently.** That is M4's acceptance line failing in the one manner that emits no signal at all. The absence is also *anomalous* — firebase-tools normally grants `allUsers` `run.invoker` to an `onRequest` function, which is why `invitePreview` has it — so the cause is worth understanding before patching, in case an org policy re-breaks it on the next deploy.
+
+**Not fixed, deliberately, and the reasoning is the point.** Granting `allUsers` on a production endpoint is a **security-posture change on the founder's live system**, even though it is the *intended* design — ADR-013 is explicit that the token then becomes the only thing between the public internet and couples' entitlement state. The RevenueCat wiring is a concurrent session's in-flight work (S022: parallel work is safe only when file sets are disjoint by design). And the token's **value cannot be read by a session**, so opening the endpoint without confirming it matches the RevenueCat dashboard would swap a closed door for one that rejects everything. The issue carries the exact `gcloud` command and — more usefully — the exact way to tell success from failure: **a correct result is JSON from our fail-closed check, not HTML from Google's.**
+
+**#41's window, flagged in the same pass.** Its remediation is gated on "before real purchases exist", and it was *"blocked on operator item 0"* — which is now done. Both halves of its own "why this is not currently exploitable" paragraph (*no key to steal, no project to post to*) are **false now**. Left as a comment, not a fix: it edits the entitlement identity path the concurrent session is inside, and if purchases already exist it becomes a **migration of live billing identity** — a founder decision.
+
+**#70 closed with evidence rather than merged.** It existed to flag two post-merge runs left unread during a GitHub 503 outage at the S028 close. Session 045 read them: `29708998595` **success** (including the `integration-emulator` that was mid-flight) and `29709354780` **success**. Merging it would have injected a "Session 029's first action" instruction into a Session-045 resume prompt and rewritten a **prior** `past-prompts.md` entry, which project-rules #2 forbids — and its `CI: green` line turns out to be simply true.
+
+**Verdict on the derivation:** of nine open issues, **none is both unblocked and safe to act on alone.** #115 and #41 need the founder (production security posture; live billing identity). #99 is subsumed by the merged `match` work. #48 is gated on device observation *by its own text*. #100 needs runner-queue measurement and is low value. #71/#67/#63 are brandkit/founder. #15 needs a device crash log. #13 is M6.5. **No code changed this session** — it was verification, and verification is what it produced.
+
+**Next objective written to resume-prompt.md:** Session 046 — re-verify #115 (it is the founder's money), reconcile `main`'s documentation with prod's real state, and pick up whatever the concurrent branch's merge leaves behind.

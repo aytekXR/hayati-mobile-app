@@ -47,6 +47,14 @@ class FakeAuthRepository implements AuthRepository {
   Future<AuthUser> Function(PhoneSignInSession session, String smsCode)?
   onConfirmPhoneCode;
 
+  /// Optional override for [updateDisplayName]; the default records the name
+  /// in [updatedDisplayNames] and resolves. Set it to throw an
+  /// [AuthException] to drive the name-capture retry path.
+  Future<void> Function(String displayName)? onUpdateDisplayName;
+
+  /// Every name passed to [updateDisplayName], in call order.
+  final List<String> updatedDisplayNames = [];
+
   int signInCalls = 0;
   int signInWithAppleCalls = 0;
   int signOutCalls = 0;
@@ -118,6 +126,25 @@ class FakeAuthRepository implements AuthRepository {
       );
     }
     return handler(session, smsCode);
+  }
+
+  @override
+  Future<void> updateDisplayName(String displayName) {
+    updatedDisplayNames.add(displayName);
+    final handler = onUpdateDisplayName;
+    if (handler != null) {
+      return handler(displayName);
+    }
+    final current = _currentUser;
+    if (current != null) {
+      _currentUser = AuthUser(
+        uid: current.uid,
+        displayName: displayName,
+        email: current.email,
+        photoUrl: current.photoUrl,
+      );
+    }
+    return Future<void>.value();
   }
 
   @override

@@ -6,6 +6,18 @@ import 'package:hayati_app/features/legal/presentation/legal_document_screen.dar
 import '../../../support/localized_app.dart';
 import '../../../support/static_asset_bundle.dart';
 
+/// A line from the SHIPPED privacy-policy asset, pinned deliberately as a
+/// literal: it is what proves the injected bundle delivered the real document
+/// rather than a placeholder the seam invented. Two tests use it.
+///
+/// It is therefore a FOURTH carrier of the legal version string, and it is NOT
+/// covered by `legal_version_sentinel_test.dart`'s three-way pin (that guards
+/// the app const, the Functions const and `docs/legal/README.md`). A version
+/// bump reddens this file separately — which is how S042 found it. The bump
+/// procedure in `docs/legal/README.md` now names it so the next bump does not
+/// rediscover it the hard way.
+const shippedPolicyVersionLine = 'Version 2. Effective 26 July 2026.';
+
 void main() {
   final en = l10nFor(const Locale('en'));
 
@@ -25,7 +37,7 @@ void main() {
       // App-bar title from ARB; the `#` title + a known body line from the doc.
       expect(find.text(en.legalPrivacyTitle), findsWidgets);
       expect(find.text('Privacy Policy'), findsWidgets);
-      expect(find.text('Version 1. Effective 13 July 2026.'), findsOneWidget);
+      expect(find.text(shippedPolicyVersionLine), findsOneWidget);
     },
   );
 
@@ -75,6 +87,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Version 1. Effective 13 July 2026.'), findsOneWidget);
+    expect(find.text(shippedPolicyVersionLine), findsOneWidget);
   });
 }

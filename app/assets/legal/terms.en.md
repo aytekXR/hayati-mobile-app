@@ -2,7 +2,7 @@
 
 These terms are the agreement between you and Hayati. They are written plainly, and every promise in them is meant to match how the app actually works.
 
-Version 1. Effective 13 July 2026.
+Version 2. Effective 26 July 2026.
 
 ## Who can use Hayati
 
@@ -58,4 +58,4 @@ These terms are governed by [GOVERNING LAW — to be determined by the founder's
 
 ## Changes to these terms
 
-This is version 1. If we change these terms in a way that matters, we will update them in the app and raise the version.
+This is version 2. If we change these terms in a way that matters, we will update them in the app and raise the version.

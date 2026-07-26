@@ -26,6 +26,20 @@ Flutter/flutter_assets/
 Flutter/flutter_export_environment.sh
 ServiceDefinitions.json
 Runner/GeneratedPluginRegistrant.*
+# Local device builds (SwiftPM plugin resolution) drop `Package.resolved` under
+# both `Runner.xcworkspace/xcshareddata/` and
+# `Runner.xcodeproj/project.xcworkspace/xcshareddata/`.
+#
+# COMPROMISE, recorded per project-rules #9: `Package.resolved` is SwiftPM's
+# LOCKFILE, and ignoring a lockfile normally costs reproducibility. It costs
+# nothing here, verified: this project has ZERO `XCRemoteSwiftPackageReference`
+# entries in `project.pbxproj` — the only Swift package is Flutter's own
+# path-based `FlutterGeneratedPluginSwiftPackage` under `Flutter/ephemeral/`,
+# and a path dependency has no version to pin. CI resolves fresh through the
+# Flutter toolchain either way. **If a REMOTE Swift package is ever added, this
+# line must go** and the `Runner.xcworkspace` copy should be committed like
+# `pubspec.lock`.
+**/xcshareddata/swiftpm/
 
 # Exceptions to above rules.
 !default.mode1v3

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Hayati app icon — The Whole Pomegranate">
+  <defs>
+    <clipPath id="wp-squircle"><path d="M60,0 C12.8,0 0,12.8 0,60 C0,107.2 12.8,120 60,120 C107.2,120 120,107.2 120,60 C120,12.8 107.2,0 60,0 Z"/></clipPath>
+    <clipPath id="wp-fruit"><circle cx="60" cy="63" r="36"/></clipPath>
+  </defs>
+  <g clip-path="url(#wp-squircle)">
+    <rect width="120" height="120" fill="#231A33"/>
+    <path fill="#B98A6E" d="M53.3,30.8 L55,22.5 L57.5,26.8 L60,19.5 L62.5,25.6 L65,18.4 L67.5,25.8 L70,20 L72.5,26.9 L75,23.4 L76.6,30.4 Q65,26.5 53.3,30.8 Z"/>
+    <circle cx="60" cy="63" r="36" fill="#C04A5A"/>
+    <g clip-path="url(#wp-fruit)">
+      <circle cx="98.9" cy="101.9" r="30" fill="#8E3140"/>
+      <g transform="translate(86.8,78.5) rotate(30) scale(0.26)">
+        <path fill="#FFF8F1" d="M0,0 C6.2,7.6 10.4,14.4 10.4,21.6 C10.4,28.6 5.8,33.6 0,33.6 C-5.8,33.6 -10.4,28.6 -10.4,21.6 C-10.4,14.4 -6.2,7.6 0,0 Z"/>
+      </g>
+      <g transform="translate(79.6,86.4) rotate(50) scale(0.26)">
+        <path fill="#FFF8F1" d="M0,0 C6.2,7.6 10.4,14.4 10.4,21.6 C10.4,28.6 5.8,33.6 0,33.6 C-5.8,33.6 -10.4,28.6 -10.4,21.6 C-10.4,14.4 -6.2,7.6 0,0 Z"/>
+      </g>
+    </g>
+  </g>
+</svg>

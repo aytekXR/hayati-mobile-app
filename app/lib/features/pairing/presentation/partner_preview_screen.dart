@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design_system/elevation_tokens.dart';
+import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
+import '../../../core/design_system/typography_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../../core/widgets/soft_unfold_reveal.dart';
 import '../../auth/domain/auth_state.dart';
@@ -332,7 +335,7 @@ class _ValidPreview extends StatelessWidget {
                     l10n.invitePreviewValidBody,
                     textAlign: TextAlign.center,
                   ),
-                  const _QuestionSlot(),
+                  _QuestionSlot(result: result),
                   const SizedBox(height: SpacingTokens.x6),
                   _JoinActions(
                     code: code,
@@ -349,15 +352,90 @@ class _ValidPreview extends StatelessWidget {
   }
 }
 
-/// Structural slot where the M3 daily question (the invite's `questionText`)
-/// will render on a valid preview. Empty by design until the server projects
-/// `questionText` into `InvitePreviewResult` (see invite_preview.dart) — a
-/// reserved position for the reveal, not user-visible placeholder text.
+/// The restored PRD F1 hook (redesign ui-ux §5.3/§6.2): today's question on
+/// the inviter's side in the Question type style inside a Night Raised card,
+/// and — only when the server reports the inviter has answered — the sealed
+/// answer card beneath it: lattice-lock glyph (Material stand-in, Clay) over
+/// the Mist caption "{name} has already answered. Their answer unlocks when
+/// you write yours." (graceful no-name fallback). The single most
+/// Gate-2-relevant composition in the app: the reluctant invitee sees value
+/// BEFORE the sign-in toll.
+///
+/// Renders nothing when the server projected no question (older function
+/// deploys, hook lookup failures, completed solo cycles) — the slot degrades
+/// to exactly the shipped preview.
 class _QuestionSlot extends StatelessWidget {
-  const _QuestionSlot();
+  const _QuestionSlot({required this.result});
+
+  final InvitePreviewResult result;
 
   @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
+  Widget build(BuildContext context) {
+    final questionText = result.questionText;
+    if (questionText == null || questionText.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final name = result.creatorDisplayName;
+    final cardDecoration = BoxDecoration(
+      color: theme.colorScheme.surfaceContainerHighest,
+      borderRadius: RadiusTokens.cardRadius,
+      border: Border.all(color: theme.colorScheme.outlineVariant),
+      boxShadow: ElevationTokens.level1,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: SpacingTokens.x6),
+        Container(
+          padding: const EdgeInsets.all(SpacingTokens.cardPadding),
+          decoration: cardDecoration,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // The shipped "Today's question" caption, in Mist (bodySmall).
+              Text(l10n.pairedQuestionTitle, style: theme.textTheme.bodySmall),
+              const SizedBox(height: SpacingTokens.x3),
+              // The Question style (28/300; Arabic line-height follows the
+              // resolved locale) — the hero text of the pitch, start-aligned.
+              Text(
+                questionText,
+                style: TypographyTokens.questionStyleFor(
+                  Localizations.localeOf(context).languageCode,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (result.creatorAnswered) ...[
+          const SizedBox(height: SpacingTokens.x3),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SpacingTokens.cardPadding,
+              vertical: SpacingTokens.x4,
+            ),
+            decoration: cardDecoration,
+            child: Column(
+              children: [
+                // Clay — the secondary-glyph role; the folded-note sealed
+                // card's lattice-lock stand-in (brand glyph pending).
+                Icon(Icons.lock_outline, color: theme.colorScheme.secondary),
+                const SizedBox(height: SpacingTokens.x2),
+                Text(
+                  (name != null && name.isNotEmpty)
+                      ? l10n.invitePreviewCreatorAnswered(name)
+                      : l10n.invitePreviewCreatorAnsweredNoName,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 /// The join CTA area, whose shape depends on the session:

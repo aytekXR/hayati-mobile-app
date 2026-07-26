@@ -34,7 +34,7 @@ on:
 # never cancelled by the next one); everything else keys on the ref, so PR
 # re-pushes still cancel their predecessor and the Session-004 billing
 # protection is untouched. The extra surviving run is the docs-only one, which
-# skips both 10x-billed macOS jobs by construction.
+# skips both slow macOS jobs by construction.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'ref' }}
   cancel-in-progress: true
@@ -56,7 +56,7 @@ jobs:
     timeout-minutes: 20
     outputs:
       # ci-debt #17: 'false' only for a docs-only push to main — the signal
-      # that lets the 10x-billed macOS jobs skip a run that cannot change
+      # that lets the slow macOS jobs skip a run that cannot change
       # their outcome. Computed here because per-job paths filters don't
       # exist and workflow-level paths-ignore would deadlock required checks
       # (Session 002 decision, past-prompts.md).
@@ -158,8 +158,8 @@ jobs:
   functions-rules:
     name: functions-rules
     # M2.1: Cloud Functions (TS) + firestore.rules suites against the auth/
-    # firestore/functions emulators. PER-PR on ubuntu (unlike the 10x-billed
-    # macOS integration-emulator leg): rules regressions must be pre-merge
+    # firestore/functions emulators. PER-PR on ubuntu (unlike the slow macOS
+    # integration-emulator leg): rules regressions must be pre-merge
     # signals (resume-prompt Session 007). Coverage hard-fails <80% via vitest
     # thresholds (test-suite.md §3: target 85).
     runs-on: ubuntu-latest
@@ -168,7 +168,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: functions/package-lock.json
       # firestore emulator needs Java 21+, discovered via PATH only (JAVA_HOME
@@ -212,16 +212,20 @@ jobs:
 
   ios-build-smoke:
     name: ios-build-smoke
-    # iOS-first build smoke (ADR-006). macOS minutes bill at 10x on private
-    # repos, so draft PRs (e.g. gate-proof PRs) skip it, and docs-only pushes
-    # to main skip it too (ci-debt #17 — the PR run already built this code;
+    # iOS-first build smoke (ADR-006). This gate was written when macOS
+    # minutes billed at 10x; the repo is PUBLIC, so GitHub-hosted runners are
+    # FREE and cost is no longer the driver (corrected S041, ADR-029 D6 —
+    # re-decision filed as issue #100). It stands on LATENCY: macOS runners
+    # queue far longer than ubuntu. So draft PRs (e.g. gate-proof PRs) skip it,
+    # and docs-only pushes to main skip it too (ci-debt #17 — the PR run already built this code;
     # required-check semantics are untouched because PR events always run).
     # workflow_dispatch has neither a draft field nor a push base and runs.
     if: >-
       github.event.pull_request.draft != true &&
       (github.event_name != 'push' || needs.quality.outputs.code_changed == 'true')
-    # Deliberate cost-over-latency choice: don't start the 10x-billed macOS
-    # build until BOTH cheap ubuntu checks pass (~2-4 min added happy-path
+    # Deliberate latency choice (was cost — see above; the repo is public and
+    # the minutes are free): don't start the slow macOS build until BOTH cheap
+    # ubuntu checks pass (~2-4 min added happy-path
     # latency; a red ubuntu job still blocks merge either way). functions-rules
     # added M2.1 — a rules-only regression must not start a macOS build.
     needs: [quality, functions-rules]
@@ -297,8 +301,9 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main'
        && needs.quality.outputs.code_changed == 'true')
-    # Same cost-over-latency gate as ios-build-smoke: don't spend 10x-billed
-    # macOS minutes until the cheap ubuntu quality job is green.
+    # Same gate as ios-build-smoke, on the same corrected reasoning (latency,
+    # not billing — ADR-029 D6): don't start the slow macOS legs until the
+    # cheap ubuntu quality job is green.
     needs: quality
     runs-on: macos-15
     # Each suite compiles its own simulator binary and they run serially, so the
@@ -325,10 +330,11 @@ jobs:
           distribution: temurin
           java-version: '21'
       # M2.2: the functions emulator serves the createInvite callable this
-      # suite exercises. Node 20 matches functions/package.json engines.
+      # suite exercises. Node 22 matches functions/package.json engines
+      # (bumped from 20 in S043/ADR-030 — nodejs20 is DECOMMISSIONED 2026-10-30).
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: functions/package-lock.json
       - name: npm ci (functions)

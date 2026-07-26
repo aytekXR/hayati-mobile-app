@@ -8,6 +8,14 @@
 ///     (`functions/src/data-rights/data-rights-core.ts`),
 ///  3. the `version:` line in `docs/legal/README.md`.
 ///
+/// A FOURTH place carries the version string but is deliberately NOT in the
+/// sentinel: `shippedPolicyVersionLine` in
+/// `test/features/legal/presentation/legal_document_screen_test.dart`, which
+/// pins a line of the SHIPPED asset to prove the bundle seam delivered the real
+/// document. It is not part of the pin because it asserts the *rendered asset*,
+/// not the constant — but it DOES redden on a bump, so the bump procedure names
+/// it (S042, found the hard way when the v1→v2 bump left it behind).
+///
 /// All three MUST carry the same integer, or CI fails red — in both directions:
 /// the app-ahead brick (the gate expects a version the server never stamps) AND
 /// the silent under-gate (the documents change but no re-consent fires). A
@@ -20,4 +28,4 @@
 /// server's own constant onto a grant. This const drives only the gate's
 /// `hasCurrentConsent` expectation (the residual skew, app-const-ahead-of-server,
 /// surfaces as the gate's persistent stale-after-accept error, never a brick).
-const int currentLegalVersion = 1;
+const int currentLegalVersion = 2;

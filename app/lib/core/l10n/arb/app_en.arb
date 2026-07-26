@@ -24,6 +24,50 @@
   "@signOut": {
     "description": "Sign-out action"
   },
+  "ritualPreviewHeadline1": "One question a day, for two.",
+  "@ritualPreviewHeadline1": {
+    "description": "Ritual preview card 1 headline — the primary tagline verbatim (redesign M-5, pre-sign-in)"
+  },
+  "ritualPreviewBody1": "A five-minute ritual that keeps you close — in your own language, in your own culture.",
+  "@ritualPreviewBody1": {
+    "description": "Ritual preview card 1 body"
+  },
+  "ritualPreviewHeadline2": "Sealed until you both answer.",
+  "@ritualPreviewHeadline2": {
+    "description": "Ritual preview card 2 headline — the seal mechanic"
+  },
+  "ritualPreviewBody2": "No peeking, and no pressure to perform: just a moment that belongs to the two of you.",
+  "@ritualPreviewBody2": {
+    "description": "Ritual preview card 2 body — reuses the store description's best line verbatim (one pitch, everywhere)"
+  },
+  "ritualPreviewHeadline3": "What's between you stays between you.",
+  "@ritualPreviewHeadline3": {
+    "description": "Ritual preview card 3 headline — the privacy tagline verbatim"
+  },
+  "ritualPreviewBody3": "PIN lock, a discreet icon, and answers no one else ever sees. Not therapy, not a feed — just you two.",
+  "@ritualPreviewBody3": {
+    "description": "Ritual preview card 3 body"
+  },
+  "ritualPreviewCta": "Get started",
+  "@ritualPreviewCta": {
+    "description": "Card 3 primary CTA into sign-in (cards 1–2 use continueAction)"
+  },
+  "ritualPreviewSkip": "Sign in",
+  "@ritualPreviewSkip": {
+    "description": "The skip affordance on every preview page — skipping IS sign-in (ui-ux §6.1)"
+  },
+  "nameCaptureTitle": "What should we call you?",
+  "@nameCaptureTitle": {
+    "description": "Name-capture step title (redesign QW-6, between sign-in and profile capture); nicknames explicitly welcome"
+  },
+  "nameCaptureHelper": "Your partner will see this on your invitation.",
+  "@nameCaptureHelper": {
+    "description": "Mist caption under the name-capture title — the honest reason the name is asked for (it feeds the invite preview hero line)"
+  },
+  "nameCaptureHint": "Your name or nickname",
+  "@nameCaptureHint": {
+    "description": "Placeholder for the single name field; nickname explicitly welcome (many Gulf users prefer not to use full names)"
+  },
   "onboardingTitle": "About you two",
   "@onboardingTitle": {
     "description": "Profile capture screen title; sets the couple-first tone"
@@ -103,9 +147,9 @@
   "@inviteShareButton": {
     "description": "Button that opens the system share sheet with the invite message"
   },
-  "inviteShareMessage": "I'm waiting for you on Hayati ❤️\nInvite code: {code}\n{link}",
+  "inviteShareMessage": "I picked an app for us — one question a day, just for the two of us. My invite code: {code}. Get Hayati, then enter the code. I'm waiting for you ❤️ {link}",
   "@inviteShareMessage": {
-    "description": "WhatsApp-formatted share text: warm one-liner + code + deep link on its own line",
+    "description": "WhatsApp share text, code-first (product-copy pairing rewrite): the code leads because custom-scheme links are not tappable in chat apps; the single licensed ❤️ closes the message, off the glanceable first line (discretion rule); the link trails for when universal links ship",
     "placeholders": {
       "code": {
         "type": "String",
@@ -195,13 +239,27 @@
       }
     }
   },
-  "invitePreviewInvitedBySomeone": "Someone invited you",
+  "invitePreviewInvitedBySomeone": "Your partner invited you",
   "@invitePreviewInvitedBySomeone": {
-    "description": "Graceful no-name fallback for the valid-preview hero line when the server resolved no creator display name"
+    "description": "Graceful no-name fallback for the valid-preview hero line when the server resolved no creator display name — \"Someone\" read cold and faintly alarming for this product (product-copy); name capture makes this rare anyway"
   },
   "invitePreviewValidBody": "This invitation is ready. Pair up to start answering a question together every day.",
   "@invitePreviewValidBody": {
     "description": "Validity framing under the invited-by line on a valid invite preview"
+  },
+  "invitePreviewCreatorAnswered": "{name} has already answered. Their answer unlocks when you write yours.",
+  "@invitePreviewCreatorAnswered": {
+    "description": "Sealed-answer caption under the preview's question hook (PRD F1 restore), shown only when the server reports the inviter answered today's question",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Aylin"
+      }
+    }
+  },
+  "invitePreviewCreatorAnsweredNoName": "Your partner has already answered. Their answer unlocks when you write yours.",
+  "@invitePreviewCreatorAnsweredNoName": {
+    "description": "No-name fallback of invitePreviewCreatorAnswered (server resolved no display name)"
   },
   "joinAcceptButton": "Accept invitation",
   "@joinAcceptButton": {
@@ -299,15 +357,39 @@
   "@pairedPackUpdateBody": {
     "description": "Body of the pack-lag state"
   },
-  "pairedStreak": "{count, plural, =1{1-day streak} other{{count}-day streak}}",
-  "@pairedStreak": {
-    "description": "Modest streak marker on the revealed paired home (M3.4, ADR-012): the couple's consecutive mutual-day count. Shown ONLY in the revealed state and ONLY when count > 0 (a zero count renders nothing).",
+  "streakSeeds": "{count, plural, =1{1 seed · 1 day together} other{{count} seeds · {count} days together}}",
+  "@streakSeeds": {
+    "description": "The streak strip line beside the seed vessel on the paired home (redesign ui-ux §6.3 / product-copy 'Streak & celebration'): one seed per mutual day, tabular figures. Replaces the M3.4 'N-day streak' row. TR/AR renderings are drafts pending native register review.",
     "placeholders": {
       "count": {
         "type": "int",
-        "example": "4"
+        "example": "11"
       }
     }
+  },
+  "streakVesselEmpty": "Your first seed arrives the first day you both answer.",
+  "@streakVesselEmpty": {
+    "description": "Canonical vessel-empty line (product-copy 'Empty states' — also the Us screen's zero-seed state later): honest, a seed needs BOTH answers, so a zero count never masquerades as a streak. TR/AR renderings are drafts pending native register review."
+  },
+  "streakMercyUsed": "Mercy day used — your streak is safe.",
+  "@streakMercyUsed": {
+    "description": "Compact caption beside the Sage leaf glyph on the streak strip when this ISO week's grace token has been consumed (product-copy 'Streak strip, mercy indicator'; graceTokens == 0 on the server streak) — forgiveness framing, never 'streak freeze' mechanics. TR/AR renderings are drafts pending native register review."
+  },
+  "privacySpotlightTitle": "Keep Hayati between you two",
+  "@privacySpotlightTitle": {
+    "description": "One-time privacy spotlight card title on the first solo home (redesign M-6); care, never paranoia"
+  },
+  "privacySpotlightBody": "Add a 6-digit PIN so only you can open the app — and switch to a plain home-screen icon if you'd like. You can do both later in Settings.",
+  "@privacySpotlightBody": {
+    "description": "Spotlight body: honest, unhurried; names both privacy features and that Settings remains their permanent home"
+  },
+  "privacySpotlightCta": "Set up my PIN",
+  "@privacySpotlightCta": {
+    "description": "Primary spotlight action — routes into the existing PIN setup flow"
+  },
+  "privacySpotlightLater": "Maybe later",
+  "@privacySpotlightLater": {
+    "description": "Secondary spotlight action; never \"Skip\" — no judgment (product-copy)"
   },
   "soloDayProgress": "Day {day} of 7",
   "@soloDayProgress": {
@@ -997,7 +1079,7 @@
   "@consentDataLocation": {
     "description": "Consent gate paragraph — the honest data-location split (ADR-023 Context/D3, finding honesty-1). No 'all your data in the EU' over-claim. TR/AR respectful register."
   },
-  "consentProcessors": "Google runs sign-in, storage, and crash reporting on our instructions. Apple handles the App Store and Sign in with Apple. There is no advertising or tracking in Hayati, and the coach reaches no outside AI provider today.",
+  "consentProcessors": "Google runs sign-in, storage, and crash reporting on our instructions. Apple handles the App Store and Sign in with Apple. The coach is powered by Anthropic, which processes your coach messages in the moment to write a reply and does not use them to train its models. There is no advertising or tracking in Hayati.",
   "@consentProcessors": {
     "description": "Consent gate paragraph — the processors, honest to the shipped reality (ADR-023 D3/D6). TR/AR respectful register."
   },

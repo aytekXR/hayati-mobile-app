@@ -31,4 +31,27 @@ void main() {
       expect(MotionTokens.revealSlide, lessThanOrEqualTo(24));
     });
   });
+
+  group('MotionTokens — the reveal three-beat (redesign ui-ux §9)', () {
+    test('the three beats fit the ≤1.2s choreography budget', () {
+      final total =
+          MotionTokens.revealBeatUnfold +
+          MotionTokens.revealBeatSettle +
+          MotionTokens.revealBeatSeedDrop;
+      expect(total.inMilliseconds, lessThanOrEqualTo(1200));
+    });
+
+    test('each beat carries its §9 table value', () {
+      // Pinned exactly: the beats are a signed spec, not a band — an edit is
+      // a deliberate design change, red here first.
+      expect(MotionTokens.revealBeatUnfold.inMilliseconds, 300);
+      expect(MotionTokens.revealBeatSettle.inMilliseconds, 180);
+      expect(MotionTokens.revealBeatSeedDrop.inMilliseconds, 420);
+    });
+
+    test('seedDrop is the one sanctioned spring; presses stay 120ms', () {
+      expect(MotionTokens.seedDropCurve, Curves.easeOutBack);
+      expect(MotionTokens.pressTouch.inMilliseconds, 120);
+    });
+  });
 }

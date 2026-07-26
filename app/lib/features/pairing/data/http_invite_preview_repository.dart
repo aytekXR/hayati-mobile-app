@@ -65,9 +65,14 @@ class HttpInvitePreviewRepository implements InvitePreviewRepository {
 
 /// Pure, loud parse of the `invitePreview` 200 body — the mirror of the
 /// server's `InvitePreview` projection. An off-contract shape (bad JSON,
-/// non-map, unknown `status`, non-string `creatorDisplayName`) throws
-/// [FormatException] rather than yielding a half-built result; the boundary
-/// turns that into [InviteUnknownException].
+/// non-map, unknown `status`, non-string `creatorDisplayName`/`questionText`,
+/// non-bool `creatorAnswered`) throws [FormatException] rather than yielding
+/// a half-built result; the boundary turns that into [InviteUnknownException].
+///
+/// The PRD F1 hook stays COUPLED at the parse: `creatorAnswered` is read only
+/// when `questionText` is present (the server never emits a bare boolean, and
+/// the client must never render an "already answered" claim without the
+/// question it belongs to).
 InvitePreviewResult invitePreviewResultFromBody(String body) {
   final decoded = jsonDecode(body);
   if (decoded is! Map) {
@@ -87,9 +92,27 @@ InvitePreviewResult invitePreviewResultFromBody(String body) {
       'invitePreview: "creatorDisplayName" is ${rawName.runtimeType}',
     );
   }
+  final rawQuestion = decoded['questionText'];
+  if (rawQuestion != null && rawQuestion is! String) {
+    throw FormatException(
+      'invitePreview: "questionText" is ${rawQuestion.runtimeType}',
+    );
+  }
+  var creatorAnswered = false;
+  if (rawQuestion != null) {
+    final rawAnswered = decoded['creatorAnswered'];
+    if (rawAnswered != null && rawAnswered is! bool) {
+      throw FormatException(
+        'invitePreview: "creatorAnswered" is ${rawAnswered.runtimeType}',
+      );
+    }
+    creatorAnswered = rawAnswered == true;
+  }
   return InvitePreviewResult(
     status: status,
     creatorDisplayName: rawName as String?,
+    questionText: rawQuestion as String?,
+    creatorAnswered: creatorAnswered,
   );
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
+import 'package:hayati_app/core/widgets/seed_vessel.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/coach/domain/coach_repository_provider.dart';
@@ -510,17 +511,19 @@ void main() {
     });
   });
 
-  group('streak (M3.4)', () {
-    // A couple carrying a positive server streak (ADR-012). The revealed state
-    // shows it; every other state must not.
-    Couple coupleWithStreak(int count) => Couple(
+  group('streak strip (redesign ui-ux §6.3 — the seed vessel)', () {
+    // A couple carrying a positive server streak (ADR-012). The strip is
+    // ALWAYS present on the question view since the redesign (the vessel
+    // carries the streak language in every state); a zero count renders the
+    // empty vessel + the canonical honest line, never a fake streak.
+    Couple coupleWithStreak(int count, {int graceTokens = 1}) => Couple(
       id: coupleId,
       memberUids: const [ownUid, partnerUid],
       timezone: istanbul,
       streak: CoupleStreak(
         count: count,
         lastMutualDate: '20260709',
-        graceTokens: 1,
+        graceTokens: graceTokens,
       ),
     );
 
@@ -531,9 +534,8 @@ void main() {
           ackedAnswer('Partner reply here.'),
     };
 
-    testWidgets('revealed with count > 0 shows the localized N-day streak', (
-      tester,
-    ) async {
+    testWidgets('revealed with count > 0 shows the seeds/days line beside the '
+        'vessel (the Material heart is retired)', (tester) async {
       await pumpPaired(
         tester,
         couple: coupleWithStreak(4),
@@ -543,12 +545,12 @@ void main() {
 
       // Sanity: we are in the revealed state.
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      // The streak row: exact localized copy + its heart marker.
-      expect(find.text(en.pairedStreak(4)), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.text(en.streakSeeds(4)), findsOneWidget);
+      expect(find.byType(SeedVessel), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
     });
 
-    testWidgets('revealed under a PREMIUM mirror renders the streak row '
+    testWidgets('revealed under a PREMIUM mirror renders the strip '
         'identically (never hidden for premium)', (tester) async {
       await pumpPaired(
         tester,
@@ -559,34 +561,35 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      expect(find.text(en.pairedStreak(4)), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.text(en.streakSeeds(4)), findsOneWidget);
+      expect(find.byType(SeedVessel), findsOneWidget);
     });
 
-    testWidgets('revealed with the zero streak renders NOTHING (honest '
-        'display — trigger lag must not show a zero)', (tester) async {
+    testWidgets('revealed with the zero streak shows the empty vessel + the '
+        'canonical empty line — never a zero count (honest display: trigger '
+        'lag must not show a streak)', (tester) async {
       // Default couple = CoupleStreak.zero (count 0).
       await pumpPaired(tester, initialAnswers: bothAnswered());
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
-      // Even the count-0 caption must never appear (guards against a `>= 0`
-      // gate regression).
-      expect(find.text(en.pairedStreak(0)), findsNothing);
+      expect(find.text(en.streakVesselEmpty), findsOneWidget);
+      // The count line must never render a zero (guards a `>= 0` regression).
+      expect(find.text(en.streakSeeds(0)), findsNothing);
+      expect(find.byType(SeedVessel), findsOneWidget);
     });
 
-    testWidgets('locked (pre-answer) hides the streak even with a positive '
-        'count', (tester) async {
+    testWidgets('locked (pre-answer) SHOWS the strip — the vessel is the '
+        'always-present streak language since the redesign', (tester) async {
       await pumpPaired(tester, couple: coupleWithStreak(4));
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedPartnerLocked), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
-      expect(find.text(en.pairedStreak(4)), findsNothing);
+      expect(find.text(en.streakSeeds(4)), findsOneWidget);
+      expect(find.byType(SeedVessel), findsOneWidget);
     });
 
-    testWidgets('waiting (own answered, partner not) hides the streak', (
+    testWidgets('waiting (own answered, partner not) shows the strip', (
       tester,
     ) async {
       await pumpPaired(
@@ -600,15 +603,40 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.text(en.streakSeeds(4)), findsOneWidget);
     });
 
-    testWidgets('no-day-yet hides the streak', (tester) async {
+    testWidgets('a spent grace token (graceTokens == 0) surfaces the mercy '
+        'caption in the strip', (tester) async {
+      await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4, graceTokens: 0),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(en.streakMercyUsed), findsOneWidget);
+    });
+
+    testWidgets('an available grace token stays silent — no mercy caption', (
+      tester,
+    ) async {
+      await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(en.streakMercyUsed), findsNothing);
+    });
+
+    testWidgets('no-day-yet carries no strip (the vessel lives on the '
+        'question view only)', (tester) async {
       await pumpPaired(tester, couple: coupleWithStreak(4), seedDay: false);
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedNoDayTitle), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.byType(SeedVessel), findsNothing);
+      expect(find.text(en.streakSeeds(4)), findsNothing);
     });
   });
 
@@ -833,16 +861,19 @@ void main() {
     });
   });
 
-  // The signature reveal interaction (brandkit §6, §9.3): a soft unfold plus a
-  // gentle haptic. The unfold is TRANSIENT — no golden captures it, so it is
-  // proven here (the S028 lesson: a fix on a transient surface needs a widget
-  // test, not a golden). ADR-025 slice 2, Session 029.
+  // The signature reveal interaction, staged as the redesign's three-beat
+  // choreography (ui-ux §11): unfold-toward → settle-pair (the single light
+  // haptic fires AT the settle, 480ms in — no longer the instant the slot
+  // flips) → seed-drop. The choreography is TRANSIENT — no golden captures it,
+  // so it is proven here (the S028 lesson: a fix on a transient surface needs
+  // a widget test, not a golden); the beat mechanics themselves are pinned by
+  // reveal_choreography_test.dart, this group proves the paired-home WIRING
+  // (live transition, cold-open bound, at-most-once haptic, reduce-motion).
   //
-  // These tests deliberately drive frames with pump()/pump(Duration) rather than
-  // pumpAndSettle: the reveal ANIMATION is the thing under test, so settling it
-  // away would hide the mid-fade frame — and a pumpAndSettle that runs the live
-  // unfold under the SystemChannels.platform haptic mock does not terminate.
-  group('reveal unfold + haptic (slice 2, brandkit §6)', () {
+  // These tests deliberately drive frames with pump()/pump(Duration) rather
+  // than pumpAndSettle: the reveal ANIMATION is the thing under test, so
+  // settling it away would hide the mid-fade frame.
+  group('reveal choreography + haptic (ui-ux §11)', () {
     List<MethodCall> spyHaptics(WidgetTester tester) {
       final haptics = <MethodCall>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -875,10 +906,15 @@ void main() {
       }
     }
 
-    // Finish the 240ms unfold deterministically without pumpAndSettle, so no
-    // ticker is left pending at teardown.
+    // Finish the 900ms three-beat choreography deterministically without
+    // pumpAndSettle, so no ticker is left pending at teardown.
     Future<void> settleUnfold(WidgetTester tester) =>
-        tester.pump(const Duration(milliseconds: 300));
+        tester.pump(const Duration(milliseconds: 1000));
+
+    // Advance from the choreography's mount past beat 2's settle (480ms) —
+    // the moment the haptic fires — without finishing beat 3.
+    Future<void> pumpPastSettle(WidgetTester tester) =>
+        tester.pump(const Duration(milliseconds: 500));
 
     Map<String, CoupleAnswer> ownOnly() => {
       FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, ownUid):
@@ -891,7 +927,7 @@ void main() {
           ackedAnswer('Partner reply here.'),
     };
 
-    testWidgets('the revealed group softly unfolds (opacity climbs 0→1) on the '
+    testWidgets('the revealed group crossfades in (opacity climbs 0→1) on the '
         'live waiting→revealed transition', (tester) async {
       final fakes = await pumpPaired(tester, initialAnswers: ownOnly());
       await tester.pumpAndSettle(); // waiting: no unfold yet → settles cleanly
@@ -904,11 +940,11 @@ void main() {
         partnerUid,
         ackedAnswer('Partner reply here.'),
       );
-      // Propagate the partner answer and mount the unfold at its START value.
+      // Propagate the partner answer and mount the choreography at its START.
       await pumpUntil(tester, find.byKey(revealUnfoldOpacityKey));
       expect(find.byKey(revealUnfoldOpacityKey), findsOneWidget);
 
-      // Partway through the 240ms unfold: mid-fade — proof the animation is
+      // Partway through beat 1 (300ms): mid-fade — proof the animation is
       // actually running, not frozen at either boundary.
       await tester.pump(const Duration(milliseconds: 100));
       final mid = tester.widget<Opacity>(find.byKey(revealUnfoldOpacityKey));
@@ -925,7 +961,9 @@ void main() {
     });
 
     testWidgets('the live waiting→revealed transition fires ONE gentle '
-        'lightImpact haptic', (tester) async {
+        'lightImpact haptic — AT beat 2\'s settle, not on the slot flip', (
+      tester,
+    ) async {
       final haptics = spyHaptics(tester);
       final fakes = await pumpPaired(tester, initialAnswers: ownOnly());
       await tester.pumpAndSettle();
@@ -938,33 +976,44 @@ void main() {
         partnerUid,
         ackedAnswer('Partner reply here.'),
       );
-      // The haptic fires in didUpdateWidget the instant the slot flips — no need
-      // to settle the animation to observe it.
       await pumpUntil(tester, find.text(en.pairedRevealedCaption));
-
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+      // The choreography has mounted but the pair has not settled: the haptic
+      // belongs to beat 2 (ui-ux §11 — "the light haptic fires at the settle"),
+      // so nothing has buzzed yet.
+      expect(haptics, isEmpty);
+
+      await pumpPastSettle(tester);
       expect(haptics, hasLength(1));
       expect(haptics.single.arguments, 'HapticFeedbackType.lightImpact');
       await settleUnfold(tester);
+      expect(haptics, hasLength(1)); // beat 3 adds nothing
     });
 
-    testWidgets('cold-open into revealed fires exactly ONE haptic as the reveal '
-        'settles in (the read chain still passes waiting→revealed)', (tester) async {
-      // Honest bound: the slot settles Locked→Waiting→Revealed even when both
-      // answers already exist, so cold-open reaches revealed via waiting→revealed
-      // and buzzes once — there is no cheap client signal separating it from the
-      // live moment. It is bounded to ONCE per instance (see the next test), and
-      // app-resume never re-fires.
-      final haptics = spyHaptics(tester);
-      await pumpPaired(tester, initialAnswers: bothAnswered());
-      await pumpUntil(tester, find.text(en.pairedRevealedCaption));
+    testWidgets(
+      'cold-open into revealed fires exactly ONE haptic as the reveal '
+      'settles in (the read chain still passes waiting→revealed)',
+      (tester) async {
+        // Honest bound: the slot settles Locked→Waiting→Revealed even when both
+        // answers already exist, so cold-open replays the choreography and buzzes
+        // once at its settle — there is no cheap client signal separating it from
+        // the live moment. It is bounded to ONCE per instance (see the next
+        // test), and app-resume never re-fires.
+        final haptics = spyHaptics(tester);
+        await pumpPaired(tester, initialAnswers: bothAnswered());
+        await pumpUntil(tester, find.text(en.pairedRevealedCaption));
 
-      expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      expect(find.text('Partner reply here.'), findsOneWidget);
-      expect(haptics, hasLength(1));
-      expect(haptics.single.arguments, 'HapticFeedbackType.lightImpact');
-      await settleUnfold(tester);
-    });
+        expect(find.text(en.pairedRevealedCaption), findsOneWidget);
+        expect(find.text('Partner reply here.'), findsOneWidget);
+        expect(haptics, isEmpty); // not yet — the settle carries the buzz
+
+        await pumpPastSettle(tester);
+        expect(haptics, hasLength(1));
+        expect(haptics.single.arguments, 'HapticFeedbackType.lightImpact');
+        await settleUnfold(tester);
+        expect(haptics, hasLength(1));
+      },
+    );
 
     testWidgets('the reveal haptic is at-most-once per instance: the '
         'permission-denial self-heal (locked→revealed) adds NONE', (
@@ -974,13 +1023,14 @@ void main() {
       final fakes = await pumpPaired(tester, initialAnswers: bothAnswered());
       await pumpUntil(tester, find.text(en.pairedRevealedCaption));
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      expect(haptics, hasLength(1)); // the cold-open settle fired once
       await settleUnfold(tester);
+      expect(haptics, hasLength(1)); // the cold-open settle fired once
 
       // A lost exists()-race denies the partner listen → the slot maps back to
       // Locked (defense-in-depth), then the bounded 1s retry replays the stored
-      // answer and re-reveals — a locked→revealed transition (not waiting→), and
-      // the once-per-instance flag is already set.
+      // answer and re-reveals. The choreography REMOUNTS and replays its beats
+      // (motion is per-mount), but the once-per-instance haptic flag is already
+      // set, so its onSettle is swallowed.
       fakes.answers.emitError(
         coupleId,
         todayKey,
@@ -993,13 +1043,15 @@ void main() {
       await tester.pump(const Duration(seconds: 1)); // fire the bounded retry
       await pumpUntil(tester, find.text(en.pairedPartnerAnswerLabel));
       expect(find.text(en.pairedPartnerAnswerLabel), findsOneWidget);
+      await settleUnfold(tester); // replay the beats past their settle
       // Still exactly one — the self-heal added no buzz.
       expect(haptics, hasLength(1));
-      await settleUnfold(tester);
     });
 
-    testWidgets('reduce-motion collapses the unfold to an instant appearance '
-        '(opacity 1 on the first revealed frame, no fade)', (tester) async {
+    testWidgets('reduce-motion collapses the choreography to an instant '
+        'crossfade (opacity 1 on the first revealed frame) with the haptic '
+        'PRESERVED', (tester) async {
+      final haptics = spyHaptics(tester);
       final fakes = await pumpPaired(
         tester,
         reduceMotion: true,
@@ -1007,6 +1059,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
+      expect(haptics, isEmpty);
 
       fakes.answers.emitAnswer(
         coupleId,
@@ -1016,12 +1069,16 @@ void main() {
       );
       await pumpUntil(tester, find.byKey(revealUnfoldOpacityKey));
       expect(find.text(en.pairedRevealedCaption), findsOneWidget);
-      // Duration.zero → the group is already fully in place on frame one, no
-      // fade — and nothing left ticking, so no settle needed.
+      // Collapsed → the group is already fully in place on frame one, no fade
+      // — and nothing left ticking, so no settle needed.
       expect(
         tester.widget<Opacity>(find.byKey(revealUnfoldOpacityKey)).opacity,
         1.0,
       );
+      // ui-ux §8: "the reveal must remain operable and feelable without
+      // animation" — the settle hook still buzzed exactly once, instantly.
+      expect(haptics, hasLength(1));
+      expect(haptics.single.arguments, 'HapticFeedbackType.lightImpact');
     });
   });
 }
