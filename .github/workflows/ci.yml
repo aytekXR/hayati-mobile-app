@@ -223,19 +223,23 @@ jobs:
     name: ios-build-smoke
     # iOS-first build smoke (ADR-006). This gate was written when macOS
     # minutes billed at 10x; the repo is PUBLIC, so GitHub-hosted runners are
-    # FREE and cost is no longer the driver (corrected S041, ADR-029 D6 —
-    # re-decision filed as issue #100). It stands on LATENCY: macOS runners
-    # queue far longer than ubuntu. So draft PRs (e.g. gate-proof PRs) skip it,
+    # FREE and cost is no longer the driver (corrected S041, ADR-029 D6). The
+    # replacement reason offered then — "macOS runners queue far longer than
+    # ubuntu" — is ALSO false here: measured over 24 macOS jobs at S049, queue
+    # time is 0.1 min (~6 seconds), median and max (issue #100). What this job
+    # costs is its RUN: a median 6 min, max 9. That is small, which is why it
+    # stays per-PR and merely skips work that cannot change its outcome —
+    # draft PRs (e.g. gate-proof PRs) skip it,
     # and docs-only pushes to main skip it too (ci-debt #17 — the PR run already built this code;
     # required-check semantics are untouched because PR events always run).
     # workflow_dispatch has neither a draft field nor a push base and runs.
     if: >-
       github.event.pull_request.draft != true &&
       (github.event_name != 'push' || needs.quality.outputs.code_changed == 'true')
-    # Deliberate latency choice (was cost — see above; the repo is public and
-    # the minutes are free): don't start the slow macOS build until BOTH cheap
-    # ubuntu checks pass (~2-4 min added happy-path
-    # latency; a red ubuntu job still blocks merge either way). functions-rules
+    # Deliberate ORDERING choice (was cost — see above; the repo is public and
+    # the minutes are free): don't start the 6-minute macOS build until BOTH
+    # cheap ubuntu checks pass (~2-4 min added happy-path wall-clock; a red
+    # ubuntu job still blocks merge either way). functions-rules
     # added M2.1 — a rules-only regression must not start a macOS build.
     needs: [quality, functions-rules]
     runs-on: macos-15
@@ -300,14 +304,28 @@ jobs:
     # ci-debt #6. Full simulator debug compile + auth/firestore emulator
     # round-trips (~10-14 min wall).
     #
-    # MAIN-ONLY + on-demand. The original reason was cost — "~100-140 billed min
-    # at 10x macOS", from the Session-004 billing incident — and that reason is
-    # FACTUALLY VOID: this repo is PUBLIC, and GitHub-hosted standard runners,
-    # macOS included, are free for public repositories (corrected S041, ADR-029
-    # D6; the same false premise is corrected at line 225). The gate stands on
-    # its remaining justification, LATENCY: macOS runners queue far longer than
-    # ubuntu, so per-PR macOS legs cost every review cycle even at zero dollars.
-    # Whether to relax it now is issue #100, deliberately not decided here.
+    # MAIN-ONLY + on-demand. Two justifications have been offered and BOTH were
+    # wrong; the third is measured (issue #100, decided S049).
+    #
+    #   1. "~100-140 billed min at 10x macOS" (the Session-004 billing incident).
+    #      VOID: this repo is PUBLIC and GitHub-hosted standard runners, macOS
+    #      included, are free for public repositories. Corrected S041, ADR-029 D6.
+    #   2. "macOS runners queue far longer than ubuntu." ALSO VOID, and this one
+    #      was written by the session that corrected the first. MEASURED over 24
+    #      macOS jobs on this repo: queue time is 0.1 min — about six seconds —
+    #      median AND max, for both macOS jobs. Queueing costs nothing here.
+    #   3. What it actually costs is RUN DURATION: this job runs a median of
+    #      22 min (max 33; once 50, wedged on a corrupted SwiftPM cache), against
+    #      6 min for ios-build-smoke. Per-PR it would sit on the critical path of
+    #      every code change and add a ~22-33 min flake surface to merges.
+    #
+    # So the gate stays, on reason 3, and the compensation for its post-merge-only
+    # verdict already exists and works: ADR-024's Slack notifier reports the run
+    # nobody is watching, and ADR-024 D8's commit-keyed concurrency stopped the
+    # session's own close commit from cancelling it. Relaxing to per-PR would
+    # trade a working compensation for a per-PR tax. Revisit if a human reviewer
+    # ever enters the loop (then the pre-merge signal is worth the wait) — and if
+    # you do, #100(c) is mandatory: re-examine ADR-024 D8 and ci-debt #17.
     # It is a POST-MERGE signal: a broken emulator flow
     # reaches main before CI catches it, so run the suite locally before merge
     # (see integration_test/*_test.dart headers). Prove green on a PR branch via
@@ -318,9 +336,10 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main'
        && needs.quality.outputs.code_changed == 'true')
-    # Same gate as ios-build-smoke, on the same corrected reasoning (latency,
-    # not billing — ADR-029 D6): don't start the slow macOS legs until the
-    # cheap ubuntu quality job is green.
+    # Same ordering as ios-build-smoke, on the same corrected reasoning (run
+    # duration and signal ordering, not billing and not queueing — ADR-029 D6,
+    # measured at S049, issue #100): don't start the ~22-minute macOS leg until
+    # the cheap ubuntu quality job is green.
     needs: quality
     runs-on: macos-15
     # Each suite compiles its own simulator binary and they run serially, so the
