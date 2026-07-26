@@ -17,7 +17,11 @@ import {
   COACH_RATE_WINDOW_MS,
   makeCoachProxyHandler,
 } from '../../src/coach/coach-proxy';
-import { DEFAULT_CAPS, computePeriodKeys } from '../../src/coach/coach-core';
+import {
+  DEFAULT_CAPS,
+  computePeriodKeys,
+  SCAN_CHAR_LIMIT,
+} from '../../src/coach/coach-core';
 import { refundCoachTurn } from '../../src/coach/coach-service';
 import { CoachProvider, FixtureCoachProvider } from '../../src/coach/provider-port';
 import { createRateLimiter } from '../../src/invites/invite-preview';
@@ -349,6 +353,26 @@ describe('coachProxy handler — post-filter (Decision 2 step 7; test commitment
     });
     expect(provider.calls).toHaveLength(1);
     expect((await dailyRef(ALICE).get()).data()!.count).toBe(1); // cap consumed — the provider was paid
+  });
+
+  it('scans a reply LONGER than the user-input scan cap in full — the tail is not skipped', async () => {
+    // Regression, S042 review finding. Step 7 used to pass the reply through
+    // `truncateForScan` (SCAN_CHAR_LIMIT = 4000), a cap whose own comment justifies
+    // itself as "double the 2,000-char legit maximum" — i.e. calibrated for USER
+    // input. A model reply is bounded by the adapter's COACH_MAX_TOKENS (1024), which
+    // can exceed 4,000 characters, so the TAIL of a long reply was never scanned by
+    // the crisis filter. This reply puts the crisis phrase past the old cap: it must
+    // still route to the help path.
+    await seedCouple();
+    await seedPremium({ entitled: true, expiresAtMs: null });
+    const longTail = `${'benign persona prose. '.repeat(300)}${CRISIS_REPLY}`;
+    expect(longTail.length).toBeGreaterThan(SCAN_CHAR_LIMIT);
+    expect(longTail.indexOf(CRISIS_REPLY)).toBeGreaterThan(SCAN_CHAR_LIMIT);
+    const provider = new FixtureCoachProvider([{ text: longTail }]);
+
+    const res = await makeHandler({ provider })(authedRequest(ALICE, validData()));
+    expect(res).toMatchObject({ kind: 'help', category: 'selfHarm' });
+    expect((await dailyRef(ALICE).get()).data()!.count).toBe(1); // cap stays consumed
   });
 
   it('a post-filter detector throw fails closed to help (cap already consumed)', async () => {

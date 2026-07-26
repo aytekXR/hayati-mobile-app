@@ -223,9 +223,20 @@ export function makeCoachProxyHandler(deps: CoachProxyDeps = {}) {
       // (7) Crisis post-filter — the same detector (all lexicons) over the reply. A
       // hit (or a detector throw — fail-closed) discards the persona reply for the
       // help path; the cap stays consumed (the provider was paid).
+      //
+      // The reply is scanned IN FULL — deliberately NOT through `truncateForScan`
+      // (fixed S042, review finding). That cap is 4,000 chars and its own comment
+      // justifies itself as "double the 2,000-char legit maximum", i.e. it is
+      // calibrated for USER input, where it bounds a hostile oversized payload.
+      // A model reply is bounded by the adapter's own `COACH_MAX_TOKENS` (1024),
+      // which can exceed 4,000 characters — so reusing the user-input cap here
+      // silently left the TAIL of a maximum-length reply unscanned by a SAFETY
+      // filter. There is no hostile-payload risk to bound on this path: the text
+      // comes from our own provider call, already token-bounded, and the detector
+      // is a linear lexicon scan.
       let postVerdict: CrisisVerdict;
       try {
-        postVerdict = detect([truncateForScan(reply.text)]);
+        postVerdict = detect([reply.text]);
       } catch {
         emit({ outcome: 'help-path', language: coachRequest.language });
         return { kind: 'help', text: helpResponse(coachRequest.language), remaining };
