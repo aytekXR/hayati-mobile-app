@@ -13,6 +13,7 @@ abstract final class TypographyTokens {
   static const String family = 'Rubik';
   static const List<String> fallback = ['Noto Sans', 'Noto Sans Arabic'];
 
+  static const FontWeight light = FontWeight.w300;
   static const FontWeight regular = FontWeight.w400;
   static const FontWeight semiBold = FontWeight.w600;
   static const FontWeight bold = FontWeight.w700;
@@ -24,6 +25,31 @@ abstract final class TypographyTokens {
   /// Arabic ('ar') reads at 1.7 line-height; every other script at 1.5.
   static double bodyHeightFor(String languageCode) =>
       languageCode == 'ar' ? bodyHeightArabic : bodyHeightLatin;
+
+  // ── The Question style (redesign ui-ux §9.2) ─────────────────────────────
+  // 28 / 300 · lh 1.35 Latin / 1.6 Arabic — the daily question's own literary
+  // voice, the product's hero text ("the light weight glows on Night").
+  // Reserved for the question itself; it is deliberately NOT mapped onto a
+  // Material TextTheme role so no component inherits it by accident.
+  //
+  // NOTE: the Rubik Light (300) face is not bundled yet (the redesign adds
+  // 300/800 to the family); until the asset lands, Flutter resolves w300 to
+  // the nearest bundled face (Regular) — the declared weight is already
+  // correct so the glyphs lighten the day the font file ships.
+
+  static const double questionSize = 28;
+  static const double questionHeightLatin = 1.35;
+  static const double questionHeightArabic = 1.6;
+
+  /// The daily-question hero style for [languageCode] (Arabic carries the
+  /// taller 1.6 line-height — "Arabic needs air", per resolved locale).
+  static TextStyle questionStyleFor(String languageCode) => TextStyle(
+    fontFamily: family,
+    fontFamilyFallback: fallback,
+    fontSize: questionSize,
+    fontWeight: light,
+    height: languageCode == 'ar' ? questionHeightArabic : questionHeightLatin,
+  );
 
   /// The brand [TextTheme] for [languageCode]. Body + caption styles carry the
   /// per-script line-height; headings keep the font default height.

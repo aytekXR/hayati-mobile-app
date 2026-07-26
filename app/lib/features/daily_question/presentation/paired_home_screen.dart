@@ -5,9 +5,12 @@ import 'package:flutter/services.dart'
     show HapticFeedback, LengthLimitingTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design_system/elevation_tokens.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
+import '../../../core/design_system/typography_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/widgets/lattice_watermark.dart';
 import '../../../core/widgets/reveal_choreography.dart';
 import '../../coach/presentation/coach_screen.dart';
 import '../../entitlements/presentation/pack_selection_screen.dart';
@@ -382,17 +385,10 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
           seedDrop: revealed && widget.streak.count > 0 ? beats.seedDrop : null,
         ),
         const SizedBox(height: SpacingTokens.x6),
-        Text(
-          l10n.pairedQuestionTitle,
-          style: theme.textTheme.bodySmall,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: SpacingTokens.x3),
-        Text(
-          widget.question.text,
-          style: theme.textTheme.headlineMedium,
-          textAlign: TextAlign.center,
-        ),
+        // The question card (ui-ux §6.3 slot 3): Night Raised, radius 16,
+        // plum Level-1 shadow, caption + pack chip in Mist, the question in
+        // the Question style — the hero text of the day.
+        _QuestionCard(question: widget.question.text),
         const SizedBox(height: SpacingTokens.x6),
         if (revealed)
           // Own and partner render at EQUAL weight (brandkit §9.1, "two
@@ -626,14 +622,93 @@ class _CoachTile extends StatelessWidget {
   }
 }
 
-/// The partner half of the pre-reveal card: **locked / waiting / failure**.
-/// Since ADR-025 slice 2 the REVEALED case is rendered directly inside
-/// [_PairedQuestionView]'s unfold group (so the two answers can be grouped and
-/// animated together), so this widget is only ever mounted in the non-revealed
-/// `else` branch. The `PartnerSlotRevealed` arm below is therefore not reached
-/// from that call site; it is retained because `PartnerSlot` is a sealed class
-/// (the switch must be exhaustive) and it keeps the widget defensively reusable
-/// — an inline failure here still never takes down the whole screen.
+/// The question card (redesign ui-ux §6.3): Night Raised, radius 16, the plum
+/// Level-1 shadow; "Today's question" caption top-start with the pack chip
+/// ("Starter collection" — the honest single-collection label until W9) at
+/// top-end, both in Mist; the question itself in the Question style (28/300,
+/// per-script line-height) — its own literary voice; and the 4% Clay lattice
+/// watermark tucked into the bottom-end corner (clipped by the card, position
+/// logical so it mirrors under RTL).
+class _QuestionCard extends StatelessWidget {
+  const _QuestionCard({required this.question});
+
+  final String question;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final languageCode = Localizations.localeOf(context).languageCode;
+    final caption = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: RadiusTokens.cardRadius,
+        boxShadow: ElevationTokens.level1,
+      ),
+      child: Stack(
+        children: [
+          const PositionedDirectional(
+            bottom: -18,
+            end: -18,
+            child: LatticeWatermark(),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(SpacingTokens.cardPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(l10n.pairedQuestionTitle, style: caption),
+                    ),
+                    const SizedBox(width: SpacingTokens.x2),
+                    Text(l10n.packSelectionCurrentTitle, style: caption),
+                  ],
+                ),
+                const SizedBox(height: SpacingTokens.x3),
+                Text(
+                  question,
+                  style: TypographyTokens.questionStyleFor(
+                    languageCode,
+                  ).copyWith(color: theme.colorScheme.onSurface),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The shared sealed/answer card chrome (ui-ux §9.4 card variants): Night
+/// Raised, radius 16, Veil hairline, plum Level-1 shadow.
+BoxDecoration _cardDecoration(ThemeData theme) => BoxDecoration(
+  color: theme.colorScheme.surfaceContainerHighest,
+  borderRadius: RadiusTokens.cardRadius,
+  border: Border.all(color: theme.colorScheme.outlineVariant),
+  boxShadow: ElevationTokens.level1,
+);
+
+/// The partner half of the pre-reveal card: **locked / waiting / failure** —
+/// the redesign's folded-note sealed card (§5.4: "a folded-note visual with
+/// the lattice-lock glyph, not a grey rectangle"): centered glyph in Clay
+/// over centered copy, Veil hairline edge. Since ADR-025 slice 2 the REVEALED
+/// case is rendered directly inside [_PairedQuestionView]'s pair group (so
+/// the two answers can be grouped and animated together), so this widget is
+/// only ever mounted in the non-revealed `else` branch. The
+/// `PartnerSlotRevealed` arm below is therefore not reached from that call
+/// site; it is retained because `PartnerSlot` is a sealed class (the switch
+/// must be exhaustive) and it keeps the widget defensively reusable — an
+/// inline failure here still never takes down the whole screen.
+///
+/// Glyphs are Material stand-ins (lock / open-note) until the five custom
+/// brand glyphs land with the Phosphor migration (#63).
 class _PartnerSlotCard extends StatelessWidget {
   const _PartnerSlotCard({required this.slot});
 
@@ -651,7 +726,7 @@ class _PartnerSlotCard extends StatelessWidget {
       ),
       PartnerSlotWaiting() => _slotShell(
         theme,
-        icon: Icons.hourglass_empty,
+        icon: Icons.import_contacts,
         text: l10n.pairedPartnerWaiting,
       ),
       // Not reached from _PairedQuestionView (revealed renders directly there);
@@ -678,24 +753,27 @@ class _PartnerSlotCard extends StatelessWidget {
     bool error = false,
   }) {
     return Container(
-      padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: RadiusTokens.cardRadius,
+      padding: const EdgeInsets.symmetric(
+        horizontal: SpacingTokens.cardPadding,
+        vertical: SpacingTokens.x6,
       ),
-      child: Row(
+      decoration: _cardDecoration(theme),
+      child: Column(
         children: [
+          // Clay — the secondary-glyph role (§9.4); errors keep Alert (the
+          // color of the state, never the tone).
           Icon(
             icon,
-            color: error ? theme.colorScheme.error : theme.colorScheme.primary,
+            color: error
+                ? theme.colorScheme.error
+                : theme.colorScheme.secondary,
           ),
-          const SizedBox(width: SpacingTokens.x3),
-          Expanded(
-            child: Text(
-              text,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: error ? theme.colorScheme.error : null,
-              ),
+          const SizedBox(height: SpacingTokens.x3),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: error ? theme.colorScheme.error : null,
             ),
           ),
         ],
@@ -704,7 +782,8 @@ class _PartnerSlotCard extends StatelessWidget {
   }
 }
 
-/// A revealed answer (own or partner's) as a labeled card.
+/// A revealed answer (own or partner's) as a labeled card: author caption in
+/// Mist over the answer body, on the shared card chrome.
 class _AnswerCard extends StatelessWidget {
   const _AnswerCard({required this.label, required this.text});
 
@@ -716,14 +795,16 @@ class _AnswerCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: RadiusTokens.cardRadius,
-      ),
+      decoration: _cardDecoration(theme),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: theme.textTheme.bodySmall),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: SpacingTokens.x2),
           Text(text, style: theme.textTheme.bodyMedium),
         ],
