@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Hayati app icon — Two Seeds, redrawn (dark default)">
+  <defs>
+    <clipPath id="ts-squircle"><path d="M60,0 C12.8,0 0,12.8 0,60 C0,107.2 12.8,120 60,120 C107.2,120 120,107.2 120,60 C120,12.8 107.2,0 60,0 Z"/></clipPath>
+    <radialGradient id="ts-lift" gradientUnits="userSpaceOnUse" cx="61" cy="50" r="50">
+      <stop offset="0" stop-color="#2E2344" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#2E2344" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g clip-path="url(#ts-squircle)">
+    <rect width="120" height="120" fill="#231A33"/>
+    <rect width="120" height="120" fill="url(#ts-lift)"/>
+    <g transform="translate(55,54) rotate(22) scale(1.38)">
+      <path fill="#8E3140" d="M0,0 C6.2,7.6 10.4,14.4 10.4,21.6 C10.4,28.6 5.8,33.6 0,33.6 C-5.8,33.6 -10.4,28.6 -10.4,21.6 C-10.4,14.4 -6.2,7.6 0,0 Z"/>
+    </g>
+    <g transform="translate(65.5,49.5) rotate(-22) scale(1.26)">
+      <path fill="#C04A5A" d="M0,0 C6.2,7.6 10.4,14.4 10.4,21.6 C10.4,28.6 5.8,33.6 0,33.6 C-5.8,33.6 -10.4,28.6 -10.4,21.6 C-10.4,14.4 -6.2,7.6 0,0 Z"/>
+      <path fill="#FFF8F1" d="M1.6,3.4 C3.8,6.2 5.3,9.4 5.9,12.9 C4.8,10 3.2,7.2 1.1,4.7 C1.25,4.2 1.4,3.75 1.6,3.4 Z"/>
+    </g>
+  </g>
+</svg>
