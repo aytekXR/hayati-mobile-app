@@ -111,11 +111,27 @@ void main() {
   });
 
   test('EVERY app-target config pins CODE_SIGN_STYLE = Automatic', () {
-    // ADR-029 D2: the whole cloud-signing mechanism of ADR-021 D5 —
+    // The pin STANDS; its reason INVERTED, and the old one is worth stating so
+    // the next reader is not misled by a stale justification (ADR-032 D7).
+    //
+    // ADR-029 D2 pinned this because ADR-021 D5's cloud-signing mechanism —
     // `-allowProvisioningUpdates` plus the API key at xcodebuild's
     // ~/.appstoreconnect/private_keys auto-discovery path — is INERT under
-    // manual signing. A one-word flip here silently invalidates that ADR, and
-    // Xcode's "Fix Issues" flow is one click from writing it.
+    // manual signing, so a one-word flip here silently invalidated that ADR.
+    //
+    // Since ADR-032 the release lane signs MANUALLY on purpose: fastlane
+    // `match` installs the stored certificate + profile and
+    // `update_code_signing_settings(use_automatic_signing: false)` writes
+    // `Manual` into the CHECKED-OUT pbxproj before archiving. The lane now
+    // performs, deliberately and every run, the exact flip this test was first
+    // written to catch.
+    //
+    // So what this pin defends is no longer the release path. It is (a) the
+    // founder's Mac and the cable rig, which build the COMMITTED project with
+    // Xcode automatic signing, and (b) a known starting state for the CI
+    // mutation. Both are real, and Xcode's "Fix Issues" flow is still one click
+    // from writing Manual here — which would break the dev box while CI, which
+    // overwrites the setting anyway, stayed green and said nothing.
     for (final c in appTargets()) {
       expect(
         c.settings['CODE_SIGN_STYLE'],
@@ -123,7 +139,10 @@ void main() {
         reason:
             'app-target config ${c.name} (${c.id}) must pin CODE_SIGN_STYLE = '
             'Automatic; found ${c.settings['CODE_SIGN_STYLE'] ?? '(absent)'} — '
-            'under Manual, ADR-021 D5 cloud signing does nothing at all',
+            'the COMMITTED project is what the dev box and the cable rig build '
+            'with, and they need automatic signing. CI overwrites this to '
+            'Manual at build time by design (ADR-032 D7), so a regression here '
+            'is invisible to the release lane and breaks only the human',
       );
     }
   });
