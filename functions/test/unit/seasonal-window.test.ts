@@ -14,8 +14,11 @@ import {
 
 // ADR-026: the window→date mapping. The fixture is the contract AND the ICU
 // drift guard — every row was verified against Node 20 full-ICU when the ADR
-// was written, so a future ICU data revision that moves an Umm al-Qura date
-// reddens here instead of quietly shifting the product (D8).
+// was written, and RE-VERIFIED unchanged on Node 22 / ICU 78 at the S043
+// runtime bump (ADR-030), so a future ICU data revision that moves an Umm
+// al-Qura date reddens here instead of quietly shifting the product (D8).
+// That re-verification is the whole reason this fixture exists: a runtime
+// upgrade is exactly the event that can move ICU data underneath us.
 const FIXTURE_PATH = fileURLToPath(
   new URL('../fixtures/seasonal-window-cases.json', import.meta.url),
 );
@@ -113,7 +116,9 @@ describe('isSeasonalWindowOpen', () => {
 // unsupported calendar to 'gregory', which would make month 9 read as
 // September and fire Ramadan every autumn, forever, with nothing red. This
 // installs that exact degradation (resolvedOptions is writable+configurable on
-// Node 20) and proves the guard both DETECTS it and fails toward CLOSED.
+// Node 20 and still on Node 22 — re-checked at the ADR-030 bump, since a
+// runtime that made it non-configurable would silently disarm this test)
+// and proves the guard both DETECTS it and fails toward CLOSED.
 describe('when the runtime cannot do Umm al-Qura (the silent-Gregorian mode)', () => {
   afterEach(() => {
     vi.restoreAllMocks();

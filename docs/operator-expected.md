@@ -332,7 +332,7 @@ logs (22:00 and 23:00 UTC), both clean: `failed: 0`, no errors, and the
 seasonal-calendar self-check reporting healthy in the real runtime. The backend
 you paid for is alive and behaving.
 
-**Verified live on `hayatiapp-dev`, `europe-west1`, all Node 20 / 256 MB:**
+**Verified live on `hayatiapp-dev`, `europe-west1`, 256 MB** (all moved from Node 20 to **Node 22** in Session 043 — see the dated item below, now closed):
 
 | What | Status |
 |---|---|
@@ -356,10 +356,15 @@ is the point; prod should follow a session that has watched dev behave.
 - **Cost:** couple-scoped workload ≈ near-zero at dev scale. **Please set a
   budget alert** now that billing is live — it is the one thing a session cannot
   do for you and the one thing you would want in place before a surprise.
-- **⚠️ Dated:** the deploy warned that **Node.js 20 is decommissioned
-  2026-10-30**, after which deploys fail. Filed as **issue #96**; the natural
-  time to fix it is just before the first prod deploy, so prod is never stood up
-  on a runtime with a known end date.
+- **✅ ~~Dated: Node.js 20 is decommissioned 2026-10-30~~ — FIXED (Session 043,
+  issue #96, ADR-030).** The deploy used to warn on every run that the runtime
+  had an end date after which deploys simply fail. The Functions now run on
+  **Node 22**, whose decommission date is **2028-10-31** — and Node 24 shares
+  that same date, so nothing was given up by taking the conservative option.
+  **Nothing is required from you**; this was moved *before* the first prod
+  deploy on purpose, so prod is never stood up on a runtime with a known end
+  date. The seasonal-calendar self-check was re-verified on the new runtime and
+  still reports healthy from production.
 
 ## 4. Apple: enrollment ✅ DONE · the three `ASC_*` secrets ✅ DONE — what remains is the app record and the on-device checks
 
