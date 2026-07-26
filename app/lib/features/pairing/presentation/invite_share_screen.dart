@@ -13,8 +13,11 @@ import 'state/invite_share_controller.dart';
 
 /// The real pairing entry point after profile capture (M2.2, replacing the M1
 /// placeholder): issues the caller's invite via `createInvite`, shows the code
-/// + expiry, and shares the localized WhatsApp message (warm one-liner + code
-/// + `hayati://invite/<code>` deep link, composed here from l10n). Brand
+/// + expiry, and shares the localized WhatsApp message (code-first per the
+/// product-copy pairing rewrite — the code leads because custom-scheme links
+/// are not tappable in chat apps, the ❤️ closes off the glanceable first
+/// line, and the `hayati://invite/<code>` deep link trails; composed here
+/// from l10n). Brand
 /// styling comes from the theme (core/design_system) plus the spacing tokens;
 /// logical-direction only (RTL-safe). Carries the sign-out affordance so a
 /// stalled pairing never strands the user.

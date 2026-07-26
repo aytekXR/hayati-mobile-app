@@ -115,9 +115,9 @@
   "@inviteShareButton": {
     "description": "Button that opens the system share sheet with the invite message"
   },
-  "inviteShareMessage": "I'm waiting for you on Hayati ❤️\nInvite code: {code}\n{link}",
+  "inviteShareMessage": "I picked an app for us — one question a day, just for the two of us. My invite code: {code}. Get Hayati, then enter the code. I'm waiting for you ❤️ {link}",
   "@inviteShareMessage": {
-    "description": "WhatsApp-formatted share text: warm one-liner + code + deep link on its own line",
+    "description": "WhatsApp share text, code-first (product-copy pairing rewrite): the code leads because custom-scheme links are not tappable in chat apps; the single licensed ❤️ closes the message, off the glanceable first line (discretion rule); the link trails for when universal links ship",
     "placeholders": {
       "code": {
         "type": "String",
@@ -207,9 +207,9 @@
       }
     }
   },
-  "invitePreviewInvitedBySomeone": "Someone invited you",
+  "invitePreviewInvitedBySomeone": "Your partner invited you",
   "@invitePreviewInvitedBySomeone": {
-    "description": "Graceful no-name fallback for the valid-preview hero line when the server resolved no creator display name"
+    "description": "Graceful no-name fallback for the valid-preview hero line when the server resolved no creator display name — \"Someone\" read cold and faintly alarming for this product (product-copy); name capture makes this rare anyway"
   },
   "invitePreviewValidBody": "This invitation is ready. Pair up to start answering a question together every day.",
   "@invitePreviewValidBody": {
