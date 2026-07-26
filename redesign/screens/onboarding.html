@@ -1,0 +1,314 @@
+<!-- @dsCard group="Screens" name="Onboarding" subtitle="Welcome pager ×3 · Name capture · Privacy spotlight · AR/RTL" width="960" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hayati — Onboarding screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300..800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F5F5F4;font-family:'Rubik',-apple-system,'Segoe UI',sans-serif;color:#4A4552;padding:44px 20px 72px}
+.wrap{max-width:960px;margin:0 auto}
+.card-head{margin-bottom:30px}
+.card-head h1{font-size:20px;font-weight:700;color:#26212E}
+.card-head p{font-size:13.5px;line-height:1.55;color:#6F697A;margin-top:6px;max-width:78ch}
+.row{display:flex;flex-wrap:wrap;gap:44px 40px;margin-bottom:48px}
+.fig{width:390px}
+.figcap{margin-top:14px;font-size:12px;line-height:1.55;color:#6F697A}
+.figcap b{display:block;font-size:12.5px;font-weight:600;color:#26212E;margin-bottom:2px}
+.hex{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#7A7484;background:#ECEAE5;border-radius:4px;padding:1px 5px;white-space:nowrap}
+/* ---------- phone frame ---------- */
+.phone{width:390px;height:844px;background:#231A33;border-radius:54px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 12px #160E22,0 30px 60px -18px rgba(22,14,34,.5)}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:122px;height:34px;background:#160E22;border-radius:20px;z-index:6}
+.sbar{height:56px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 34px 8px;position:relative;z-index:5}
+.sbar .t{font-size:15px;font-weight:600;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.homebar{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#F3E7D7;opacity:.32;z-index:6}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+/* ---------- type ---------- */
+.q{font-size:28px;font-weight:300;line-height:1.35;color:#F3E7D7}
+[dir=rtl] .q{line-height:1.6}
+.h1{font-size:24px;font-weight:700;line-height:1.25;color:#F3E7D7}
+.h2{font-size:20px;font-weight:600;line-height:1.3;color:#F3E7D7}
+.body{font-size:16px;font-weight:400;line-height:1.5;color:#F3E7D7}
+[dir=rtl] .body{line-height:1.7}
+.cap{font-size:13px;font-weight:400;line-height:1.45;color:#B9AFC6}
+.mist{color:#B9AFC6}.sage{color:#8FAE8B}.rose{color:#E38E99}.clay{color:#B98A6E}
+/* ---------- components ---------- */
+.btn{height:52px;border-radius:26px;background:#C04A5A;color:#FFF8F1;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.tbtn{font-size:16px;font-weight:600;color:#E38E99;text-align:center;padding:10px 0}
+.card{background:#2E2344;border-radius:16px;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28)}
+.input{background:#2E2344;border:1px solid #453A5C;border-radius:16px;padding:14px 16px;font-size:16px;color:#F3E7D7;display:flex;align-items:center}
+.input.focus{border:2px solid #C04A5A;padding:13px 15px}
+.dots{display:flex;gap:8px;justify-content:center;align-items:center}
+.dot{width:8px;height:8px;border-radius:4px;background:#453A5C}
+.dot.on{width:22px;background:#C04A5A}
+.gut{padding-left:20px;padding-right:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="card-head">
+  <h1>Screens · Onboarding — first-run funnel</h1>
+  <p>Welcome preview sells the ritual in 15 seconds before asking for anything; name capture kills the “Someone invited you” degradation; the privacy spotlight surfaces PIN + discreet icon at the moment trust forms — dismissible, never modal. Flow and layout per ui-ux-redesign §5.1 / §6.1; every string from product-copy.md or the shipped ARBs. Night <span class="hex">#231A33</span> is the canonical in-app canvas.</p>
+</header>
+
+<!-- ══════════ ROW 1 · Welcome pager ══════════ -->
+<div class="row">
+
+  <!-- Welcome 1/3 -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <!-- illustration: closed question card under a blossoming branch, lattice 6% upper-start -->
+        <svg viewBox="0 0 390 400" style="width:390px;height:400px;flex:none">
+          <g opacity=".06" fill="none" stroke="#F3E7D7" stroke-width="1.4">
+            <path transform="translate(66 74)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+            <path transform="translate(140 34) scale(.62)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+            <path transform="translate(20 148) scale(.8)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+          </g>
+          <path d="M-24 92 C70 62 150 84 212 142" stroke="#B98A6E" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+          <path d="M92 76c16-13 30-16 46-13" stroke="#B98A6E" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+          <ellipse cx="128" cy="70" rx="10" ry="4.2" fill="#B98A6E" transform="rotate(-16 128 70)"/>
+          <ellipse cx="158" cy="92" rx="10" ry="4.2" fill="#B98A6E" transform="rotate(-24 158 92)"/>
+          <g transform="translate(212 142)">
+            <circle cx="0" cy="-11" r="6.5" fill="#C04A5A"/><circle cx="10.5" cy="-3.5" r="6.5" fill="#C04A5A"/><circle cx="6.5" cy="8.5" r="6.5" fill="#C04A5A"/><circle cx="-6.5" cy="8.5" r="6.5" fill="#C04A5A"/><circle cx="-10.5" cy="-3.5" r="6.5" fill="#C04A5A"/><circle r="4.5" fill="#8E3140"/>
+          </g>
+          <g transform="translate(103 214)">
+            <rect width="184" height="126" rx="16" fill="#2E2344" stroke="#453A5C"/>
+            <line x1="18" y1="63" x2="166" y2="63" stroke="#453A5C"/>
+            <g transform="translate(76 22) scale(.66)">
+              <path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24)"/>
+              <path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24)"/>
+              <path d="M31.5 15.5c1.8 1.5 3.4 3.3 4.5 5.2-.3-2.6-2-5.3-4.1-7.3z" fill="#FFF8F1" opacity=".9"/>
+            </g>
+          </g>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:8px">
+          <h1 class="h1" style="text-align:center">One question a day, for two.</h1>
+          <p class="body mist" style="text-align:center;margin-top:12px">A five-minute ritual that keeps you close — in your own language, in your own culture.</p>
+          <div class="dots" style="margin-top:28px"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
+          <div style="flex:1"></div>
+          <div class="btn">Continue</div>
+          <div class="tbtn" style="margin:8px 0 34px">Sign in</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Welcome preview · card 1 of 3 — “The ritual”</b>H1 24/700 + Body in Mist <span class="hex">#B9AFC6</span> · dots Veil <span class="hex">#453A5C</span>, active Pomegranate <span class="hex">#C04A5A</span> · skip affordance is Sign in, in Rose <span class="hex">#E38E99</span>. Lattice fragment at 6% opacity, branch Clay <span class="hex">#B98A6E</span>. Cards enter with Soft Unfold (240ms); shown once, never again after completion.</figcaption>
+  </figure>
+
+  <!-- Welcome 2/3 -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <!-- illustration: two sealed cards facing each other, Sand glow in the gap -->
+        <svg viewBox="0 0 390 400" style="width:390px;height:400px;flex:none">
+          <g opacity=".06" fill="none" stroke="#F3E7D7" stroke-width="1.4">
+            <path transform="translate(330 66) scale(.85)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+            <path transform="translate(276 128) scale(.5)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+          </g>
+          <ellipse cx="195" cy="216" rx="66" ry="96" fill="#F3E7D7" opacity=".08"/>
+          <ellipse cx="195" cy="216" rx="34" ry="66" fill="#F3E7D7" opacity=".1"/>
+          <g transform="rotate(-4 118 216)">
+            <rect x="52" y="130" width="132" height="172" rx="14" fill="#2E2344" stroke="#453A5C"/>
+            <line x1="184" y1="150" x2="184" y2="282" stroke="#453A5C"/>
+            <g transform="translate(100 196) scale(.75)" ><g stroke="#B98A6E" stroke-width="2.2" fill="none" stroke-linejoin="round"><path d="M24 4l4.4 9.4 9.9-2.9-2.9 9.9L44.8 24l-9.4 4.4 2.9 9.9-9.9-2.9L24 44.8l-4.4-9.4-9.9 2.9 2.9-9.9L3.2 24l9.4-4.4-2.9-9.9 9.9 2.9z"/></g><path d="M24 19c2.3 2.6 3.8 4.8 3.8 6.8a3.8 3.8 0 1 1-7.6 0c0-2 1.5-4.2 3.8-6.8z" fill="#B98A6E"/></g>
+          </g>
+          <g transform="rotate(4 272 216)">
+            <rect x="206" y="130" width="132" height="172" rx="14" fill="#2E2344" stroke="#453A5C"/>
+            <line x1="206" y1="150" x2="206" y2="282" stroke="#453A5C"/>
+            <g transform="translate(254 196) scale(.75)"><g stroke="#B98A6E" stroke-width="2.2" fill="none" stroke-linejoin="round"><path d="M24 4l4.4 9.4 9.9-2.9-2.9 9.9L44.8 24l-9.4 4.4 2.9 9.9-9.9-2.9L24 44.8l-4.4-9.4-9.9 2.9 2.9-9.9L3.2 24l9.4-4.4-2.9-9.9 9.9 2.9z"/></g><path d="M24 19c2.3 2.6 3.8 4.8 3.8 6.8a3.8 3.8 0 1 1-7.6 0c0-2 1.5-4.2 3.8-6.8z" fill="#B98A6E"/></g>
+          </g>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:8px">
+          <h1 class="h1" style="text-align:center">Sealed until you both answer.</h1>
+          <p class="body mist" style="text-align:center;margin-top:12px">No peeking, and no pressure to perform: just a moment that belongs to the two of you.</p>
+          <div class="dots" style="margin-top:28px"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
+          <div style="flex:1"></div>
+          <div class="btn">Continue</div>
+          <div class="tbtn" style="margin:8px 0 34px">Sign in</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Welcome preview · card 2 of 3 — “The seal”</b>Two sealed cards facing across the gap, one tilted 4°; the Sand <span class="hex">#F3E7D7</span> glow is stepped flat ellipses (8–10%) — the only sanctioned gradient in the system is Pomegranate→Deep, so glows never blend. Body reuses the shipped store line verbatim.</figcaption>
+  </figure>
+
+  <!-- Welcome 3/3 -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <!-- illustration: lattice-lock glyph over two lit windows -->
+        <svg viewBox="0 0 390 400" style="width:390px;height:400px;flex:none">
+          <rect x="44" y="240" width="88" height="132" rx="6" fill="#2E2344"/>
+          <rect x="148" y="204" width="112" height="168" rx="6" fill="#2E2344"/>
+          <rect x="276" y="258" width="76" height="114" rx="6" fill="#2E2344"/>
+          <rect x="60" y="262" width="14" height="18" rx="2.5" fill="#453A5C"/>
+          <rect x="100" y="262" width="14" height="18" rx="2.5" fill="#453A5C"/>
+          <rect x="60" y="296" width="14" height="18" rx="2.5" fill="#453A5C"/>
+          <rect x="296" y="278" width="13" height="17" rx="2.5" fill="#453A5C"/>
+          <rect x="324" y="278" width="13" height="17" rx="2.5" fill="#453A5C"/>
+          <rect x="162" y="226" width="34" height="40" rx="4" fill="#F3E7D7" opacity=".1"/>
+          <rect x="168" y="232" width="22" height="28" rx="3" fill="#F3E7D7" opacity=".88"/>
+          <rect x="208" y="226" width="34" height="40" rx="4" fill="#F3E7D7" opacity=".1"/>
+          <rect x="214" y="232" width="22" height="28" rx="3" fill="#F3E7D7" opacity=".88"/>
+          <rect x="168" y="286" width="22" height="28" rx="3" fill="#453A5C"/>
+          <rect x="214" y="286" width="22" height="28" rx="3" fill="#453A5C"/>
+          <g transform="translate(154 68) scale(1.75)">
+            <g stroke="#B98A6E" stroke-width="2" fill="none" stroke-linejoin="round"><path d="M24 4l4.4 9.4 9.9-2.9-2.9 9.9L44.8 24l-9.4 4.4 2.9 9.9-9.9-2.9L24 44.8l-4.4-9.4-9.9 2.9 2.9-9.9L3.2 24l9.4-4.4-2.9-9.9 9.9 2.9z"/></g>
+            <path d="M24 18.4c2.6 2.9 4.3 5.4 4.3 7.7a4.3 4.3 0 1 1-8.6 0c0-2.3 1.7-4.8 4.3-7.7z" fill="#B98A6E"/>
+          </g>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:8px">
+          <h1 class="h1" style="text-align:center">What’s between you stays between you.</h1>
+          <p class="body mist" style="text-align:center;margin-top:12px">PIN lock, a discreet icon, and answers no one else ever sees. Not therapy, not a feed — just you two.</p>
+          <div class="dots" style="margin-top:24px"><span class="dot"></span><span class="dot"></span><span class="dot on"></span></div>
+          <div style="flex:1"></div>
+          <div class="btn">Get started</div>
+          <div class="tbtn" style="margin:8px 0 34px">Sign in</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Welcome preview · card 3 of 3 — “The privacy”</b>The lattice-lock glyph (eight-point star aperture, seed keyhole) in Clay <span class="hex">#B98A6E</span> over two lit windows — the GCC persona’s headline feature, sold before sign-in. CTA on card 3 becomes “Get started” per product-copy.</figcaption>
+  </figure>
+
+  <!-- Name capture -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:40px">
+          <svg width="44" height="44" viewBox="0 0 48 48" style="margin-bottom:24px">
+            <path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24)"/>
+            <path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24)"/>
+            <path d="M31.5 15.5c1.8 1.5 3.4 3.3 4.5 5.2-.3-2.6-2-5.3-4.1-7.3z" fill="#FFF8F1" opacity=".9"/>
+          </svg>
+          <h1 class="h1">What should we call you?</h1>
+          <p class="cap" style="margin-top:10px">Your partner will see this on your invitation.</p>
+          <div class="input focus" style="margin-top:28px">Zeynep<span style="display:inline-block;width:2px;height:20px;background:#C04A5A;margin-left:2px"></span></div>
+          <p class="cap" style="margin-top:10px;opacity:.75">Your name or nickname</p>
+          <div style="flex:1"></div>
+          <div class="btn" style="margin-bottom:34px">Continue</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Name capture — new step, post-sign-in</b>One field, one Continue (bottom-anchored per the CTA-anchor pattern). Pre-filled from the Auth displayName; empty field disables Continue. Input: Night Raised <span class="hex">#2E2344</span>, radius 16, focus border 2dp Pomegranate <span class="hex">#C04A5A</span>. Register renderings — TR-playful: “Sana ne diyelim?” · TR-respectful: “Size nasıl hitap edelim?” · AR: «بماذا نناديك؟».</figcaption>
+  </figure>
+
+  <!-- Privacy spotlight on Solo home -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 20px 10px">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><path d="M4.5 10.5h15c-.6 5-3.6 8-7.5 8s-6.9-3-7.5-8z"/><path d="M9.5 21h5"/><circle cx="10" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/><circle cx="14.2" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.4 5.4l1.9 1.9M16.7 16.7l1.9 1.9M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9"/></svg>
+        </div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:16px;overflow:hidden">
+          <!-- privacy spotlight card -->
+          <div class="card" style="padding:16px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <svg width="30" height="30" viewBox="0 0 48 48"><g stroke="#B98A6E" stroke-width="2.4" fill="none" stroke-linejoin="round"><path d="M24 4l4.4 9.4 9.9-2.9-2.9 9.9L44.8 24l-9.4 4.4 2.9 9.9-9.9-2.9L24 44.8l-4.4-9.4-9.9 2.9 2.9-9.9L3.2 24l9.4-4.4-2.9-9.9 9.9 2.9z"/></g><path d="M24 18.4c2.6 2.9 4.3 5.4 4.3 7.7a4.3 4.3 0 1 1-8.6 0c0-2.3 1.7-4.8 4.3-7.7z" fill="#B98A6E"/></svg>
+              <svg width="18" height="18" viewBox="0 0 18 18" stroke="#B9AFC6" stroke-width="1.75" stroke-linecap="round"><path d="M4 4l10 10M14 4L4 14"/></svg>
+            </div>
+            <div class="h2" style="margin-top:10px">Keep Hayati between you two</div>
+            <p class="cap" style="margin-top:8px">Add a 6-digit PIN so only you can open the app — and switch to a plain home-screen icon if you’d like. You can do both later in Settings.</p>
+            <div style="display:flex;gap:24px;margin-top:14px">
+              <span style="font-size:15px;font-weight:600;color:#E38E99">Set up my PIN</span>
+              <span style="font-size:15px;font-weight:600;color:#B9AFC6">Maybe later</span>
+            </div>
+          </div>
+          <!-- seven-seed solo progress -->
+          <div style="display:flex;align-items:center;gap:12px">
+            <svg width="196" height="30" viewBox="0 0 196 30">
+              <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C04A5A"/><stop offset="1" stop-color="#8E3140"/></linearGradient></defs>
+              <path d="M14 3.5c3.6 4.2 6.5 8 6.5 11.7a6.5 6.5 0 1 1-13 0C7.5 11.5 10.4 7.7 14 3.5z" fill="url(#sg)"/>
+              <path transform="translate(28 0)" d="M14 3.5c3.6 4.2 6.5 8 6.5 11.7a6.5 6.5 0 1 1-13 0C7.5 11.5 10.4 7.7 14 3.5z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+              <path transform="translate(56 0)" d="M14 3.5c3.6 4.2 6.5 8 6.5 11.7a6.5 6.5 0 1 1-13 0C7.5 11.5 10.4 7.7 14 3.5z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+              <path transform="translate(84 0)" d="M14 3.5c3.6 4.2 6.5 8 6.5 11.7a6.5 6.5 0 1 1-13 0C7.5 11.5 10.4 7.7 14 3.5z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+              <path transform="translate(112 0)" d="M14 3.5c3.6 4.2 6.5 8 6.5 11.7a6.5 6.5 0 1 1-13 0C7.5 11.5 10.4 7.7 14 3.5z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+              <path transform="translate(140 0)" d="M14 3.5c3.6 4.2 6.5 8 6.5 11.7a6.5 6.5 0 1 1-13 0C7.5 11.5 10.4 7.7 14 3.5z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+              <path transform="translate(168 0)" d="M14 3.5c3.6 4.2 6.5 8 6.5 11.7a6.5 6.5 0 1 1-13 0C7.5 11.5 10.4 7.7 14 3.5z" fill="none" stroke="#453A5C" stroke-width="1.6"/>
+            </svg>
+            <span class="cap">Day 1 of 7</span>
+          </div>
+          <p class="q">What does “home” feel like to you these days?</p>
+          <div class="input" style="min-height:76px;align-items:flex-start;padding-top:14px"><span class="mist" style="font-size:16px">This one’s just for you.</span></div>
+          <div class="btn" style="flex:none">Save answer</div>
+          <!-- invite nudge, cropped below the fold -->
+          <div class="card" style="padding:16px;flex:none">
+            <p class="body" style="font-size:15px">Hayati is better together. Invite your partner — your reflections will be waiting when you pair up.</p>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Privacy spotlight — one-time card on first Solo home</b>Never modal, shown once; “Maybe later” — never “Skip” (no judgment). Actions in Rose <span class="hex">#E38E99</span> / Mist <span class="hex">#B9AFC6</span>. Seven-seed row teaches the streak language pre-pairing: filled seed carries the one sanctioned gradient <span class="hex">#C04A5A</span>→<span class="hex">#8E3140</span>, empty slots Veil <span class="hex">#453A5C</span> outline. Question set in the Question style 28/300. Invite nudge scrolls below the fold. Question text is sample content standing in for the content bank (redesign item #3).</figcaption>
+  </figure>
+
+  <!-- AR RTL welcome card 1 -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen" dir="rtl" lang="ar">
+        <div class="sbar" dir="ltr"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <!-- mirrored illustration -->
+        <svg viewBox="0 0 390 400" style="width:390px;height:400px;flex:none;transform:scaleX(-1)">
+          <g opacity=".06" fill="none" stroke="#F3E7D7" stroke-width="1.4">
+            <path transform="translate(66 74)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+            <path transform="translate(140 34) scale(.62)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+          </g>
+          <path d="M-24 92 C70 62 150 84 212 142" stroke="#B98A6E" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+          <path d="M92 76c16-13 30-16 46-13" stroke="#B98A6E" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+          <ellipse cx="128" cy="70" rx="10" ry="4.2" fill="#B98A6E" transform="rotate(-16 128 70)"/>
+          <g transform="translate(212 142)">
+            <circle cx="0" cy="-11" r="6.5" fill="#C04A5A"/><circle cx="10.5" cy="-3.5" r="6.5" fill="#C04A5A"/><circle cx="6.5" cy="8.5" r="6.5" fill="#C04A5A"/><circle cx="-6.5" cy="8.5" r="6.5" fill="#C04A5A"/><circle cx="-10.5" cy="-3.5" r="6.5" fill="#C04A5A"/><circle r="4.5" fill="#8E3140"/>
+          </g>
+          <g transform="translate(103 214)">
+            <rect width="184" height="126" rx="16" fill="#2E2344" stroke="#453A5C"/>
+            <line x1="18" y1="63" x2="166" y2="63" stroke="#453A5C"/>
+            <g transform="translate(76 22) scale(.66) "><g transform="scale(-1 1) translate(-48 0)"><path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24)"/><path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24)"/><path d="M31.5 15.5c1.8 1.5 3.4 3.3 4.5 5.2-.3-2.6-2-5.3-4.1-7.3z" fill="#FFF8F1" opacity=".9"/></g></g>
+          </g>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:8px">
+          <h1 class="h1" style="text-align:center">سؤال واحد كل يوم، لكما.</h1>
+          <p class="body mist" style="text-align:center;margin-top:12px">طقس يومي خاص — لكما وحدكما.</p>
+          <div class="dots" style="margin-top:28px"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
+          <div style="flex:1"></div>
+          <div class="btn">متابعة</div>
+          <div class="tbtn" style="margin:8px 0 34px">تسجيل الدخول</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Welcome preview · card 1 — Arabic, RTL (dir="rtl")</b>Headline is the canonical AR tagline; the body reuses the canonical AR support line («طقس يومي خاص — لكما وحدكما», product-copy · sign-in). CTA «متابعة» from the shipped app_ar.arb. Arabic body line-height 1.7, Question style would take 1.6 — Arabic never renders lighter or smaller than Latin. Illustration mirrors (branch enters from the start edge); page dots read right→left.</figcaption>
+  </figure>
+
+</div>
+
+<!-- token strip -->
+<footer style="border-top:1px solid #E4E1DB;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center">
+  <span style="font-size:11px;font-weight:600;color:#26212E;letter-spacing:.04em;text-transform:uppercase">Tokens used</span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#231A33;display:inline-block"></i>Night <span class="hex">#231A33</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#2E2344;display:inline-block"></i>Night Raised <span class="hex">#2E2344</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#F3E7D7;display:inline-block;border:1px solid #E4E1DB"></i>Sand <span class="hex">#F3E7D7</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B9AFC6;display:inline-block"></i>Mist <span class="hex">#B9AFC6</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#453A5C;display:inline-block"></i>Veil <span class="hex">#453A5C</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#C04A5A;display:inline-block"></i>Pomegranate <span class="hex">#C04A5A</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8E3140;display:inline-block"></i>Pom. Deep <span class="hex">#8E3140</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#E38E99;display:inline-block"></i>Rose <span class="hex">#E38E99</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#FFF8F1;display:inline-block;border:1px solid #E4E1DB"></i>Moonlight <span class="hex">#FFF8F1</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B98A6E;display:inline-block"></i>Clay <span class="hex">#B98A6E</span></span>
+  <span style="font-size:11px;color:#6F697A">Elevation L1: y2 blur8 <span class="hex">#160E22</span> 28% · card radius 16 · buttons stadium, 48dp min · Rubik — Question 28/300 · H1 24/700 · H2 20/600 · Body 16/400 (lh 1.5 / AR 1.7) · Caption 13/400 Mist</span>
+</footer>
+
+</div>
+</body>
+</html>

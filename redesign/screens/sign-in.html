@@ -1,0 +1,222 @@
+<!-- @dsCard group="Screens" name="Sign-in & Phone auth" subtitle="Nightbloom hero · provider buttons · phone OTP (locale hints) · error state · AR/RTL" width="960" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hayati — Sign-in screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300..800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F5F5F4;font-family:'Rubik',-apple-system,'Segoe UI',sans-serif;color:#4A4552;padding:44px 20px 72px}
+.wrap{max-width:960px;margin:0 auto}
+.card-head{margin-bottom:30px}
+.card-head h1{font-size:20px;font-weight:700;color:#26212E}
+.card-head p{font-size:13.5px;line-height:1.55;color:#6F697A;margin-top:6px;max-width:78ch}
+.row{display:flex;flex-wrap:wrap;gap:44px 40px;margin-bottom:48px;align-items:flex-start}
+.fig{width:390px}
+.fig.wide{width:526px}
+.col{display:flex;flex-direction:column;gap:32px}
+.figcap{margin-top:14px;font-size:12px;line-height:1.55;color:#6F697A}
+.figcap b{display:block;font-size:12.5px;font-weight:600;color:#26212E;margin-bottom:2px}
+.hex{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#7A7484;background:#ECEAE5;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.phone{width:390px;height:844px;background:#231A33;border-radius:54px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 12px #160E22,0 30px 60px -18px rgba(22,14,34,.5)}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:122px;height:34px;background:#160E22;border-radius:20px;z-index:6}
+.sbar{height:56px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 34px 8px;position:relative;z-index:5}
+.sbar .t{font-size:15px;font-weight:600;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.homebar{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#F3E7D7;opacity:.32;z-index:6}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.h1{font-size:24px;font-weight:700;line-height:1.25;color:#F3E7D7}
+.display{font-size:32px;font-weight:800;line-height:1.15;color:#F3E7D7;letter-spacing:.01em}
+.body{font-size:16px;font-weight:400;line-height:1.5;color:#F3E7D7}
+[dir=rtl] .body{line-height:1.7}
+.cap{font-size:13px;font-weight:400;line-height:1.45;color:#B9AFC6}
+[dir=rtl] .cap{line-height:1.7}
+.mist{color:#B9AFC6}.rose{color:#E38E99}
+.btn{height:52px;border-radius:26px;background:#C04A5A;color:#FFF8F1;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px}
+.tbtn{font-size:16px;font-weight:600;color:#E38E99;text-align:center;padding:12px 0}
+.card{background:#2E2344;border-radius:16px;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28)}
+.input{background:#2E2344;border:1px solid #453A5C;border-radius:16px;padding:14px 16px;font-size:16px;color:#F3E7D7}
+.input .ph{color:#B9AFC6}
+.gut{padding-left:20px;padding-right:20px}
+.otp{display:flex;gap:8px;direction:ltr}
+.otp span{width:48px;height:56px;background:#2E2344;border:1px solid #453A5C;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:500;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.otp span.foc{border:2px solid #C04A5A}
+.callout{border:1px solid #453A5C;border-radius:16px;padding:16px}
+.night-panel{background:#231A33;border-radius:24px;padding:24px;box-shadow:0 6px 24px rgba(22,14,34,.36)}
+.plabel{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#B9AFC6;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="card-head">
+  <h1>Screens · Sign-in — the highest-leverage redesign surface</h1>
+  <p>A reluctant husband tapping his wife’s invite must land on a promise, not a form: Nightbloom hero (two branches inclining toward each other), the redrawn two-seeds mark above the wordmark (mark-first — the name may change per ADR-027), the tagline, then the ask. Auth logic untouched (credential seam); links finally distinguishable from body text via Rose. Layout per ui-ux-redesign §6.1; strings from product-copy.md and the shipped ARBs. The Class G legal footer renders byte-exact from the ARB — it is quoted here exactly as product-copy.md quotes it, never re-typeset.</p>
+</header>
+
+<!-- ══════════ ROW 1 · sign-in EN + phone auth ══════════ -->
+<div class="row">
+
+  <!-- Sign-in EN -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <!-- Nightbloom hero: two branches from opposite edges inclining toward each other, lattice 4% top third -->
+        <svg viewBox="0 0 390 250" style="width:390px;height:250px;flex:none">
+          <g opacity=".04" fill="none" stroke="#F3E7D7" stroke-width="1.4">
+            <path transform="translate(70 52)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+            <path transform="translate(150 24) scale(.6)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+            <path transform="translate(322 60) scale(.78)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+          </g>
+          <path d="M-20 156 C70 132 130 138 182 150" stroke="#B98A6E" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+          <path d="M410 156 C320 132 260 138 208 150" stroke="#B98A6E" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+          <ellipse cx="96" cy="140" rx="9" ry="3.8" fill="#B98A6E" transform="rotate(-12 96 140)"/>
+          <ellipse cx="296" cy="140" rx="9" ry="3.8" fill="#B98A6E" transform="rotate(12 296 140)"/>
+          <g transform="translate(150 168)">
+            <circle cx="0" cy="-8" r="4.4" fill="#C04A5A"/><circle cx="7 " cy="-2.3" r="4.4" fill="#C04A5A"/><circle cx="4.3" cy="5.9" r="4.4" fill="#C04A5A"/><circle cx="-4.3" cy="5.9" r="4.4" fill="#C04A5A"/><circle cx="-7" cy="-2.3" r="4.4" fill="#C04A5A"/><circle r="3" fill="#8E3140"/>
+          </g>
+          <!-- the redrawn two-seeds mark, 56dp -->
+          <g transform="translate(167 190)">
+            <path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24) scale(1.16)"/>
+            <path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24) scale(1.16)"/>
+            <path d="M31.5 15.5c1.8 1.5 3.4 3.3 4.5 5.2-.3-2.6-2-5.3-4.1-7.3z" fill="#FFF8F1" opacity=".9" transform="scale(1.16)"/>
+          </g>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;align-items:stretch;text-align:center;padding-top:6px">
+          <div class="display">Hayati</div>
+          <p class="cap" style="margin-top:8px">One question a day, for two.</p>
+          <p class="cap" style="margin-top:4px;opacity:.85">A private daily ritual — just for you two.</p>
+          <div style="flex:1"></div>
+          <div class="btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="#FFF8F1"><path d="M16.6 12.9c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-2-.9-3.2-.9-1.7 0-3.2 1-4 2.5-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.4 0 1.9.8 3.2.8 1.3 0 2.1-1.2 2.9-2.4.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.4-.9-2.4-3.8zM14.2 5.6c.7-.8 1.1-1.9 1-3.1-1 .1-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg>Continue with Apple</div>
+          <div class="btn" style="margin-top:12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="#FFF8F1"><path d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.4z"/><path d="M12 22c2.7 0 5-1 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path d="M6.4 14a6 6 0 0 1 0-3.8V7.6H3.1a10 10 0 0 0 0 8.9z"/><path d="M12 6c1.5 0 2.8.5 3.8 1.5L18.7 4.7A10 10 0 0 0 3.1 7.6l3.3 2.6C7.2 7.8 9.4 6 12 6z"/></svg>Continue with Google</div>
+          <div class="tbtn" style="margin-top:6px">Continue with phone</div>
+          <p class="cap" style="font-size:12px;margin:10px 0 30px;opacity:.9">By continuing you accept our <span class="rose" style="font-weight:600">Terms</span>… <span style="opacity:.7">(frozen aydınlatma footer — byte-exact from the ARB)</span></p>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Sign-in — EN master</b>Hierarchy: illustration → mark → tagline → actions; the eye lands on the promise before the ask. Mark-first lockup (Display 32/800) since the name may change (ADR-027). Providers as FilledButtons — Moonlight <span class="hex">#FFF8F1</span> on Pomegranate <span class="hex">#C04A5A</span>; “Continue with phone” is the Rose <span class="hex">#E38E99</span> TextButton. The legal footer is Class G: rendered byte-exact from the shipped ARB with Rose links — shown truncated exactly as product-copy.md quotes it (“By continuing you accept our Terms…”), never re-typeset from a mock.</figcaption>
+  </figure>
+
+  <!-- Phone sign-in -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="gut" style="padding-top:2px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5 7.5 12l7.5 7.5"/></svg></div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:8px">
+          <h1 class="h1">Continue with phone</h1>
+          <p class="cap" style="margin-top:14px">Your phone number</p>
+          <div class="input" style="margin-top:6px;direction:ltr"><span class="ph">+90 5xx xxx xx xx</span></div>
+          <p class="cap" style="margin-top:8px">We’ll text you a code. Standard SMS rates may apply.</p>
+          <div style="height:28px"></div>
+          <p class="cap">Enter the code we texted you</p>
+          <div class="otp" style="margin-top:8px">
+            <span>4</span><span>7</span><span>2</span><span class="foc"></span><span></span><span></span>
+          </div>
+          <p class="cap" style="margin-top:8px">Sent to +90 532 481 07 12</p>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:6px">
+            <span class="cap" style="color:#B9AFC6;font-variant-numeric:tabular-nums">Resend in 24s</span>
+          </div>
+          <div style="flex:1"></div>
+          <div class="btn" style="margin-bottom:34px">Confirm</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Phone sign-in — locale-aware hints, LTR-pinned digits</b>The hint follows the device region (TR “+90 5xx xxx xx xx” · AR-SA “+966 5x xxx xxxx” · EN “Your number, with country code”) — the Turkish-number-for-everyone defect, fixed. Six digit boxes: Night Raised <span class="hex">#2E2344</span>, Veil <span class="hex">#453A5C</span> border, radius 16, tabular figures, auto-advance, digit order LTR-pinned like the keypad. “Confirm”, not “Verify” — softer verb. Resend disabled 30s with the Mist countdown; wrong code keeps “That code didn’t match. Try again.” Step transitions use unfoldSoft; success self-pops.</figcaption>
+  </figure>
+</div>
+
+<!-- ══════════ ROW 2 · AR RTL + error state ══════════ -->
+<div class="row">
+
+  <!-- Sign-in AR RTL -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen" dir="rtl" lang="ar">
+        <div class="sbar" dir="ltr"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <svg viewBox="0 0 390 250" style="width:390px;height:250px;flex:none">
+          <g opacity=".04" fill="none" stroke="#F3E7D7" stroke-width="1.4">
+            <path transform="translate(320 52)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+            <path transform="translate(240 24) scale(.6)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+          </g>
+          <path d="M-20 156 C70 132 130 138 182 150" stroke="#B98A6E" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+          <path d="M410 156 C320 132 260 138 208 150" stroke="#B98A6E" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+          <ellipse cx="96" cy="140" rx="9" ry="3.8" fill="#B98A6E" transform="rotate(-12 96 140)"/>
+          <ellipse cx="296" cy="140" rx="9" ry="3.8" fill="#B98A6E" transform="rotate(12 296 140)"/>
+          <g transform="translate(167 190)">
+            <path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24) scale(1.16)"/>
+            <path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24) scale(1.16)"/>
+            <path d="M31.5 15.5c1.8 1.5 3.4 3.3 4.5 5.2-.3-2.6-2-5.3-4.1-7.3z" fill="#FFF8F1" opacity=".9" transform="scale(1.16)"/>
+          </g>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;align-items:stretch;text-align:center;padding-top:6px">
+          <div class="display">حياتي</div>
+          <p class="cap" style="margin-top:8px">سؤال واحد كل يوم، لكما.</p>
+          <p class="cap" style="margin-top:4px;opacity:.85">طقس يومي خاص — لكما وحدكما.</p>
+          <div style="flex:1"></div>
+          <div class="btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="#FFF8F1"><path d="M16.6 12.9c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-2-.9-3.2-.9-1.7 0-3.2 1-4 2.5-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.4 0 1.9.8 3.2.8 1.3 0 2.1-1.2 2.9-2.4.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.4-.9-2.4-3.8zM14.2 5.6c.7-.8 1.1-1.9 1-3.1-1 .1-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg>المتابعة باستخدام Apple</div>
+          <div class="btn" style="margin-top:12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="#FFF8F1"><path d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.4z"/><path d="M12 22c2.7 0 5-1 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path d="M6.4 14a6 6 0 0 1 0-3.8V7.6H3.1a10 10 0 0 0 0 8.9z"/><path d="M12 6c1.5 0 2.8.5 3.8 1.5L18.7 4.7A10 10 0 0 0 3.1 7.6l3.3 2.6C7.2 7.8 9.4 6 12 6z"/></svg>المتابعة باستخدام Google</div>
+          <div class="tbtn" style="margin-top:6px">المتابعة برقم الهاتف</div>
+          <p class="cap" style="font-size:12px;margin:10px 0 30px;opacity:.9">تصلك النسخة العربية من التذييل القانوني حرفيًا من ملف الترجمة المعتمد.</p>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Sign-in — Arabic, RTL (dir="rtl")</b>Wordmark «حياتي» carries equal optical weight to the Latin lockup (Rubik Arabic 800); tagline «سؤال واحد كل يوم، لكما.» and support line «طقس يومي خاص — لكما وحدكما.» are canon (product-copy · sign-in). Provider labels render per the shipped app_ar.arb; the AR legal footer, like the EN one, ships byte-exact from the ARB (Class G — the caption in the frame states exactly that, in Arabic). The hero is direction-neutral: paired branches incline toward center, so no mirrored master is needed.</figcaption>
+  </figure>
+
+  <!-- Error state + name capture context -->
+  <div class="fig wide col">
+    <figure style="margin:0">
+      <div class="night-panel">
+        <p class="plabel">Auth error — calm, blame-free, three-part</p>
+        <div class="callout" style="margin-bottom:12px">
+          <p class="body" style="font-weight:600">That didn’t go through</p>
+          <p class="cap" style="margin-top:6px">You’re offline. Check your connection and try again.</p>
+          <p style="font-size:15px;font-weight:600;color:#E38E99;margin-top:12px">Try again</p>
+        </div>
+        <div class="callout">
+          <p class="body" style="font-weight:600">That didn’t go through</p>
+          <p class="cap" style="margin-top:6px">Something went wrong on our side. Please try again.</p>
+          <p style="font-size:15px;font-weight:600;color:#E38E99;margin-top:12px">Try again</p>
+        </div>
+      </div>
+      <figcaption class="figcap"><b>Error view — Veil-bordered callout</b>Title softens to “That didn’t go through”; the detail line carries the cause and owns the fault (“…on our side”). Callout: Veil <span class="hex">#453A5C</span> border, radius 16 — never a red panel; the spinner is replaced by the seed-pulse indicator everywhere.</figcaption>
+    </figure>
+
+    <figure style="margin:0">
+      <div class="night-panel">
+        <p class="plabel">Loading — the seed-pulse, replacing the Material spinner</p>
+        <div style="display:flex;align-items:center;gap:14px">
+          <svg width="26" height="32" viewBox="0 0 40 48"><defs><linearGradient id="sg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C04A5A"/><stop offset="1" stop-color="#8E3140"/></linearGradient></defs><path d="M20 4 C16.5 10 9 19 9 27.5 a11 11 0 0 0 22 0 C31 19 23.5 10 20 4 Z" fill="url(#sg2)"/><path d="M24.5 13.5 c1.6 2.3 3 4.9 3.6 7.4" stroke="#FFF8F1" stroke-width="2" stroke-linecap="round" fill="none" opacity=".75"/></svg>
+          <span class="cap">Signing you in…</span>
+        </div>
+      </div>
+      <figcaption class="figcap"><b>Seed-pulse on auth</b>800ms breathing loop, 0.9→1.0 — the one sanctioned loop; the caption stays honest about what is happening. Seed gradient is the single sanctioned gradient <span class="hex">#C04A5A</span>→<span class="hex">#8E3140</span>. Success routes on: to name capture (“What should we call you?”) for first sign-ins, or straight back to the pending partner preview for invitees (keepAlive — the toll ends where the promise was made).</figcaption>
+    </figure>
+  </div>
+</div>
+
+<footer style="border-top:1px solid #E4E1DB;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center">
+  <span style="font-size:11px;font-weight:600;color:#26212E;letter-spacing:.04em;text-transform:uppercase">Tokens used</span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#231A33;display:inline-block"></i>Night <span class="hex">#231A33</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#2E2344;display:inline-block"></i>Night Raised <span class="hex">#2E2344</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#F3E7D7;display:inline-block;border:1px solid #E4E1DB"></i>Sand <span class="hex">#F3E7D7</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B9AFC6;display:inline-block"></i>Mist <span class="hex">#B9AFC6</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#453A5C;display:inline-block"></i>Veil <span class="hex">#453A5C</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#C04A5A;display:inline-block"></i>Pomegranate <span class="hex">#C04A5A</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8E3140;display:inline-block"></i>Pom. Deep <span class="hex">#8E3140</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#E38E99;display:inline-block"></i>Rose <span class="hex">#E38E99</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#FFF8F1;display:inline-block;border:1px solid #E4E1DB"></i>Moonlight <span class="hex">#FFF8F1</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B98A6E;display:inline-block"></i>Clay <span class="hex">#B98A6E</span></span>
+  <span style="font-size:11px;color:#6F697A">Elevation L1: y2 blur8 <span class="hex">#160E22</span> 28% · Rubik — Display 32/800 · H1 24/700 · Body 16/400 (lh 1.5 / AR 1.7) · Caption 13/400 Mist · buttons 16/600 Moonlight, stadium</span>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!-- @dsCard group="Screens" name="Settings & Privacy" subtitle="Grouped settings · PIN setup · Biometric DV dialog · Discreet icon · AR/RTL" width="960" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hayati — Settings &amp; privacy screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300..800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F5F5F4;font-family:'Rubik',-apple-system,'Segoe UI',sans-serif;color:#4A4552;padding:44px 20px 72px}
+.wrap{max-width:960px;margin:0 auto}
+.card-head{margin-bottom:30px}
+.card-head h1{font-size:20px;font-weight:700;color:#26212E}
+.card-head p{font-size:13.5px;line-height:1.55;color:#6F697A;margin-top:6px;max-width:78ch}
+.row{display:flex;flex-wrap:wrap;gap:44px 40px;margin-bottom:48px;align-items:flex-start}
+.fig{width:390px}
+.fig.wide{width:526px}
+.col{display:flex;flex-direction:column;gap:32px}
+.figcap{margin-top:14px;font-size:12px;line-height:1.55;color:#6F697A}
+.figcap b{display:block;font-size:12.5px;font-weight:600;color:#26212E;margin-bottom:2px}
+.hex{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#7A7484;background:#ECEAE5;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.phone{width:390px;height:844px;background:#231A33;border-radius:54px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 12px #160E22,0 30px 60px -18px rgba(22,14,34,.5)}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:122px;height:34px;background:#160E22;border-radius:20px;z-index:6}
+.sbar{height:56px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 34px 8px;position:relative;z-index:5}
+.sbar .t{font-size:15px;font-weight:600;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.homebar{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#F3E7D7;opacity:.32;z-index:6}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.h1{font-size:24px;font-weight:700;line-height:1.25;color:#F3E7D7}
+.h2{font-size:20px;font-weight:600;line-height:1.3;color:#F3E7D7}
+.body{font-size:16px;font-weight:400;line-height:1.5;color:#F3E7D7}
+[dir=rtl] .body{line-height:1.7}
+.cap{font-size:13px;font-weight:400;line-height:1.45;color:#B9AFC6}
+.mist{color:#B9AFC6}.sage{color:#8FAE8B}.rose{color:#E38E99}.clay{color:#B98A6E}.alert{color:#D96C5F}
+.btn{height:52px;border-radius:26px;background:#C04A5A;color:#FFF8F1;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.card{background:#2E2344;border-radius:16px;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28)}
+.gut{padding-left:20px;padding-right:20px}
+.night-panel{background:#231A33;border-radius:24px;padding:24px;box-shadow:0 6px 24px rgba(22,14,34,.36)}
+.plabel{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#B9AFC6;margin-bottom:16px}
+/* settings list */
+.sec{font-size:20px;font-weight:600;color:#B9AFC6;padding:16px 0 6px}
+.srow{display:flex;align-items:center;gap:12px;padding:11px 0}
+.srow .tx{flex:1;min-width:0}
+.srow .ti{font-size:16px;color:#F3E7D7;line-height:1.3}
+.srow .su{font-size:12.5px;color:#B9AFC6;line-height:1.4;margin-top:3px}
+.hair{height:1px;background:#453A5C;opacity:.6}
+.sw{width:51px;height:31px;border-radius:16px;background:#453A5C;position:relative;flex:none}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:14px;background:#FFF8F1;box-shadow:0 1px 3px rgba(22,14,34,.45)}
+.sw.on{background:#C04A5A}
+.sw.on::after{left:auto;right:2px}
+[dir=rtl] .sw::after{left:auto;right:2px}
+[dir=rtl] .sw.on::after{right:auto;left:2px}
+/* pin */
+.slot{width:16px;height:16px;border-radius:8px;border:1.75px solid #453A5C}
+.slot.f{background:#F3E7D7;border-color:#F3E7D7}
+.key{width:64px;height:64px;border-radius:32px;background:#2E2344;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:500;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.key.press{background:#8E3140}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="card-head">
+  <h1>Screens · Settings &amp; privacy — the control surface</h1>
+  <p>Privacy first: the section order says it is the headline feature. Grouped sections with H2 headers in Mist and Veil hairlines (the #67 token unblock — no Material grey anywhere), switches themed Veil→Pomegranate with a Moonlight thumb, chevrons in Clay, destructive rows in Alert. Every safety-literate sentence kept verbatim from the shipped ARBs. Layout per ui-ux-redesign §6.6.</p>
+</header>
+
+<!-- ══════════ ROW 1 ══════════ -->
+<div class="row">
+
+  <!-- Settings EN -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="gut" style="display:flex;align-items:center;gap:14px;padding-top:2px">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5 7.5 12l7.5 7.5"/></svg>
+          <h1 class="h1" style="font-size:22px">Settings</h1>
+        </div>
+        <div class="gut" style="flex:1;overflow:hidden;padding-top:2px">
+          <div class="sec">Privacy</div>
+          <div class="srow">
+            <div class="tx"><div class="ti">App lock</div><div class="su">Hayati asks for your PIN when you open it, and again if you’ve been away for more than a minute.</div></div>
+            <div class="sw on"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:2px 0 8px">
+            <svg width="13" height="13" viewBox="0 0 24 24"><path d="M12 3c5 3 8 7.5 8 12a8 8 0 0 1-16 0c0-4.5 3-9 8-12z" fill="#8FAE8B"/></svg>
+            <span style="font-size:12.5px;color:#8FAE8B">Your PIN is on. Hayati locks when you leave it.</span>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">Change PIN</div></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5 16.5 12 9 19.5"/></svg>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">Unlock with Face ID or Touch ID</div><div class="su">A shortcut only — your PIN always works.</div></div>
+            <div class="sw"></div>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">Discreet icon</div><div class="su">Shows a plain icon on your home screen. The app’s name still appears under it.</div></div>
+            <div class="sw"></div>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">Discreet notifications</div><div class="su">Hide message content in notifications, showing only that something new arrived.</div></div>
+            <div class="sw on"></div>
+          </div>
+          <div class="sec">Your data</div>
+          <div class="srow">
+            <div class="tx"><div class="ti">Download my data</div><div class="su">See and copy the data Hayati holds for you.</div></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5 16.5 12 9 19.5"/></svg>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">Privacy &amp; Terms</div><div class="su">Read the documents, see your consent, or withdraw it.</div></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5 16.5 12 9 19.5"/></svg>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D96C5F" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 6.5h16M9.5 6.5V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7M6.5 6.5l1 13a1.5 1.5 0 0 0 1.5 1.4h6a1.5 1.5 0 0 0 1.5-1.4l1-13"/></svg>
+            <div class="tx"><div class="ti alert">Delete account &amp; data</div><div class="su">Permanently remove your account and everything in it.</div></div>
+          </div>
+          <div class="sec">Account</div>
+          <div class="srow">
+            <div class="tx"><div class="ti">Sign out</div><div class="su">Signing out also removes the PIN from this phone.</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Settings — grouped, privacy first</b>Section heads H2 20/600 in Mist <span class="hex">#B9AFC6</span>; Veil <span class="hex">#453A5C</span> hairlines; switch track Veil→Pomegranate <span class="hex">#C04A5A</span>, thumb Moonlight <span class="hex">#FFF8F1</span>; chevrons Clay <span class="hex">#B98A6E</span>. The Sage <span class="hex">#8FAE8B</span> strip is the one-time PIN-set confirmation on settings return. Delete row: Alert <span class="hex">#D96C5F</span> text + lattice-free trash glyph — a calm red, never a red fill. All subtitles verbatim shipped copy, incl. the ADR-018 grace-window disclosure.</figcaption>
+  </figure>
+
+  <!-- PIN setup -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="gut" style="padding-top:2px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5 7.5 12l7.5 7.5"/></svg></div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;padding-top:64px">
+          <div class="h2">Choose a 6-digit PIN</div>
+          <div style="display:flex;gap:16px;margin-top:36px">
+            <span class="slot f"></span><span class="slot f"></span><span class="slot f"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span>
+          </div>
+          <div style="flex:1"></div>
+          <div dir="ltr" style="display:grid;grid-template-columns:repeat(3,64px);gap:20px 26px;margin-bottom:56px">
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+            <div class="key">4</div><div class="key press">5</div><div class="key">6</div>
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+            <div></div><div class="key">0</div>
+            <div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 5h10A2.5 2.5 0 0 1 21 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-10L2.5 12z"/><path d="M11 9.5l5 5M16 9.5l-5 5"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>PIN setup — shared PinKeypad</b>64dp circular targets, Night Raised <span class="hex">#2E2344</span> fill, Sand digits in tabular figures; press flashes Pomegranate Deep <span class="hex">#8E3140</span> for 100ms (key 5 shown pressed). Dot slots: Veil outline → Sand <span class="hex">#F3E7D7</span> filled. The keypad is <b style="display:inline">TextDirection.ltr pinned</b> — numeric pads never mirror (lock-screen sentinel). Mismatch shakes the dot row 2×4dp; reduce-motion collapses to a color flash. “The PIN couldn’t be saved. The lock is still off.” stays verbatim.</figcaption>
+  </figure>
+</div>
+
+<!-- ══════════ ROW 2 ══════════ -->
+<div class="row">
+
+  <!-- Settings AR RTL -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen" dir="rtl" lang="ar">
+        <div class="sbar" dir="ltr"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="gut" style="display:flex;align-items:center;gap:14px;padding-top:2px">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><path d="M15 4.5 7.5 12l7.5 7.5"/></svg>
+          <h1 class="h1" style="font-size:22px">الإعدادات</h1>
+        </div>
+        <div class="gut" style="flex:1;overflow:hidden;padding-top:2px">
+          <div class="sec">الخصوصية</div>
+          <div class="srow">
+            <div class="tx"><div class="ti">قفل التطبيق</div><div class="su" style="line-height:1.6">يطلب حياتي رمزك عند فتحه، ومرة أخرى إذا غبت أكثر من دقيقة.</div></div>
+            <div class="sw on"></div>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">الفتح ببصمة الوجه أو الإصبع</div><div class="su" style="line-height:1.6">اختصار فقط — رمزك يعمل دائمًا.</div></div>
+            <div class="sw"></div>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">أيقونة تطبيق محايدة</div><div class="su" style="line-height:1.6">تعرض أيقونة بسيطة على شاشتك الرئيسية. أما اسم التطبيق فيظل ظاهرًا تحتها.</div></div>
+            <div class="sw"></div>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">إشعارات محتشمة</div><div class="su" style="line-height:1.6">أخفِ محتوى الرسائل في الإشعارات، وأظهر فقط أن شيئًا جديدًا قد وصل.</div><div class="su" style="line-height:1.6;color:#8FAE8B">مُفعّلة افتراضيًا للعربية. يمكنك إبقاؤها مُفعّلة حتى لو غيّرت لغة المحتوى.</div></div>
+            <div class="sw on"></div>
+          </div>
+          <div class="sec">بياناتك</div>
+          <div class="srow">
+            <div class="tx"><div class="ti">تنزيل بياناتي</div><div class="su" style="line-height:1.6">اطّلع على البيانات التي يحتفظ بها حياتي عنك وانسخها.</div></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><path d="M9 4.5 16.5 12 9 19.5"/></svg>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <div class="tx"><div class="ti">الخصوصية والشروط</div><div class="su" style="line-height:1.6">اقرأ المستندات، واطّلع على موافقتك، أو اسحبها.</div></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B98A6E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="transform:scaleX(-1)"><path d="M9 4.5 16.5 12 9 19.5"/></svg>
+          </div>
+          <div class="hair"></div>
+          <div class="srow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D96C5F" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 6.5h16M9.5 6.5V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7M6.5 6.5l1 13a1.5 1.5 0 0 0 1.5 1.4h6a1.5 1.5 0 0 0 1.5-1.4l1-13"/></svg>
+            <div class="tx"><div class="ti alert">حذف الحساب والبيانات</div><div class="su" style="line-height:1.6">أزل حسابك وكل ما فيه بشكل دائم.</div></div>
+          </div>
+          <div class="sec">الحساب</div>
+          <div class="srow">
+            <div class="tx"><div class="ti">تسجيل الخروج</div><div class="su" style="line-height:1.6">تسجيل الخروج يحذف الرمز أيضًا من هذا الهاتف.</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Settings — Arabic, RTL (dir="rtl")</b>All rows verbatim shipped app_ar.arb. Discreet notifications shown ON with the AR-only Sage note — the discreet default for Arabic is non-overridable in v1. Switches and chevrons mirror; the thumb sits at the start edge when on. Section heads («الخصوصية» · «بياناتك» · «الحساب») are composed from canonical string vocabulary, pending Gulf register sign-off like every new string. Arabic subtitles at line-height 1.6–1.7 — Arabic needs air.</figcaption>
+  </figure>
+
+  <!-- right column: DV dialog + discreet icon -->
+  <div class="fig wide col">
+    <figure style="margin:0">
+      <div class="night-panel" style="display:flex;justify-content:center;padding:36px 24px">
+        <div style="width:330px;background:#2E2344;border-radius:24px;border-top:1px solid #453A5C;box-shadow:0 6px 24px rgba(22,14,34,.36);padding:24px">
+          <div class="h2">Before you turn this on</div>
+          <p class="body" style="font-size:15px;margin-top:10px;color:#F3E7D7">Anyone whose face or fingerprint is saved on this phone can unlock Hayati. Your PIN stays private to you.</p>
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:22px">
+            <span style="height:44px;padding:0 16px;border-radius:22px;color:#B9AFC6;font-size:15px;font-weight:500;display:inline-flex;align-items:center">Cancel</span>
+            <span style="height:44px;padding:0 16px;border-radius:22px;color:#E38E99;font-size:15px;font-weight:600;display:inline-flex;align-items:center">I understand</span>
+          </div>
+        </div>
+      </div>
+      <figcaption class="figcap"><b>Biometric accelerator — DV warning dialog</b>Copy is DV-critical and untouchable; the flow (dialog before enabling Face ID) is kept as shipped. Dialog: Night Raised <span class="hex">#2E2344</span>, radius 24, elevation L2 (y6 blur24 <span class="hex">#160E22</span> 36%). Actions are text-only per the dialog pattern — “I understand” in Rose <span class="hex">#E38E99</span> (informed consent, not destructive), Cancel in Mist, always present and always the safe default; no filled button lures the risky choice. One of only three dialogs in the whole app — and never on the lock screen (Class F, sentinel-enforced).</figcaption>
+    </figure>
+
+    <figure style="margin:0">
+      <div class="night-panel">
+        <p class="plabel">Discreet icon — the honest switch</p>
+        <div style="display:flex;justify-content:center;gap:56px;padding:8px 0 4px">
+          <div style="text-align:center">
+            <div style="width:76px;height:76px;border-radius:17px;background:#231A33;border:1px solid #453A5C;display:flex;align-items:center;justify-content:center;margin:0 auto">
+              <svg width="46" height="46" viewBox="0 0 48 48">
+                <path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24)"/>
+                <path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24)"/>
+                <path d="M31.5 15.5c1.8 1.5 3.4 3.3 4.5 5.2-.3-2.6-2-5.3-4.1-7.3z" fill="#FFF8F1" opacity=".9"/>
+              </svg>
+            </div>
+            <div style="font-size:11px;color:#F3E7D7;margin-top:8px">Hayati</div>
+            <div style="font-size:10.5px;color:#B9AFC6;margin-top:4px">Default — Two Seeds</div>
+          </div>
+          <div style="text-align:center">
+            <div style="width:76px;height:76px;border-radius:17px;background:#D8D8DC;display:flex;align-items:center;justify-content:center;margin:0 auto">
+              <svg width="40" height="40" viewBox="0 0 40 40" stroke="#6E6E73" stroke-width="2.6" stroke-linecap="round"><circle cx="9" cy="12" r="1.6" fill="#6E6E73" stroke="none"/><path d="M15 12h17"/><circle cx="9" cy="20" r="1.6" fill="#6E6E73" stroke="none"/><path d="M15 20h17"/><circle cx="9" cy="28" r="1.6" fill="#6E6E73" stroke="none"/><path d="M15 28h17"/></svg>
+            </div>
+            <div style="font-size:11px;color:#F3E7D7;margin-top:8px">Hayati</div>
+            <div style="font-size:10.5px;color:#B9AFC6;margin-top:4px">Discreet — utility grey</div>
+          </div>
+        </div>
+        <p class="cap" style="text-align:center;margin-top:14px">Shows a plain icon on your home screen. The app’s name still appears under it.</p>
+      </div>
+      <figcaption class="figcap"><b>Discreet icon switcher — honest by design</b>The discreet glyph is deliberately off-palette utility grey (per the shipped asset): its entire job is to not be this brand — it must never gain seeds or pomegranate tones. The label disclosure stays verbatim (the honest iOS bound). The app-switcher shield stays a brand-free flat Night <span class="hex">#231A33</span> card forever, by ADR — no logo, no copy, nothing worth asking about.</figcaption>
+    </figure>
+  </div>
+</div>
+
+<footer style="border-top:1px solid #E4E1DB;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center">
+  <span style="font-size:11px;font-weight:600;color:#26212E;letter-spacing:.04em;text-transform:uppercase">Tokens used</span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#231A33;display:inline-block"></i>Night <span class="hex">#231A33</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#2E2344;display:inline-block"></i>Night Raised <span class="hex">#2E2344</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#F3E7D7;display:inline-block;border:1px solid #E4E1DB"></i>Sand <span class="hex">#F3E7D7</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B9AFC6;display:inline-block"></i>Mist <span class="hex">#B9AFC6</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#453A5C;display:inline-block"></i>Veil <span class="hex">#453A5C</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#C04A5A;display:inline-block"></i>Pomegranate <span class="hex">#C04A5A</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8E3140;display:inline-block"></i>Pom. Deep <span class="hex">#8E3140</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#E38E99;display:inline-block"></i>Rose <span class="hex">#E38E99</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#FFF8F1;display:inline-block;border:1px solid #E4E1DB"></i>Moonlight <span class="hex">#FFF8F1</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B98A6E;display:inline-block"></i>Clay <span class="hex">#B98A6E</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8FAE8B;display:inline-block"></i>Sage <span class="hex">#8FAE8B</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#D96C5F;display:inline-block"></i>Alert <span class="hex">#D96C5F</span></span>
+  <span style="font-size:11px;color:#6F697A">Elevation L2 (dialogs): y6 blur24 <span class="hex">#160E22</span> 36% · dialog radius 24 · keypad keys 64dp, LTR-pinned · hit targets ≥48dp</span>
+</footer>
+
+</div>
+</body>
+</html>

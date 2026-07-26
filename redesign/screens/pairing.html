@@ -1,0 +1,308 @@
+<!-- @dsCard group="Screens" name="Pairing" subtitle="Invite share + QR · Code-first payload EN/TR/AR · Join {name} · You two are in." width="960" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hayati — Pairing screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300..800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#F5F5F4;font-family:'Rubik',-apple-system,'Segoe UI',sans-serif;color:#4A4552;padding:44px 20px 72px}
+.wrap{max-width:960px;margin:0 auto}
+.card-head{margin-bottom:30px}
+.card-head h1{font-size:20px;font-weight:700;color:#26212E}
+.card-head p{font-size:13.5px;line-height:1.55;color:#6F697A;margin-top:6px;max-width:78ch}
+.row{display:flex;flex-wrap:wrap;gap:44px 40px;margin-bottom:48px;align-items:flex-start}
+.fig{width:390px}
+.fig.wide{width:526px}
+.figcap{margin-top:14px;font-size:12px;line-height:1.55;color:#6F697A}
+.figcap b{display:block;font-size:12.5px;font-weight:600;color:#26212E;margin-bottom:2px}
+.hex{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#7A7484;background:#ECEAE5;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.phone{width:390px;height:844px;background:#231A33;border-radius:54px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 12px #160E22,0 30px 60px -18px rgba(22,14,34,.5)}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:122px;height:34px;background:#160E22;border-radius:20px;z-index:6}
+.sbar{height:56px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 34px 8px;position:relative;z-index:5}
+.sbar .t{font-size:15px;font-weight:600;color:#F3E7D7;font-variant-numeric:tabular-nums}
+.homebar{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#F3E7D7;opacity:.32;z-index:6}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.q{font-size:28px;font-weight:300;line-height:1.35;color:#F3E7D7}
+[dir=rtl] .q{line-height:1.6}
+.h1{font-size:24px;font-weight:700;line-height:1.25;color:#F3E7D7}
+.h2{font-size:20px;font-weight:600;line-height:1.3;color:#F3E7D7}
+.body{font-size:16px;font-weight:400;line-height:1.5;color:#F3E7D7}
+[dir=rtl] .body{line-height:1.7}
+.cap{font-size:13px;font-weight:400;line-height:1.45;color:#B9AFC6}
+.mist{color:#B9AFC6}.sage{color:#8FAE8B}.rose{color:#E38E99}.clay{color:#B98A6E}
+.btn{height:52px;border-radius:26px;background:#C04A5A;color:#FFF8F1;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.tbtn{font-size:16px;font-weight:600;color:#E38E99;text-align:center;padding:10px 0}
+.card{background:#2E2344;border-radius:16px;border-top:1px solid #453A5C;box-shadow:0 2px 8px rgba(22,14,34,.28)}
+.input{background:#2E2344;border:1px solid #453A5C;border-radius:16px;padding:14px 16px;font-size:16px;color:#F3E7D7}
+.gut{padding-left:20px;padding-right:20px}
+.tab{font-variant-numeric:tabular-nums}
+/* light payload panel */
+.paper{background:#FAF3E8;border-radius:24px;border:1px solid #E7DCCB;padding:24px;box-shadow:0 2px 8px rgba(42,33,56,.08)}
+.bubble{background:#FFFCF6;border:1px solid #E7DCCB;border-radius:16px;padding:12px 14px;font-size:14.5px;line-height:1.55;color:#2A2138}
+.bubble[dir=rtl]{line-height:1.75}
+.night-panel{background:#231A33;border-radius:24px;padding:24px;box-shadow:0 6px 24px rgba(22,14,34,.36)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="card-head">
+  <h1>Screens · Pairing — the activation funnel</h1>
+  <p>The inviter produces an artifact worth sending (code + card + QR + code-first message); the invitee sees value before the sign-up toll (“Join {name}”); the first paired mount fires the one-shot branches-meet moment (“You two are in.”). Flows per ui-ux-redesign §5.2–5.3 / §6.2; strings from product-copy.md and the shipped ARBs. Example code ABCD2345 is the shipped documentation code; “Aylin” and «نورة» are canon personas.</p>
+</header>
+
+<!-- ══════════ ROW 1 · inviter side ══════════ -->
+<div class="row">
+
+  <!-- Invite share -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div class="gut" style="padding-top:4px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5 7.5 12l7.5 7.5"/></svg></div>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:8px">
+          <h1 class="h1">Invite your partner</h1>
+          <p class="body mist" style="font-size:15px;margin-top:8px">One link, one tap, and the ritual begins. Your code works for 48 hours.</p>
+          <div style="display:flex;gap:16px;margin-top:20px;align-items:center">
+            <!-- invite card preview (the actual shareable image) -->
+            <svg width="140" height="216" viewBox="0 0 140 216" style="flex:none;border-radius:12px;box-shadow:0 2px 8px rgba(22,14,34,.28)">
+              <rect width="140" height="216" rx="12" fill="#231A33" stroke="#453A5C"/>
+              <g opacity=".05" fill="none" stroke="#F3E7D7" stroke-width="1.1">
+                <path transform="translate(24 26) scale(.6)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+                <path transform="translate(118 44) scale(.42)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/>
+              </g>
+              <g transform="translate(46 42)">
+                <path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24)"/>
+                <path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24)"/>
+                <path d="M31.5 15.5c1.8 1.5 3.4 3.3 4.5 5.2-.3-2.6-2-5.3-4.1-7.3z" fill="#FFF8F1" opacity=".9"/>
+              </g>
+              <text x="70" y="112" text-anchor="middle" font-family="Rubik,sans-serif" font-size="10.5" fill="#F3E7D7">One question a day,</text>
+              <text x="70" y="126" text-anchor="middle" font-family="Rubik,sans-serif" font-size="10.5" fill="#F3E7D7">for two.</text>
+              <rect x="22" y="146" width="96" height="28" rx="14" fill="#C04A5A"/>
+              <text x="70" y="164" text-anchor="middle" font-family="Rubik,sans-serif" font-size="12.5" font-weight="700" letter-spacing="2" fill="#FFF8F1">ABCD2345</text>
+              <text x="70" y="198" text-anchor="middle" font-family="Rubik,sans-serif" font-size="7.5" letter-spacing="1.5" fill="#B9AFC6">HAYATI</text>
+            </svg>
+            <div style="flex:1;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span class="tab" style="font-size:27px;font-weight:800;letter-spacing:2px;color:#F3E7D7">ABCD<br>2345</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="card" style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></span>
+                <span class="cap">Copy code</span>
+              </div>
+              <p class="cap">Expires 28 Jul 2026, 3:00 PM — sharing again keeps the same code.</p>
+            </div>
+          </div>
+          <!-- QR block -->
+          <div class="card" style="margin-top:16px;padding:14px 16px;display:flex;align-items:center;gap:16px">
+            <svg width="92" height="92" viewBox="-8 -8 116 116" style="flex:none"><rect x="-8" y="-8" width="116" height="116" rx="10" fill="#2E2344"/><path fill="#F3E7D7" d="M0 0h28v4h-24v20h-4zM24 4v24h-24v-4h20v-20zM8 8h12v12h-12zM72 0h28v4h-24v20h-4zM96 4v24h-24v-4h20v-20zM80 8h12v12h-12zM0 72h28v4h-24v20h-4zM24 76v24h-24v-4h20v-20zM8 80h12v12h-12zM32 24h4v4h-4zM24 32h4v4h-4zM40 24h4v4h-4zM24 40h4v4h-4zM48 24h4v4h-4zM24 48h4v4h-4zM56 24h4v4h-4zM24 56h4v4h-4zM64 24h4v4h-4zM24 64h4v4h-4zM32 0h4v4h-4zM36 0h4v4h-4zM44 0h4v4h-4zM52 0h4v4h-4zM56 0h4v4h-4zM64 0h4v4h-4zM32 4h4v4h-4zM36 4h4v4h-4zM40 4h4v4h-4zM44 4h4v4h-4zM52 4h4v4h-4zM56 4h4v4h-4zM36 8h4v4h-4zM44 8h4v4h-4zM52 8h4v4h-4zM56 8h4v4h-4zM60 8h4v4h-4zM64 8h4v4h-4zM36 12h4v4h-4zM48 12h4v4h-4zM56 12h4v4h-4zM60 12h4v4h-4zM64 12h4v4h-4zM36 16h4v4h-4zM40 16h4v4h-4zM48 16h4v4h-4zM52 16h4v4h-4zM64 16h4v4h-4zM48 20h4v4h-4zM56 20h4v4h-4zM60 20h4v4h-4zM36 24h4v4h-4zM52 24h4v4h-4zM44 28h4v4h-4zM60 28h4v4h-4zM12 32h4v4h-4zM36 32h4v4h-4zM40 32h4v4h-4zM48 32h4v4h-4zM56 32h4v4h-4zM60 32h4v4h-4zM64 32h4v4h-4zM72 32h4v4h-4zM76 32h4v4h-4zM80 32h4v4h-4zM88 32h4v4h-4zM92 32h4v4h-4zM12 36h4v4h-4zM16 36h4v4h-4zM20 36h4v4h-4zM32 36h4v4h-4zM36 36h4v4h-4zM40 36h4v4h-4zM44 36h4v4h-4zM56 36h4v4h-4zM60 36h4v4h-4zM64 36h4v4h-4zM68 36h4v4h-4zM96 36h4v4h-4zM16 40h4v4h-4zM20 40h4v4h-4zM28 40h4v4h-4zM36 40h4v4h-4zM40 40h4v4h-4zM44 40h4v4h-4zM48 40h4v4h-4zM52 40h4v4h-4zM56 40h4v4h-4zM60 40h4v4h-4zM64 40h4v4h-4zM68 40h4v4h-4zM72 40h4v4h-4zM76 40h4v4h-4zM88 40h4v4h-4zM92 40h4v4h-4zM96 40h4v4h-4zM0 44h4v4h-4zM4 44h4v4h-4zM24 44h4v4h-4zM28 44h4v4h-4zM32 44h4v4h-4zM36 44h4v4h-4zM44 44h4v4h-4zM48 44h4v4h-4zM60 44h4v4h-4zM68 44h4v4h-4zM88 44h4v4h-4zM92 44h4v4h-4zM96 44h4v4h-4zM12 48h4v4h-4zM16 48h4v4h-4zM48 48h4v4h-4zM56 48h4v4h-4zM60 48h4v4h-4zM64 48h4v4h-4zM68 48h4v4h-4zM72 48h4v4h-4zM84 48h4v4h-4zM0 52h4v4h-4zM4 52h4v4h-4zM8 52h4v4h-4zM12 52h4v4h-4zM16 52h4v4h-4zM44 52h4v4h-4zM68 52h4v4h-4zM76 52h4v4h-4zM88 52h4v4h-4zM92 52h4v4h-4zM4 56h4v4h-4zM8 56h4v4h-4zM12 56h4v4h-4zM28 56h4v4h-4zM44 56h4v4h-4zM52 56h4v4h-4zM56 56h4v4h-4zM76 56h4v4h-4zM88 56h4v4h-4zM92 56h4v4h-4zM96 56h4v4h-4zM0 60h4v4h-4zM8 60h4v4h-4zM12 60h4v4h-4zM16 60h4v4h-4zM24 60h4v4h-4zM28 60h4v4h-4zM40 60h4v4h-4zM60 60h4v4h-4zM64 60h4v4h-4zM68 60h4v4h-4zM72 60h4v4h-4zM80 60h4v4h-4zM96 60h4v4h-4zM12 64h4v4h-4zM20 64h4v4h-4zM28 64h4v4h-4zM52 64h4v4h-4zM72 64h4v4h-4zM32 68h4v4h-4zM48 68h4v4h-4zM52 68h4v4h-4zM56 68h4v4h-4zM60 68h4v4h-4zM64 68h4v4h-4zM68 68h4v4h-4zM84 68h4v4h-4zM96 68h4v4h-4zM40 72h4v4h-4zM48 72h4v4h-4zM64 72h4v4h-4zM68 72h4v4h-4zM76 72h4v4h-4zM80 72h4v4h-4zM84 72h4v4h-4zM92 72h4v4h-4zM32 76h4v4h-4zM36 76h4v4h-4zM40 76h4v4h-4zM52 76h4v4h-4zM68 76h4v4h-4zM72 76h4v4h-4zM76 76h4v4h-4zM84 76h4v4h-4zM88 76h4v4h-4zM92 76h4v4h-4zM36 80h4v4h-4zM40 80h4v4h-4zM56 80h4v4h-4zM60 80h4v4h-4zM68 80h4v4h-4zM72 80h4v4h-4zM88 80h4v4h-4zM96 80h4v4h-4zM36 84h4v4h-4zM40 84h4v4h-4zM52 84h4v4h-4zM56 84h4v4h-4zM64 84h4v4h-4zM68 84h4v4h-4zM72 84h4v4h-4zM76 84h4v4h-4zM80 84h4v4h-4zM84 84h4v4h-4zM88 84h4v4h-4zM96 84h4v4h-4zM36 88h4v4h-4zM40 88h4v4h-4zM44 88h4v4h-4zM48 88h4v4h-4zM52 88h4v4h-4zM64 88h4v4h-4zM76 88h4v4h-4zM84 88h4v4h-4zM96 88h4v4h-4zM44 92h4v4h-4zM60 92h4v4h-4zM64 92h4v4h-4zM68 92h4v4h-4zM72 92h4v4h-4zM76 92h4v4h-4zM84 92h4v4h-4zM88 92h4v4h-4zM92 92h4v4h-4zM40 96h4v4h-4zM44 96h4v4h-4zM48 96h4v4h-4zM52 96h4v4h-4zM56 96h4v4h-4zM60 96h4v4h-4zM64 96h4v4h-4zM80 96h4v4h-4zM88 96h4v4h-4zM92 96h4v4h-4zM96 96h4v4h-4z"/></svg>
+            <p class="cap" style="flex:1">Together right now? Have them scan this.</p>
+          </div>
+          <div class="btn" style="margin-top:16px">Share invite</div>
+          <p class="cap" style="text-align:center;margin-top:12px">We’ll bring you together the moment they join.</p>
+          <div style="flex:1"></div>
+          <div class="tbtn" style="margin-bottom:30px">Got a code instead?</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Invite share — creator side</b>The invite-card preview is the actual shareable image (identity-safe: no names, no answers — safe on a public WhatsApp Status). Code in Display-size tabular figures with a copy affordance; expiry line discloses the idempotent re-issue. QR: Sand <span class="hex">#F3E7D7</span> modules on Night Raised <span class="hex">#2E2344</span>, encodes https://hayati.app/i/ABCD2345. On partner join the screen self-pops after a brief “Paired ✦” Sage <span class="hex">#8FAE8B</span> beat.</figcaption>
+  </figure>
+
+  <!-- Share payload -->
+  <figure class="fig wide">
+    <div class="paper">
+      <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#6B6178;margin-bottom:14px">System share payload — code-first message, on the Paper <span class="hex" style="background:#F3E7D7">#FAF3E8</span> marketing canvas</p>
+      <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">
+        <div class="bubble" style="flex:1">I picked an app for us — one question a day, just for the two of us. My invite code: <b style="font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.5px">ABCD2345</b>. Get Hayati, then enter the code. I’m waiting for you ❤️ <span style="color:#8E3140;font-weight:600">https://hayati.app/i/ABCD2345</span></div>
+        <svg width="64" height="99" viewBox="0 0 140 216" style="flex:none;border-radius:8px;box-shadow:0 2px 8px rgba(42,33,56,.16)">
+          <rect width="140" height="216" rx="16" fill="#231A33"/>
+          <g transform="translate(46 42)">
+            <path d="M21 38c-6.5 0-11-4.6-11-10.6C10 20 15.5 13.4 21.8 9c1.6 5.6 2.8 12 2.6 17.7-.2 6.5-1.6 11.3-3.4 11.3z" fill="#8E3140" transform="rotate(-8 24 24)"/>
+            <path d="M28.5 34c-1.5 0-2.7-4-2.8-9.4-.2-4.7.8-10 2-14.6 5.2 3.7 9.7 9.2 9.7 15.4 0 5-3.8 8.6-8.9 8.6z" fill="#C04A5A" transform="rotate(8 24 24)"/>
+          </g>
+          <text x="70" y="118" text-anchor="middle" font-family="Rubik,sans-serif" font-size="10.5" fill="#F3E7D7">One question a day, for two.</text>
+          <rect x="22" y="146" width="96" height="28" rx="14" fill="#C04A5A"/>
+          <text x="70" y="164" text-anchor="middle" font-family="Rubik,sans-serif" font-size="12.5" font-weight="700" letter-spacing="2" fill="#FFF8F1">ABCD2345</text>
+        </svg>
+      </div>
+      <div class="bubble" lang="tr" style="margin-bottom:12px">Bize bir uygulama buldum — her gün ikimize bir soru. Davet kodum: <b style="font-weight:700;letter-spacing:.5px">ABCD2345</b>. Hayati’yi indir, kodu gir. Seni bekliyorum ❤️ <span style="color:#8E3140;font-weight:600">https://hayati.app/i/ABCD2345</span></div>
+      <div class="bubble" dir="rtl" lang="ar">اخترت لنا تطبيقًا — سؤال واحد كل يوم، لنا وحدنا. رمز الدعوة: <b style="font-weight:700;letter-spacing:.5px"><span dir="ltr">ABCD2345</span></b>. حمّل حياتي ثم أدخل الرمز. بانتظارك ❤️ <span style="color:#8E3140;font-weight:600" dir="ltr">https://hayati.app/i/ABCD2345</span></div>
+      <p style="font-size:11.5px;line-height:1.55;color:#6B6178;margin-top:14px">Text on Paper is Plum Ink <span class="hex" style="background:#F3E7D7">#2A2138</span>; links Pomegranate Deep <span class="hex" style="background:#F3E7D7">#8E3140</span> (light-mode Rose).</p>
+    </div>
+    <figcaption class="figcap"><b>Share payload — product-copy rewrite, all three locales</b>The code leads because custom-scheme links aren’t tappable in chat apps; the single ❤️ closes the message, off the glanceable first line (discretion rule — the one licensed emoji in all of Hayati). Payload = message + https universal link + the identity-safe card image. The AR bubble is the canonical Gulf rendering, dir="rtl".</figcaption>
+  </figure>
+</div>
+
+<!-- ══════════ ROW 2 · invitee side ══════════ -->
+<div class="row">
+
+  <!-- Partner preview EN -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <!-- card mid-unfold, Sand glow spilling from the fold -->
+        <svg viewBox="0 0 390 168" style="width:390px;height:168px;flex:none">
+          <ellipse cx="195" cy="112" rx="90" ry="30" fill="#F3E7D7" opacity=".08"/>
+          <ellipse cx="195" cy="108" rx="52" ry="16" fill="#F3E7D7" opacity=".12"/>
+          <rect x="125" y="104" width="140" height="52" rx="10" fill="#2E2344" stroke="#453A5C"/>
+          <path d="M129 104 L195 44 L261 104" fill="#2E2344" stroke="#453A5C" stroke-linejoin="round"/>
+          <line x1="125" y1="104" x2="265" y2="104" stroke="#F3E7D7" stroke-opacity=".35"/>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:10px">
+          <h1 class="h1" style="text-align:center"><span style="color:#C04A5A;font-weight:800">Aylin</span> invited you</h1>
+          <p class="body mist" style="font-size:15px;text-align:center;margin-top:8px">One question a day, sealed until you both answer. Aylin is ready when you are.</p>
+          <div class="card" style="margin-top:20px;padding:16px">
+            <p class="cap" style="margin-bottom:8px">Today’s question</p>
+            <p class="q" style="font-size:23px">What’s a small thing I do that secretly makes your day?</p>
+          </div>
+          <div class="card" style="margin-top:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden">
+            <svg width="26" height="26" viewBox="0 0 48 48" style="flex:none"><g stroke="#B98A6E" stroke-width="2.4" fill="none" stroke-linejoin="round"><path d="M24 4l4.4 9.4 9.9-2.9-2.9 9.9L44.8 24l-9.4 4.4 2.9 9.9-9.9-2.9L24 44.8l-4.4-9.4-9.9 2.9 2.9-9.9L3.2 24l9.4-4.4-2.9-9.9 9.9 2.9z"/></g><path d="M24 18.4c2.6 2.9 4.3 5.4 4.3 7.7a4.3 4.3 0 1 1-8.6 0c0-2.3 1.7-4.8 4.3-7.7z" fill="#B98A6E"/></svg>
+            <p class="cap" style="flex:1">Aylin has already answered. Their answer unlocks when you write yours.</p>
+            <svg width="34" height="34" viewBox="0 0 34 34" style="position:absolute;top:-1px;right:-1px"><path d="M0 0h34v34z" fill="#231A33"/><path d="M0 0 L34 34" stroke="#453A5C"/></svg>
+          </div>
+          <div style="flex:1"></div>
+          <div class="btn">Join Aylin</div>
+          <div class="tbtn" style="color:#B9AFC6;margin:6px 0 4px">Not now</div>
+          <div class="tbtn" style="margin-bottom:26px;font-size:14px">Got a code instead?</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Partner preview — the invitee’s activation moment (pre-auth hook restored)</b>Name in Pomegranate <span class="hex">#C04A5A</span> at weight 800 — a sanctioned accent-text use, color plus weight, never color alone. The sealed answer card (folded corner + lattice-lock) shows the PRD F1 hook: value before the sign-up toll. CTA “Join {name}”, fallback “Accept invitation”. Question text is sample content (content bank, item #3).</figcaption>
+  </figure>
+
+  <!-- Branches meet / paired home first mount -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen">
+        <div class="sbar"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 20px 0">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><path d="M4.5 10.5h15c-.6 5-3.6 8-7.5 8s-6.9-3-7.5-8z"/><path d="M9.5 21h5"/><circle cx="10" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/><circle cx="14.2" cy="7.6" r="1.7" fill="#C04A5A" stroke="none"/></svg>
+          <span class="cap">Saturday, 26 July</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F3E7D7" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.4 5.4l1.9 1.9M16.7 16.7l1.9 1.9M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9"/></svg>
+        </div>
+        <!-- branches-meet one-shot header art (settles to 60% ambient) -->
+        <svg viewBox="0 0 390 84" style="width:390px;height:84px;flex:none;opacity:.6">
+          <path d="M-16 58 C80 40 140 46 189 42" stroke="#B98A6E" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <path d="M406 58 C310 40 250 46 201 42" stroke="#B98A6E" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <ellipse cx="120" cy="48" rx="9" ry="3.8" fill="#B98A6E" transform="rotate(-12 120 48)"/>
+          <ellipse cx="270" cy="48" rx="9" ry="3.8" fill="#B98A6E" transform="rotate(12 270 48)"/>
+          <g transform="translate(195 40)">
+            <circle cx="0" cy="-8" r="4.8" fill="#C04A5A"/><circle cx="7.6" cy="-2.5" r="4.8" fill="#C04A5A"/><circle cx="4.7" cy="6.4" r="4.8" fill="#C04A5A"/><circle cx="-4.7" cy="6.4" r="4.8" fill="#C04A5A"/><circle cx="-7.6" cy="-2.5" r="4.8" fill="#C04A5A"/><circle r="3.4" fill="#8E3140"/>
+          </g>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:2px">
+          <!-- one-time banner -->
+          <div class="card" style="padding:16px;border-top:1px solid #8FAE8B">
+            <div class="h2">You two are in.</div>
+            <p class="cap" style="margin-top:6px">From tonight, one question a day. Sealed until you both answer.</p>
+          </div>
+          <!-- streak strip, vessel empty -->
+          <div style="display:flex;align-items:center;gap:12px">
+            <svg width="40" height="34" viewBox="0 0 48 40"><path d="M6 14h36c-1.2 12-8 19-18 19S7.2 26 6 14z" fill="#2E2344" stroke="#453A5C"/><path d="M17 36h14" stroke="#B98A6E" stroke-width="2.5" stroke-linecap="round"/></svg>
+            <span class="cap" style="flex:1">Your first seed arrives the first day you both answer.</span>
+          </div>
+          <!-- question card -->
+          <div class="card" style="padding:16px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="cap">Today’s question</span><span class="cap" style="opacity:.7">Starter collection</span></div>
+            <p class="q" style="font-size:24px">What’s a small thing I do that secretly makes your day?</p>
+            <svg width="52" height="52" viewBox="0 0 60 60" style="display:block;margin-left:auto;margin-top:2px;opacity:.5"><g opacity=".08" fill="none" stroke="#F3E7D7" stroke-width="1.4"><path transform="translate(30 30)" d="M30 0 11.1 4.6 21.2 21.2 4.6 11.1 0 30 -4.6 11.1 -21.2 21.2 -11.1 4.6 -30 0 -11.1 -4.6 -21.2 -21.2 -4.6 -11.1 0 -30 4.6 -11.1 21.2 -21.2 11.1 -4.6Z"/></g></svg>
+          </div>
+          <div class="input" style="min-height:64px;display:flex;align-items:flex-start;padding-top:13px"><span class="mist" style="font-size:16px">Only Aylin will ever read this.</span></div>
+          <div class="btn" style="flex:none">Save answer</div>
+          <!-- partner slot, locked -->
+          <div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden">
+            <svg width="24" height="24" viewBox="0 0 48 48" style="flex:none"><g stroke="#B98A6E" stroke-width="2.4" fill="none" stroke-linejoin="round"><path d="M24 4l4.4 9.4 9.9-2.9-2.9 9.9L44.8 24l-9.4 4.4 2.9 9.9-9.9-2.9L24 44.8l-4.4-9.4-9.9 2.9 2.9-9.9L3.2 24l9.4-4.4-2.9-9.9 9.9 2.9z"/></g><path d="M24 18.4c2.6 2.9 4.3 5.4 4.3 7.7a4.3 4.3 0 1 1-8.6 0c0-2.3 1.7-4.8 4.3-7.7z" fill="#B98A6E"/></svg>
+            <p class="cap" style="flex:1">Your partner’s answer unlocks when you answer.</p>
+            <svg width="30" height="30" viewBox="0 0 30 30" style="position:absolute;top:-1px;right:-1px"><path d="M0 0h30v30z" fill="#231A33"/><path d="M0 0 L30 30" stroke="#453A5C"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>“You two are in.” — first paired mount</b>The branches-meet one-shot (900ms, Lottie; mirrors in RTL) settles to a 60%-opacity ambient header, then never replays. Banner carries a Sage <span class="hex">#8FAE8B</span> top hairline — celebration state, no CTA: today’s question is already on the screen. Empty vessel uses the canonical zero-seeds line. Answer hint restates the privacy promise daily: “Only {name} will ever read this.”</figcaption>
+  </figure>
+</div>
+
+<!-- ══════════ ROW 3 · RTL + one-time banners ══════════ -->
+<div class="row">
+
+  <!-- AR partner preview RTL -->
+  <figure class="fig">
+    <div class="phone"><div class="island"></div>
+      <div class="screen" dir="rtl" lang="ar">
+        <div class="sbar" dir="ltr"><span class="t">9:41</span><svg width="68" height="14" viewBox="0 0 68 14" fill="#F3E7D7"><rect y="6" width="3" height="7" rx="1"/><rect x="5" y="4" width="3" height="9" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" width="3" height="13" rx="1"/><path d="M30 4.5a8.5 8.5 0 0 1 11 0l-1.7 2a6 6 0 0 0-7.6 0z"/><path d="M32.5 7.6a5 5 0 0 1 6 0l-1.6 1.9a2.6 2.6 0 0 0-2.8 0z"/><circle cx="35.5" cy="11.5" r="1.6"/><rect x="44" y="1.5" width="20" height="11" rx="3.5" fill="none" stroke="#F3E7D7" stroke-opacity=".5"/><rect x="46" y="3.5" width="13" height="7" rx="2"/><path d="M65.5 5v4a2.2 2.2 0 0 0 0-4z" fill-opacity=".5"/></svg></div>
+        <svg viewBox="0 0 390 168" style="width:390px;height:168px;flex:none;transform:scaleX(-1)">
+          <ellipse cx="195" cy="112" rx="90" ry="30" fill="#F3E7D7" opacity=".08"/>
+          <ellipse cx="195" cy="108" rx="52" ry="16" fill="#F3E7D7" opacity=".12"/>
+          <rect x="125" y="104" width="140" height="52" rx="10" fill="#2E2344" stroke="#453A5C"/>
+          <path d="M129 104 L195 44 L261 104" fill="#2E2344" stroke="#453A5C" stroke-linejoin="round"/>
+          <line x1="125" y1="104" x2="265" y2="104" stroke="#F3E7D7" stroke-opacity=".35"/>
+        </svg>
+        <div class="gut" style="flex:1;display:flex;flex-direction:column;padding-top:10px">
+          <h1 class="h1" style="text-align:center">دعاك <span style="color:#C04A5A;font-weight:800">نورة</span></h1>
+          <p class="body mist" style="font-size:15px;text-align:center;margin-top:8px">الدعوة جاهزة. اقترنا لتبدآ الإجابة معًا عن سؤال كل يوم.</p>
+          <div class="card" style="margin-top:22px;padding:14px 16px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden">
+            <svg width="26" height="26" viewBox="0 0 48 48" style="flex:none"><g stroke="#B98A6E" stroke-width="2.4" fill="none" stroke-linejoin="round"><path d="M24 4l4.4 9.4 9.9-2.9-2.9 9.9L44.8 24l-9.4 4.4 2.9 9.9-9.9-2.9L24 44.8l-4.4-9.4-9.9 2.9 2.9-9.9L3.2 24l9.4-4.4-2.9-9.9 9.9 2.9z"/></g><path d="M24 18.4c2.6 2.9 4.3 5.4 4.3 7.7a4.3 4.3 0 1 1-8.6 0c0-2.3 1.7-4.8 4.3-7.7z" fill="#B98A6E"/></svg>
+            <p class="cap" style="flex:1">تنكشف إجابة شريكك عندما تجيب.</p>
+            <svg width="30" height="30" viewBox="0 0 30 30" style="position:absolute;top:-1px;left:-1px"><path d="M30 0H0v30z" fill="#231A33"/><path d="M30 0 L0 30" stroke="#453A5C"/></svg>
+          </div>
+          <div style="flex:1"></div>
+          <div class="btn">قبول الدعوة</div>
+          <div class="tbtn" style="color:#B9AFC6;margin:6px 0 4px">ليس الآن</div>
+          <div class="tbtn" style="margin-bottom:26px;font-size:14px">لديك رمز؟</div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div>
+    <figcaption class="figcap"><b>Partner preview — Arabic, RTL (dir="rtl")</b>All strings shipped canon (app_ar.arb): «دعاك نورة» · valid-body · sealed line «تنكشف إجابة شريكك عندما تجيب.» · «قبول الدعوة» — the documented fallback while the “Join {name}” AR rendering awaits Gulf register review. Fold corner, glow and unfold direction mirror; body line-height 1.7.</figcaption>
+  </figure>
+
+  <!-- One-time banners tri-locale -->
+  <figure class="fig wide">
+    <div class="night-panel">
+      <p style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#B9AFC6;margin-bottom:16px">Pairing-complete banner — one-time, carried by the branches-meet one-shot</p>
+      <div class="card" style="padding:16px;border-top:1px solid #8FAE8B;margin-bottom:12px">
+        <div class="h2">You two are in.</div>
+        <p class="cap" style="margin-top:6px">From tonight, one question a day. Sealed until you both answer.</p>
+      </div>
+      <div class="card" lang="tr" style="padding:16px;border-top:1px solid #8FAE8B;margin-bottom:12px">
+        <div class="h2">Artık ikiniz varsınız.</div>
+        <p class="cap" style="margin-top:6px">Bu geceden itibaren her gün bir soru.</p>
+      </div>
+      <div class="card" dir="rtl" lang="ar" style="padding:16px;border-top:1px solid #8FAE8B">
+        <div class="h2">صرتما معًا هنا.</div>
+        <p class="cap" style="margin-top:6px;line-height:1.7">من الليلة، سؤال واحد كل يوم.</p>
+      </div>
+      <p class="cap" style="margin-top:16px;font-size:11.5px">Never a separate route — an overlay banner above Today, per the push/pop navigation inventory. No CTA by design.</p>
+    </div>
+    <figcaption class="figcap"><b>“You two are in.” — tri-locale</b>Titles verbatim from product-copy success states (EN/TR/AR). The TR/AR support lines are drafts composed from the canonical tagline vocabulary — like every new string, they ship only after native register-owner sign-off (product-copy governance). Sage <span class="hex">#8FAE8B</span> hairline = success accent; Gold is reserved for milestones and premium, never pairing.</figcaption>
+  </figure>
+</div>
+
+<footer style="border-top:1px solid #E4E1DB;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center">
+  <span style="font-size:11px;font-weight:600;color:#26212E;letter-spacing:.04em;text-transform:uppercase">Tokens used</span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#231A33;display:inline-block"></i>Night <span class="hex">#231A33</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#2E2344;display:inline-block"></i>Night Raised <span class="hex">#2E2344</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#F3E7D7;display:inline-block;border:1px solid #E4E1DB"></i>Sand <span class="hex">#F3E7D7</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B9AFC6;display:inline-block"></i>Mist <span class="hex">#B9AFC6</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#453A5C;display:inline-block"></i>Veil <span class="hex">#453A5C</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#C04A5A;display:inline-block"></i>Pomegranate <span class="hex">#C04A5A</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8E3140;display:inline-block"></i>Pom. Deep <span class="hex">#8E3140</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#E38E99;display:inline-block"></i>Rose <span class="hex">#E38E99</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#FFF8F1;display:inline-block;border:1px solid #E4E1DB"></i>Moonlight <span class="hex">#FFF8F1</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#B98A6E;display:inline-block"></i>Clay <span class="hex">#B98A6E</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#8FAE8B;display:inline-block"></i>Sage <span class="hex">#8FAE8B</span></span>
+  <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#6F697A"><i style="width:14px;height:14px;border-radius:4px;background:#FAF3E8;display:inline-block;border:1px solid #E4E1DB"></i>Paper <span class="hex">#FAF3E8</span></span>
+  <span style="font-size:11px;color:#6F697A">Elevation L1: y2 blur8 <span class="hex">#160E22</span> 28% · L2 (sheets): y6 blur24 36% · Rubik — Question 28/300 (scaled in-card) · H1 24/700 · Caption 13/400 Mist</span>
+</footer>
+
+</div>
+</body>
+</html>
