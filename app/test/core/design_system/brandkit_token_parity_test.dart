@@ -80,7 +80,7 @@ void main() {
   }
 
   group('color — every brandkit hex reaches the Dart palette', () {
-    test('all nine palette entries match', () {
+    test('all thirteen palette entries match', () {
       expectHex(ColorTokens.night, 'night', reason: 'night');
       expectHex(ColorTokens.nightRaised, 'night.raised', reason: 'nightRaised');
       expectHex(ColorTokens.pomegranate, 'pomegranate', reason: 'pomegranate');
@@ -94,12 +94,21 @@ void main() {
       expectHex(ColorTokens.sage, 'sage', reason: 'sage');
       expectHex(ColorTokens.clay, 'clay', reason: 'clay');
       expectHex(ColorTokens.alert, 'alert', reason: 'alert');
+      // Redesign wave 1 (ui-ux §9.1): the four gap-closing tokens. The JSON
+      // carries the dark (Night) value in `value` — the side the dark-only app
+      // renders — plus an informational `light` (Paper) value for the future
+      // light theme; parity is asserted on the dark side.
+      expectHex(ColorTokens.moonlight, 'moonlight', reason: 'moonlight');
+      expectHex(ColorTokens.mist, 'mist', reason: 'mist');
+      expectHex(ColorTokens.veil, 'veil', reason: 'veil');
+      expectHex(ColorTokens.rose, 'rose', reason: 'rose');
     });
 
     test('the brandkit defines no palette entry the app is missing', () {
       // The other direction: a NEW brandkit colour must not sit unnoticed
-      // outside the Dart palette. Nine names, pinned — adding a tenth to the
-      // JSON turns this red until ColorTokens carries it too.
+      // outside the Dart palette. Thirteen names, pinned — adding a
+      // fourteenth to the JSON turns this red until ColorTokens carries it
+      // too.
       expect(
         (tokens['color'] as Map<String, dynamic>).keys.toSet(),
         {
@@ -112,6 +121,10 @@ void main() {
           'sage',
           'clay',
           'alert',
+          'moonlight',
+          'mist',
+          'veil',
+          'rose',
         },
         reason:
             'the brand kit gained or lost a colour — mirror it in '
@@ -275,9 +288,13 @@ void main() {
     test('the brandkit version this parity mapping was written against', () {
       // A major brandkit revision should force a human to re-read the mapping
       // table in ADR-025 D5.ii rather than trust that it still holds.
+      // 1.0 -> 1.1: redesign wave 1 (ui-ux §9.1) added the four gap-closing
+      // colours (moonlight/mist/veil/rose). The ADR-025 D5.ii mapping was
+      // re-read for that bump; the new entries are asserted above rather than
+      // joining the unasserted list.
       expect(
         tokens['version'],
-        '1.0',
+        '1.1',
         reason:
             'the brand kit version changed — re-check ADR-025 D5.ii\'s '
             'JSON<->Dart mapping before bumping this pin',
