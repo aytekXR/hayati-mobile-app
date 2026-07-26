@@ -37,6 +37,8 @@ const int _exitUsage = 64;
 const String _workflowSubpath = '.github/workflows/release.yml';
 const String _fastfileSubpath = 'fastlane/Fastfile';
 const String _metadataSubpath = 'fastlane/metadata';
+const String _gemfileSubpath = 'Gemfile';
+const String _gemfileLockSubpath = 'Gemfile.lock';
 
 /// The App Store listing name, pinned (ADR-032 D6).
 ///
@@ -107,6 +109,12 @@ int runReleaseLaneLint(
     return _exitUsage;
   }
   violations.addAll(checkStoreName(metadataDir, passes));
+
+  final gemfile = read(_gemfileSubpath);
+  if (gemfile == null) return _exitUsage;
+  violations.addAll(
+    checkGemfileLock(gemfile, File('$root/$_gemfileLockSubpath'), passes),
+  );
 
   for (final line in passes) {
     out.writeln('  ok   $line');
@@ -439,6 +447,102 @@ Map<String, Set<String>> resolveHelperRequirements(String fastfile) {
     requirementsOf(helper, <String>{});
   }
   return resolved;
+}
+
+/// RULE 5 — `Gemfile.lock` exists, and its resolved fastlane satisfies the
+/// Gemfile's constraint (issue #120).
+///
+/// The release lane runs `bundle install` on the job that owns certificate
+/// custody and rewrites the pbxproj. Without a lock that resolution floats: two
+/// runs of the same commit can install different fastlane versions, and a
+/// behaviour change in `match`, `update_code_signing_settings` or `pilot`
+/// arrives unannounced. ADR-021 D6 deferred the lock "until the signing job
+/// first runs" — it ran, several times, and nothing noticed the debt had come
+/// due for months. That is what this rule is for.
+///
+/// It checks presence AND agreement, because a lock that no longer satisfies the
+/// Gemfile is worse than none: `bundle install` would fail at release time, on
+/// the far side of a 40-minute macOS leg.
+List<String> checkGemfileLock(
+  String gemfile,
+  File lockFile,
+  List<String> passes,
+) {
+  final constraint = RegExp(
+    r'''gem\s+["']fastlane["']\s*,\s*["']~>\s*([0-9.]+)["']''',
+  ).firstMatch(stripRubyComments(gemfile))?.group(1);
+  if (constraint == null) {
+    return [
+      '$_gemfileSubpath has no `gem "fastlane", "~> X.Y"` constraint this lint '
+          'can read. It pins the lock against that constraint, so a reworded '
+          'Gemfile must be re-pinned here rather than silently unchecked.',
+    ];
+  }
+
+  if (!lockFile.existsSync()) {
+    return [
+      '$_gemfileLockSubpath is MISSING. `release.yml` runs `bundle install` on '
+          'the job that installs the signing certificate and rewrites the '
+          'pbxproj; with no lock, that resolves fastlane freshly on every run '
+          'within "~> $constraint", so two runs of the same commit can install '
+          'different versions. Regenerate it with '
+          '`gh workflow run gemfile-lock.yml --ref main` and commit the '
+          'artifact (issue #120).',
+    ];
+  }
+
+  final resolved = RegExp(
+    r'^    fastlane \(([0-9.]+)\)$',
+    multiLine: true,
+  ).firstMatch(lockFile.readAsStringSync())?.group(1);
+  if (resolved == null) {
+    return [
+      '$_gemfileLockSubpath has no resolved `fastlane (X.Y.Z)` spec line. A '
+          'lock without the gem it exists to pin is not a lock — regenerate it '
+          'with `gh workflow run gemfile-lock.yml --ref main`.',
+    ];
+  }
+
+  if (!_satisfiesPessimistic(resolved, constraint)) {
+    return [
+      '$_gemfileLockSubpath resolves fastlane $resolved, which does NOT satisfy '
+          '$_gemfileSubpath\'s "~> $constraint". `bundle install` fails on a '
+          'lock that disagrees with the Gemfile — and it fails inside the '
+          'release job, on the far side of a 40-minute macOS leg. Bump one to '
+          'match the other and regenerate the lock.',
+    ];
+  }
+
+  passes.add(
+    '$_gemfileLockSubpath resolves fastlane $resolved, satisfying "~> $constraint"',
+  );
+  return const [];
+}
+
+/// Ruby's pessimistic operator: `~> 2.225` allows >= 2.225.0 and < 3.0.0;
+/// `~> 2.225.1` allows >= 2.225.1 and < 2.226.0. The upper bound drops the LAST
+/// declared segment and increments the one before it — getting that backwards
+/// would make this rule accept a major bump, which is the case it most needs to
+/// catch.
+bool _satisfiesPessimistic(String version, String constraint) {
+  List<int> parts(String v) => v.split('.').map(int.parse).toList();
+  final c = parts(constraint);
+  final v = parts(version);
+  if (c.length < 2) return false;
+
+  int cmp(List<int> a, List<int> b) {
+    for (var i = 0; i < a.length || i < b.length; i++) {
+      final x = i < a.length ? a[i] : 0;
+      final y = i < b.length ? b[i] : 0;
+      if (x != y) return x.compareTo(y);
+    }
+    return 0;
+  }
+
+  if (cmp(v, c) < 0) return false;
+  final upper = List<int>.from(c.sublist(0, c.length - 1));
+  upper[upper.length - 1] += 1;
+  return cmp(v, upper) < 0;
 }
 
 /// Drops whole-line Ruby comments, keeping `#{...}` interpolation intact.

@@ -137,15 +137,38 @@ from `main` runs the whole lane in CI.
 
 ## Documented debt
 
-`Gemfile.lock` is still **absent**, and ADR-021 D6's stated discharge condition
-has now been MET without discharging it — `sign-upload` has executed
-`bundle install` several times. The original blocker stands: **there is no Ruby
-on the Linux dev box**, so no faithful lock can be generated here, and
-hand-authoring one is worse than none. So every release run resolves fastlane
-fresh within `~> 2.225`, **on a signing path**. That is real supply-chain drift
-on the most sensitive lane in the repo, recorded rather than carried silently
-(`project-rules.md` #9) and tracked as its own issue. Also noted in the root
-`Gemfile`.
+**✅ `Gemfile.lock` is COMMITTED (issue #120, S048).** ADR-021 D6 deferred it
+"until the signing job first runs"; that happened several releases ago and
+nothing noticed the debt had come due, so every release resolved fastlane freshly
+within `~> 2.225` — on the lane that owns certificate custody and rewrites the
+pbxproj. It now pins **fastlane 2.237.0** and 96 gems.
+
+The original blocker never went away — **there is still no Ruby on the Linux dev
+box** — so the lock is not hand-authored. `.github/workflows/gemfile-lock.yml`
+(dispatch-only) generates it, and two choices make its output trustworthy rather
+than merely present:
+
+1. It resolves on **macos-26 / ruby 3.3**, the same runner and Ruby `sign-upload`
+   installs on. A lock resolved on ubuntu can omit the darwin platform entirely
+   and `bundle install` then refuses it on macOS.
+2. It installs **`--frozen`** before publishing — the `npm ci` of this ecosystem.
+   `--frozen` asserts the lock is already coherent instead of rewriting it to fit,
+   which is the exact distinction S044 paid for when `npm install` passed 979
+   tests and `npm ci` refused the tree. A lock that cannot install frozen never
+   becomes an artifact. (`bundle lock --add-platform ruby` is also applied, so a
+   future runner-image arch bump does not invalidate it.)
+
+To regenerate after a Gemfile change:
+
+```sh
+gh workflow run gemfile-lock.yml --ref main
+gh run download <run-id> --name Gemfile.lock --dir .
+```
+
+`tool/release_lane_lint.dart` rule 5 keeps the two honest: the lock's resolved
+fastlane must satisfy the Gemfile's `~>` constraint, so a deleted lock or a
+Gemfile bump without a regen reddens the **cheap ubuntu preflight** instead of
+failing inside the release job past a 40-minute macOS leg.
 
 ## Secrets policy
 
