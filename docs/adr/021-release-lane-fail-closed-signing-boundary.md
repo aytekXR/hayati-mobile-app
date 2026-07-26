@@ -11,7 +11,7 @@ The open M6 accept line is *"`release.yml` produces signed builds to TestFlight.
 
 Existing doc promises that constrain the shape (verbatim inventory in the scout record): tag `vX.Y.Z` trigger; stage order integration suite → build → sign → upload → store metadata per locale from `fastlane/metadata`; secrets from GitHub environment secrets, zero keys in repo; iOS-only until M6.5. `test-suite.md` additionally promises an E2E simulator matrix (current-1/current) with three E2E scenarios — of which E2E-2 (sandbox purchase → premium on both devices) is **impossible before operator items 0+4** and none exist as test files yet.
 
-House CI rules that bind: pinned versions everywhere (Flutter 3.44.5 via a single `env` var, macos-15, Xcode 16.4 + lowest-runtime sim recipe, Temurin 21, Node 20, firebase-tools 15.22.4 with the jar cache), least-privilege `permissions`, explicit `timeout-minutes`, W4 determinism (no silent retries, no `|| true`, quarantines are annotated), and the Fastfile's own fail-closed idiom (`UI.user_error!` with a doc-pointing message).
+House CI rules that bind: pinned versions everywhere (Flutter 3.44.5 via a single `env` var, macos-15, Xcode 16.4 + lowest-runtime sim recipe, Temurin 21, Node 22 — was 20 until ADR-030, firebase-tools 15.22.4 with the jar cache), least-privilege `permissions`, explicit `timeout-minutes`, W4 determinism (no silent retries, no `|| true`, quarantines are annotated), and the Fastfile's own fail-closed idiom (`UI.user_error!` with a doc-pointing message).
 
 Alternatives considered for signing:
 

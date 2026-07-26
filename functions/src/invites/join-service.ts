@@ -17,7 +17,8 @@ export const DEFAULT_COUPLE_TIMEZONE = 'Europe/Istanbul';
 
 /**
  * IANA timezone allow-list, computed ONCE at module load. `Intl.supportedValuesOf`
- * is a Node 20 runtime built-in; the cast covers TS lib targets (ours is ES2023)
+ * is a Node 18+ runtime built-in (so the Node 22 runtime carries it — ADR-030);
+ * the cast covers TS lib targets (ours is ES2023)
  * that don't yet declare it. Membership is the ONLY thing that keeps a
  * client-supplied zone; everything else resolves to DEFAULT_COUPLE_TIMEZONE.
  */

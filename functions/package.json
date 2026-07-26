@@ -5,7 +5,7 @@
   "type": "commonjs",
   "main": "lib/index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "build": "tsc && node scripts/bundle-packs.mjs",
@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
-    "@types/node": "^20.19.43",
+    "@types/node": "^22.20.1",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.6.0",
     "fast-check": "^4.9.0",
