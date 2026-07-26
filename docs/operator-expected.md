@@ -10,12 +10,13 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-26, **Session 040 close** — the session that finally had something to deploy._
+_Last refreshed: 2026-07-26, **Session 041 close** — the session that ran the release lane for the first time._
 
-_**🚀 You flipped Blaze, and the backend is now LIVE on `hayatiapp-dev`.** Ten of the eleven Cloud Functions are deployed and verified in `europe-west1`; the hourly question rollover is an ENABLED Cloud Scheduler job; the reveal trigger is ACTIVE with retries on. The eleventh — the RevenueCat webhook — is the ONE thing a session would not do without you, and item 0 below says why._ The whole MVP is built,
-tested and merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX
-redesign), and **every item below still needs you** — accounts, keys, an
-enrollment, and a few reviews. Nothing on this page changed this session._
+_**🚀 The backend is LIVE on `hayatiapp-dev`** (you flipped Blaze in S040): ten of eleven Cloud Functions deployed in `europe-west1`, the hourly rollover an ENABLED Scheduler job, the reveal trigger ACTIVE with retries. Verified again at S041 close — the sweep has now run cleanly every hour since, including the seasonal-calendar self-check reporting healthy from the real runtime._
+
+_**🔑 And you unblocked two more things overnight, which is why this page changed a lot.** You added the three `ASC_*` signing secrets (23:36 UTC) **and** created the `LLM_API_KEY` secret. Session 041 spent itself on the first: it removed the last repo-side blocker to a signed build and then **ran the release lane for real** — it got all the way to Apple before stopping on a provisioning prerequisite. **Item 4 below tells you the two small things to check (~10 min).** The coach key you added unblocks the live coach (item 6), whose code is sitting in an open PR and is the next session's work._
+
+_The whole MVP is built, tested and merged (M1–M6.3, the consent/legal layer, CI, and the entire UI/UX redesign)._
 
 _What did change: Session 037 shipped **seasonal question windows** (ADR-026)
 — the machinery that lets a question be tagged `ramadan`, `eid_fitr`,
@@ -57,9 +58,9 @@ never appear. This is part of item 1's content work, not a new demand._
 
 | # | What | Blocks | Effort |
 |---|---|---|---|
-| **6** | Pick the AI provider + make an API key | the live coach (M5.3) | ~15 min + a billing acct |
+| **6** | ~~Pick the AI provider + make an API key~~ **DONE — `LLM_API_KEY` exists in dev Secret Manager** | ~~the live coach~~ (its code is PR #95, next session's work) | — |
 | **2** | ~~Turn on Firebase **Blaze** billing~~ **DONE — and the dev backend is deployed** | ~~the first backend deploy~~ (prod still undeployed, deliberately) | — |
-| **4** | ~~Apple Developer enrollment~~ **DONE** · ~~Step 3's three `ASC_*` secrets~~ **DONE (you added them 2026-07-25 23:36 UTC)** — what remains is the **App Store Connect app record** (Step 2, if not done) + the on-device checks ↓ | the on-device proofs | Step 2 ~10 min |
+| **4** | ~~enrollment~~ **DONE** · ~~the three `ASC_*` secrets~~ **DONE** — the lane RAN and stopped at Apple: **check the App ID is registered (Step 1) + that your API key may manage profiles** (issue #103), then the app record (Step 2) + the on-device checks ↓ | the first TestFlight build | ~10 min |
 | **0** | RevenueCat account + App Store Connect subscription products | the real sandbox purchase | ~30 min |
 | **3** | Enable Apple + Phone sign-in in the Firebase console | real-device sign-in | ~5 min |
 | **5** | **Security:** rotate the leaked Slack webhook | (also switches CI alerts on) | ~10 min |
@@ -146,9 +147,17 @@ CI secrets) so every later build is a one-line tag push.
 This is what lets CI sign and upload builds for you (Path B). Do it once.
 
 1. appstoreconnect.apple.com → **Users and Access** → **Integrations** → **Keys**
-   → generate a key. **Role: App Manager** is enough. Download the **`.p8`** file
-   (Apple lets you download it **once** — keep it safe) and note the **Key ID**
-   and **Issuer ID** shown on that page.
+   → generate a key. Download the **`.p8`** file (Apple lets you download it
+   **once** — keep it safe) and note the **Key ID** and **Issuer ID** shown on
+   that page.
+   - ⚠️ **Corrected S041:** this step used to say *"Role: App Manager is
+     enough."* That was true for **uploading a build**, but CI also has to
+     **create a provisioning profile**, which is a different permission —
+     and the first real lane run failed for exactly that class of reason
+     (**issue #103**). Give the key a role that can **manage Certificates,
+     Identifiers & Profiles**. If you already made an App-Manager key, you do
+     not have to start over: check whether it can, and only regenerate if it
+     cannot.
 2. Put the three values into GitHub as **environment** secrets (NOT plain repo
    secrets — the release pipeline reads only the environment, ADR-021):
    - GitHub repo → **Settings → Environments → `release`** (it exists / auto-creates) → add:
@@ -272,7 +281,27 @@ first deploy and the loop comes alive on the phone.
 
 # The gates that block remaining engineering
 
-## 6. **DUE NOW** — LLM provider decision + API key (the live coach, M5.3, waits on this alone)
+## 6. ~~LLM provider decision + API key~~ ✅ **YOU DID THIS** — the coach's code is next session's work
+
+**Verified at S041 close: the `LLM_API_KEY` secret EXISTS in `hayatiapp-dev`
+Secret Manager.** So the decision and the key are both behind you, and the
+provider is Anthropic Claude per the open PR (**#95**) that a concurrent session
+wrote for it.
+
+**What is left is engineering, not you.** PR #95 carries the live adapter plus
+the **re-consent** ADR-023 requires when an LLM provider is named — and its CI
+is currently **red** for a mechanical reason: bumping the legal version to 2
+left one widget test still expecting *"Version 1"* and every consent-gate golden
+image stale. **Session 042's job is to fix that, review the diff, and merge it.**
+Once merged it also needs a redeploy of `coachProxy` so the deployed function
+can see the secret.
+
+**One thing to be aware of, not to act on:** merging it will **re-ask you and
+your partner for consent** on next launch (a new legal version). That is the
+designed behaviour, not a bug — naming a third party that processes your
+reflections is exactly the event ADR-023 said must re-ask.
+
+<details><summary>The original item, kept for the record</summary>
 
 - **What:** pick the AI provider for the coach and create an API key. The server
   seam is provider-agnostic; nothing in the code commits to anyone, and the
@@ -287,6 +316,8 @@ first deploy and the loop comes alive on the phone.
 - **Note (S023 handoff):** M5.3 is a recorded **re-consent trigger** — its ADR
   bumps the legal version, names the provider in the notice/policy, re-gates
   every user, and adds the provider row to `docs/dpa-inventory.md`.
+
+</details>
 
 ## 2. Blaze ✅ ON — and the dev backend is DEPLOYED (Session 040)
 
@@ -336,15 +367,45 @@ blocker behind it: `DEVELOPMENT_TEAM` was missing from the Xcode project, which
 would have failed the archive with *"Signing for 'Runner' requires a development
 team"* (ADR-029 — it is committed now, and a test keeps it there).
 
-**What that leaves for you, and it is small.** The lane builds, signs and then
-**uploads**, and the upload needs the **App Store Connect app record** for
-`com.beyondkaira.hayati` to exist (**roadmap Step 2** above). If you have not
-created it, `fastlane` stops with *"No app found with bundle identifier
-com.beyondkaira.hayati"* — a clear message, not a crash, and nothing is
-damaged. If you have, the build goes to TestFlight. A session cannot check
-which from here (reading your App Store Connect account needs the key, which
-lives only in GitHub) — **the first lane run is the check**, and its result is
-recorded in the session log.
+### ⚠️ The lane RAN, and it needs two small things from you (~10 min total)
+
+Session 041 dispatched the release lane for real. It got **further than ever
+before** — metadata lint ✅, the full emulator suite ✅, a real prod release
+build ✅, your three secrets accepted ✅ — and then stopped at Apple with:
+
+> `No profiles for 'com.beyondkaira.hayati' were found: Xcode couldn't find any
+> iOS App Development provisioning profiles matching 'com.beyondkaira.hayati'.`
+
+**Nothing is broken and nothing was damaged** — the store-metadata step was
+skipped, so none of the AI-drafted store copy reached App Store Connect. Full
+evidence in **issue #103**. Two things to check, in this order:
+
+1. **Did you finish roadmap Step 1 — registering the App ID?**
+   developer.apple.com → **Certificates, Identifiers & Profiles** →
+   **Identifiers** → is **`com.beyondkaira.hayati`** listed? If not, that alone
+   explains the failure: create it (**Explicit** App ID, tick **Sign in with
+   Apple**). **This is the likeliest cause and the cheapest to check.**
+
+2. **Can your App Store Connect API key manage profiles and certificates?**
+   Step 3 above told you *"Role: App Manager is enough"* — that advice was
+   written for **uploading**, and CI additionally needs the key to **create a
+   provisioning profile**, which is a different permission. In App Store
+   Connect → **Users and Access → Integrations → Keys**, look at your key's
+   role. If it cannot manage Certificates/Identifiers/Profiles, either raise
+   its role or generate a second key with that access and replace
+   `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_API_KEY_P8` in
+   **Settings → Environments → `release`**.
+
+Tell a session which of the two it was (or just say "done") and it re-runs the
+lane — no Mac work needed on your side.
+
+**Also still ahead, and unchanged:** the upload itself needs the **App Store
+Connect app record** for `com.beyondkaira.hayati` (**roadmap Step 2**). The lane
+never got that far this time, so it is still unproven. If it is missing, the
+next run stops with *"No app found with bundle identifier
+com.beyondkaira.hayati"* — again a clear message, not a crash. A session cannot
+check any of these three from here: reading your Apple account needs the key,
+which lives only inside GitHub.
 
 One thing to watch, filed as **issue #99**: a CI runner starts with an empty
 keychain, so Xcode may **create a new "Apple Distribution" certificate** on each
