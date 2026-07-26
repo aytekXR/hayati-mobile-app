@@ -54,13 +54,21 @@ void main() {
     // Guard the PARSER itself. If Xcode ever rewrites the file in a shape this
     // regex does not match, every scoped assertion below would pass over an
     // empty set — a vacuous green that reads exactly like a real one.
+    // EXACT, not >=: a lower bound catches only an under-matching parser. An
+    // over-matching one (a regex bug yielding spurious blocks) would slip
+    // through a `>= 9`, and the downstream assertions would only notice by
+    // luck. 9 = 3 project-level + 3 RunnerTests + 3 Runner app-target.
     expect(
       configs.length,
-      greaterThanOrEqualTo(9),
+      9,
       reason:
-          'parsed only ${configs.length} XCBuildConfiguration blocks — the '
-          'parser has lost the file, so every scoped assertion below would be '
-          'vacuous. Fix the parser; do not relax the assertions.',
+          'parsed ${configs.length} XCBuildConfiguration blocks, expected 9 '
+          '(3 project-level + 3 RunnerTests + 3 app-target). The parser has '
+          'either lost blocks — making every scoped assertion below vacuous — '
+          'or picked up spurious ones. If Xcode legitimately added a target or '
+          'a configuration, that is a signing-surface change a human should '
+          'confirm: update this census WITH the pbxproj. Never relax it to a '
+          'lower bound.',
     );
   });
 

@@ -59,7 +59,7 @@ never appear. This is part of item 1's content work, not a new demand._
 |---|---|---|---|
 | **6** | Pick the AI provider + make an API key | the live coach (M5.3) | ~15 min + a billing acct |
 | **2** | ~~Turn on Firebase **Blaze** billing~~ **DONE — and the dev backend is deployed** | ~~the first backend deploy~~ (prod still undeployed, deliberately) | — |
-| **4** | ~~Apple Developer enrollment~~ **DONE** — what remains is **Step 3's three `ASC_*` secrets** (still absent) + the on-device checks ↓ | hands-free CI builds; the on-device proofs | ~15 min for the secrets |
+| **4** | ~~Apple Developer enrollment~~ **DONE** · ~~Step 3's three `ASC_*` secrets~~ **DONE (you added them 2026-07-25 23:36 UTC)** — what remains is the **App Store Connect app record** (Step 2, if not done) + the on-device checks ↓ | the on-device proofs | Step 2 ~10 min |
 | **0** | RevenueCat account + App Store Connect subscription products | the real sandbox purchase | ~30 min |
 | **3** | Enable Apple + Phone sign-in in the Firebase console | real-device sign-in | ~5 min |
 | **5** | **Security:** rotate the leaked Slack webhook | (also switches CI alerts on) | ~10 min |
@@ -324,13 +324,34 @@ is the point; prod should follow a session that has watched dev behave.
   time to fix it is just before the first prod deploy, so prod is never stood up
   on a runtime with a known end date.
 
-## 4. Apple: enrollment ✅ DONE — what remains is the **three `ASC_*` secrets** and the on-device checks
+## 4. Apple: enrollment ✅ DONE · the three `ASC_*` secrets ✅ DONE — what remains is the app record and the on-device checks
 
 The paid Apple Developer Program is active (Individual team `UH7MXG7Z94`), the
 bundle id is `com.beyondkaira.hayati` (ADR-027), and a dev build already runs on
-the iPhone over cable. The release lane is BUILT and fails-closed until the
-three `ASC_*` secrets land (roadmap Step 3) — verified at Session 038's close,
-the `release` environment still holds **zero** secrets.
+the iPhone over cable. **✅ You added the three `ASC_*` secrets at 2026-07-25 23:36 UTC** — verified
+this session (`release` environment: `total_count: 3`; Session 040 read `0`).
+So the release lane's fail-closed signing boundary now **passes** for the first
+time in this project's history, and Session 041 removed the last repo-side
+blocker behind it: `DEVELOPMENT_TEAM` was missing from the Xcode project, which
+would have failed the archive with *"Signing for 'Runner' requires a development
+team"* (ADR-029 — it is committed now, and a test keeps it there).
+
+**What that leaves for you, and it is small.** The lane builds, signs and then
+**uploads**, and the upload needs the **App Store Connect app record** for
+`com.beyondkaira.hayati` to exist (**roadmap Step 2** above). If you have not
+created it, `fastlane` stops with *"No app found with bundle identifier
+com.beyondkaira.hayati"* — a clear message, not a crash, and nothing is
+damaged. If you have, the build goes to TestFlight. A session cannot check
+which from here (reading your App Store Connect account needs the key, which
+lives only in GitHub) — **the first lane run is the check**, and its result is
+recorded in the session log.
+
+One thing to watch, filed as **issue #99**: a CI runner starts with an empty
+keychain, so Xcode may **create a new "Apple Distribution" certificate** on each
+release run — and Apple allows only **3 per account**. *One* new certificate
+after the first run is expected and fine. If you see a *second* one appear after
+the second run, tell a session: it needs a real fix (a certificate-custody
+design) before it silently locks you out of releasing.
 
 **Newly reachable now that you have the Mac + device** (both were "impossible"
 before, so they are worth a pass): the on-device verification backlog below,
