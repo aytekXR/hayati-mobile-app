@@ -10,7 +10,13 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-26, **Session 045 close**._
+_Last refreshed: 2026-07-26, **Session 045 close** (+ a Session 046 concurrent-operator reconcile: see below)._
+
+> ### 🆕 Session 046 (concurrent operator track) — three things landed, one confirms #115
+>
+> 1. **Linux → TestFlight is now LIVE (#117 merged).** The release lane was rebuilt on fastlane `match` and **verified end-to-end** (CI uploaded build 106). From `main`: `git tag vX.Y.Z && git push --tags` → macOS CI builds, signs, and uploads to TestFlight — no Mac needed. Save your new `MATCH_PASSWORD` (given in-session; it protects `aytekXR/hayati-match-certs`).
+> 2. **RevenueCat is wired end-to-end** (app, `premium` entitlement, both products, `default` offering, the In-App Purchase key — all via the v2 API) and the **App Store subscription products exist** (Family Sharing OFF). Two things still gate a real purchase: **#115's invoker binding above** (the webhook can't receive events until then — that session's "webhook verified" was Google's IAM 403, not the token gate), and **ASC pricing**, which is 409-ing purely on Apple's post-agreement propagation (Business is fully green). When pricing clears: run the sandbox test, then **revoke the RevenueCat `sk_` v2 key**.
+> 3. **The app is now named "İkimiz"** (CFBundleDisplayName), matching the App Store record and the shipped TestFlight build.
 
 > # 🔴 READ THIS FIRST — a purchase on production would take your customer's money and not unlock Premium
 >
