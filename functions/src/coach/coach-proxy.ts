@@ -36,6 +36,7 @@ import {
   ProviderUnavailableError,
   UnconfiguredCoachProvider,
 } from './provider-port';
+import { AnthropicCoachProvider } from './anthropic-provider';
 import { refundCoachTurn, reserveCoachTurn } from './coach-service';
 
 /** Per-uid in-memory rate limit (Decision 2): 30 calls/min, the invitePreview mold. */
@@ -222,9 +223,20 @@ export function makeCoachProxyHandler(deps: CoachProxyDeps = {}) {
       // (7) Crisis post-filter — the same detector (all lexicons) over the reply. A
       // hit (or a detector throw — fail-closed) discards the persona reply for the
       // help path; the cap stays consumed (the provider was paid).
+      //
+      // The reply is scanned IN FULL — deliberately NOT through `truncateForScan`
+      // (fixed S042, review finding). That cap is 4,000 chars and its own comment
+      // justifies itself as "double the 2,000-char legit maximum", i.e. it is
+      // calibrated for USER input, where it bounds a hostile oversized payload.
+      // A model reply is bounded by the adapter's own `COACH_MAX_TOKENS` (1024),
+      // which can exceed 4,000 characters — so reusing the user-input cap here
+      // silently left the TAIL of a maximum-length reply unscanned by a SAFETY
+      // filter. There is no hostile-payload risk to bound on this path: the text
+      // comes from our own provider call, already token-bounded, and the detector
+      // is a linear lexicon scan.
       let postVerdict: CrisisVerdict;
       try {
-        postVerdict = detect([truncateForScan(reply.text)]);
+        postVerdict = detect([reply.text]);
       } catch {
         emit({ outcome: 'help-path', language: coachRequest.language });
         return { kind: 'help', text: helpResponse(coachRequest.language), remaining };
@@ -262,14 +274,19 @@ export function makeCoachProxyHandler(deps: CoachProxyDeps = {}) {
 
 /**
  * The deployed callable (Decision 1): europe-west1, App Check enforcement OFF
- * (repo-wide posture), the createInvite wiring. The default provider is
- * fail-closed, so a live deploy answers premium+capped turns with `unavailable`
- * and crisis turns with the help path — the honest posture until a provider lands.
+ * (repo-wide posture), the createInvite wiring. The M5.3 live provider is the
+ * `AnthropicCoachProvider`, bound to the `LLM_API_KEY` secret. It is STILL
+ * fail-closed: with no secret set the adapter throws `unconfigured`, so the callable
+ * answers premium+capped turns with the honest `unavailable` state and crisis turns
+ * with the help path (ADR-016 D5) — declaring the secret is the only gate, and the
+ * founder's key lands in Secret Manager at deploy. Until then the deploy fails
+ * closed and loud (the RC_WEBHOOK_TOKEN precedent), never silently green.
  */
 export const coachProxy = onCall(
   {
     region: FUNCTIONS_REGION,
     enforceAppCheck: false,
+    secrets: ['LLM_API_KEY'],
   },
-  makeCoachProxyHandler(),
+  makeCoachProxyHandler({ provider: new AnthropicCoachProvider() }),
 );

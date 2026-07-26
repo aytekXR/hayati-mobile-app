@@ -231,7 +231,7 @@
   "consentTitle": "Başlamadan önce",
   "consentIntro": "Hayati; yazdığınız yansımaları ve partnerinizle paylaştığınız yanıtları saklar, koçla yaptığınız mesajlaşmaları ise kaydetmeden anlık olarak işler. Bunları hassas veri olarak ele alıyoruz ve bu özellikler başlamadan önce açık onayınızı istiyoruz — bu içerik uygulamanın kalbi olduğu için gereklidir.",
   "consentDataLocation": "İlişki içeriğiniz Avrupa Birliği'nde saklanır. Bazı hizmet verileri — giriş bilgileriniz ve çökme raporları — Google tarafından Avrupa Birliği dışında işlenir. Tüm verilerinizin Avrupa'da olduğunu iddia etmiyoruz, çünkü öyle değil.",
-  "consentProcessors": "Google; girişi, depolamayı ve çökme raporlamasını talimatlarımız doğrultusunda yürütür. Apple, App Store'u ve Apple ile Oturum Açma'yı yönetir. Hayati'de reklam veya takip yoktur ve koç bugün dışarıdaki hiçbir yapay zekâ sağlayıcısına ulaşmaz.",
+  "consentProcessors": "Google; girişi, depolamayı ve çökme raporlamasını talimatlarımız doğrultusunda yürütür. Apple, App Store'u ve Apple ile Oturum Açma'yı yönetir. Koç, Anthropic tarafından çalıştırılır; koç mesajlarınızı size yanıt yazmak için o an işler ve bunları modellerini eğitmek için kullanmaz. Hayati'de reklam veya takip yoktur.",
   "consentRights": "Verilerinizi istediğiniz zaman Ayarlar'dan indirebilir veya silebilirsiniz; bu onayı da Ayarlar'daki yasal ekrandan geri çekebilirsiniz.",
   "consentAgeStatement": "Hayati yetişkinler içindir. Devam ederek 18 yaşında veya daha büyük olduğunuzu da onaylarsınız — bu, yukarıdaki onayınızdan ayrı, Koşulların bir şartıdır.",
   "consentCta": "Onaylıyorum ve devam ediyorum",

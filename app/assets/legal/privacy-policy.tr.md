@@ -2,7 +2,7 @@
 
 Bu metin, Hayati'nin hangi verileri neden topladığını, bu verilerin nerede tutulduğunu ve sahip olduğunuz seçimleri açıklar. Aynı zamanda 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamındaki aydınlatma metnidir. Amacımız kulağa etkileyici gelmek değil, uygulamanın gerçekte yaptığıyla karşılaştırılabilir olmaktır. Buradaki bir cümle uygulamanın yapamayacağı bir şeyi vaat ediyorsa, bu bir hatadır ve bunu bize bildirmenizi isteriz.
 
-Sürüm 1. Yürürlük tarihi: 13 Temmuz 2026.
+Sürüm 2. Yürürlük tarihi: 26 Temmuz 2026.
 
 ## Veri sorumlusu kimdir
 
@@ -46,7 +46,7 @@ Her amaç için hukuki sebebi ayrıca belirtiyoruz, çünkü hukuki sebebi gizle
 - Google (Firebase Authentication, Cloud Firestore, Cloud Functions, App Check, Crashlytics), talimatlarımız doğrultusunda ve Google'ın veri işleme koşulları altında veri işler.
 - Apple; App Store'u, uygulama içi satın almayı ve Apple ile Giriş'i sağlar. Apple'ın mağaza olarak işlediği veriler bakımından Apple, kendi koşulları altında kendi veri sorumlusu olarak hareket eder.
 - RevenueCat, abonelikler bağlandığında abonelik durumunu bizim adımıza işleyecektir. Henüz yapılandırılmamıştır.
-- Koç için bir yapay zekâ sağlayıcısı henüz seçilmemiştir. Bir sağlayıcı seçildiğinde, onu güncellenmiş bir metinde adıyla belirtecek, sözleşmeyle konuşmalarınızı modellerini eğitmek için kullanmamasını şart koşacak ve devreye girmeden önce tekrar rızanızı isteyeceğiz. Bugün koç, herhangi bir dış yapay zekâ sağlayıcısına ulaşmaz.
+- Koç, Anthropic tarafından, Claude API'si aracılığıyla çalıştırılır. Koçla yazışırken mesajlarınız, size yanıt yazabilmesi için o an Anthropic'e gönderilir ve Anthropic bunları bizim adımıza işler. Anthropic'in ticari API şartları uyarınca, konuşmalarınızı modellerini eğitmek için kullanmaz. Koçtan hiçbir şey saklamayız — ne sunucularımızda ne de cihazınızda; mesajlarınız yalnızca yanıtı üretmek için, o an Anthropic'e gönderilir. Koç mesajlarınızın Anthropic'e gönderilmesi, standart bir sözleşmeyle güvence altına alınan sınır ötesi bir aktarımdır; ve Anthropic bu içeriğin yeni bir alıcısı olduğundan, bu metin sürümünü yükseltir ve rızanızı tekrar ister.
 
 İlişkinize dair içeriğinizi reklam için kullanmayız ve Hayati'de reklam yoktur. Uygulamada bugün herhangi bir analitik veya takip ürünü bulunmamaktadır; ileride böyle bir şey eklersek, bu metne dâhil edilmeden, kendi ayrı ve isteğe bağlı onayıyla gelecektir.
 
@@ -86,7 +86,7 @@ Rızanızı geri almanız, daha önce yazdıklarınızı silmez. Saklanan yansı
 
 ## Bu metindeki değişiklikler
 
-Bu, sürüm 1'dir. Esaslı bir değişiklik yaparsak — örneğin yapay zekâ sağlayıcısını bağlarsak — bu metni güncelleyecek, sürümünü yükseltecek ve değişen işleme başlamadan önce tekrar rızanızı isteyeceğiz.
+Bu, sürüm 2'dir. Sürüm 2, Anthropic'i koçun yapay zekâ sağlayıcısı olarak — koç mesajlarınızın yeni bir alıcısı ve yeni bir sınır ötesi aktarım olarak — adıyla belirtir ve bu işleme devam etmeden önce her kullanıcıdan tekrar rıza ister. Başka esaslı bir değişiklik yaparsak, bu metni güncelleyecek, sürümünü yükseltecek ve değişen işleme başlamadan önce tekrar rızanızı isteyeceğiz.
 
 ## İletişim
 

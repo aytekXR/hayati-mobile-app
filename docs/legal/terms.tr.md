@@ -2,7 +2,7 @@
 
 Bu koşullar, sizinle Hayati arasındaki sözleşmedir. Sade bir dille yazılmıştır ve içindeki her taahhüt, uygulamanın gerçekte nasıl çalıştığıyla örtüşecek şekilde kaleme alınmıştır.
 
-Sürüm 1. Yürürlük tarihi: 13 Temmuz 2026.
+Sürüm 2. Yürürlük tarihi: 26 Temmuz 2026.
 
 ## Hayati'yi kimler kullanabilir
 
@@ -58,4 +58,4 @@ Bu koşullar [GEÇERLİ HUKUK — kurucunun hukuk danışmanı tarafından belir
 
 ## Bu koşullardaki değişiklikler
 
-Bu, sürüm 1'dir. Bu koşulları önemli sayılabilecek bir şekilde değiştirirsek, bunları uygulama içinde güncelleyecek ve sürümünü yükselteceğiz.
+Bu, sürüm 2'dir. Bu koşulları önemli sayılabilecek bir şekilde değiştirirsek, bunları uygulama içinde güncelleyecek ve sürümünü yükselteceğiz.
