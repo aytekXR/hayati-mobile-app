@@ -1,6 +1,6 @@
 # ADR-029: Release-lane signing enablement — the committed `DEVELOPMENT_TEAM`, explicitly-pinned automatic signing, and a signing source-sentinel
 
-- **Status:** Accepted (**rev 2** — six pre-code review findings applied; see the review record at the end)
+- **Status:** Accepted (**rev 2** — six pre-code review findings applied; see the review record at the end). **D2's RATIONALE amended and D4 closed by [ADR-032](032-release-signing-on-fastlane-match.md):** the `CODE_SIGN_STYLE = Automatic` pin stands, but it no longer defends ADR-021 D5's cloud signing — the lane now writes `Manual` into the checked-out pbxproj on purpose every run, so what the committed value protects is the dev box and the cable rig. D4's fresh-runner certificate-cap risk (issue #99) is **closed**: `match` runs readonly and CI cannot mint a certificate.
 - **Date:** 2026-07-26 (Session 041)
 - **Numbering note:** drafted as ADR-028 and renumbered to **029** on discovery that the concurrent session's open PR #95 (the M5.3 live coach adapter) had already claimed 028 four hours earlier. Per the S038 addendum, ordinals collide across trees; the earlier-created number wins.
 - **Deciders:** session agent. The founder's action — adding the three `ASC_*` secrets — is what unblocked this; the identifier-vs-credential judgement in Decision 1 is recorded explicitly so the founder can overturn it with one line if they disagree.

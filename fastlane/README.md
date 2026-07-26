@@ -1,41 +1,55 @@
 # fastlane — Hayati
 
-Status: **M6.3**. The iOS lanes are implemented up to the App Store Connect
-secrets boundary; nothing signs, uploads, or delivers until Apple Developer
-enrollment (operator item 4) supplies the three `ASC_*` credentials. There is
-no Android block yet (M6.5, ADR-006).
+Status: **LIVE** (ADR-032, S047). The lane signs and ships from CI: run
+`30193322224` archived `com.beyondkaira.hayati` and uploaded **build 109** to
+TestFlight. From `main`, `git tag vX.Y.Z && git push --tags` is the whole
+release ritual — no Mac needed. There is no Android block yet (M6.5, ADR-006).
 
 ## Lanes
 
 | Lane | Platform | Does |
 |---|---|---|
 | `build_debug` | iOS | Unsigned debug build (`flutter build ios --no-codesign --debug`) — mirrors the `ci.yml` iOS build smoke. Runnable with zero secrets. |
-| `beta` | iOS | Prod-flavor `flutter build ipa --release` via App Store Connect API-key cloud signing → `upload_to_testflight`. Fails closed if `ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_KEY_P8_PATH` are absent. |
-| `store_metadata` | iOS | `deliver(skip_binary_upload: true)` — pushes `fastlane/metadata` per locale, no binary. Same fail-closed credentials gate. |
+| `beta` | iOS | fastlane **`match`** installs the stored Apple Distribution certificate + App Store profile, `update_code_signing_settings` pins **Manual**, then prod-flavor `flutter build ipa --release` archives against an explicit `ExportOptions.plist` → `pilot` (TestFlight). Fails closed via `ensure_release_credentials!`. |
+| `store_metadata` | iOS | `deliver(skip_binary_upload: true)` — pushes `fastlane/metadata` per locale, no binary. Fails closed via `ensure_asc_credentials!`. |
 
-All three share `ensure_asc_credentials!`: any missing `ASC_*` input aborts with
-a message that names what is unset and points at operator item 4 — never a
-silent skip that looks green (ADR-021 D4). Cloud signing rides
-`-allowProvisioningUpdates` (which `flutter build ipa` already passes) plus the
-`~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8` auto-discovery location;
-`release.yml`'s `sign-upload` job places the key there and exports the path.
+**The two credential checks are deliberately different (ADR-032 D5).**
+`ensure_asc_credentials!` requires the App Store Connect key alone
+(`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_API_KEY_P8_BASE64`);
+`ensure_release_credentials!` delegates to it and adds the match inputs
+(`MATCH_GIT_URL`, `MATCH_PASSWORD`). `store_metadata` signs nothing, so
+requiring match inputs of it was a real defect, not a harmless extra: it made
+the lane abort before `deliver` on **every** release, inside a
+`continue-on-error: true` step that then reported success. Store metadata was
+never once delivered until S047. `tool/release_lane_lint.dart` now pins which
+lane calls which, per-PR.
 
-**Honesty bound (ADR-021 D5) — partly discharged, S041.** The signing/upload
-half was UNVERIFIABLE from the Linux dev box (no Ruby, no secrets, no Mac), and
-ADR-021 D5 predicted the first real run would need a Mac-era fix, *likeliest: an automatic-signing `DEVELOPMENT_TEAM` build setting no secret
-currently carries*. **That prediction came true and is resolved** (ADR-029):
-the founder added the three `ASC_*` secrets, and `DEVELOPMENT_TEAM =
-UH7MXG7Z94` plus an explicit `CODE_SIGN_STYLE = Automatic` are now committed on
-all three Runner build configs, pinned by
-`app/test/release/signing_sentinel_test.dart`.
+**Signing model: `match`, not cloud signing.** ADR-021 D5's API-key cloud
+signing (`-allowProvisioningUpdates` + the
+`~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8` auto-discovery path)
+**cannot work on a GitHub-hosted runner**: it has no Xcode-managed Apple ID and
+an empty keychain, so the archive fails *"No valid code signing certificates
+were found."* Cloud signing can fetch a profile; it cannot conjure the
+certificate's private key. `match` clones an encrypted certs repo
+(`MATCH_GIT_URL`), decrypts it with `MATCH_PASSWORD`, and installs the identity
+into a temporary keychain. It runs **`readonly`** unless the one-shot
+`MATCH_BOOTSTRAP` repo variable is set, so CI **cannot mint** a certificate —
+which is what closed issue #99 (Apple caps Apple Distribution certs at 3).
 
-**What is still unverified from Linux**, and deliberately not asserted: that
-Apple accepts the signing, that the **App Store Connect app record** for
-`com.beyondkaira.hayati` exists (`upload_to_testflight` hard-fails without it —
-operator roadmap Step 2), and whether a fresh runner keychain makes xcodebuild
-mint a new distribution certificate each run (**issue #99**, cap 3/account).
-The fail-closed gate guarantees any of those failures is loud and attributed,
-never a fake green.
+**Honesty bound (ADR-021 D5) — now DISCHARGED by a real run.** The
+signing/upload half was unverifiable from the Linux dev box, and everything it
+listed as unproven is proven: Apple accepts the signing, the App Store Connect
+app record exists, and the upload lands (build 109). Issue **#99** is closed —
+not by watching runs accumulate, but because `match(readonly: true)` removes
+the certificate-minting mechanism outright.
+
+**What is still not verified from Linux**, and deliberately not asserted:
+whether the `write App Store Connect API key` step in `release.yml` is read by
+anything at all under manual signing. The evidence says no. It is kept anyway
+(ADR-032 D4) on the same principle ADR-029 D2 used when it refused to touch
+`CODE_SIGN_IDENTITY`: a blind edit to a working signing path from a box with no
+Mac is exactly what this bound forbids. A session that can watch a real run
+should delete it and confirm.
 
 No Android platform block. Play tracks, Play app signing, and Play Console
 metadata arrive with **M6.5 — Android enablement & Play release** (ADR-006).
@@ -91,13 +105,20 @@ warning — removing that flag is the ratchet once a domain + hosted policy exis
 
 ### Founder-owned naming (ADR-020 D1/D2)
 
-- **App Store name** is `Hayati` (provisional until the founder's trademark /
-  App-Store-availability search — an unrelated vape brand uses "Hayati" in some
-  markets; vetted alternates exist). A rename is a one-line metadata edit.
-- **`CFBundleDisplayName`** stays **"Hayati App"** this session. Variant (b)
-  "Hayati" and a genuinely neutral label are drafted and flagged for the
-  founder (ADR-020 D2); whichever is chosen, the discreet-icon honesty copy
-  (`settingsDiscreetSubtitle`) must be re-audited in the same commit.
+**Both are now DECIDED — the founder exercised them (ADR-032 D6).**
+
+- **App Store name** is **`İkimiz`**, one of ADR-020 D1's own vetted
+  alternates, matching the live App Store Connect record. It is **pinned** in
+  `tool/release_lane_lint.dart`, because `deliver(force: true)` skips the
+  confirmation prompt: a drifted `name.txt` silently **renames the live
+  listing** on the next release. Change the pin and every `name.txt` in one
+  commit.
+- **`CFBundleDisplayName`** is **`İkimiz`** (PR #118), matching the store record
+  and the shipped build. ADR-020 D2 required the discreet-icon honesty copy to
+  be re-audited in the same commit; that was missed there and **done in S047**.
+  Result: `settingsDiscreetSubtitle` ("The app's name still appears under it")
+  names no specific string in any of the three locales, so ADR-018 D6's honesty
+  bound holds verbatim under the new name. No copy change was needed.
 
 ## Running the lanes
 
@@ -107,24 +128,39 @@ debt below). Once they exist, from the repo root:
 ```sh
 bundle install
 bundle exec fastlane ios build_debug     # unsigned debug build, zero secrets
-bundle exec fastlane ios beta            # fails closed without ASC_* creds
+bundle exec fastlane ios beta            # fails closed without ASC_* + MATCH_* creds
 bundle exec fastlane ios store_metadata  # fails closed without ASC_* creds
 ```
 
+In practice nobody runs `beta` by hand: `git tag vX.Y.Z && git push --tags`
+from `main` runs the whole lane in CI.
+
 ## Documented debt
 
-`Gemfile.lock` is still intentionally **absent** (ADR-021 D6): no Ruby/bundler
-on the dev box means no faithful lock can be generated, and the pre-signing CI
-stages never run Ruby. It gets committed the first time `sign-upload` actually
-executes `bundle install` — the first enrolled release run, or the founder's
-Mac. Also noted in the root `Gemfile`.
+`Gemfile.lock` is still **absent**, and ADR-021 D6's stated discharge condition
+has now been MET without discharging it — `sign-upload` has executed
+`bundle install` several times. The original blocker stands: **there is no Ruby
+on the Linux dev box**, so no faithful lock can be generated here, and
+hand-authoring one is worse than none. So every release run resolves fastlane
+fresh within `~> 2.225`, **on a signing path**. That is real supply-chain drift
+on the most sensitive lane in the repo, recorded rather than carried silently
+(`project-rules.md` #9) and tracked as its own issue. Also noted in the root
+`Gemfile`.
 
 ## Secrets policy
 
-Zero credentials in the repo (architecture.md §9). The `ASC_*` API-key inputs
-are injected from GitHub `release` environment secrets at release time; the
-`Appfile` keeps account identifiers as commented placeholders only. The `.p8`
-key lands on disk only in a post-gate step, written from the secret to the
-runner temp dir, never checked in. Fastlane runtime artifacts
-(`fastlane/report.xml`, `Preview.html`, `test_output/`) are gitignored so the
-first real lane run does not dirty the tree.
+Zero credentials in **this** repo (architecture.md §9) — and since ADR-032 D1
+that wording is deliberately narrow. Nothing is committed here, but release
+signing is no longer keyless: the Apple Distribution certificate **and its
+private key** live encrypted in a **separate private repository**
+(`MATCH_GIT_URL`), decryptable with `MATCH_PASSWORD`. **Custody moved; it did
+not vanish**, and those two secrets compose into the ability to sign as this
+team.
+
+`ASC_KEY_ID` / `ASC_ISSUER_ID` are `release` **environment** secrets;
+`ASC_API_KEY_P8_BASE64` / `MATCH_GIT_URL` / `MATCH_PASSWORD` are **repository**
+secrets (a job with an `environment:` binding sees both). The `.p8` lands on
+disk only in a post-gate step, decoded from `ASC_API_KEY_P8_BASE64` — one
+secret holds the key, because two encodings of one credential is a rotation
+footgun. Fastlane runtime artifacts (`fastlane/report.xml`, `Preview.html`,
+`test_output/`) are gitignored so a real lane run does not dirty the tree.

@@ -78,11 +78,30 @@ scoped:
   questions stays a founder/W9 content item**, and until one is authored the
   change is a provable no-op on every shipped pack. It does put the calendar
   machinery under **Ramadan mode** (v1.5's dated item below) a version early.
-- Remaining backlog issues are operator- or founder-blocked: #47/#48 (iOS
-  device-privacy items — #48 needs the phone), #41 (RevenueCat identity —
-  operator item 0), #15 (needs a Mac/device), #13 (M6.5 Android), #67/#63/#71
-  (founder/brandkit calls). **#88** (a TS↔schema agreement guard, filed by
-  ADR-026) is unblocked and small — the next AI-chosen unit.
+- **✅ #88** (the TS↔schema agreement guard ADR-026 filed) — Session 038.
+- **✅ The release lane's aftermath (ADR-032) — Session 047.** The concurrent
+  operator session's `match` lane (#117) shipped a new signing architecture with
+  no ADR, and four defects lived in the gap between the documented design and
+  the built one — the loudest being a `store_metadata` lane that aborted before
+  `deliver` on every release while reporting success. ADR-032 writes the record,
+  the fixes land with it, **#99 closes**, and `tool/release_lane_lint.dart` makes
+  the lane's self-agreement a per-PR check so the next drift is caught rather
+  than re-discovered.
+- Remaining backlog issues are operator- or founder-blocked: #48 (needs the
+  phone — its own text says so), #41 (RevenueCat identity — now UNBLOCKED in
+  precondition but a **live-billing-identity decision the founder must make**,
+  and larger if sandbox purchases already exist), #115 (a security-posture
+  change on production: one `gcloud` command, the founder's), #15 (needs a
+  Mac/device crash log), #13 (M6.5 Android), #63/#71 (founder/brandkit calls),
+  #100 (a cost-posture re-decision needing runner-queue measurement).
+  **#67 is CLOSED** (S047, verified rather than assumed): the redesign waves added
+  `mist`/`veil` to brandkit v1.1 and `hayati_theme.dart` wires them to
+  `onSurfaceVariant` / `outline` / `outlineVariant` — exactly the option (a) the
+  issue recommended — held by the brandkit→Dart parity test. **#71 stays open**:
+  motion still has no token in `hayati-tokens.json`.
+
+**Nothing on the engineering side is both unblocked and undone as of S047**, so
+the next unit is either a founder decision above or M6.5 (Gate-3 gated).
 
 ## v1.5 (months 6–9)
 

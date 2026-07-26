@@ -1,10 +1,16 @@
 # Appfile — app + account identifiers, loaded by every lane in the Fastfile.
 #
-# Secrets policy (architecture.md §9): ZERO CREDENTIALS live in this repo, and
-# that is untouched — no key, certificate, .p8, password or token is committed.
-# The App Store Connect API key arrives at release time (release.yml) from
-# GitHub `release` environment secrets. Note the distinction this file used to
-# blur: an IDENTIFIER is not a credential (see the block below).
+# Secrets policy (architecture.md §9): ZERO CREDENTIALS live in THIS repo — no
+# key, certificate, .p8, password or token is committed here, and the App Store
+# Connect API key arrives at release time (release.yml) from GitHub secrets.
+# Note the distinction this file used to blur: an IDENTIFIER is not a credential
+# (see the block below).
+#
+# NARROWED at ADR-032 D1, and the narrowing matters: release signing is no
+# longer keyless. The Apple Distribution certificate AND ITS PRIVATE KEY live
+# encrypted in a SEPARATE PRIVATE REPOSITORY (fastlane match, MATCH_GIT_URL),
+# decryptable with MATCH_PASSWORD. Custody moved; it did not vanish. Read
+# "zero credentials in this repo" as exactly that, and no further.
 
 app_identifier("com.beyondkaira.hayati")  # iOS bundle id — renamed S037; com.hayati.app was squatted on Apple (ADR-027)
 

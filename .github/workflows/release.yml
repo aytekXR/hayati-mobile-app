@@ -2,10 +2,12 @@
 # docs/architecture.md §9). ci.yml (quality + iOS build smoke) is the per-PR merge
 # gate; this is the release path. The pre-signing stages (preflight / integration /
 # build-report) are proven green; the sign-upload boundary FAILS CLOSED — loudly, at
-# a named step — until the founder's Apple Developer enrollment + the three ASC_*
-# environment secrets exist (operator-expected item 4). A dispatch without secrets is
-# EXPECTED to end red at that boundary; that red is the honest state of the M6 accept
-# line, proven not asserted (never a silent skip that looks green).
+# a named step — unless all FIVE release secrets exist: ASC_KEY_ID / ASC_ISSUER_ID
+# (`release` environment) and ASC_API_KEY_P8_BASE64 / MATCH_GIT_URL / MATCH_PASSWORD
+# (repository). A dispatch without them is EXPECTED to end red at that boundary; that
+# red is the honest state of the lane, proven not asserted (never a silent skip that
+# looks green). Signing is fastlane `match` + MANUAL since ADR-032 — NOT ADR-021 D5's
+# API-key cloud signing, which cannot work on a hosted runner.
 name: release
 
 on:
@@ -60,13 +62,32 @@ jobs:
       # of hard-failing until the founder supplies a domain (ADR-020 D5).
       - name: store metadata lint
         run: dart tool/store_metadata_lint.dart --allow-empty-urls tr en-US
+      # ADR-032: the release lane's own internal agreement — the fail-closed
+      # gate covers the secrets the job consumes, each fastlane step is fed what
+      # its lane requires, the build name still comes from pubspec, and
+      # name.txt still matches the live App Store listing. Cheap, credential-free
+      # and deliberately HERE: every defect it checks for shipped green for four
+      # days because nothing looked at the lane as a whole, and catching it on
+      # ubuntu costs seconds instead of a 30-minute macOS round trip.
+      - name: release lane lint
+        run: dart tool/release_lane_lint.dart
       - name: tag ↔ pubspec version consistency
         # One step with NO step-level if: — it always runs, so a dispatch shows an
         # honest "checked: tag-only" line rather than a skipped step that reads
         # grey-green (W4). On a vX.Y.Z tag it hard-fails when the tag's X.Y.Z
         # disagrees with app/pubspec.yaml's version X.Y.Z: one source of truth
-        # (ADR-021 D3); the build number after the `+` is pubspec's and is never
-        # synthesized in CI.
+        # (ADR-021 D3).
+        #
+        # SCOPE, corrected S047 (ADR-032 D3): this checks the version NAME only.
+        # The build NUMBER after the `+` is NOT pubspec's any more — the Fastfile
+        # synthesizes `100 + GITHUB_RUN_NUMBER`, and the highest build already
+        # uploaded for 0.1.0 is 109 while pubspec still reads +4. This comment
+        # used to claim the build number "is never synthesized in CI", which was
+        # true when it was written and false the moment PR #117 merged.
+        #
+        # The name half is only a real guarantee while the Fastfile passes no
+        # `--build-name` (it once hardcoded 0.1.0, which made this step guard a
+        # string the build ignored). `tool/release_lane_lint.dart` pins that.
         run: |
           pubspec_version="$(sed -n 's/^version:[[:space:]]*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' app/pubspec.yaml)"
           if [ -z "$pubspec_version" ]; then
@@ -266,55 +287,123 @@ jobs:
         # after it simply never runs. It reports the FULL missing set at once (a
         # partial secret set must not reach fastlane to die on an opaque auth error)
         # and never echoes a secret VALUE, only names.
+        #
+        # The set below is the set this JOB consumes, and keeping the two in step is
+        # the whole guarantee (ADR-032 D4). It drifted once: PR #117 moved the lane
+        # to fastlane match and added ASC_API_KEY_P8_BASE64 / MATCH_GIT_URL /
+        # MATCH_PASSWORD to the job without adding them here, so a missing
+        # MATCH_PASSWORD passed this gate and died inside fastlane minutes later —
+        # precisely what D4 exists to prevent. `tool/release_lane_lint.dart` now
+        # fails the cheap ubuntu preflight if the two sets diverge again.
+        #
+        # Note the two scopes, both resolvable here: ASC_KEY_ID / ASC_ISSUER_ID are
+        # `release` ENVIRONMENT secrets, while ASC_API_KEY_P8_BASE64 / MATCH_* are
+        # REPOSITORY secrets — a job with an `environment:` binding sees repository
+        # secrets too, with same-named environment secrets winning. The raw
+        # `ASC_API_KEY_P8` environment secret is no longer read by anything (ADR-032 D4
+        # decodes the base64 one instead, so a single secret holds the key); it can
+        # be deleted at the founder's convenience, and nothing breaks if it is not.
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
         run: |
           missing=()
           [ -n "$ASC_KEY_ID" ] || missing+=("ASC_KEY_ID")
           [ -n "$ASC_ISSUER_ID" ] || missing+=("ASC_ISSUER_ID")
-          [ -n "$ASC_API_KEY_P8" ] || missing+=("ASC_API_KEY_P8")
+          [ -n "$ASC_API_KEY_P8_BASE64" ] || missing+=("ASC_API_KEY_P8_BASE64")
+          [ -n "$MATCH_GIT_URL" ] || missing+=("MATCH_GIT_URL")
+          [ -n "$MATCH_PASSWORD" ] || missing+=("MATCH_PASSWORD")
           if [ ${#missing[@]} -ne 0 ]; then
-            echo "::error::Signing is fail-closed — missing App Store Connect secret(s): ${missing[*]}"
+            echo "::error::Signing is fail-closed — missing release secret(s): ${missing[*]}"
             {
               echo "======================================================================"
-              echo "  SIGNING IS FAIL-CLOSED. Missing environment secret(s):"
+              echo "  SIGNING IS FAIL-CLOSED. Missing secret(s):"
               for name in "${missing[@]}"; do echo "    - $name"; done
               echo ""
-              echo "  The signed-build + TestFlight upload half of M6 is operator-blocked"
-              echo "  on the founder's Apple Developer enrollment (operator-expected"
-              echo "  item 4). Add the three App Store Connect API-key secrets in:"
+              echo "  This lane needs BOTH halves (ADR-032):"
               echo ""
-              echo "      Settings -> Environments -> release"
+              echo "    App Store Connect API key -> Settings > Environments > release"
+              echo "      ASC_KEY_ID, ASC_ISSUER_ID"
+              echo "      (copy-paste from one App Store Connect >"
+              echo "       Users and Access > Integrations > Keys page)"
               echo ""
-              echo "  (ASC_KEY_ID, ASC_ISSUER_ID, ASC_API_KEY_P8 — all copy-paste from"
-              echo "  one App Store Connect > Users and Access > Integrations > Keys page.)"
-              echo "  How-to: fastlane/README.md and docs/adr/021-release-lane-fail-closed-signing-boundary.md."
+              echo "    fastlane match + the base64 key -> repository secrets"
+              echo "      ASC_API_KEY_P8_BASE64  (base64 of the same .p8)"
+              echo "      MATCH_GIT_URL          (the encrypted certs repo)"
+              echo "      MATCH_PASSWORD         (decrypts it)"
               echo ""
-              echo "  This red is the honest state of the M6 accept line, not a lane bug."
+              echo "  Without match, a hosted runner has no distribution certificate"
+              echo "  and the archive fails 'No valid code signing certificates were"
+              echo "  found'. How-to: fastlane/README.md and docs/adr/032-*.md."
+              echo ""
+              echo "  This red is the honest state of the release lane, not a lane bug."
               echo "======================================================================"
             } >&2
             exit 1
           fi
-          echo "All three ASC_* signing secrets are present."
+          echo "All five release signing secrets are present."
       - name: write App Store Connect API key
         # Post-gate only, NO if: (a skipped signing step reads grey-green, ADR-021
-        # D4). The .p8 reaches disk here from the secret, never committed
-        # (architecture.md §9 "zero keys in repo"), to two places: $RUNNER_TEMP for
-        # the fastlane lane, and xcodebuild's documented auto-discovery path
-        # ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8 so cloud signing finds
-        # it during the archive (ADR-021 D5). umask 077 + chmod 600 — key hygiene.
+        # D4). The .p8 reaches disk here from a secret, never committed, at
+        # xcodebuild's documented auto-discovery path
+        # ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8. umask 077 +
+        # chmod 600 — key hygiene.
+        #
+        # WHY THIS STEP STILL EXISTS (ADR-032 D4). It was written for ADR-021 D5's
+        # cloud signing, where xcodebuild auto-discovered this file to mint a
+        # profile. Under fastlane match + MANUAL signing nothing appears to read
+        # it: fastlane gets the key from `ASC_API_KEY_P8_BASE64` via
+        # `app_store_connect_api_key(key_content:)`, and an explicit
+        # ExportOptions.plist names the profile, so `-allowProvisioningUpdates`
+        # (which `flutter build ipa` always passes) has nothing to resolve.
+        #
+        # It is kept anyway on this repo's own precedent: ADR-029 D2 refused to
+        # touch `CODE_SIGN_IDENTITY` because that would be "a blind edit to a
+        # signing path from a Linux box with no Mac". The lane demonstrably works
+        # WITH this step; "very likely dead" is not "proven dead", and the cost of
+        # being wrong is a broken release the founder cannot debug. A session that
+        # can watch a real run should delete it and confirm.
+        #
+        # What DID change: the file is now decoded from ASC_API_KEY_P8_BASE64 —
+        # the same secret fastlane authenticates with — instead of requiring a
+        # second, separately-maintained raw `ASC_API_KEY_P8`. Two secrets holding
+        # one key is a rotation footgun: update one, forget the other, and the
+        # lane fails closed on a credential that is not actually wrong.
+        #
+        # THE `tr` IS LOAD-BEARING, and it is the reason this edit is safe to
+        # make from a box that cannot run the lane. `openssl base64 -d -A`
+        # silently emits GARBAGE and still exits 0 when its input carries
+        # newlines (verified locally against a real PKCS#8 EC key). We do not
+        # know how this secret was pasted: fastlane consumes the same value
+        # through Ruby's Base64.decode64, which IGNORES newlines, so a wrapped
+        # secret works there and would have broken only here. Stripping all
+        # whitespace first decodes both forms identically.
+        #
+        # An App Store Connect key is PKCS#8, so its PEM header is
+        # `-----BEGIN PRIVATE KEY-----` (NOT `BEGIN EC PRIVATE KEY`, which is
+        # SEC1) — confirmed against a locally generated P-256 key.
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
         run: |
           umask 077
-          printf '%s' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
-          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
           mkdir -p "$HOME/.appstoreconnect/private_keys"
-          cp "$RUNNER_TEMP/AuthKey.p8" "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          key_path="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$ASC_API_KEY_P8_BASE64" \
+            | tr -d '[:space:]' \
+            | openssl base64 -d -A > "$key_path"
+          chmod 600 "$key_path"
+          # Fail loudly if the secret did not decode to a PEM key. A zero-byte or
+          # garbage file would otherwise be a silent no-op — and the whole reason
+          # this step survives is that we are NOT certain nothing reads it.
+          head -1 "$key_path" | grep -q 'BEGIN PRIVATE KEY' || {
+            echo "::error::ASC_API_KEY_P8_BASE64 did not decode to a PKCS#8 PEM private key."
+            echo "::error::Expected a first line of '-----BEGIN PRIVATE KEY-----'."
+            exit 1
+          }
       - uses: actions/checkout@v5
       - uses: ruby/setup-ruby@v1
         with:
