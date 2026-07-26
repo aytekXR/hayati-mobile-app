@@ -126,7 +126,7 @@ Deliberately **not** solved this session:
 - **The fix is a real design, not a flag.** fastlane `match` with a private certificate repo, or importing a certificate + private key from new secrets, introduces **new private-key custody** into a repo whose stated invariant is "zero keys in repo". That deserves its own ADR, not a guess bolted onto a lane that has never run once.
 - **Whether it even happens is observable on the first run and unknowable from Linux.** This project does not assert what it has not seen — ADR-021 D5's honesty bound and ADR-022's refusal of the fake CI cold-start assertion are the same principle. The first run's log decides.
 
-Filed as an issue at close with the **expected symptom named**, so the next session recognises it instead of re-deriving it.
+Filed as **issue #99** with the expected symptom named (*one* new Apple Distribution certificate after the first run is expected and fine; a *second* after the second run is the bug), so the next session recognises it instead of re-deriving it.
 
 ## Decision 5 — three stale claims about **ADR-027's own diff** are corrected in this diff
 
@@ -148,7 +148,7 @@ So ADR-027's "Phase 2" **landed inside ADR-027's own merge**. **Four** surfaces 
 
 §9 justifies two cost decisions with *"macOS minutes bill at 10× on this **private** repo (~100–140 billed minutes per run)"*. `gh repo view` reports **`PUBLIC`**, and GitHub-hosted **standard runners — macOS included — are free for public repositories**.
 
-The claim is load-bearing in reasoning a future session inherits, and it is the reason *this* session can run the first release lane without a spend decision, so it is corrected. The **decisions** are deliberately left standing: `integration-emulator` main-only and the cheap ubuntu `preflight` ahead of the macOS legs are still defensible on **latency and queue time** (macOS runners queue far longer than ubuntu), and re-litigating a cost posture is not this session's objective. Filed as an issue instead: *whether any of §9's cost-motivated gates should be relaxed now that the minutes are free.*
+The claim is load-bearing in reasoning a future session inherits, and it is the reason *this* session can run the first release lane without a spend decision, so it is corrected. The **decisions** are deliberately left standing: `integration-emulator` main-only and the cheap ubuntu `preflight` ahead of the macOS legs are still defensible on **latency and queue time** (macOS runners queue far longer than ubuntu), and re-litigating a cost posture is not this session's objective. Filed as **issue #100** instead: *whether any of §9's cost-motivated gates should be relaxed now that the minutes are free* — including the observation that relaxing `integration-emulator` to per-PR would make part of ADR-024 D8's fragility moot, and the warning that the corrected §9 sentence becomes wrong again if the repo is ever made private.
 
 ## Consequences
 
