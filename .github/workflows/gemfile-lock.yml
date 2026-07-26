@@ -1,0 +1,119 @@
+# gemfile-lock — generate and PROVE a Gemfile.lock, then hand it back as an artifact.
+#
+# WHY THIS EXISTS (issue #120). ADR-021 D6 made the missing-lock debt conditional on
+# "the first time fastlane is exercised". That has now happened several times and the
+# lock was never committed, so every release run resolves fastlane fresh within
+# `~> 2.225` — a floating dependency on the one lane that owns certificate custody and
+# rewrites the pbxproj. The original blocker still stands: there is NO RUBY on the
+# Linux dev box, so no faithful lock can be generated there, and hand-authoring one
+# from a CI log would look authoritative while being a guess.
+#
+# So CI generates it. `workflow_dispatch` only — this is a tool a session runs on
+# purpose, never something that fires on a push.
+#
+# TWO THINGS MAKE THE OUTPUT TRUSTWORTHY RATHER THAN MERELY PRESENT:
+#
+#   1. It runs on the SAME runner and the SAME Ruby as `release.yml`'s `sign-upload`
+#      (macos-26 / ruby 3.3). A lock resolved on ubuntu can omit the darwin platform
+#      entirely, and `bundle install` on macOS then refuses it ("your bundle only
+#      supports platforms ..."). Resolving where it will be installed avoids that by
+#      construction rather than by a flag.
+#
+#   2. It then installs FROZEN, which is the whole point. This repo has already paid
+#      for the alternative once: S044's `npm install` succeeded, typechecked and passed
+#      979 tests, and `npm ci` — the command CI actually runs — then refused the tree.
+#      `bundle install --frozen` is the `npm ci` of this ecosystem: it asserts the lock
+#      is already coherent instead of quietly rewriting it to fit. A lock that cannot
+#      be installed frozen must never reach a commit.
+#
+# HOW TO USE IT — note the ordering constraint, which this repo has recorded before:
+# GitHub registers `workflow_dispatch` only once the workflow file lives on the DEFAULT
+# branch (ADR-021 D1 rev 2, learned the same way by release.yml). So this file merges
+# FIRST and is dispatched afterwards; it cannot be run from its own feature branch.
+#
+#   gh workflow run gemfile-lock.yml --ref main
+#   gh run download <run-id> --name Gemfile.lock --dir .
+#   git add Gemfile.lock && git commit
+#
+# Once committed, `tool/release_lane_lint.dart` keeps it there: the lock's resolved
+# fastlane version must satisfy the Gemfile's constraint, so a silently stale or
+# deleted lock reddens the cheap ubuntu preflight instead of drifting for months.
+name: gemfile-lock
+
+on:
+  workflow_dispatch:
+
+# Read-only token: this job resolves gems and uploads an artifact. It never commits —
+# a workflow that writes its own lockfile back to the branch would be a supply-chain
+# path of its own, and a human reading the diff is the point of the artifact hand-off.
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    name: lock
+    # macos-26 + ruby 3.3 deliberately mirror release.yml's sign-upload job. If that
+    # job's runner or Ruby ever changes, change it HERE IN THE SAME DIFF or the lock
+    # stops describing the machine that installs it.
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          # Do NOT let the action bundle-install for us: it would generate a lock as a
+          # side effect, and this job's contract is that the lock comes from an
+          # explicit, inspectable `bundle lock`.
+          bundler-cache: false
+
+      - name: resolve the dependency graph
+        run: |
+          bundle lock
+          echo "::group::resolved Gemfile.lock"
+          cat Gemfile.lock
+          echo "::endgroup::"
+
+      # A lock whose PLATFORMS list holds only this exact runner arch is brittle: a
+      # future image bump (arm64-darwin-24 -> -25) makes `bundle install` refuse it.
+      # Adding the generic `ruby` platform keeps it installable across that change.
+      # This is additive — the darwin entry resolved above stays.
+      - name: add the generic ruby platform
+        run: |
+          bundle lock --add-platform ruby
+          grep -A5 '^PLATFORMS' Gemfile.lock
+
+      # THE VERIFICATION, and the reason this workflow is worth more than a bare
+      # `bundle lock`. --frozen makes bundler refuse to modify the lock: if the lock
+      # and the Gemfile disagree, or a resolved gem cannot be fetched for this
+      # platform, this step fails and no artifact is published.
+      - name: bundle install --frozen (the `npm ci` of this ecosystem)
+        # The checksum brackets the install because `git diff` cannot help here: the
+        # lock is UNTRACKED at this point, so a diff against HEAD sees nothing and would
+        # pass vacuously. Comparing the file to itself before and after is the only
+        # check that actually holds. If --frozen were somehow bypassed and the lock
+        # moved, the artifact would not be the thing that was verified.
+        run: |
+          before="$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)"
+          bundle install --frozen --jobs 4 --retry 3
+          after="$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)"
+          if [ "$before" != "$after" ]; then
+            echo "::error::bundle install modified Gemfile.lock despite --frozen ($before -> $after); the artifact would not match what was verified."
+            exit 1
+          fi
+          echo "Gemfile.lock is byte-identical after a frozen install ($after)."
+          echo "--- installed fastlane ---"
+          bundle exec fastlane --version | tail -3
+
+      # Prove the lock is USABLE, not merely installable: the one lane that needs zero
+      # credentials must be reachable under the locked bundle.
+      - name: sanity — fastlane runs its lanes under the locked bundle
+        run: bundle exec fastlane lanes >/dev/null && echo "fastlane enumerated its lanes under the locked bundle."
+
+      - name: upload Gemfile.lock
+        uses: actions/upload-artifact@v6
+        with:
+          name: Gemfile.lock
+          path: Gemfile.lock
+          if-no-files-found: error
+          retention-days: 30
