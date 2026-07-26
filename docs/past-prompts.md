@@ -1540,5 +1540,28 @@ lines from a banner saying it is İkimiz; `implementation-plan.md` M6.3 and **bo
 carried stale "cloud signing" / "operational proof 0%" claims the sweep never reached; and `roadmap.md` told a
 future session to "verify #67 before assuming" in the same diff that closed #67 with evidence.
 
-**Operator action required: YES — and it is unchanged and singular.** #115's one `gcloud` command. Everything
-else this session produced needs nothing from the founder.
+**CI: the post-merge main run went RED, was examined, and is GREEN on re-run — one infrastructure cause behind
+both failures.** Run `30220371273`: `quality` and `functions-rules` passed; **both macOS jobs failed**.
+
+- `ios-build-smoke`: `xcodebuild: error: Could not resolve package dependencies` →
+  `fatal: cannot change to '.../org.swift.swiftpm/repositories/google-ads-on-device-conversion-ios-sdk-3a0884ed':
+  No such file or directory`. A **corrupted SwiftPM repository cache on the runner**.
+- `integration-emulator`: booted the simulator fine, reached `loading .../auth_emulator_test.dart` at 21:15Z,
+  then produced **nothing for 45 minutes** and hit its 50-minute job timeout (GitHub renders that as a
+  *cancelled* step, not a failure — worth knowing, because "cancelled" reads like someone cancelled it).
+
+**Same root cause, and the reasoning is the point:** `flutter test` on a simulator also resolves SwiftPM
+packages, so the corrupted cache that killed `ios-build-smoke` outright is what wedged the integration suite's
+iOS build. Attribution check: this diff touches **no** iOS dependency, no pbxproj, no `Package.resolved`, and
+the identical tree had passed `ios-build-smoke` on the PR six minutes earlier. **Re-ran the failed jobs: all
+five green**, `integration-emulator` included — which is the only verdict that covers merged code, since that
+job is main-only by cost/latency design.
+
+Two process notes worth carrying: `gh run rerun --failed` is **refused while the run is still in progress**
+("its workflow file may be broken" — a misleading message for a queued-job situation), so wait for the run to
+conclude first; and a 50-minute macOS job is a real reminder that `integration-emulator`'s main-only gate now
+stands on **latency**, not the billing premise ADR-029 D6 corrected (issue #100).
+
+**Operator action required: YES — and it is unchanged and singular.** #115's one `gcloud` command, re-probed at
+the close and still returning Google's **HTML 403**. Everything else this session produced needs nothing from
+the founder.
