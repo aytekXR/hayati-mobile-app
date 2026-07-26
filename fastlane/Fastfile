@@ -61,8 +61,10 @@ platform :ios do
 
     # Flutter ships CODE_SIGN_STYLE Automatic; pin MANUAL signing onto the Runner
     # target with the match profile so the archive uses the installed cert+profile.
+    # NB: fastlane actions resolve paths from the REPO ROOT (unlike sh blocks,
+    # which run from fastlane/) — so this is app/ios/…, not ../app/ios/….
     update_code_signing_settings(
-      path: "../app/ios/Runner.xcodeproj",
+      path: "app/ios/Runner.xcodeproj",
       targets: ["Runner"],
       use_automatic_signing: false,
       team_id: "UH7MXG7Z94",
