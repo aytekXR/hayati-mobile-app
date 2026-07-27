@@ -1590,3 +1590,34 @@ The workflow deliberately **never commits its own output**: a job that writes a 
 **Verification:** the generator run `30224530405` green at every step (frozen install succeeded and the lock was **byte-identical** afterwards; `fastlane lanes` enumerated under the locked bundle); lint 10/10; self-tests **74/74**; `dart format` clean; PR #124 and #125 green; post-merge main green. **#120 CLOSED.**
 
 **No operator action was created by this session.** The single outstanding founder item is unchanged: **#115's one `gcloud` command**, re-probed at close and still HTML.
+
+## Session 049 — 2026-07-27 — **#100: the premise that replaced a false premise was also false, and nobody had measured either**
+
+**Objective (from `resume-prompt.md`):** supply #100's measurements, decide per gate, write the decision down.
+
+**Preemptions, unchanged and all founder-gated.** #115 still returns Google's **HTML 403**. Prod still **11 × `nodejs20`** with a pre-M5.3 `coachProxy`. Dev still 10 functions. Zero open PRs.
+
+**The measurement, which took one API sweep and settled a question that had been open for four sessions.** Over **24 macOS jobs** on this repo:
+
+| job | queue (median / max) | run (median / max) |
+|---|---|---|
+| `ios-build-smoke` | **0.1 / 0.1 min** | 6.2 / 8.6 min |
+| `integration-emulator` | **0.1 / 0.1 min** | 22.3 / 32.6 min |
+
+**macOS queue time is about six seconds** — median *and* max, both jobs.
+
+**THE FINDING: #100's own counter-argument was false, and so was the sentence I wrote two sessions ago.** The issue ended with the reason to leave the gates alone — *"macOS runners **queue far longer** than ubuntu, so per-PR macOS legs cost latency on every review cycle even at zero dollars."* That is the claim ADR-029 D6 offered **as a replacement** when it retired the *"10× billed minutes on this private repo"* premise. It is measurably false here. S047 then repeated it verbatim while correcting other stale text, and closing #100 turned up a **third copy, on a different gate**, that neither session had touched.
+
+**The pattern is worth more than the numbers: a load-bearing premise that gets REPLACED rather than MEASURED is likely to be wrong again**, because whatever produced the first guess produced the second. ADR-029 D6 was careful, correct about the thing it corrected, and wrong about the thing it substituted — and its wrongness then inherited forward through two sessions that were themselves auditing stale claims.
+
+**The decision, per gate.** `integration-emulator` **stays main-only**, on the reason that actually holds — **run duration**, not queueing: 22–33 min on the critical path of every code change, plus a flake surface with a demonstrated **50-minute wedge** (the corrupted SwiftPM cache from S047's own post-merge run). Against that, the compensation for its post-merge-only verdict already exists and works — ADR-024's notifier reports the run nobody watches, and D8's commit-keyed concurrency stopped the session's own close commit from cancelling it. Relaxing would trade a working compensation for a per-PR tax. `release.yml`'s ubuntu `preflight` **stays** on signal ordering (a lint error should surface in seconds, not half an hour into a macOS leg). `ios-build-smoke`'s draft/docs-only skips **stay** — at 6 minutes it is cheap and the skips only avoid work that cannot change its outcome. **#100(c) is not triggered**, so ADR-024 D8 and ci-debt #17 are untouched.
+
+**Revisit condition named rather than left implicit:** a human reviewer entering the loop makes a pre-merge signal worth 22 minutes, and the calculus flips — at which point (c) becomes mandatory. Also carried forward: **both** retired premises are keyed to the repo being public with fast runners, so whoever makes it private owns two sentences, not one.
+
+**No ADR, deliberately.** Nothing about the pipeline's behaviour changed; the artefact is the measurement plus the reasoning, written into the five sites that carried the false premise (`ci.yml` ×3, `release.yml`, `architecture.md` §9) and into the issue. An ADR for "we measured and kept it" would be ceremony.
+
+**Verification:** lint 10/10, self-tests 74/74, `dart format` clean, both workflow YAMLs parse, PR #127 green, post-merge main green. **#100 CLOSED.**
+
+**Queue derivation at close — and this time the answer is genuinely "empty".** Eight issues remain and **none is both unblocked and safe for a session alone**: **#115** and **#41** need the founder (production security posture; live billing identity). **#48** and **#15** need the physical device — #48's own text says so. **#13** is M6.5, Gate-3 gated. **#63** and **#71** are brandkit calls the founder owns. **#121** is the only one a session *could* execute, and it needs a go-ahead rather than a decision: confirming the orphaned `.p8` step means dispatching the release lane, which **builds and uploads a real binary to the founder's TestFlight** — an outward-facing action on their App Store Connect account, not something to spend unasked.
+
+**No operator action was created by this session.** The single outstanding founder item is unchanged: **#115's one `gcloud` command**, re-probed at close and still HTML.
