@@ -1652,3 +1652,25 @@ The workflow deliberately **never commits its own output**: a job that writes a 
 **Outcome:** done. **Queue re-derived and found NON-empty: #129, #130, #131 filed, all three unblocked and Linux-only.** Four false doc claims corrected.
 
 **Operator action required: NO new items.** The single outstanding founder item is unchanged — **#115's one `gcloud` command**, re-probed at close and still HTML. What *did* change on their page: it no longer tells them the Node 20 deadline is handled when prod still carries it.
+
+## Session 050 (continued) — 2026-07-27 — **Pruning the operator checklist was supposed to be formatting. It found an untracked user-visible defect.**
+
+**Objective (founder, mid-session):** *"prune the operator expected such that only open items are inside."*
+
+**The prune itself.** `docs/operator-expected.md` went **748 lines out, 272 in**. It had re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections, session narrative and a fully-obsolete Apple registration roadmap (Steps 0–5 all complete) since the last prune at S036 — despite the file's own header saying *"This file lists ONLY open, actionable items."* A rule stated at the top of a document does not enforce itself.
+
+**Item numbering was deliberately preserved.** Six source files cite this doc by item number in comments — `recipients.ts` and `messaging-port.ts` say *"operator-expected item 4"*, `crisis-lexicon.ts` and `frozen_sentence_digest_test.dart` cite the ★ gate, `slack_notify.sh` points at it for `SLACK_WEBHOOK_URL`, `ci.yml` for ADR-020 D5. Renumbering would have silently broken every one of those references. Checked before writing, not after.
+
+**THE FINDING: a real defect had been sitting in that file's prose for a day, tracked by nothing.** The redesign-wave review recorded a bidi item as *"scheduled for the next agent session with directional isolates."* Checking whether each open item the prose named was tracked anywhere returned **no issue** for it — and reading the golden rather than the prose showed the defect is **worse than described**:
+
+`revealed_streak.ar.rtl.png`, three instances in one screen — `…küçük bir` / **`?şey ne`**, **`.Kahvaltıda birlikte gülmemiz`**, **`.Sabah çayını birlikte içmemiz`**. The prose named only the first. Every Latin-script string under `TextDirection.rtl` is exposed, including **the answers each partner writes and the daily question itself** — the two things the product is about. The bidi algorithm is behaving *correctly*; a neutral character at an LTR/RTL boundary takes the paragraph direction unless isolated. So it is missing isolation at our seam, not a Flutter bug. **#133**, and S051 re-ranked onto it.
+
+**The same audit confirmed an item that would have been easy to drop as stale.** Item 5, *"rotate the leaked Slack webhook, open since S005"*, looks like exactly the kind of ancient line a prune deletes. `gh secret list` shows **`SLACK_WEBHOOK_URL` still does not exist** — it is genuinely open. The `slack-notify` job going green every run is ADR-024's designed silence, not evidence of wiring.
+
+**The lesson, written as addendum 51.** A remainder deferred into prose is a remainder that gets lost — `session-rules.md` §2 says discoveries go to `gh issue create`, and a bullet in a document is not a tracker however prominent the document. And a status doc is an **index to audit**, not only a thing to edit: one `gh issue list | grep` per named item is the whole cost, and it is where the findings are. Treating the prune as formatting would have deleted #133's only written trace.
+
+**Verification:** docs-only. All six code references re-resolved against the pruned file. PR #134.
+
+**Outcome:** done. **#133 filed** — bringing S050's total to four unblocked items found inside an objective that began as "confirm there is nothing left."
+
+**Operator action required: NO new items** — the pruned file has fewer, not more. #115's one `gcloud` command remains the single outstanding founder item.
