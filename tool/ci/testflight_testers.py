@@ -279,6 +279,22 @@ def print_status(token: str, app: dict, group_name: str) -> None:
             f"expired={attributes.get('expired')}  "
             f"uploaded={attributes.get('uploadedDate')}"
         )
+        # The icon Apple ACTUALLY extracted from the uploaded binary. Printed
+        # because "the right icon is on main" and "the right icon is in the
+        # build" are different claims, and this repo just spent eighteen days
+        # on a bug that was exactly that gap in another guise (issue #140).
+        # Session 052 shipped build 110 to replace a 109 that carried the stock
+        # Flutter icon; a differing token between two builds is the evidence.
+        icon = attributes.get("iconAssetToken")
+        if isinstance(icon, dict):
+            print(
+                f"      icon: {icon.get('templateUrl')}  "
+                f"({icon.get('width')}x{icon.get('height')})"
+            )
+        elif icon:
+            print(f"      icon: {icon}")
+        else:
+            print("      icon: (not reported by the API for this build)")
 
     gaps = review_readiness(token, app_id)
     print("\nbeta app review readiness (external testers need this):")
