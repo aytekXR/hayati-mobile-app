@@ -90,7 +90,7 @@ That line is a hardcoded template error. Any session that follows the skill's St
 Inventoried against source (not docs) by 16 agents over 655 tool calls, then the load-bearing claims re-verified by hand:
 
 - **48 UI surfaces** across 10 features + the shared core: 19 screens, 25 sub-widgets/shared components, 3 private `AlertDialog`s, 1 inline `SnackBar`.
-- **303 golden PNGs** in 21 directories (git-verified: `git ls-files app/test | grep -c '\.png$'` = 303). *A working-tree count of 635 is misleading — 332 of those are untracked, gitignored `failures/` mismatch artifacts from past runs.*
+- **303 golden PNGs** in 21 directories (git-verified: `git ls-files app/test | grep -c '\.png$'` = 303). *A working-tree count of 635 is misleading — 332 of those are untracked, gitignored `failures/` mismatch artifacts from past runs.* **⚠️ Superseded as a live figure (Session 050):** that command returns **360 across 24 directories** today — slice 2 took it to 306, and `542ae7d` (redesign wave 2) added 54 more. The 303 above is the fact set *as inventoried for this ADR* and stays as written; every count in this document is likewise an as-of-ADR-025 figure, not a current one. `docs/test-suite.md` §4 carries the live number.
 - **237 ARB keys** × TR/AR/EN. **Every prefix is under at least one copy gate.** There is no prefix a refactor session may freely reword.
 - Risk classification of the 48: **4 forbidden · 22 high · 16 medium · 5 low · 1 uninventoried-until-the-critic-found-it** (`settings_error_line.dart`, shared by three screens).
 
