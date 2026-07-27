@@ -27,6 +27,14 @@ on:
         description: 'Report what would change and touch nothing'
         type: boolean
         default: true
+      status_only:
+        description: 'Read-only: groups, builds, Beta App Review readiness'
+        type: boolean
+        default: false
+      assign_latest_build:
+        description: 'Attach the newest VALID build to the group (a group with no build is inert)'
+        type: boolean
+        default: false
 
 concurrency:
   group: testflight-testers
@@ -62,9 +70,16 @@ jobs:
           GROUP_NAME: ${{ inputs.group }}
           TESTER_EMAILS: ${{ inputs.testers }}
           DRY_RUN: ${{ inputs.dry_run }}
+          STATUS_ONLY: ${{ inputs.status_only }}
+          ASSIGN_BUILD: ${{ inputs.assign_latest_build }}
         run: |
           args=(--bundle-id com.beyondkaira.hayati
                 --group "$GROUP_NAME"
                 --testers "$TESTER_EMAILS")
-          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          # Full ifs rather than `[ x ] && args+=(…)` one-liners: with three of
+          # them the short form is a foot-gun waiting for the day one lands as
+          # the step's LAST line, where a false test does make `bash -e` exit.
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          if [ "$STATUS_ONLY" = "true" ]; then args+=(--status); fi
+          if [ "$ASSIGN_BUILD" = "true" ]; then args+=(--assign-latest-build); fi
           python3 tool/ci/testflight_testers.py "${args[@]}"
