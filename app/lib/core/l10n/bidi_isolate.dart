@@ -14,6 +14,10 @@
 /// (`دعاك {name}`), which is a real call site.
 library;
 
+import 'dart:ui' show TextDirection;
+
+import 'package:intl/intl.dart' show Bidi;
+
 /// U+2068 FIRST STRONG ISOLATE — opens a run whose direction is taken from its
 /// own first strong character, exactly like HTML's `dir="auto"`.
 /// Written as an escape, not as the literal character: the analyzer flags a
@@ -48,3 +52,38 @@ const String popDirectionalIsolate = '\u2069';
 /// bidi-neutral, so it has nothing to isolate and everything to lose.
 String isolate(String text) =>
     text.isEmpty ? text : '$firstStrongIsolate$text$popDirectionalIsolate';
+
+/// [isolate], but ONLY when the isolate would actually do something: when
+/// [text]'s own first-strong direction differs from the [ambient] paragraph's.
+///
+/// **This is what call sites should use.** Isolating unconditionally is
+/// semantically harmless — an isolate whose direction already matches the
+/// paragraph resolves to the same thing — but it is NOT pixel-neutral. The
+/// control characters split the shaping run, and the re-shaped glyphs differ at
+/// the sub-pixel level: measured over the golden suite, an unconditional seam
+/// moved **27 `tr.ltr`/`en.ltr` goldens** by ~0.8% of their pixels (mean delta
+/// 27/255, no reflow, no size change) for no behavioural gain. Under this
+/// predicate those cells are byte-identical, and the only goldens that move are
+/// the ones carrying the defect.
+///
+/// Returns [text] unchanged when it has **no strong character at all** (a bare
+/// `'2026'`, `'…'`, an emoji). Such a string has no direction of its own, so it
+/// should take the paragraph's — which is what it already does. Forcing an
+/// isolate there would pin it to LTR and could be actively wrong in Arabic
+/// chrome.
+///
+/// First-strong comes from `Bidi.startsWithRtl`/`startsWithLtr`, which are the
+/// spec-shaped "skip to the first strongly-directional character" tests —
+/// **not** `detectRtlDirectionality`, which is a majority heuristic and
+/// disagrees with first-strong in both directions.
+String isolateWithin(String text, TextDirection ambient) {
+  if (text.isEmpty) return text;
+  // rtl_lint bans bare TextDirection literals because they are almost always a
+  // physical-layout mistake. This one is a LOGICAL direction comparison at the
+  // one seam that exists to reason about direction, so it takes the documented
+  // escape rather than pretending the comparison can be written without it.
+  final ambientIsRtl = ambient == TextDirection.rtl; // rtl-ok
+  if (Bidi.startsWithRtl(text)) return ambientIsRtl ? text : isolate(text);
+  if (Bidi.startsWithLtr(text)) return ambientIsRtl ? isolate(text) : text;
+  return text;
+}

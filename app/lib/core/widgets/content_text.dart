@@ -37,7 +37,7 @@ class ContentText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      isolate(data),
+      isolateWithin(data, Directionality.of(context)),
       style: style,
       textAlign: textAlign,
       maxLines: maxLines,

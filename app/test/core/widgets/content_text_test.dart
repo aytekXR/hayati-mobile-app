@@ -201,9 +201,36 @@ void main() {
       expect(_renderedText(tester), isEmpty);
     });
 
-    // ADR-033 D9's declaration rests on this: isolation must not move content
-    // whose first-strong direction already matches the paragraph. If this ever
-    // reddens, the "no *.ltr.png golden changes" prediction is void.
+    // ADR-033 D9's declaration rests on these two. Unconditional isolation is
+    // semantically harmless but NOT pixel-neutral — the controls re-shape the
+    // run — so the seam must not emit them when the direction already agrees.
+    testWidgets('content matching the paragraph is left PRISTINE', (
+      tester,
+    ) async {
+      await _pumpContent(tester, _latinContent, paragraph: TextDirection.ltr);
+      expect(_renderedText(tester), _latinContent);
+
+      await _pumpContent(tester, _arabicContent, paragraph: TextDirection.rtl);
+      expect(_renderedText(tester), _arabicContent);
+    });
+
+    testWidgets('content opposing the paragraph IS isolated', (tester) async {
+      await _pumpContent(tester, _latinContent, paragraph: TextDirection.rtl);
+      expect(_renderedText(tester), isolate(_latinContent));
+
+      await _pumpContent(tester, _arabicContent, paragraph: TextDirection.ltr);
+      expect(_renderedText(tester), isolate(_arabicContent));
+    });
+
+    testWidgets('a string with NO strong character is left pristine', (
+      tester,
+    ) async {
+      // No direction of its own, so it should take the paragraph's — which is
+      // what it already does. Forcing an isolate would pin it to LTR.
+      await _pumpContent(tester, '2026 · 4', paragraph: TextDirection.rtl);
+      expect(_renderedText(tester), '2026 · 4');
+    });
+
     testWidgets('isolation does not move already-correct LTR content', (
       tester,
     ) async {

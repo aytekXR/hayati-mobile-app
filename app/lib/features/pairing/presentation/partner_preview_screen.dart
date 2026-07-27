@@ -308,7 +308,9 @@ class _ValidPreview extends StatelessWidget {
     // localized sentence (`دعاك {name}`), and only an inline isolate can bind
     // a run mid-sentence — the case that decided ADR-033 D1.
     final invitedBy = (name != null && name.isNotEmpty)
-        ? l10n.invitePreviewInvitedBy(isolate(name))
+        ? l10n.invitePreviewInvitedBy(
+            isolateWithin(name, Directionality.of(context)),
+          )
         : l10n.invitePreviewInvitedBySomeone;
     return Scaffold(
       body: SafeArea(
@@ -429,7 +431,9 @@ class _QuestionSlot extends StatelessWidget {
                 const SizedBox(height: SpacingTokens.x2),
                 Text(
                   (name != null && name.isNotEmpty)
-                      ? l10n.invitePreviewCreatorAnswered(isolate(name))
+                      ? l10n.invitePreviewCreatorAnswered(
+                          isolateWithin(name, Directionality.of(context)),
+                        )
                       : l10n.invitePreviewCreatorAnsweredNoName,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall,

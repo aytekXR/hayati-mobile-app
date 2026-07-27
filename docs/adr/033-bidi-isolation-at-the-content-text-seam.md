@@ -163,11 +163,30 @@ go **green either way** after isolation: the raw string stops matching whether t
 
 ## Decision 9 — The declared golden set (ADR-025 D8)
 
-Declared **before** running `--update-goldens`, with one sharp falsifiable prediction:
+> ### The first declaration was WRONG, and the suite is what said so
+>
+> The original declaration below (*"no `*.ltr.png` golden changes, zero"*) was made before any golden ran. The suite falsified it: **37 LTR cells moved.** Both causes were mine, and neither was churn-to-accept:
+>
+> **(a) I claimed no golden covers the mirror case. False.** `coach_screen_golden_test.dart:45-58`, `solo_home_screen_golden_test.dart:47` and `partner_preview_screen_golden_test.dart:158-161` all key their **content fixtures to the cell's locale**, so the `ar.*` cells render genuinely Arabic content. `conversation.ar.ltr` is therefore Arabic content in an LTR paragraph — the mirror case — and it moved because the fix **correctly repairs it**. D5's "no golden covers it" is struck.
+>
+> **(b) `tr.ltr`/`en.ltr` moved for no reason at all.** Latin content in an LTR paragraph needs no isolate, but an unconditional seam emitted one anyway. Measured: ~0.8% of pixels, mean delta 27/255, **no reflow and no size change** — the isolate controls split the shaping run and the glyphs re-rasterise. Semantically inert, visually noise, and 27 goldens' worth of it.
+>
+> (b) is what ADR-025 D8 means by *churn to accept*, so it was **fixed rather than declared**: `isolateWithin()` now emits the controls only when the content's first-strong direction actually differs from the paragraph's. Those cells are byte-identical again.
 
-> **No `*.ltr.png` golden changes. Zero. Every changed file ends in `.rtl.png`.**
+**Re-declared before `--update-goldens`, from the fixture reasoning above rather than from a golden run:**
 
-An LTR golden that moves is a **defect to explain, not churn to accept**.
+| Cell | Content it renders | Expected |
+|---|---|---|
+| `tr.ltr`, `en.ltr` | Latin content, LTR paragraph — directions agree | **byte-identical** |
+| `tr.rtl`, `en.rtl` | Latin content, RTL paragraph | **changes** |
+| `ar.rtl` — `paired_home_screen` | Turkish (`solo_tr`, the ADR-011 placeholder) in RTL | **changes** |
+| `ar.rtl` — `solo_home_screen`, `coach_screen`, `partner_preview` | Arabic content in RTL — directions agree | **byte-identical** |
+| `ar.ltr` — `solo_home_screen`, `coach_screen`, `partner_preview` | Arabic content in LTR — the mirror case | **changes** |
+| `ar.ltr` — `paired_home_screen` | Turkish content in LTR — directions agree | **byte-identical** |
+| every `invite_share_screen` cell | the invite code, deliberately not isolated | **byte-identical** |
+| `paywall_screen` | a TRY storefront price string — **UNKNOWN**, and stated as such: whether it changes depends on whether the fixture carries a strong LTR letter or is digits-and-symbols only (no strong character → never isolated). Not guessed. | resolved by the run |
+
+A golden that moves **outside** this table is a defect to explain, not churn to accept.
 
 **But be exact about WHY, because the obvious reason is false.** A first draft of this decision said the isolate is "a provable no-op in LTR cells". It is not. Measured across 19 candidate strings in an LTR paragraph, comparing every character box: **16 identical, 2 probe artefacts, and 1 real difference** —
 
@@ -194,7 +213,7 @@ Expected changed cells — the RTL cells of screens that render in-scope content
 
 The actual `git status --porcelain -- 'app/test/**/*.png'` is pasted beside this table in the PR.
 
-## Decision 10 — The Functions-side twin is filed, not fixed here
+## Decision 10 — The Functions-side twin is filed as **#136**, not fixed here
 
 `functions/src/notifications/payload-policy.ts` interpolates a partner's display name into Arabic push-notification bodies (`أجاب ${name} عن سؤال اليوم…`) — the same class of defect in a runtime with no Flutter, no goldens, and a different test suite. Fixing it here would be a drive-by refactor wearing a helmet (`session-rules.md` §2). It gets an issue.
 

@@ -416,7 +416,10 @@ class _PackageCard extends StatelessWidget {
               Text(
                 // Isolated as an argument: the price lands inside `≈ {price}/شهر`.
                 l10n.paywallApproxPerMonth(
-                  isolate(package.pricePerMonthString!),
+                  isolateWithin(
+                    package.pricePerMonthString!,
+                    Directionality.of(context),
+                  ),
                 ),
                 style: theme.textTheme.bodySmall,
               ),
