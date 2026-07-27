@@ -13,7 +13,7 @@
 > re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 036.
 
-_Last refreshed: 2026-07-27, **Session 050 close**._
+_Last refreshed: 2026-07-27, **Session 051 close**._
 
 **Where things stand in one line:** the MVP is code-complete and both backends
 are deployed; the product's one unproven link is a **real purchase**, and the
@@ -30,7 +30,8 @@ RevenueCat's calls *before* your code runs. RevenueCat can never report a
 subscription, renewal or cancellation. The charge goes through, Premium never
 turns on, and **nothing anywhere reports an error**.
 
-Re-probed at the Session 050 close: still returning Google's HTML 403.
+Re-probed at the Session 051 open (2026-07-27 10:24 UTC): **still returning
+Google's HTML 403.** Unchanged for four sessions.
 
 ```sh
 gcloud run services add-iam-policy-binding revenuecatwebhook \
@@ -73,6 +74,42 @@ product), then **revoke the RevenueCat `sk_` v2 key**.
 It is **IRREVERSIBLE** — Apple cannot turn it off once on, and it would create a
 second entitlement source the server does not control (ADR-015).
 
+## 0(c). Put `RC_WEBHOOK_TOKEN` on **dev** — the only safe place to rehearse item 0(a)
+
+**Dev is missing the shared secret, so dev runs ten of the eleven functions.**
+`revenueCatWebhook` never deploys there. Measured at the Session 051 open, with
+prod as the control:
+
+```
+$ firebase functions:secrets:access RC_WEBHOOK_TOKEN --project hayatiapp-dev
+Error: … HTTP Error: 404, Secret [projects/870954957461/secrets/RC_WEBHOOK_TOKEN]
+not found or has no versions.
+
+$ firebase functions:secrets:access RC_WEBHOOK_TOKEN --project hayatiapp-prod
+(exit 0 — prod has it)
+```
+
+Why this is yours and not a session's: the value must be **the same token you
+configure in the RevenueCat dashboard**, and a session cannot read your
+dashboard. It is ADR-013 work to do *with* you — it takes one command once you
+have the token in front of you:
+
+```sh
+printf '%s' '<the token from RevenueCat>' | \
+  firebase functions:secrets:set RC_WEBHOOK_TOKEN --project hayatiapp-dev --data-file=-
+```
+
+**Why it is worth doing before 0(a).** Item 0(a) asks you to make a *production*
+endpoint world-reachable. Doing that with no rehearsal anywhere is the part that
+makes it a security decision rather than a chore. With the token on dev, a
+session can deploy the eleventh function there, prove the token check refuses an
+unsigned POST with **JSON** rather than Google's HTML, and hand you a verified
+procedure instead of a leap.
+
+This has been quietly true since Session 013 and was never written down here —
+it lived only in the session-to-session prompt. Filed now because a remainder
+that lives only in prose is a remainder that gets lost.
+
 ## 2(a). Set a Firebase budget alert
 
 Billing is live on both projects. The workload is couple-scoped and near-zero at
@@ -87,8 +124,8 @@ shipped** and **Node 20**.
 1. **The coach says "unavailable" on prod** even though your `LLM_API_KEY` sits in
    prod Secret Manager, unused — `coachProxy` there was deployed 2026-07-25 21:54
    UTC with no key binding.
-2. **⏳ Node 20 is decommissioned 2026-10-30.** Re-measured at the Session 050
-   close: `firebase functions:list --project hayatiapp-prod` reports **all eleven
+2. **⏳ Node 20 is decommissioned 2026-10-30.** Re-measured at the Session 051
+   open: `firebase functions:list --project hayatiapp-prod` reports **all eleven
    functions on `nodejs20`**. Dev has run **Node 22** for weeks and behaved. After
    that date, deploys from prod's current runtime stop working.
 
@@ -130,8 +167,11 @@ binding — worth knowing, because it would re-break after every future deploy.
 
 # 5. SECURITY — rotate the leaked Slack webhook (~10 min, open since S005)
 
-**Verified still open at the Session 050 close:** `SLACK_WEBHOOK_URL` does not
-exist in the repository secrets.
+**Verified still open at the Session 051 open** (`gh secret list` returns five
+secrets, all release-signing: `ASC_API_KEY_P8_BASE64`, `ASC_ISSUER_ID`,
+`ASC_KEY_ID`, `MATCH_GIT_URL`, `MATCH_PASSWORD`): **`SLACK_WEBHOOK_URL` does not
+exist.** The local `chore/slack-notifications` branch still exists too, so the
+webhook to revoke is still identifiable.
 
 The local branch `chore/slack-notifications` (commit `13f1e6d`) has a **live Slack
 webhook URL in plaintext** inside a workflow file. It never reached GitHub (push
@@ -250,6 +290,17 @@ Every TR/AR string is an AI draft marked review-PENDING. The redesign waves adde
 more, all flagged "native register review pending" per commit. TR: you two. AR:
 your Gulf-dialect reviewer. Mandatory before any public launch
 (`content/README.md`, W9). All editable in place, or send corrections to a session.
+
+> **⚠️ One concrete thing to watch for in the ARABIC copy, found by measurement
+> this session.** Arabic punctuation and Western punctuation are **not
+> interchangeable** in a right-to-left layout. `؟` (the Arabic question mark,
+> U+061F) is a *strong* character — it always sits where it should. A Western
+> `.` or `?` is *neutral*, and next to Latin text it can jump to the wrong end
+> of the line. All seven Arabic solo questions correctly end with `؟`; some of
+> the AI-drafted **coach** copy ends Arabic sentences with a Western `.`
+> instead. The app now compensates automatically, so nothing is broken — but
+> **if you are editing Arabic copy, prefer `؟` and `،` over `?` and `,`**. It is
+> invisible in the text file and only shows up on screen.
 
 - **Solo questions** (7 × TR/AR/EN) — `content/packs/solo_{tr,ar,en}.json`; run
   `dart content/validator/validate.dart --sync`. These double as the **couple**
@@ -389,7 +440,8 @@ these.
 
 | Issue | What |
 |---|---|
-| **#133** | Latin-script text inside the Arabic RTL chrome moves trailing punctuation to the wrong end (`.Kahvaltıda birlikte gülmemiz`). Visible in committed goldens; hits mixed-language couples. |
+| **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
+| **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app now applies on screen. Latent: no current wording is affected. |
 | **#131** | Seven high-severity npm advisories in `functions/`, two in the tree that ships to production. |
 | **#130** | ADR-026 claims the seasonal vocabulary is guarded in five readers; the app's copy has no parity test. |
 | **#129** | The release lane's `Gemfile.lock` comment is false, the lane installs unfrozen, and no release run has touched the committed lock. |

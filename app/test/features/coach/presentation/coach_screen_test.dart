@@ -311,7 +311,13 @@ void main() {
           find.widgetWithText(ChoiceChip, en.coachPersonaDateGenie),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Coach message.'), findsNothing);
+        // textContaining, not text: a bidi-isolated render wraps the string in
+        // U+2068/U+2069, and find.text is exact-match — so this row would go
+        // green whether the content was absent OR merely isolated. Under the
+        // conditional seam this cell is LTR and stays pristine, but a
+        // findsNothing that CANNOT fail is worse than no row at all
+        // (ADR-033 D8, addendum 47).
+        expect(find.textContaining('Coach message.'), findsNothing);
         expect(find.text(en.coachEmptyState), findsOneWidget);
         expect(find.byIcon(Icons.refresh), findsNothing);
 
@@ -323,7 +329,13 @@ void main() {
         // The reset clears ONLY the active (Coach) persona.
         await tester.tap(find.byIcon(Icons.refresh));
         await tester.pumpAndSettle();
-        expect(find.text('Coach message.'), findsNothing);
+        // textContaining, not text: a bidi-isolated render wraps the string in
+        // U+2068/U+2069, and find.text is exact-match — so this row would go
+        // green whether the content was absent OR merely isolated. Under the
+        // conditional seam this cell is LTR and stays pristine, but a
+        // findsNothing that CANNOT fail is worse than no row at all
+        // (ADR-033 D8, addendum 47).
+        expect(find.textContaining('Coach message.'), findsNothing);
         expect(find.text(en.coachEmptyState), findsOneWidget);
       },
     );

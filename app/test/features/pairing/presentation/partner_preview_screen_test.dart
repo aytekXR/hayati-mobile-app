@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/l10n/bidi_isolate.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
@@ -21,6 +22,11 @@ import '../../../support/localized_app.dart';
 
 const _code = 'ABCD2345';
 const _user = AuthUser(uid: 'joiner-uid', displayName: 'Deniz');
+
+/// The direction the app resolves for [locale] — the same rule the framework
+/// applies, spelled out here because the isolation predicate depends on it.
+TextDirection _directionOf(Locale locale) =>
+    locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr;
 
 void main() {
   final en = l10nFor(const Locale('en'));
@@ -326,8 +332,16 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text(l10n.pairedQuestionTitle), findsOneWidget);
+        // The name is bidi-isolated when it lands in RTL chrome (ADR-033 D1
+        // — it sits INSIDE the localized sentence), so the expected string
+        // must be built the same way the screen builds it. `ar` is the cell
+        // where this actually bites; `tr`/`en` leave the name pristine.
         expect(
-          find.text(l10n.invitePreviewCreatorAnswered('Aylin')),
+          find.text(
+            l10n.invitePreviewCreatorAnswered(
+              isolateWithin('Aylin', _directionOf(locale)),
+            ),
+          ),
           findsOneWidget,
         );
         expect(tester.takeException(), isNull);
@@ -652,7 +666,14 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text(l10n.invitePreviewInvitedBy('Aylin')), findsOneWidget);
+        expect(
+          find.text(
+            l10n.invitePreviewInvitedBy(
+              isolateWithin('Aylin', _directionOf(locale)),
+            ),
+          ),
+          findsOneWidget,
+        );
         expect(find.text(l10n.joinAcceptButton), findsOneWidget);
         expect(
           Directionality.of(tester.element(find.byType(PartnerPreviewScreen))),

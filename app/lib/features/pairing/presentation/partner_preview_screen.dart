@@ -7,7 +7,9 @@ import '../../../core/design_system/elevation_tokens.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/design_system/typography_tokens.dart';
+import '../../../core/l10n/bidi_isolate.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/widgets/content_text.dart';
 import '../../../core/widgets/soft_unfold_reveal.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
@@ -302,8 +304,13 @@ class _ValidPreview extends StatelessWidget {
     final name = result.creatorDisplayName;
     // Graceful no-name fallback: the server may resolve no display name, so the
     // hero never renders a blank or a literal "null".
+    // The name is isolated as an ARGUMENT, not as a widget: it lands INSIDE a
+    // localized sentence (`دعاك {name}`), and only an inline isolate can bind
+    // a run mid-sentence — the case that decided ADR-033 D1.
     final invitedBy = (name != null && name.isNotEmpty)
-        ? l10n.invitePreviewInvitedBy(name)
+        ? l10n.invitePreviewInvitedBy(
+            isolateWithin(name, Directionality.of(context)),
+          )
         : l10n.invitePreviewInvitedBySomeone;
     return Scaffold(
       body: SafeArea(
@@ -399,7 +406,7 @@ class _QuestionSlot extends StatelessWidget {
               const SizedBox(height: SpacingTokens.x3),
               // The Question style (28/300; Arabic line-height follows the
               // resolved locale) — the hero text of the pitch, start-aligned.
-              Text(
+              ContentText(
                 questionText,
                 style: TypographyTokens.questionStyleFor(
                   Localizations.localeOf(context).languageCode,
@@ -424,7 +431,9 @@ class _QuestionSlot extends StatelessWidget {
                 const SizedBox(height: SpacingTokens.x2),
                 Text(
                   (name != null && name.isNotEmpty)
-                      ? l10n.invitePreviewCreatorAnswered(name)
+                      ? l10n.invitePreviewCreatorAnswered(
+                          isolateWithin(name, Directionality.of(context)),
+                        )
                       : l10n.invitePreviewCreatorAnsweredNoName,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall,

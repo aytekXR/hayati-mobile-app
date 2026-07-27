@@ -5,7 +5,9 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import '../../../core/design_system/color_tokens.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
+import '../../../core/l10n/bidi_isolate.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/widgets/content_text.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
 import '../../legal/domain/legal_document.dart';
@@ -398,7 +400,11 @@ class _PackageCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(package.priceString, style: theme.textTheme.titleLarge),
+                // The STORE formats this string, in a locale we do not choose.
+                ContentText(
+                  package.priceString,
+                  style: theme.textTheme.titleLarge,
+                ),
                 if (periodLabel != null) ...[
                   const SizedBox(width: SpacingTokens.x1),
                   Text(periodLabel, style: theme.textTheme.bodySmall),
@@ -408,7 +414,13 @@ class _PackageCard extends StatelessWidget {
             if (package.pricePerMonthString != null) ...[
               const SizedBox(height: SpacingTokens.x1),
               Text(
-                l10n.paywallApproxPerMonth(package.pricePerMonthString!),
+                // Isolated as an argument: the price lands inside `≈ {price}/شهر`.
+                l10n.paywallApproxPerMonth(
+                  isolateWithin(
+                    package.pricePerMonthString!,
+                    Directionality.of(context),
+                  ),
+                ),
                 style: theme.textTheme.bodySmall,
               ),
             ],

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/widgets/content_text.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
 import '../../pairing/presentation/invite_share_screen.dart';
@@ -197,7 +198,9 @@ class _QuestionViewState extends ConsumerState<_QuestionView> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: SpacingTokens.x3),
-                Text(
+                // CONTENT: the solo pack follows `contentLanguage`, which the
+                // user picks independently of the interface language.
+                ContentText(
                   widget.question.text,
                   style: theme.textTheme.headlineMedium,
                   textAlign: TextAlign.center,

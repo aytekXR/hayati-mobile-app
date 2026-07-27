@@ -10,6 +10,7 @@ import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/design_system/typography_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
+import '../../../core/widgets/content_text.dart';
 import '../../../core/widgets/lattice_watermark.dart';
 import '../../../core/widgets/reveal_choreography.dart';
 import '../../coach/presentation/coach_screen.dart';
@@ -671,7 +672,10 @@ class _QuestionCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: SpacingTokens.x3),
-                Text(
+                // CONTENT, not chrome: the pack's language is a separate
+                // profile field from the UI locale (ADR-033 D3), so a Turkish
+                // question routinely renders inside the Arabic chrome.
+                ContentText(
                   question,
                   style: TypographyTokens.questionStyleFor(
                     languageCode,
@@ -806,7 +810,8 @@ class _AnswerCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: SpacingTokens.x2),
-          Text(text, style: theme.textTheme.bodyMedium),
+          // Free text either partner typed — the app cannot know its script.
+          ContentText(text, style: theme.textTheme.bodyMedium),
         ],
       ),
     );
