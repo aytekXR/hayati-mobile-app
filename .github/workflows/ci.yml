@@ -212,18 +212,23 @@ jobs:
       # Runs before `npm ci` because it needs no node_modules (--package-lock-only)
       # and should fail fast. Skips only when there is genuinely no base commit.
       - name: npm audit delta (advisories this change introduces)
+        # This step passes CANDIDATES and decides nothing. Which one wins, and what
+        # happens when none resolves, is policy — and policy in a YAML `if:` or an
+        # inline shell branch is invisible to the self-test, which is ADR-024 D1's
+        # rule and the reason the notifier's noise policy lives in its script too.
+        # So the ordering is expressed here and ENFORCED (and tested) in the tool:
+        #   pull_request -> the PR's base sha (checkout gives us the merge ref, so
+        #                   this is exactly "what merging this PR introduces")
+        #   push         -> the previous tip; all-zeros on a first/force-push, which
+        #                   the tool treats as a non-candidate rather than an error
+        #   workflow_dispatch (and any fallthrough) -> main, fetched below, so a
+        #                   dispatched branch run is a real check and not a no-op
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base='${{ github.event.pull_request.base.sha }}'
-          else
-            base='${{ github.event.before }}'
-          fi
-          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
-             || ! git cat-file -e "$base" 2>/dev/null; then
-            echo "::notice::no resolvable base commit (first push or force-push); nothing to diff the advisory set against."
-            exit 0
-          fi
-          python3 tool/ci/npm_audit_delta.py --base-ref "$base"
+          git fetch --no-tags --depth=1 origin main 2>/dev/null || true
+          python3 tool/ci/npm_audit_delta.py \
+            --base-ref '${{ github.event.pull_request.base.sha }}' \
+            --base-ref '${{ github.event.before }}' \
+            --base-ref FETCH_HEAD
       # firestore emulator needs Java 21+, discovered via PATH only (JAVA_HOME
       # is never read by firebase-tools) — setup-java prepends it to PATH.
       - uses: actions/setup-java@v5

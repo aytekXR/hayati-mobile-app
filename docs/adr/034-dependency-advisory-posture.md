@@ -180,10 +180,30 @@ and the shape of #140. An unknown severity string ranks **above** `critical`
 for the same reason: a vocabulary npm adds later must not slip under a
 threshold.
 
-**The one honest skip:** when there is genuinely no base commit (a branch's
-first push, a force-push, an all-zeros `github.event.before`), there is nothing
-to compare and the step emits a `::notice::` and exits 0. That is a real hole,
-it is narrow, and it is named here rather than left for someone to discover.
+**Which base ref is used is policy, and it lives in the tool, not the YAML.**
+The workflow step passes *candidates* and decides nothing; `resolve_base_ref`
+takes the first git can resolve:
+
+| Event | Candidate | Why |
+|---|---|---|
+| `pull_request` | `github.event.pull_request.base.sha` | checkout gives the *merge* ref, so head-vs-base is exactly "what merging this PR introduces" |
+| `push` | `github.event.before` | the previous tip; all-zeros on a first/force-push, treated as a **non-candidate** rather than an error |
+| `workflow_dispatch`, anything else | `FETCH_HEAD` (a depth-1 fetch of `main`) | so a dispatched branch run is a real check rather than a silent no-op |
+
+This ordering sat in an inline shell branch in the first version of this diff,
+and the build-diff review was right that it was wrong to leave it there — not
+because the shell was buggy, but because **ADR-024 D1 already settled this**:
+outcome logic a self-test cannot see is unprotected. Moved into the tool, it is
+now covered by `test_base_ref_resolution_order`.
+
+**The one honest skip:** when *no* candidate resolves, there is genuinely
+nothing to compare, so the tool emits a `::notice::` and exits 0. That is a real
+hole, it is narrow, and it is named here rather than left for someone to
+discover. It is also **not reachable by misconfiguration**: a missing lockfile
+is checked *before* base resolution and exits 2, because resolving first would
+let a repo with no base ref skip past a wrong `--lockfile` path and report
+success — the silent-pass shape this tool exists to refuse. That ordering was
+itself a bug in the first version, caught by this suite rather than by review.
 
 ## Decision 6 — The mutation check, in both directions and against real npm
 
@@ -199,8 +219,12 @@ advisory, not merely that it runs.
 | `npm audit` output with no `vulnerabilities` key, or unparseable | raises, exits 2 |
 | Unchanged lockfile | exits 0, and the test asserts **npm is never invoked** |
 | Changed lockfile | the test asserts npm **is** invoked, so a short-circuit could not pass |
+| No candidate base ref resolves | exits 0 **and** emits the skip notice — asserted on the *output*, because exit code alone cannot tell "skipped" from "compared and found nothing" |
+| A candidate *does* resolve | reaches the comparison and does **not** emit the skip notice |
+| Missing lockfile | exits 2 even when no base ref resolves |
+| Two URL-less advisories on one package | stay distinct (the fallback key is title-derived, not package-derived) |
 
-The hermetic half (12 self-tests, `tool/ci/npm_audit_delta_test.py`) runs in
+The hermetic half (14 self-tests, `tool/ci/npm_audit_delta_test.py`) runs in
 `quality` with the other tool self-tests — no npm, no network, no emulator. The
 real-npm half is recorded here because it cannot run in that job.
 
@@ -267,6 +291,39 @@ findings. What it changed:
 - Two findings were **overridden**: that leaving advisories unfixed violates
   project-rules #9 (the ADR record *is* the documentation #9 asks for), and that
   the gate should carry an invariant test pinning `rimraf`'s absence (D8).
+
+## Build-diff review outcome (2026-07-28)
+
+Same shape, run on the built diff: five lenses × two verifiers + a completeness
+critic; 24 agents, 0 errors, 9 findings, **all nine verified** (none dropped).
+Three surfaced, and two were real defects in code already committed:
+
+- **The base-ref logic was policy sitting in YAML** — found via the observation
+  that a `workflow_dispatch` run has neither `pull_request.base.sha` nor
+  `github.event.before`, so it skipped with a notice that misleadingly blamed
+  "first push or force-push". Fixed by moving resolution into the tool with a
+  `main` fallback (D5), which makes a dispatched run a real check.
+- **A surviving mutant.** The reviewer copied the tool to a temp dir, changed
+  the URL-less fallback key from title-derived to package-derived, and showed
+  the suite still passed — then demonstrated the consequence: two advisories on
+  one package collapse into one. Closed, and the fix was re-verified by
+  re-running the mutation (control passes, mutant now fails two checks).
+- **`operator-expected.md` still listed #131 as open** — both verifiers agreed.
+  Corrected in the session-close refresh.
+
+**Fixing the first finding introduced a second bug, which the suite caught, not
+the reviewers:** moving base resolution ahead of the lockfile-existence check
+let a missing lockfile *skip* instead of failing closed. The order is now
+load-bearing and commented as such.
+
+The **ADR-claim auditor returned zero findings** after checking every count,
+path and exit code in this document — independently reproducing the 293-package
+sweep, the import counts and the test registration. Six findings were killed by
+both verifiers, including a *blocking* claim that a PR checkout cannot see its
+base commit (refuted: `fetch-depth: 0` fetches the base branch too) and a claim
+that `test_publication_event_cancels_out` is vacuous (refuted: it is paired with
+the wrapper-collapse assertion, so mutating `distinct_advisories` to return `{}`
+is caught).
 
 ## Consequences
 

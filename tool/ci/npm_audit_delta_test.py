@@ -19,7 +19,9 @@ Run: python3 tool/ci/npm_audit_delta_test.py
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import pathlib
 import subprocess
@@ -108,6 +110,87 @@ def test_advisory_without_url_is_not_dropped() -> None:
     adv["url"] = ""
     got = nad.distinct_advisories(_report(adv))
     check("an advisory with no URL still counts", len(got), 1)
+    # The fallback key must be derived from the TITLE, not the package name. The
+    # build-diff review proved this mutation survived: keying on the package name
+    # instead collapses two different advisories affecting the SAME package into
+    # one, so the second would look neither introduced nor present.
+    check("the fallback key is title-derived", list(got)[0].startswith("untitled:"), True)
+    two = _report(
+        {**_advisory("x", "same-pkg", "high"), "url": "", "title": "first flaw"},
+        {**_advisory("y", "same-pkg", "high"), "url": "", "title": "second flaw"},
+    )
+    # _report keys its dict by package name, so build this one by hand to get two
+    # advisories on one package — the shape that exposes the mutation.
+    two = {"vulnerabilities": {"same-pkg": {"name": "same-pkg", "severity": "high", "via": [
+        {**_advisory("x", "same-pkg", "high"), "url": "", "title": "first flaw"},
+        {**_advisory("y", "same-pkg", "high"), "url": "", "title": "second flaw"},
+    ]}}}
+    check("two URL-less advisories on ONE package stay distinct",
+          len(nad.distinct_advisories(two)), 2)
+
+
+def test_base_ref_resolution_order() -> None:
+    """Which candidate wins is policy, and it lives in the tool so this can see it
+    (ADR-024 D1: outcome logic in YAML is invisible to the self-test)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        _git(root, "init", "-q")
+        _git(root, "config", "user.email", "t@t.t")
+        _git(root, "config", "user.name", "t")
+        (root / "f.txt").write_text("1\n")
+        _git(root, "add", "-A")
+        _git(root, "commit", "-qm", "one")
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                              capture_output=True, text=True).stdout.strip()
+
+        zeros = "0" * 40
+        check("an empty candidate is skipped",
+              nad.resolve_base_ref(["", head], root), head)
+        check("an all-zeros sha is skipped, not treated as an error",
+              nad.resolve_base_ref([zeros, head], root), head)
+        check("the FIRST resolvable candidate wins",
+              nad.resolve_base_ref([head, "HEAD"], root), head)
+        check("an unresolvable candidate falls through",
+              nad.resolve_base_ref(["no-such-ref", "HEAD"], root), "HEAD")
+        check("no resolvable candidate returns None",
+              nad.resolve_base_ref(["", zeros, "no-such-ref"], root), None)
+
+
+def test_no_resolvable_base_skips_without_failing_the_build() -> None:
+    """The honest skip: nothing to compare is not a failure, but it must be loud
+    and it must not be reachable by accident (a resolvable base must NOT skip)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        _git(root, "init", "-q")
+        _git(root, "config", "user.email", "t@t.t")
+        _git(root, "config", "user.name", "t")
+        (root / "functions").mkdir()
+        (root / "functions" / "package-lock.json").write_text('{"lockfileVersion": 3}\n')
+        _git(root, "add", "-A")
+        _git(root, "commit", "-qm", "x")
+        # Exit code alone cannot tell "skipped" from "compared and found nothing" —
+        # both are 0 — so assert on what was actually printed, or this pair of
+        # checks would be vacuous in exactly the way it exists to rule out.
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = nad.main(["--base-ref", "", "--base-ref", "0" * 40,
+                           "--base-ref", "nope", "--repo-root", str(root)])
+        skipped = buf.getvalue()
+        check("no resolvable base exits 0 (skip, not failure)", rc, 0)
+        check("and says so loudly", "::notice::no resolvable base ref" in skipped, True)
+
+        # The other direction: a resolvable base must reach the COMPARISON, so the
+        # skip path cannot silently swallow a real check.
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = nad.main(["--base-ref", "nope", "--base-ref", "HEAD",
+                           "--repo-root", str(root)])
+        compared = buf.getvalue()
+        check("a resolvable base exits 0 too", rc, 0)
+        check("but reached the comparison instead of skipping",
+              "is unchanged against HEAD" in compared, True)
+        check("and did NOT emit the skip notice",
+              "no resolvable base ref" in compared, False)
 
 
 # --------------------------------------------------------------------------
@@ -297,6 +380,8 @@ def main() -> int:
     for fn in (
         test_wrappers_collapse_to_advisories,
         test_advisory_without_url_is_not_dropped,
+        test_base_ref_resolution_order,
+        test_no_resolvable_base_skips_without_failing_the_build,
         test_seeded_advisory_fails,
         test_publication_event_cancels_out,
         test_resolved_advisories_are_reported_not_failed,

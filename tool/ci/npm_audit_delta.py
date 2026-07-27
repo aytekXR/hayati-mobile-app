@@ -145,6 +145,33 @@ def read_blob(ref: str, path: str, repo_root: pathlib.Path) -> bytes:
     return proc.stdout
 
 
+def resolve_base_ref(candidates: list[str], repo_root: pathlib.Path) -> str | None:
+    """First candidate git can actually resolve to a commit, else None.
+
+    This lives HERE, not in the workflow YAML, on ADR-024 D1's precedent: outcome
+    logic in a YAML `if:` is invisible to the self-test and therefore unprotected.
+    The caller passes what the event offers — a PR base sha, a push's `before`,
+    then `origin/main` as the fallback that makes a `workflow_dispatch` run
+    meaningful instead of a no-op — and the order expresses the policy.
+
+    An all-zeros sha (a branch's first push, a force-push) is a deliberate
+    non-candidate rather than an error: git would reject it anyway, and the
+    fallback is the honest next thing to try.
+    """
+    for ref in candidates:
+        ref = (ref or "").strip()
+        if not ref or set(ref) == {"0"}:
+            continue
+        proc = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            cwd=repo_root,
+            capture_output=True,
+        )
+        if proc.returncode == 0:
+            return ref
+    return None
+
+
 def audit_lockfile(lockfile_bytes: bytes) -> dict:
     """Run `npm audit --package-lock-only` over a lockfile's BYTES.
 
@@ -210,8 +237,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Fail only for advisories a lockfile change introduces."
     )
-    parser.add_argument("--base-ref", required=True,
-                        help="git ref holding the lockfile to compare against (e.g. origin/main)")
+    parser.add_argument("--base-ref", action="append", default=[], required=True,
+                        help="candidate git ref holding the lockfile to compare against. Repeatable: "
+                             "the first one git can resolve wins, so a caller can pass what its event "
+                             "offers (a PR base sha, a push's 'before') followed by a fallback such as "
+                             "origin/main.")
     parser.add_argument("--lockfile", default=_DEFAULT_LOCKFILE,
                         help=f"repo-relative lockfile path (default: {_DEFAULT_LOCKFILE})")
     parser.add_argument("--severity", default="high", choices=_SEVERITY_ORDER,
@@ -222,18 +252,37 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = pathlib.Path(args.repo_root).resolve()
     head_path = repo_root / args.lockfile
 
+    # Existence is checked BEFORE base resolution, and the order is load-bearing:
+    # a missing lockfile means this tool is pointed at the wrong place, which is an
+    # operational error whether or not a base ref happens to resolve. Resolving
+    # first would let a repo with no base ref SKIP past a misconfiguration and
+    # report success — the silent-pass shape this whole tool is built to refuse.
+    if not head_path.exists():
+        print(f"::error::npm audit delta could not run: {args.lockfile} "
+              f"does not exist at {head_path}")
+        return 2
+
+    base_ref = resolve_base_ref(args.base_ref, repo_root)
+    if base_ref is None:
+        # THE ONE HONEST SKIP. No candidate ref resolves — a branch's first push,
+        # a force-push, or an event carrying no base at all. There is genuinely
+        # nothing to compare, so this is not a failure; but it IS a hole, so it
+        # says so loudly rather than passing quietly.
+        print(f"::notice::no resolvable base ref among {args.base_ref!r}; "
+              "there is nothing to diff the advisory set against, so no advisory "
+              "this change may have introduced was checked.")
+        return 0
+
     try:
-        if not head_path.exists():
-            raise AuditError(f"{args.lockfile} does not exist at {head_path}")
         head_bytes = head_path.read_bytes()
-        base_bytes = read_blob(args.base_ref, args.lockfile, repo_root)
+        base_bytes = read_blob(base_ref, args.lockfile, repo_root)
 
         if base_bytes == head_bytes:
-            print(f"{args.lockfile} is unchanged against {args.base_ref}; "
+            print(f"{args.lockfile} is unchanged against {base_ref}; "
                   "nothing to compare, and no advisory this change could have introduced.")
             return 0
 
-        print(f"{args.lockfile} changed against {args.base_ref}; "
+        print(f"{args.lockfile} changed against {base_ref}; "
               "auditing both revisions in the same run.")
         base_all = distinct_advisories(audit_lockfile(base_bytes))
         head_all = distinct_advisories(audit_lockfile(head_bytes))
