@@ -133,6 +133,16 @@ jobs:
         run: shellcheck tool/ci/*.sh
       - name: slack notifier self-tests
         run: bash tool/ci/slack_notify_test.sh
+      # tool/ci/testflight_testers.py holds a CREDENTIAL path (the ES256
+      # assertion for App Store Connect) that no other gate looks at — it is
+      # Python, so neither `dart format`/`analyze` nor shellcheck sees it, and
+      # the workflow that runs it is manual-dispatch-only, so a break would
+      # surface at the worst moment: the founder adding a real tester by hand.
+      # The self-test signs with a throwaway P-256 key, so it needs no secret.
+      - name: testflight tester tool self-tests
+        run: |
+          pip install --quiet 'pyjwt[crypto]==2.10.1'
+          python3 tool/ci/testflight_testers_test.py
       - name: pub get
         working-directory: app
         run: flutter pub get
