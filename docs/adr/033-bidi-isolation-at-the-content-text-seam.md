@@ -96,13 +96,21 @@ For interpolation into a localized sentence, call sites pass an isolated *argume
 | `coach_screen.dart:432`, `:486`, `:533` | the user's typed message, the model's reply, the help-card body |
 | `partner_preview_screen.dart:306`, `:427` | the partner's display name, interpolated into l10n |
 | `partner_preview_screen.dart:402` | the invite's question hook |
-| `invite_share_screen.dart:81` | the invite code — LTR by nature in any chrome |
 | `paywall_screen.dart:401`, `:411` | store-supplied price strings |
+
+**Deliberately NOT on this list, after measurement: the invite code** (`invite_share_screen.dart:81`). A first draft of this ADR included it, generalising from probe E1 (`ABC-234-XYZ.`). That fixture was wrong for the real string:
+
+- `INVITE_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'` (`functions/src/invites/invite-code.ts:9`) — the code **cannot contain a bidi-neutral character**, so there is nothing whose placement could be wrong.
+- Isolating it would be an active **regression**. `invite_share_screen.dart:84` carries the only `letterSpacing` in all of `app/lib`, and Flutter applies letter-spacing after the zero-width isolate controls too. Measured intrinsic width at `letterSpacing: 4`: `ABCD2345` = **144.0 px**, isolated = **152.0 px** — a centred block 8 px wider and 4 px displaced, for no benefit.
+
+This is why `isolate()`'s doc comment carries the letter-spacing consequence: the next site that pairs the seam with `letterSpacing` inherits the same 2 × spacing widening.
 
 **Not isolated**, with the reason stated rather than left implicit:
 
-- **Localized chrome.** The app derives text direction from the UI locale, so in production chrome script *always* matches the paragraph direction. The `tr.rtl` / `en.rtl` / `ar.ltr` golden cells that show the defect on chrome are **synthetic**: they force a direction no production build can produce (the six-cell contract decouples them on purpose, `golden_harness.dart:21-32`). Isolating chrome would be a production no-op that churns roughly a hundred goldens and buys nothing. **This is the biggest scoping judgement in this ADR and it is the one to attack first.**
-- **Legal document bodies** (`legal_renderer.dart:119-133`) — loaded from a per-locale asset (`<doc>.<locale>.md`), so the body's script matches the resolved locale by construction, exactly like chrome.
+- **Localized chrome.** The app derives text direction from the UI locale — verified: `app.dart:97-113` has no `localeResolutionCallback`, no `Localizations.override`, and no root `Directionality`, so the framework resolves direction from the resolved locale. The `tr.rtl` / `en.rtl` / `ar.ltr` golden cells that show the defect on chrome are therefore **synthetic**: they force a direction no production build can produce (the six-cell contract decouples them on purpose, `golden_harness.dart:21-32`).
+
+  **The precise reason chrome is safe is NOT that chrome is single-script — it is not** (see the pre-code review outcome below). It is that a chrome sentence's **first-strong direction equals the paragraph direction**, so its bidi-neutrals resolve to the direction they already belong to, *including* when the sentence embeds an opposite-direction run. Measured on the four Arabic chrome strings that embed Latin brand names next to a neutral: whole-string isolation is **byte-identical geometry**, against a Latin-sentence control that correctly DIFFERS. Isolating chrome would churn roughly a hundred goldens and change nothing.
+- **Legal document bodies** (`legal_renderer.dart:119-133`) — loaded from a per-locale asset (`<doc>.<locale>.md`), so the body's *sentence* direction matches the resolved locale. Same measurement, same result: an Arabic legal sentence carrying `Claude API.`, `Google Cloud Firestore.` and `Anthropic،` is byte-identical isolated or not.
 - **The data export** (`export_screen.dart:89`, the only `SelectableText` in the app) — machine-readable JSON that the user copies to the clipboard. `SelectableRegion._copy` puts `plainText` on the clipboard verbatim; isolating it would ship invisible control characters into a file the user may parse. Never isolate what leaves the app.
 - **The share-sheet message** (`inviteShareMessage`, sent to the partner over WhatsApp/SMS). Same rule: **isolate for rendering, never for outgoing text.**
 
@@ -144,13 +152,30 @@ Measured: `find.text('Kahvaltıda birlikte gülmemiz.')` returns **0** matches a
 
 They move to `find.text(isolate('…'))`. This is deliberate: after this diff, **a test that still matches the raw string is a test rendering un-isolated content**, which is exactly the signal we want. The alternative — keeping the string pristine via `Text(textDirection:)` — was rejected in Decision 1 for reasons that outrank test churn.
 
+**The dangerous half is `findsNothing`, not `findsOneWidget`** — addendum 47's "a new rule can make old rows vacuous", and the pre-code review's most useful catch. These four assertions:
+
+| Site | Assertion |
+|---|---|
+| `paired_home_screen_test.dart:248`, `:510` | `expect(find.text('EN paired question 1'), findsNothing)` |
+| `coach_screen_test.dart:314`, `:326` | `expect(find.text('Coach message.'), findsNothing)` |
+
+go **green either way** after isolation: the raw string stops matching whether the content is genuinely absent *or* present-and-isolated. A `findsOneWidget` row fails loudly and gets fixed; a `findsNothing` row passes silently and stops testing anything. Every one of them must move to the isolated query in the same commit, and the migration is not complete until `findsNothing` rows are audited specifically.
+
 ## Decision 9 — The declared golden set (ADR-025 D8)
 
 Declared **before** running `--update-goldens`, with one sharp falsifiable prediction:
 
 > **No `*.ltr.png` golden changes. Zero. Every changed file ends in `.rtl.png`.**
 
-Because the isolate is a provable no-op when the content's first-strong direction already equals the paragraph direction (probe C1/C2: byte-identical boxes), and every LTR cell renders Latin content in an LTR paragraph. An LTR golden that moves is a **defect to explain, not churn to accept**.
+An LTR golden that moves is a **defect to explain, not churn to accept**.
+
+**But be exact about WHY, because the obvious reason is false.** A first draft of this decision said the isolate is "a provable no-op in LTR cells". It is not. Measured across 19 candidate strings in an LTR paragraph, comparing every character box: **16 identical, 2 probe artefacts, and 1 real difference** —
+
+| String | Isolated in an LTR paragraph |
+|---|---|
+| `العربية is a beautiful language.` | **layout changes** — first strong character is RTL, so FSI resolves the whole string RTL |
+
+The no-op holds only when the content's first-strong direction **already equals** the paragraph direction. The prediction above therefore rests on a **fixture fact, not a proof**: no golden today pairs RTL-first content with an LTR cell, because every content fixture is Turkish (`solo_tr`). The day someone adds an Arabic answer fixture to an LTR cell, that cell will legitimately move and this declaration must be re-derived rather than quoted.
 
 Expected changed cells — the RTL cells of screens that render in-scope content:
 
@@ -175,9 +200,27 @@ The actual `git status --porcelain -- 'app/test/**/*.png'` is pasted beside this
 
 Its severity is honestly **latent, not live**, and so is the ARB `{name}` case in Decision 1: for the copy that ships today, `{name}` is never adjacent to a bidi-neutral character, so no *current* string mis-renders. It is a guarantee-vs-mechanism gap — the isolate makes the sentence correct **for any name**, including the first one that ends in a full stop.
 
+## Pre-code review outcome (2026-07-27, the 27th consecutive pre-code pass)
+
+Five adversarial lenses × two independent verifiers (a refuting skeptic and a governing-docs adjudicator) plus a completeness critic. **12/12 agents completed, 0 errored, 0 returned empty** — checked before trusting the verdict distribution (addendum, S041: an empty verdict is *unverified*, and the tooling renders it as the opposite).
+
+**Two findings survived aggregation, and measurement refuted both — but they earned the sharpest correction in this ADR.** Both claimed D3 was wrong to exclude chrome, on the ground that Arabic chrome embeds Latin brand names next to bidi-neutrals (`… إعدادات App Store.`, `عبر Apple. المدرّب`, `Anthropic، التي`, and the same shape throughout `privacy-policy.ar.md`). **That premise is correct and my original wording — "chrome script always matches the paragraph direction" — was false.** The conclusion still holds, for a different reason: whole-string isolation of all four strings plus a legal-document sentence is **byte-identical geometry**, against a Latin-sentence control that correctly DIFFERS. D3 now states the true reason.
+
+Getting there needed a second attempt, and the **control is what caught the first one**: an initial probe isolated only the Latin *letters*, leaving the terminator outside the isolate — so the known-broken control came back "identical" too. A probe whose control passes is a broken probe, not a clean result.
+
+**Three findings were refuted by both verifiers, and I am overriding two of them**, because I measured what the verifiers only reasoned about:
+
+- `letter-spacing-fsi-untested` — ruled not-real by both. It **is** real: 144.0 → 152.0 px. It removed a site from D3.
+- `finds-nothing-false-pass` — ruled not-real by both. It **is** real, and it is the exact addendum-47 shape. It is now the second half of D8.
+- `d8-undercount` (39 affected assertions, not ~17) — a counting correction, verified during implementation rather than taken on trust from either side.
+
+The lesson worth carrying: **the verifier panel was wrong in both directions here.** It let two refuted findings through and killed two real ones. Verdicts are an input to judgement, not a substitute for measuring.
+
+The completeness critic returned **zero findings** but settled the open guarantee question in D4: it traced the answer round-trip (`Firestore → controller → Firestore`) and confirmed the TextField reads and writes pristine text, so "isolation applies at render only" is **safe by construction**, not merely by convention.
+
 ## Consequences
 
-- One new pure function, one new widget, and a mechanical edit at 13 call sites. A new screen rendering content inherits the fix by using `ContentText`.
+- One new pure function, one new widget, and a mechanical edit at 12 call sites. A new screen rendering content inherits the fix by using `ContentText`.
 - ~48 RTL goldens re-baselined; zero LTR goldens; three slice-0 firewall guards must stay green.
 - The a11y tree gets *cleaner* (pristine `semanticsLabel`), not dirtier.
 - A residual we are not fixing: nothing *enforces* that a future content-render site uses `ContentText`. `rtl_lint` cannot tell content from chrome. This is recorded as the honest gap it is rather than papered over with a guard that would mostly restate `grep` (ADR-024's lesson).
