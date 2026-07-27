@@ -205,6 +205,89 @@ def add_tester(token: str, group_id: str, email: str) -> str:
     return "invited-new"
 
 
+def list_builds(token: str, app_id: str, limit: int = 5) -> list[dict]:
+    """Newest-first builds for the app, with their processing state."""
+    query = urllib.parse.urlencode(
+        {"filter[app]": app_id, "sort": "-version", "limit": limit}
+    )
+    return _call(token, "GET", f"/v1/builds?{query}").get("data", [])
+
+
+def assign_build(token: str, build_id: str, group_id: str) -> None:
+    _call(
+        token,
+        "POST",
+        f"/v1/builds/{build_id}/relationships/betaGroups",
+        {"data": [{"type": "betaGroups", "id": group_id}]},
+    )
+
+
+def review_readiness(token: str, app_id: str) -> list[str]:
+    """What Apple still needs before an EXTERNAL group can receive a build.
+
+    Returned as a list of human-readable gaps (empty = nothing missing that this
+    API can see). Beta App Review is the reason a filled-in group can still
+    deliver nothing, and the missing pieces are all founder-owned copy — so
+    naming them beats a generic "submit for review" instruction.
+    """
+    gaps: list[str] = []
+    detail = _call(token, "GET", f"/v1/apps/{app_id}/betaAppReviewDetail").get(
+        "data", {}
+    )
+    attributes = detail.get("attributes", {}) if detail else {}
+    for field, label in (
+        ("contactEmail", "review contact email"),
+        ("contactFirstName", "review contact first name"),
+        ("contactLastName", "review contact last name"),
+        ("contactPhone", "review contact phone"),
+    ):
+        if not (attributes.get(field) or "").strip():
+            gaps.append(f"Test Information: {label} is empty")
+
+    localizations = _call(
+        token, "GET", f"/v1/apps/{app_id}/betaAppLocalizations"
+    ).get("data", [])
+    if not localizations:
+        gaps.append("Test Information: no beta app localization (description) at all")
+    else:
+        for localization in localizations:
+            locale = localization["attributes"].get("locale", "?")
+            if not (localization["attributes"].get("description") or "").strip():
+                gaps.append(f"Test Information: {locale} beta description is empty")
+            if not (localization["attributes"].get("feedbackEmail") or "").strip():
+                gaps.append(f"Test Information: {locale} feedback email is empty")
+    return gaps
+
+
+def print_status(token: str, app: dict, group_name: str) -> None:
+    """Read-only. Writes nothing, invites nobody."""
+    app_id = app["id"]
+    print("\nbeta groups:")
+    query = urllib.parse.urlencode({"filter[app]": app_id, "limit": 200})
+    for group in _call(token, "GET", f"/v1/betaGroups?{query}").get("data", []):
+        attributes = group["attributes"]
+        kind = "internal" if attributes.get("isInternalGroup") else "external"
+        marker = " <-- target" if attributes["name"] == group_name else ""
+        print(f"  {attributes['name']!r} ({kind}){marker}")
+
+    print("\nbuilds (newest first):")
+    for build in list_builds(token, app_id):
+        attributes = build["attributes"]
+        print(
+            f"  build {attributes.get('version')}  "
+            f"processing={attributes.get('processingState')}  "
+            f"expired={attributes.get('expired')}  "
+            f"uploaded={attributes.get('uploadedDate')}"
+        )
+
+    gaps = review_readiness(token, app_id)
+    print("\nbeta app review readiness (external testers need this):")
+    if not gaps:
+        print("  nothing missing that the API can see")
+    for gap in gaps:
+        print(f"  MISSING - {gap}")
+
+
 def parse_emails(raw: str) -> list[str]:
     """Split a comma/whitespace separated list, preserving order, dropping
     case-insensitive duplicates.
@@ -233,12 +316,29 @@ def main() -> int:
         action="store_true",
         help="Report what would change and touch nothing.",
     )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Read-only: print groups, builds and Beta App Review readiness, then exit.",
+    )
+    parser.add_argument(
+        "--assign-latest-build",
+        action="store_true",
+        help=(
+            "Also attach the newest VALID build to the group. Without this a "
+            "group full of testers is inert — membership alone delivers nothing."
+        ),
+    )
     args = parser.parse_args()
 
     emails = parse_emails(args.testers)
     token = _token()
     app = find_app(token, args.bundle_id)
     print(f"app: {app['attributes']['name']} ({args.bundle_id}) id={app['id']}")
+
+    if args.status:
+        print_status(token, app, args.group)
+        return 0
 
     group = find_group(token, app["id"], args.group)
     if group is None:
@@ -278,6 +378,36 @@ def main() -> int:
         print(f"\n{args.group!r} now has {len(final)} tester(s):")
         for email in final:
             print(f"  - {email}")
+
+    if args.assign_latest_build:
+        # VALID only: a build still PROCESSING has no installable asset, and
+        # attaching one would look like success while delivering nothing.
+        builds = [
+            build
+            for build in list_builds(token, app["id"], limit=10)
+            if build["attributes"].get("processingState") == "VALID"
+            and not build["attributes"].get("expired")
+        ]
+        if not builds:
+            print("\nno VALID unexpired build to assign — is one still processing?")
+        else:
+            newest = builds[0]
+            version = newest["attributes"].get("version")
+            if args.dry_run:
+                print(f"\nwould assign build {version} to {args.group!r}")
+            else:
+                assign_build(token, newest["id"], group["id"])
+                print(f"\nassigned build {version} to {args.group!r}")
+
+        gaps = review_readiness(token, app["id"])
+        if gaps:
+            # Loud, because this is the difference between "the group is set up"
+            # and "your friends can actually install it" — and every gap here is
+            # founder-owned copy that no session can write for them.
+            print("\nBUT external testers still cannot install until Beta App")
+            print("Review passes, and Apple needs this first:")
+            for gap in gaps:
+                print(f"  MISSING - {gap}")
     return 0
 
 
