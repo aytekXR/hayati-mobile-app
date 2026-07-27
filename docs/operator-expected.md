@@ -13,7 +13,7 @@
 > re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 036.
 
-_Last refreshed: 2026-07-27, **Session 050 close**._
+_Last refreshed: 2026-07-27, **Session 051 close**._
 
 **Where things stand in one line:** the MVP is code-complete and both backends
 are deployed; the product's one unproven link is a **real purchase**, and the
@@ -291,6 +291,17 @@ more, all flagged "native register review pending" per commit. TR: you two. AR:
 your Gulf-dialect reviewer. Mandatory before any public launch
 (`content/README.md`, W9). All editable in place, or send corrections to a session.
 
+> **⚠️ One concrete thing to watch for in the ARABIC copy, found by measurement
+> this session.** Arabic punctuation and Western punctuation are **not
+> interchangeable** in a right-to-left layout. `؟` (the Arabic question mark,
+> U+061F) is a *strong* character — it always sits where it should. A Western
+> `.` or `?` is *neutral*, and next to Latin text it can jump to the wrong end
+> of the line. All seven Arabic solo questions correctly end with `؟`; some of
+> the AI-drafted **coach** copy ends Arabic sentences with a Western `.`
+> instead. The app now compensates automatically, so nothing is broken — but
+> **if you are editing Arabic copy, prefer `؟` and `،` over `?` and `,`**. It is
+> invisible in the text file and only shows up on screen.
+
 - **Solo questions** (7 × TR/AR/EN) — `content/packs/solo_{tr,ar,en}.json`; run
   `dart content/validator/validate.dart --sync`. These double as the **couple**
   question-bank placeholder, so edits pay off twice. *A question may carry
@@ -429,7 +440,8 @@ these.
 
 | Issue | What |
 |---|---|
-| **#133** | Latin-script text inside the Arabic RTL chrome moves trailing punctuation to the wrong end (`.Kahvaltıda birlikte gülmemiz`). Visible in committed goldens; hits mixed-language couples. |
+| **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
+| **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app now applies on screen. Latent: no current wording is affected. |
 | **#131** | Seven high-severity npm advisories in `functions/`, two in the tree that ships to production. |
 | **#130** | ADR-026 claims the seasonal vocabulary is guarded in five readers; the app's copy has no parity test. |
 | **#129** | The release lane's `Gemfile.lock` comment is false, the lane installs unfrozen, and no release run has touched the committed lock. |
