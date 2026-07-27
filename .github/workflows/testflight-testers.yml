@@ -1,0 +1,70 @@
+# testflight-testers — create/reuse a TestFlight beta group and add testers.
+#
+# WHY A WORKFLOW AND NOT A DEV-BOX COMMAND: the App Store Connect API key lives
+# only in GitHub secrets (architecture.md §9 — zero credentials in this repo),
+# so this is the only place the three ASC_* values resolve. Same credential set
+# and same `environment: release` binding as release.yml's sign-upload job:
+# ASC_KEY_ID / ASC_ISSUER_ID are `release` ENVIRONMENT secrets while
+# ASC_API_KEY_P8_BASE64 is a REPOSITORY secret, and only a job that declares the
+# environment sees both (the REL-2 lesson recorded in release.yml).
+#
+# Manual dispatch ONLY — never on push. Adding an external tester emails a real
+# person; that is not something a merge should be able to do as a side effect.
+name: testflight-testers
+
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: 'Beta group name (created if absent, reused if present)'
+        required: true
+        default: 'Friends'
+      testers:
+        description: 'Comma-separated tester emails'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Report what would change and touch nothing'
+        type: boolean
+        default: true
+
+concurrency:
+  group: testflight-testers
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  manage:
+    name: manage testers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # PyJWT signs the ES256 assertion Apple requires; cryptography is its
+      # backend for EC keys. Pinned so a future major cannot change the token
+      # shape under a lane the founder dispatches by hand.
+      - name: install deps
+        run: pip install 'pyjwt[crypto]==2.10.1'
+      - name: create group + add testers
+        # Inputs reach the shell as ENV, never interpolated into the script
+        # body: `${{ }}` expansion happens before bash sees the line, so a
+        # group name containing shell metacharacters would otherwise execute.
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          GROUP_NAME: ${{ inputs.group }}
+          TESTER_EMAILS: ${{ inputs.testers }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(--bundle-id com.beyondkaira.hayati
+                --group "$GROUP_NAME"
+                --testers "$TESTER_EMAILS")
+          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          python3 tool/ci/testflight_testers.py "${args[@]}"

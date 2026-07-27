@@ -24,3 +24,7 @@ node_modules/
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/test_output/
+
+# Python bytecode from tool/ci/*.py (the CI self-tests import by path).
+__pycache__/
+*.pyc
