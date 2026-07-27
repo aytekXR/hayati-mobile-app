@@ -13,11 +13,26 @@
 > re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 036.
 
-_Last refreshed: 2026-07-27, **Session 051 close**._
+_Last refreshed: 2026-07-27, **Session 052 close**._
 
-**Where things stand in one line:** the MVP is code-complete and both backends
-are deployed; the product's one unproven link is a **real purchase**, and the
-only thing standing in front of it that a session cannot do is item 0(a) below.
+**Where things stand in one line:** the MVP is code-complete, both backends now
+run **current** code and **current Firestore rules**, and a TestFlight build
+from `main` carries the real app icon; the product's one unproven link is a
+**real purchase**, and the only thing standing in front of it that a session
+cannot do is item 0(a) below.
+
+> **⚠️ What Session 052 found, because it is the thing most likely to bite you
+> again.** Your "Something went wrong" bug was never in the app. **Firestore
+> rules had not been deployed since 2026-07-09** — prod and dev were both
+> serving the M2.1 ruleset, so six milestones of rules (solo answers, couple
+> days, answers, subscriptions, coach usage, consent) existed only in the repo
+> and every read they governed was denied. Separately, prod **Functions** ran
+> code from 2026-07-25 21:54 UTC. Both are now current on both projects.
+>
+> Nothing in CI compares what is *merged* to what is *deployed*, for rules or
+> for functions — which is why this sat green for eighteen days. **Issue #140**
+> tracks the missing gate. Until it exists, treat "it is on `main`" and "it is
+> live" as separate facts.
 
 ---
 
@@ -30,8 +45,16 @@ RevenueCat's calls *before* your code runs. RevenueCat can never report a
 subscription, renewal or cancellation. The charge goes through, Premium never
 turns on, and **nothing anywhere reports an error**.
 
-Re-probed at the Session 051 open (2026-07-27 10:24 UTC): **still returning
-Google's HTML 403.** Unchanged for four sessions.
+Re-probed at the Session 052 close (2026-07-27 16:26 UTC), immediately after a
+full eleven-function redeploy: **still returning Google's HTML 403.** Unchanged
+for five sessions.
+
+**That redeploy settles a question this page used to leave open.** The old
+wording said HTML *after* a fresh deploy would mean "something is actively
+removing that binding." It does not. A deploy does not grant public-invoker
+permission, so a redeploy was never going to create one — the honest reading is
+simply that **the binding has never existed**, and the `gcloud` command below is
+still the only thing that will create it. Nothing is fighting you.
 
 ```sh
 gcloud run services add-iam-policy-binding revenuecatwebhook \
@@ -116,53 +139,6 @@ Billing is live on both projects. The workload is couple-scoped and near-zero at
 current scale, but a budget alert is **the one thing a session cannot do for
 you**, and the one thing you would want already in place before a surprise.
 
-## 2(b). Redeploy prod — your call, one action, fixes two things
-
-Prod is live with all eleven functions, but it runs **code from before the coach
-shipped** and **Node 20**.
-
-1. **The coach says "unavailable" on prod** even though your `LLM_API_KEY` sits in
-   prod Secret Manager, unused — `coachProxy` there was deployed 2026-07-25 21:54
-   UTC with no key binding.
-2. **⏳ Node 20 is decommissioned 2026-10-30.** Re-measured at the Session 051
-   open: `firebase functions:list --project hayatiapp-prod` reports **all eleven
-   functions on `nodejs20`**. Dev has run **Node 22** for weeks and behaved. After
-   that date, deploys from prod's current runtime stop working.
-
-Neither is urgent this week. Both are fixed by the same single action.
-
-<details><summary><b>The exact redeploy, prepared so you can just run it</b> (click)</summary>
-
-Prod **has** `RC_WEBHOOK_TOKEN`, so all eleven deploy. The names are spelled out
-rather than using `--only functions`, because a bare run that dies partway can
-leave a **split-runtime backend** — some functions on Node 22, some still on 20.
-
-```sh
-cd functions && npm ci && npm run build && cd ..
-
-firebase deploy --project hayatiapp-prod --only \
-functions:answerReveal,functions:coachProxy,functions:createInvite,functions:deleteAccount,\
-functions:exportData,functions:invitePreview,functions:joinInvite,functions:questionRollover,\
-functions:recordConsent,functions:revenueCatWebhook,functions:updateNotificationPrivacy
-```
-
-**Then check four things** (a redeploy moves things that "deployed OK" does not cover):
-
-1. `firebase functions:list --project hayatiapp-prod` — **every** row should read
-   `nodejs22`. Any remaining `nodejs20` means it stopped partway; re-run.
-2. The Cloud Scheduler job `firebase-schedule-questionRollover-europe-west1` is
-   **ENABLED** at `0 * * * *`.
-3. `answerReveal`'s trigger is **ACTIVE** with retries on.
-4. The next hourly sweep logs a healthy seasonal-calendar check.
-
-**And one that interacts with #115.** `revenueCatWebhook` is in that list, and the
-redeploy may or may not restore its public-invoker binding. Probe it straight
-afterwards with the `curl` above: **JSON = fixed**, **HTML = still #115**. If it
-comes back HTML *after* a fresh deploy, something is actively removing that
-binding — worth knowing, because it would re-break after every future deploy.
-
-</details>
-
 ---
 
 # 5. SECURITY — rotate the leaked Slack webhook (~10 min, open since S005)
@@ -228,6 +204,21 @@ caps distribution certificates at 3.
 **If your partner is not yet on the TestFlight build:** App Store Connect →
 **Users and Access** → invite her Apple ID → add her to the internal group
 (internal groups get builds instantly, no Beta App Review).
+
+**The `Friends` external group (Session 052) — one step is still yours.** The
+group exists and its testers are added, via the new manual-dispatch lane
+`gh workflow run testflight-testers.yml` (see `tool/ci/testflight_testers.py`;
+it is idempotent, so re-running it never re-emails anyone). But **external
+testers receive nothing until a build is assigned to their group and that build
+clears Apple's Beta App Review** — and Beta App Review needs the **Test
+Information** page filled in (beta app description, feedback email, contact
+details), which is your copy and your contact details, not a session's. Internal
+testers are unaffected: they get every build immediately.
+
+⚠️ **Sequencing that matters for these five people.** Give them a build from
+`main` at or after commit `fa990e6` — *not* the build that was in TestFlight
+before Session 052. The earlier one carries the default Flutter icon and
+`currentLegalVersion = 1`.
 
 Please eyeball each of these on a TestFlight build:
 
@@ -440,6 +431,7 @@ these.
 
 | Issue | What |
 |---|---|
+| **#140** | Nothing in CI compares what is merged to what is DEPLOYED. Firestore rules sat un-deployed for 18 days behind six green milestones — the cause of your "Something went wrong". Both projects are current now; the missing gate is not built. |
 | **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
 | **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app now applies on screen. Latent: no current wording is affected. |
 | **#131** | Seven high-severity npm advisories in `functions/`, two in the tree that ships to production. |
