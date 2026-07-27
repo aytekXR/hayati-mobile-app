@@ -218,17 +218,14 @@ void main() {
       ];
 
       await tester.pumpWidget(
-        MediaQuery(
-          data: const MediaQueryData(),
+        const MediaQuery(
+          data: MediaQueryData(),
           child: Directionality(
             textDirection: TextDirection.ltr,
             child: Center(
               child: SizedBox(
                 width: 320,
-                child: Text(
-                  _latinContent,
-                  style: const TextStyle(fontSize: 14),
-                ),
+                child: Text(_latinContent, style: TextStyle(fontSize: 14)),
               ),
             ),
           ),

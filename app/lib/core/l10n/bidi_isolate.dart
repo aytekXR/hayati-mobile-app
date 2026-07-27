@@ -16,10 +16,14 @@ library;
 
 /// U+2068 FIRST STRONG ISOLATE — opens a run whose direction is taken from its
 /// own first strong character, exactly like HTML's `dir="auto"`.
-const String firstStrongIsolate = '⁨';
+/// Written as an escape, not as the literal character: the analyzer flags a
+/// raw U+2068 in source (`text_direction_code_point_in_literal`), and rightly —
+/// an invisible control in a string literal is exactly the thing a reader
+/// cannot review.
+const String firstStrongIsolate = '\u2068';
 
 /// U+2069 POP DIRECTIONAL ISOLATE — closes the innermost open isolate.
-const String popDirectionalIsolate = '⁩';
+const String popDirectionalIsolate = '\u2069';
 
 /// Wraps [text] so its own first strong character decides its direction, and
 /// its bidi-neutrals bind to it rather than to the surrounding paragraph.

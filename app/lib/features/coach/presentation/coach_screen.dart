@@ -8,6 +8,7 @@ import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../../core/storage/local_flag_store.dart';
+import '../../../core/widgets/content_text.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
 import '../../entitlements/presentation/paywall_screen.dart';
@@ -429,7 +430,8 @@ class CoachUserBubble extends StatelessWidget {
             color: theme.colorScheme.primary,
             borderRadius: RadiusTokens.cardRadius,
           ),
-          child: Text(
+          // What the user typed — any script, by definition.
+          child: ContentText(
             text,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onPrimary,
@@ -483,7 +485,8 @@ class CoachPersonaBubble extends StatelessWidget {
                 color: theme.colorScheme.surfaceContainerHighest,
                 borderRadius: RadiusTokens.cardRadius,
               ),
-              child: Text(text, style: theme.textTheme.bodyMedium),
+              // The model's reply: requested in a language, not guaranteed one.
+              child: ContentText(text, style: theme.textTheme.bodyMedium),
             ),
           ),
         ],
@@ -530,7 +533,8 @@ class CoachHelpCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: SpacingTokens.x2),
-            Text(text, style: theme.textTheme.bodyMedium),
+            // Server-supplied help copy — same reasoning as the reply above.
+            ContentText(text, style: theme.textTheme.bodyMedium),
           ],
         ),
       ),
