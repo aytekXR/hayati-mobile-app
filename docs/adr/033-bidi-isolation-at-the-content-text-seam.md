@@ -49,11 +49,11 @@ app_ar.arb  invitePreviewInvitedBy        : "دعاك {name}"
 app_ar.arb  invitePreviewCreatorAnswered  : "إجابة {name} جاهزة — تنكشف عندما تكتب إجابتك."
 ```
 
-`{name}` is a partner's display name — arbitrary script — interpolated **into the middle of a localized Arabic sentence** (`partner_preview_screen.dart:306` and `:427`). A `Directionality` ancestor or a `Text(textDirection:)` override sets the direction of the **whole paragraph**; it cannot isolate one run inside a sentence whose remainder must stay Arabic. Only an inline isolate can.
+`{name}` is a partner's display name — arbitrary script — interpolated **into the middle of a localized Arabic sentence** (`partner_preview_screen.dart:312` and `:435`). A `Directionality` ancestor or a `Text(textDirection:)` override sets the direction of the **whole paragraph**; it cannot isolate one run inside a sentence whose remainder must stay Arabic. Only an inline isolate can.
 
 Three further reasons, in descending weight:
 
-1. **It needs no `TextDirection` literal at any call site.** `tool/rtl_lint.dart:23` bans `\bTextDirection\.(ltr|rtl)\b` across `app/lib`. The widget-level fix would have required an `// rtl-ok` escape on **every one of the twelve sites** — weakening a firewall guard, at scale, to fix a bug the firewall was never aimed at.
+1. **It needs no `TextDirection` literal at any call site.** `tool/rtl_lint.dart:23` bans `\bTextDirection\.(ltr|rtl)\b` across `app/lib`. The widget-level fix would have required an `// rtl-ok` escape on **every one of the eleven sites** — weakening a firewall guard, at scale, to fix a bug the firewall was never aimed at.
 
    **Stated honestly after implementation: this argument survives in reduced form, not intact.** D9's golden reconciliation forced the seam to become *conditional* (isolate only when the directions actually differ), and the predicate needs the ambient direction — so there is now exactly **one** `// rtl-ok`, in `bidi_isolate.dart`, in the single function whose whole job is to reason about direction. One escape in the seam is a different thing from twelve escapes across the feature tree, but it is not zero, and the first draft of this decision claimed zero.
 2. **It preserves block alignment.** Probe A3 shows the widget-level fix left-aligns the paragraph inside a right-aligned card, putting a right-aligned caption over a left-aligned body. FSI fixes the punctuation and leaves the block where the chrome puts it.
@@ -70,9 +70,15 @@ More importantly, **`Bidi.detectRtlDirectionality` is not first-strong** — it 
 | `العربية is a beautiful language indeed.` | **true** | **false** |
 | `Ayşe قالت شيئًا جميلًا جدًا اليوم هنا.` | **false** | **true** |
 
-Both rows disagree. A future session reaching for `detectRtlDirectionality` because the issue text said "Flutter exposes this as `Bidi.…` helpers" would get *different* behaviour from the isolate this ADR specifies. We do not call either: we emit `U+2068`/`U+2069` and let the platform's Unicode Bidi implementation resolve first-strong — the same rule HTML `dir="auto"` uses.
+Both rows disagree. A future session reaching for `detectRtlDirectionality` because the issue text said "Flutter exposes this as `Bidi.…` helpers" would get *different* behaviour from the isolate this ADR specifies.
 
-## Decision 2 — The seam is one pure function plus one widget
+**Precisely what we do and do not call, since D9's conditional rewrite made the first draft of this paragraph imprecise:**
+
+- We **never** call `detectRtlDirectionality` or `estimateDirectionOfText`. Those are the majority heuristics, and they are the trap.
+- The **direction that governs rendering** is still resolved by the platform: we emit `U+2068`/`U+2069` and let Flutter's Unicode Bidi implementation pick first-strong — the same rule HTML `dir="auto"` uses.
+- We **do** call `Bidi.startsWithRtl`/`startsWithLtr`, but only to decide **whether emitting the controls would change anything at all**. Those two are genuine first-strong tests (read the source: skip everything that is not the opposite strong class, then require a strong character of the target class), so they agree with the isolate rather than competing with it. Their one weakness is range coverage, recorded as the `// DEBT:` in D2 and as **#137**.
+
+## Decision 2 — The seam is two pure functions plus one widget
 
 `app/lib/core/l10n/bidi_isolate.dart`
 
@@ -91,17 +97,20 @@ For interpolation into a localized sentence, call sites pass an isolated *argume
 
 ## Decision 3 — The boundary: isolate **content**, never **chrome**
 
-**Isolated** — the string's script is not guaranteed to match the ambient direction:
+**Isolated** — the string's script is not guaranteed to match the ambient direction. Line numbers are the **render** sites as built, not the construction sites: `_AnswerCard` is built from three places (`:407`, `:416`, `:738`) and renders once, which is why the count below is 11 and not the 14 rows a construction-site listing would produce.
 
-| Site | What |
+| Render site | What |
 |---|---|
-| `paired_home_screen.dart:391` → `_QuestionCard` | the daily question (pack language ≠ UI locale) |
-| `paired_home_screen.dart:408`, `:417`, `:736`, `:809` (`_AnswerCard`) | both partners' answers — free text |
-| `solo_home_screen.dart:199` | the solo question |
-| `coach_screen.dart:432`, `:486`, `:533` | the user's typed message, the model's reply, the help-card body |
-| `partner_preview_screen.dart:306`, `:427` | the partner's display name, interpolated into l10n |
-| `partner_preview_screen.dart:402` | the invite's question hook |
-| `paywall_screen.dart:401`, `:411` | store-supplied price strings |
+| `paired_home_screen.dart:678` (`_QuestionCard`) | the daily question (pack language ≠ UI locale) |
+| `paired_home_screen.dart:814` (`_AnswerCard`) | both partners' answers — free text |
+| `solo_home_screen.dart:203` | the solo question |
+| `coach_screen.dart:434`, `:489`, `:537` | the user's turn, the model's reply, the help-card body |
+| `partner_preview_screen.dart:409` | the invite's question hook |
+| `paywall_screen.dart:404` | the store-formatted price |
+| `partner_preview_screen.dart:312`, `:435` | the partner's display name, isolated as an **argument** into the localized sentence |
+| `paywall_screen.dart:419` | the per-month price, same argument shape |
+
+**8 `ContentText` + 3 isolated arguments = 11.**
 
 **Deliberately NOT on this list, after measurement: the invite code** (`invite_share_screen.dart:81`). A first draft of this ADR included it, generalising from probe E1 (`ABC-234-XYZ.`). That fixture was wrong for the real string:
 
