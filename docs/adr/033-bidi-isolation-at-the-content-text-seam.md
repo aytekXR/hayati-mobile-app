@@ -53,7 +53,9 @@ app_ar.arb  invitePreviewCreatorAnswered  : "إجابة {name} جاهزة — ت
 
 Three further reasons, in descending weight:
 
-1. **It needs no `TextDirection` literal.** `tool/rtl_lint.dart:23` bans `\bTextDirection\.(ltr|rtl)\b` across `app/lib`. The widget-level fix would have required an `// rtl-ok` escape on every site — weakening a firewall guard to fix a bug the firewall was never aimed at. FSI/PDI are ordinary characters.
+1. **It needs no `TextDirection` literal at any call site.** `tool/rtl_lint.dart:23` bans `\bTextDirection\.(ltr|rtl)\b` across `app/lib`. The widget-level fix would have required an `// rtl-ok` escape on **every one of the twelve sites** — weakening a firewall guard, at scale, to fix a bug the firewall was never aimed at.
+
+   **Stated honestly after implementation: this argument survives in reduced form, not intact.** D9's golden reconciliation forced the seam to become *conditional* (isolate only when the directions actually differ), and the predicate needs the ambient direction — so there is now exactly **one** `// rtl-ok`, in `bidi_isolate.dart`, in the single function whose whole job is to reason about direction. One escape in the seam is a different thing from twelve escapes across the feature tree, but it is not zero, and the first draft of this decision claimed zero.
 2. **It preserves block alignment.** Probe A3 shows the widget-level fix left-aligns the paragraph inside a right-aligned card, putting a right-aligned caption over a left-aligned body. FSI fixes the punctuation and leaves the block where the chrome puts it.
 3. **It composes.** Isolates nest; a paragraph direction override does not.
 
@@ -125,7 +127,11 @@ Nothing is isolated at rest. Firestore documents, the export payload, ARB values
 
 Probe **B2**: Arabic content inside Turkish/English LTR chrome puts its terminator at the run's right edge instead of its left — the same defect, mirrored. #133 does not mention it; it is real and reachable today (`contentLanguage: ar` with a `tr` interface). The same isolate fixes it (probe B3), and the tests assert **both** directions so a future one-directional regression is caught.
 
-No existing golden covers it: the golden fixtures render `solo_tr` content, so no cell pairs Arabic *content* with LTR chrome. The new test — not a golden — is what covers it.
+> ~~No existing golden covers it: the golden fixtures render `solo_tr` content, so no cell pairs Arabic *content* with LTR chrome.~~
+>
+> **Struck 2026-07-27, same session — this was false, and the golden suite is what caught it.** I generalised from `paired_home_screen`, whose fixtures *are* Turkish in every locale (ADR-011's `solo_tr` placeholder). But `coach_screen_golden_test.dart:45-58`, `solo_home_screen_golden_test.dart:47` and `partner_preview_screen_golden_test.dart:158-161` all key their content fixtures to **the cell's locale**, so every `ar.*` cell renders genuinely Arabic content — and `conversation.ar.ltr` is Arabic content in an LTR paragraph. The mirror case was sitting in the committed goldens the whole time. Three `*.ar.ltr` cells moved when this fix landed; see D9.
+
+The new test covers the mirror case *deliberately* rather than incidentally, which the goldens did not.
 
 ## Decision 6 — What first-strong gets WRONG, written down
 
@@ -187,6 +193,20 @@ go **green either way** after isolation: the raw string stops matching whether t
 | `paywall_screen` | a TRY storefront price string — **UNKNOWN**, and stated as such: whether it changes depends on whether the fixture carries a strong LTR letter or is digits-and-symbols only (no strong character → never isolated). Not guessed. | resolved by the run |
 
 A golden that moves **outside** this table is a defect to explain, not churn to accept.
+
+### Actual: **34 files**, all inside the declaration — and three cells declared-to-change that did not
+
+`git status --porcelain -- 'app/test/**/*.png'` after `--update-goldens`: **34 modified, 0 added, 0 deleted.** Of those, **31 are `*.rtl.png`** and **3 are `*.ar.ltr.png`** (`conversation`, `help_path`, `valid_question_hook` — the mirror-case repairs). **Zero `tr.ltr`, zero `en.ltr`, zero `goldens/probe/` (Class F intact).**
+
+Three cells the table said would change did **not**, all in the safe direction, and the reason is one fact worth carrying:
+
+> **Arabic punctuation is not bidi-neutral.** `؟` U+061F ARABIC QUESTION MARK has Bidi_Class **AL — a strong character.** It cannot float, so Arabic content terminated with it has nothing to misplace and needs no isolate to sit correctly.
+
+- **`solo_home_screen` `*.ar.ltr` — unchanged.** All **7** `solo_ar.json` questions end in `؟`. Verified by decoding every terminator: `AL` in all seven.
+- **`coach_screen` `*.ar.ltr` — changed, and now for a precise reason.** The Arabic *reply* fixture ends `…وقهوة تحبّانها.` — a **Western full stop, U+002E, class CS, neutral.** That is the character that moved. The Arabic *question* fixture ends in `؟` and did not.
+- **`partner_preview` `valid.ar.*` — unchanged.** That state renders only the Latin name `Aylin`; in `ar.ltr` the directions agree, so no isolate. (`valid_question_hook.ar.ltr` *did* change — it renders the Arabic hook question.)
+
+**The operational consequence is a content-authoring one, not a code one.** Arabic copy written with Arabic punctuation is immune to this defect; Arabic copy written with Western punctuation is not — and our AI-drafted copy currently mixes the two within a single screen. That is worth putting in front of the Gulf-dialect reviewer at operator item 1, because it is invisible in the source and only shows up rendered.
 
 **But be exact about WHY, because the obvious reason is false.** A first draft of this decision said the isolate is "a provable no-op in LTR cells". It is not. Measured across 19 candidate strings in an LTR paragraph, comparing every character box: **16 identical, 2 probe artefacts, and 1 real difference** —
 

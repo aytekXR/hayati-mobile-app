@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/l10n/bidi_isolate.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
@@ -597,8 +598,20 @@ void main() {
         expect(find.text(l10n.soloDayProgress(1)), findsOneWidget);
         expect(find.text(l10n.soloNudgeBody), findsOneWidget);
         expect(find.text(l10n.soloNudgeAction), findsOneWidget);
+        // The fixture is LATIN in every locale (the "AR" prefix names the
+        // pack, not the script), so in the `ar` cell it is Latin content in
+        // RTL chrome — the #133 case — and the seam isolates it. Build the
+        // expectation the way the screen builds it rather than asserting the
+        // bare string, which would silently stop matching.
         expect(
-          find.text('${language.name.toUpperCase()} solo question 1'),
+          find.text(
+            isolateWithin(
+              '${language.name.toUpperCase()} solo question 1',
+              locale.languageCode == 'ar'
+                  ? TextDirection.rtl
+                  : TextDirection.ltr,
+            ),
+          ),
           findsOneWidget,
         );
         expect(

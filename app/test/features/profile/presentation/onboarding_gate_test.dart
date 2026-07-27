@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/l10n/bidi_isolate.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
@@ -529,7 +530,20 @@ void main() {
         // in the profile's content language (tr for existingProfile).
         expect(find.text(l10n.soloDayProgress(1)), findsOneWidget);
         expect(find.text(l10n.soloNudgeAction), findsOneWidget);
-        expect(find.text('TR solo question 1'), findsOneWidget);
+        // This row is issue #133's motivating case in miniature: TURKISH
+        // content under ARABIC chrome. The seam isolates it in the `ar` cell,
+        // so the expectation is built the same way the screen builds it.
+        expect(
+          find.text(
+            isolateWithin(
+              'TR solo question 1',
+              locale.languageCode == 'ar'
+                  ? TextDirection.rtl
+                  : TextDirection.ltr,
+            ),
+          ),
+          findsOneWidget,
+        );
         expect(
           Directionality.of(tester.element(find.byType(OnboardingGate))),
           locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr,

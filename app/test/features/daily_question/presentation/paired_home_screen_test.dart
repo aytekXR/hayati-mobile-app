@@ -245,7 +245,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.errorNetworkRetry), findsOneWidget);
-      expect(find.text('EN paired question 1'), findsNothing);
+      // textContaining, not text: a bidi-isolated render wraps the string in
+      // U+2068/U+2069, and find.text is exact-match — so this row would go
+      // green whether the content was absent OR merely isolated. Under the
+      // conditional seam this cell is LTR and stays pristine, but a
+      // findsNothing that CANNOT fail is worse than no row at all
+      // (ADR-033 D8, addendum 47).
+      expect(find.textContaining('EN paired question 1'), findsNothing);
 
       // The fake replays the (still-seeded) couple on re-listen.
       await tester.tap(find.text(en.tryAgain));
@@ -507,7 +513,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(en.pairedNoDayTitle), findsOneWidget);
-      expect(find.text('EN paired question 1'), findsNothing);
+      // textContaining, not text: a bidi-isolated render wraps the string in
+      // U+2068/U+2069, and find.text is exact-match — so this row would go
+      // green whether the content was absent OR merely isolated. Under the
+      // conditional seam this cell is LTR and stays pristine, but a
+      // findsNothing that CANNOT fail is worse than no row at all
+      // (ADR-033 D8, addendum 47).
+      expect(find.textContaining('EN paired question 1'), findsNothing);
     });
   });
 
