@@ -13,7 +13,7 @@
 > re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 036.
 
-_Last refreshed: 2026-07-27, **Session 052 close**._
+_Last refreshed: 2026-07-28, **Session 053 close**._
 
 **Where things stand in one line:** the MVP is code-complete, both backends now
 run **current** code and **current Firestore rules**, and a TestFlight build
@@ -138,6 +138,44 @@ that lives only in prose is a remainder that gets lost.
 Billing is live on both projects. The workload is couple-scoped and near-zero at
 current scale, but a budget alert is **the one thing a session cannot do for
 you**, and the one thing you would want already in place before a surprise.
+
+## 2(b). Turn on Dependabot **alerts** (~1 min, one click) — issue #131's other half
+
+Session 053 built the half a session can build: CI now fails a PR that
+**introduces** a new dependency advisory into `functions/`. What it deliberately
+does *not* do is fire when a new advisory is published against dependencies
+**nobody touched** — a gate that reddens `main` for a third party's action, on
+something no session can fix that hour, is a build that cries wolf, so it was
+rejected on purpose (ADR-034).
+
+That other half is a GitHub feature this repo simply has switched off:
+
+```
+$ gh api repos/:owner/:repo/dependabot/alerts
+Dependabot alerts are disabled for this repository. (HTTP 403)
+$ gh api repos/:owner/:repo/automated-security-fixes
+{"enabled":false,"paused":false}
+```
+
+**Settings → Advanced Security → Dependabot alerts → Enable.** The repo is
+**public**, so it is free. It watches **every** ecosystem here — `functions/`
+npm, the app's `pubspec.lock`, `Gemfile.lock` and the GitHub Actions versions —
+not just the one lockfile CI reads, and unlike a scheduled job it cannot rot or
+switch itself off.
+
+⚠️ **Alerts, yes. "Dependabot security updates" (automatic PRs), no** — at least
+not yet. This repo currently carries two open advisories whose only npm-offered
+fix is downgrading `firebase-admin` to 10.3.0, which would undo ADR-031 and
+conflict with ADR-030. Automatic PRs would propose exactly that, repeatedly.
+
+**Why this is yours:** it changes repository settings and starts sending mail to
+you. Neither is a session's call, even though the account has the permission.
+
+**What you will see, and what it means:** the two open advisories
+(`brace-expansion`, `uuid`) will appear immediately. Both were measured this
+session as **unreachable** — one hangs off a `rimraf` that `google-gax` declares
+and never imports, the other sits under an optional Google Cloud Storage package
+these Functions never load. They are recorded in ADR-034, not forgotten.
 
 ---
 
@@ -434,7 +472,6 @@ these.
 | **#140** | Nothing in CI compares what is merged to what is DEPLOYED. Firestore rules sat un-deployed for 18 days behind six green milestones — the cause of your "Something went wrong". Both projects are current now; the missing gate is not built. |
 | **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
 | **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app now applies on screen. Latent: no current wording is affected. |
-| **#131** | Seven high-severity npm advisories in `functions/`, two in the tree that ships to production. |
 | **#130** | ADR-026 claims the seasonal vocabulary is guarded in five readers; the app's copy has no parity test. |
 | **#129** | The release lane's `Gemfile.lock` comment is false, the lane installs unfrozen, and no release run has touched the committed lock. |
 | **#121** | Confirm a likely-dead App Store Connect key step in the release lane. **Needs your go-ahead only** — proving it means dispatching the lane, which uploads a real binary to your TestFlight. |

@@ -143,6 +143,15 @@ jobs:
         run: |
           pip install --quiet 'pyjwt[crypto]==2.10.1'
           python3 tool/ci/testflight_testers_test.py
+      # ADR-034: the behavioural half of the advisory-delta gate. The gate itself
+      # runs in functions-rules (it needs npm); these tests are hermetic — no npm,
+      # no network, no emulator — so they belong here with the other pre-`pub get`
+      # self-tests. They carry the mutation check acceptance criterion 4 asks for:
+      # a seeded advisory must FAIL and the same advisory on both sides must PASS.
+      # A delta check that returned "nothing introduced" unconditionally would sail
+      # through a smoke test while guarding nothing.
+      - name: npm audit delta self-tests
+        run: python3 tool/ci/npm_audit_delta_test.py
       - name: pub get
         working-directory: app
         run: flutter pub get
@@ -185,11 +194,41 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+        with:
+          # ADR-034: the advisory delta needs the BASE revision of the lockfile,
+          # so it needs history. Same cost note as the quality job's full fetch.
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: functions/package-lock.json
+      # ADR-034 (issue #131). NOT `npm audit --audit-level=high`: that reddens the
+      # build when a third party publishes an advisory against a lockfile nobody
+      # touched — no commit caused it and no session can fix it that hour, which is
+      # ADR-024's lesson about guards that cry wolf. This audits the base and head
+      # lockfiles in the SAME run instead, so a publication event appears on both
+      # sides and cancels; it can only fail for an advisory the DIFF introduces.
+      # Runs before `npm ci` because it needs no node_modules (--package-lock-only)
+      # and should fail fast. Skips only when there is genuinely no base commit.
+      - name: npm audit delta (advisories this change introduces)
+        # This step passes CANDIDATES and decides nothing. Which one wins, and what
+        # happens when none resolves, is policy — and policy in a YAML `if:` or an
+        # inline shell branch is invisible to the self-test, which is ADR-024 D1's
+        # rule and the reason the notifier's noise policy lives in its script too.
+        # So the ordering is expressed here and ENFORCED (and tested) in the tool:
+        #   pull_request -> the PR's base sha (checkout gives us the merge ref, so
+        #                   this is exactly "what merging this PR introduces")
+        #   push         -> the previous tip; all-zeros on a first/force-push, which
+        #                   the tool treats as a non-candidate rather than an error
+        #   workflow_dispatch (and any fallthrough) -> main, fetched below, so a
+        #                   dispatched branch run is a real check and not a no-op
+        run: |
+          git fetch --no-tags --depth=1 origin main 2>/dev/null || true
+          python3 tool/ci/npm_audit_delta.py \
+            --base-ref '${{ github.event.pull_request.base.sha }}' \
+            --base-ref '${{ github.event.before }}' \
+            --base-ref FETCH_HEAD
       # firestore emulator needs Java 21+, discovered via PATH only (JAVA_HOME
       # is never read by firebase-tools) — setup-java prepends it to PATH.
       - uses: actions/setup-java@v5

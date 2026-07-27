@@ -1718,3 +1718,71 @@ Re-declared before `--update-goldens` after the first declaration was falsified.
 **Verification:** `flutter test` **1578 passed, 0 failed** · coverage **87.30%** (threshold 68) · `dart format --set-exit-if-changed app/lib app/test tool content` 0 changed · `flutter analyze` No issues · `rtl_lint` clean · slice-0 firewall green, and the frozen-sentence digest *could not* move because no ARB value was touched. Working tree clean after every review workflow returned (S037's addendum checked). Fix confirmed by **reading the re-baselined golden**, not just the test.
 
 **Outcome:** done. **#133 closed.** **#136** and **#137** filed.
+
+## Session 053 — 2026-07-28 — **#131 closed: "7 high advisories" was 3, npm's "available fix" was a runtime break, and the gate the issue asked for was the wrong instrument**
+
+**Objective (from `resume-prompt.md`):** #131 — seven high-severity npm advisories in `functions/`, two in the tree that ships to production. Fix them, then decide honestly whether CI should ever look.
+
+**Session numbering: this tree's S052 never happened.** A **concurrent operator-track session on another machine** consumed the number — commits `14daaa7`/`db93fb4`/`c5e1f0b` (the TestFlight beta-group lane) and `af343ec` (the operator refresh that filed **#140**) are all labelled "Session 052" and none of them appended to this file. The S038 addendum is exactly right: `ps`/`tmux` cover only this box. Re-derived from `git log` at the session open, not inherited.
+
+**Session hygiene.** Two other claudes on this box, both confirmed by cwd to be other repos (`unhooked`, `ams-pulse`). One leftover background `bash` **was a child of my own claude PID** — a monitor loop from a pre-`/clear` session that had been sleeping for 25 hours on a journal that would never reach its condition. Killed. (S051 saw the same shape; this is now twice.)
+
+**Preemptions, run live.** **#115 still HTML 403** — six sessions unchanged. **Prod runtime MOVED: 11 × `nodejs22`** (was `nodejs20`), S052's redeploy; the follow-up question the resume prompt attached to that move — whether a redeploy restores the webhook's public invoker — was already answered by S052's own operator note (a deploy does not grant invoker; the binding has never existed). **`RC_WEBHOOK_TOKEN` still absent on dev** (404, prod exit-0 as control). **Scheduler/Eventarc could NOT be re-verified: there is no `gcloud` on this box and no ADC.** Recorded rather than asserted. Zero open PRs; **#140 is new** since the resume prompt was written.
+
+**A broken probe, caught by its control — the second session running.** The first dev-secret check piped through `sed 's/./x/g'` to mask the token, and the mask swallowed the *error text* too, so a missing `gcloud` binary rendered as a row of x's that looked like a successful read. Only the prod control — `timeout: failed to run command 'gcloud'` — exposed it. Addendum 53 generalises: a probe whose output shape cannot distinguish success from failure has reported nothing.
+
+### The issue's own headline was wrong, and so was mine
+
+`npm audit` emits one entry per affected **package**, so a single advisory deep in a chain produces one real entry plus a wrapper for every package above it. Keyed on GHSA id:
+
+| | npm's headline | Distinct advisories |
+|---|---|---|
+| before | 14 (7 moderate, 7 high) | **4** — 3 high + 1 moderate |
+| after | 12 (7 moderate, 5 high) | **2** — 1 high + 1 moderate |
+
+**"7 high-severity advisories" is 3.** #131's title counts wrappers; so did the first draft of this session's design brief. The correction is not cosmetic — it is the difference between a report that reads as an emergency and one that names two things.
+
+**`npm audit fix` cleared two of three, not seven of seven.** Verified rather than trusted, which is what acceptance criterion 1 asked for. The lockfile diff was read in full (512 packages, +1/−0/~6), including three unfamiliar names — `@nodable/entities`, `is-unsafe`, `xml-naming` — which turned out to be `fast-xml-parser`'s own upstream decomposition, checked against the registry by **maintainer identity** rather than assumed.
+
+### npm said `fixAvailable: true`. It was a runtime break, and a control proved it
+
+The five remaining "highs" are **one chain with one leaf**: `firebase-admin → @google-cloud/firestore → google-gax → rimraf → glob → minimatch@9 → brace-expansion@2.1.2`. There is no patched 2.x line; the only clean version is **5.0.8**, three majors up.
+
+```
+CONTROL    minimatch@9.0.9 + natural brace-expansion 2.1.2  -> minimatch("abc","a{b,x}c") = true
+TREATMENT  minimatch@9.0.9 + overrides brace-expansion@5.0.8 -> (0, brace_expansion_1.default) is not a function
+```
+
+`brace-expansion@5.0.8` is `"type": "module"` and its CJS entry exports an **object**; `minimatch@9` calls it. Taking npm's advice would have converted a DoS advisory into a hard failure inside Firestore's own dependency chain.
+
+**And the chain is never loaded:** `google-gax` *declares* `rimraf` and never imports it — the string appears in exactly two files, both `package.json`, and `build/src` has no computed `require()`. The moderate is unreachable three ways over: `@google-cloud/storage` is an **optional** dep this code never loads (imports are firestore 22 / auth 5 / messaging 1 / app 1), only `uuid.v4` is called anywhere, and the advisory is about v3/v5/v6 — zero such calls across all **293** production packages.
+
+**`firebase-admin@14.2.0` is the latest**, so there is no forward fix either. The 10.3.0 downgrade was refused (ADR-030/031) and `--force` never run. The `uuid` override *works* and was still **declined**: it buys audit silence in code that never executes, at the price of diverging from the combination Google tests.
+
+### The decision: the gate the issue asked for was the wrong instrument
+
+`npm audit`'s **absolute** output changes for reasons no commit caused. A threshold gate reddens `main` when a third party publishes — for something no session did, none can fix that hour, and which here is unreachable anyway. ADR-024's lesson transfers.
+
+So `tool/ci/npm_audit_delta.py` compares **two points in time**: base and head lockfiles, audited in the *same run* against the *same registry*. **A newly-published advisory appears on both sides and cancels** — the check is structurally incapable of crying wolf, and fails only for what the diff itself introduces. `npm audit --package-lock-only` needs no `node_modules` and not even a `package.json`, which is what makes auditing a historical revision cheap enough to do every run.
+
+**What the design review killed, and it was right about all of it:** the committed **baseline file** (ADR-025 D8's shape — a declaration nothing enforces; git history is already the baseline), the **cron** (GitHub disables scheduled workflows after 60 days without commits — it switches itself off during precisely the quiet period it would exist to watch), and the **Slack routing** (the notifier's payload has no field for advisory content and ADR-024 D2's noise policy would suppress it). Its **completeness critic proposed the lockfile-delta trigger** that became the design; none of the five lenses reached it.
+
+**What all six agents missed: Dependabot.** Found by querying the platform instead of reasoning about options — **alerts are DISABLED** on what is a public repo. That is the half a cron would have covered, done properly and for every ecosystem here. Operator item **2(b)**; alerts only, because automatic security PRs would propose the very `firebase-admin@10.3.0` downgrade this session refused.
+
+### The build-diff review found two real defects, and fixing one made a third
+
+- **The base-ref logic was policy sitting in YAML.** Surfaced via `workflow_dispatch`, which has neither `pull_request.base.sha` nor `github.event.before`, so it skipped with a notice that misleadingly blamed "first push or force-push". The deeper point is that **ADR-024 D1 had already settled this**: outcome logic a self-test cannot see is unprotected. Moved into the tool, with `main` as the fallback so a dispatched run is a real check.
+- **A surviving mutant, proven not argued.** The reviewer copied the tool to a temp dir, changed the URL-less fallback key from title-derived to package-derived, showed the suite still passed, then demonstrated the consequence: two advisories on one package collapse into one. Closed, and re-verified by re-running the mutation (control passes, mutant now fails two checks).
+- **Fixing the first introduced a bug the reviewers never saw and the suite caught:** resolving the base *before* checking the lockfile exists let a missing lockfile skip (exit 0) instead of failing closed — the exact silent-pass shape the tool exists to refuse. Ordering fixed and commented as load-bearing.
+
+The **ADR-claim auditor returned zero findings** after independently reproducing the 293-package sweep, the import counts and the test registration — the one lens whose empty result was worth checking rather than trusting (S041's addendum), and its 79 tool calls say it did the work. A *blocking* claim that a PR checkout cannot see its base commit was **refuted** (`fetch-depth: 0` fetches the base branch too).
+
+**The `$?`-after-a-pipe trap fired again** — the end-to-end seeded run was first read as exit 0 because `tail` was in the pipeline. Third session running. Re-measured without the pipe: exit 1.
+
+**Also fixed, found next door by the review:** **ADR-033 was never added to `docs/adr/README.md`'s index**. The table now has 34 rows for 34 files, verified both directions in code rather than eyeballed.
+
+**Verification:** 14/14 self-tests green · full emulator suite from the repo root **exit 0**, coverage **97.22%** statements (gate 80) · `npm ci` accepts the new lockfile (the S044 trap, checked in an isolated copy) · `dart format --set-exit-if-changed app/lib app/test tool content` 0 changed · `shellcheck tool/ci/*.sh` clean · ci.yml parses · mutation check against **real npm**: seeded `minimist@1.2.0` → exit 1 naming `GHSA-xvch-5gv4-984h`; real control → exit 0, 2 resolved, 0 introduced. Working tree clean after both review workflows returned (S037's addendum checked twice).
+
+**Operator action required:** yes, one new — **item 2(b), enable Dependabot alerts**. It is not blocking; the session completed without it.
+
+**Outcome:** done. **#131 closed.** **ADR-034** written.
