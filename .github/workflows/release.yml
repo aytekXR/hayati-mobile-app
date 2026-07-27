@@ -45,8 +45,11 @@ jobs:
     # Cheap ubuntu gate, fails fast before the slow macOS legs: store metadata
     # must lint clean and, on a tag run, the tag must agree with pubspec.
     # (Was "before any 10x-billed macOS minute" — the repo is PUBLIC, so
-    # GitHub-hosted runners are free; the gate now stands on LATENCY and
-    # signal-ordering, not billing. Corrected S041, ADR-029 D6; issue #100.)
+    # GitHub-hosted runners are free. Corrected S041, ADR-029 D6. It is NOT
+    # about queueing either: macOS queue time here is ~6 seconds, measured over
+    # 24 jobs at S049. It stands on RUN DURATION and signal ordering — the macOS
+    # legs take 6 and ~22 minutes, so a lint error should surface in seconds
+    # rather than half an hour later. Issue #100, closed on that measurement.)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
