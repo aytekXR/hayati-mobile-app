@@ -10,7 +10,7 @@
 > 2026-07-24 (Session 036), and a full **Apple registration + TestFlight
 > roadmap** added at your request.
 
-_Last refreshed: 2026-07-26, **Session 047 close**. (Session 046 was the concurrent operator track — its block is kept below.)_
+_Last refreshed: 2026-07-27, **Session 050 close**. (Session 046 was the concurrent operator track — its block is kept below.)_
 
 > ### ✅ Session 047 — nothing here needs you, but one thing is worth knowing
 >
@@ -88,7 +88,7 @@ _Last refreshed: 2026-07-26, **Session 047 close**. (Session 046 was the concurr
 >
 > </details>
 
-_**🧹 Nothing on the engineering side now carries a deadline.** Session 043 moved the backend to **Node 22** before the old runtime's 2026-10-30 cut-off could ever block a deploy (it was the one item on this page with a date on it), and verified it the honest way — the seasonal-calendar self-check reported healthy from the new runtime in production. **Nothing was required from you and nothing you can see changed.** From here, essentially everything that moves the product forward is on this page, i.e. yours._
+_**⏳ One engineering deadline is still live, and it sits on PROD — this paragraph used to deny that.** Session 043 moved the backend to **Node 22** (issue #96, ADR-030) and verified it the honest way: the seasonal-calendar self-check reported healthy from the new runtime. But that was **`hayatiapp-dev`**, not production — ADR-030 D3 scoped it deliberately (*"`hayatiapp-prod` is not deployed. Dev first; prod follows a session that has watched dev behave on the new runtime"*). Measured again at the Session 050 close: `firebase functions:list --project hayatiapp-prod` reports **all eleven functions still on `nodejs20`**, which Google decommissions **2026-10-30**. The red block above has said so since S045; this paragraph and item 2 below were written before that discovery and were never corrected with it. **Still nothing is required from you today** — dev has behaved on Node 22 for weeks, so the owed prod deploy is the same single redeploy already prepared for you above._
 
 _**🚀 The backend is LIVE on `hayatiapp-dev`** (you flipped Blaze in S040): ten of eleven Cloud Functions deployed in `europe-west1`, the hourly rollover an ENABLED Scheduler job, the reveal trigger ACTIVE with retries. Verified again at S041 close — the sweep has now run cleanly every hour since, including the seasonal-calendar self-check reporting healthy from the real runtime._
 
@@ -474,15 +474,24 @@ reachable (#115). The redeploy command is there too.
 - **Cost:** couple-scoped workload ≈ near-zero at dev scale. **Please set a
   budget alert** now that billing is live — it is the one thing a session cannot
   do for you and the one thing you would want in place before a surprise.
-- **✅ ~~Dated: Node.js 20 is decommissioned 2026-10-30~~ — FIXED (Session 043,
-  issue #96, ADR-030).** The deploy used to warn on every run that the runtime
-  had an end date after which deploys simply fail. The Functions now run on
-  **Node 22**, whose decommission date is **2028-10-31** — and Node 24 shares
-  that same date, so nothing was given up by taking the conservative option.
-  **Nothing is required from you**; this was moved *before* the first prod
-  deploy on purpose, so prod is never stood up on a runtime with a known end
-  date. The seasonal-calendar self-check was re-verified on the new runtime and
-  still reports healthy from production.
+- **⏳ Dated: Node.js 20 is decommissioned 2026-10-30 — fixed on DEV, still open
+  on PROD (Session 043, issue #96, ADR-030).** The deploy used to warn on every
+  run that the runtime had an end date after which deploys simply fail.
+  `hayatiapp-dev` now runs **Node 22**, whose decommission date is
+  **2028-10-31** — and Node 24 shares that same date, so nothing was given up by
+  taking the conservative option. The seasonal-calendar self-check was
+  re-verified on the new runtime and still reports healthy **on dev**.
+
+  **What this item used to claim, and why it was wrong.** It said the move
+  landed *"before the first prod deploy on purpose, so prod is never stood up on
+  a runtime with a known end date"*. That was the intent recorded in ADR-030 D3,
+  but the sequence went the other way: you stood prod up on **2026-07-25**,
+  Session 043 moved dev to Node 22 **after** that, and Session 045 later found
+  prod already live — adding the red block at the top of this file without
+  correcting this item or the summary paragraph that repeated it. Re-measured at
+  the Session 050 close: **all eleven prod functions are on `nodejs20`.**
+  **Still nothing is required from you** — the deadline is months out and the
+  same prepared redeploy above fixes it whenever you want it.
 
 ## 4. Apple: enrollment ✅ DONE · the three `ASC_*` secrets ✅ DONE — what remains is the app record and the on-device checks
 
@@ -762,7 +771,7 @@ JSON and the parity test could check it mechanically. Non-blocking.
 
 ---
 
-# Current state snapshot (Session 047 close)
+# Current state snapshot (Session 050 close)
 
 - **Plan progress:** the MVP is **code-complete** — M0–M6.3 including M5.3 (the
   live coach), consent/legal at version 2, CI→Slack, the whole UI/UX arc plus the
@@ -788,14 +797,23 @@ JSON and the parity test could check it mechanically. Non-blocking.
   gating, the coach safety spine + live Anthropic adapter, the device-privacy
   layer, the data-rights layer (export + hard cascade delete), the release lane
   (tag → TestFlight, proven), and the consent & legal layer.
-- **Where the remaining work sits.** Every engineering item that a session could
-  do alone is done. What is left splits three ways: **your decisions** (this
-  page), **things that need a device or a live run** (#15's crash log, #48's Face
-  ID behaviour, #121's release-lane confirmation), and **M6.5 Android**, which
-  waits on Gate 3. Sessions keep clearing tracked debts when one is genuinely
-  unblocked — S047 closed **#99** and **#67** and filed **#120**/**#121** — but
-  nothing a session can do without you changes what you see on your phone. That
-  is the design, not a stall.
+- **Where the remaining work sits.** This line used to say *"every engineering
+  item that a session could do alone is done."* **Session 050 set out to confirm
+  that and disproved it** — it swept the repo along eight independent axes and
+  filed three items no one was tracking: **#129** (the release lane's
+  `Gemfile.lock` comment has been false since S048, the lane installs unfrozen,
+  and no release run has ever touched the committed lock), **#130** (ADR-026
+  claims the seasonal vocabulary is guarded in five readers; the app's copy has
+  no parity test, and the test that looks like one only checks the list against
+  itself), and **#131** (seven high-severity npm advisories in `functions/`, two
+  of them in the tree that ships to production, and nothing in CI ever looks).
+  **None of them needs you.** What still splits your way: **your decisions**
+  (this page), **things that need a device or a live run** (#15's crash log,
+  #48's Face ID behaviour, #121's release-lane confirmation), and **M6.5
+  Android**, which waits on Gate 3. Sessions keep clearing tracked debts when one
+  is genuinely unblocked — S047 closed **#99**/**#67**, S048 closed **#120**,
+  S049 closed **#100** — but nothing a session can do without you changes what
+  you see on your phone. That is the design, not a stall.
 
 ---
 
