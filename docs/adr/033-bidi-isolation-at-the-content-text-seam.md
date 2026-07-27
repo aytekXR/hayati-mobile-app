@@ -76,15 +76,18 @@ Both rows disagree. A future session reaching for `detectRtlDirectionality` beca
 
 `app/lib/core/l10n/bidi_isolate.dart`
 
-- `String isolate(String text)` → `'⁨$text⁩'`, the **first-strong isolate**. Returns `text` unchanged when it is empty or contains no character at all, so we never emit two invisible controls around nothing.
+- `String isolate(String text)` → `'⁨$text⁩'`, the **unconditional primitive**. Returns `text` unchanged when empty, so we never emit two invisible controls around nothing.
+- **`String isolateWithin(String text, TextDirection ambient)` — this is what call sites actually use.** It applies `isolate` only when `text`'s own first-strong direction differs from `ambient`; otherwise it returns `text` untouched. D9 explains why the conditional form is load-bearing rather than an optimisation: unconditional isolation is semantically inert but *not pixel-neutral*, and it churned 27 goldens.
 - Exported constants `firstStrongIsolate` / `popDirectionalIsolate` so tests and call sites never re-spell the code points.
+
+**Known limitation, recorded rather than hidden (rule 9).** `isolateWithin` gets first-strong from `Bidi.startsWithRtl`/`startsWithLtr`, whose character classes are `֑-߿`, `יִ-﷽`, `ﹰ-ﻼ`. **Arabic Extended-A (U+08A0–U+08FF) is not in the RTL class — and worse, intl's LTR class matches it.** Measured: `U+08A0` is Bidi_Class **AL** (strong RTL), yet `startsWithLtr` returns `true` for it. Adlam (U+1E900) matches *neither* class. Consequence: content beginning with such a character, rendered in **LTR** chrome, is silently left un-isolated and the mirror defect survives. Bounded and low-risk for this product — Gulf Arabic and Turkish both sit inside the covered ranges — but it is a **silent** failure, so it carries a `// DEBT:` comment at the seam and an issue.
 
 `app/lib/core/widgets/content_text.dart`
 
-- `ContentText` — the ergonomic seam for "this whole `Text` is content". It renders `Text(isolate(data), semanticsLabel: data, …)` and forwards the style/align/maxLines/overflow arguments the call sites already use.
+- `ContentText` — the ergonomic seam for "this whole `Text` is content". It renders `Text(isolateWithin(data, Directionality.of(context)), semanticsLabel: data, …)` and forwards the style/align/maxLines/overflow arguments the call sites already use.
 - **`semanticsLabel` carries the PRISTINE string.** Flutter's `Text` replaces the subtree's semantics when `semanticsLabel` is non-null (`text.dart:802-807`), so the accessibility tree never sees the control characters even though the paragraph does. This is strictly better than the status quo, where the a11y label is whatever `data` happens to be.
 
-For interpolation into a localized sentence, call sites pass an isolated *argument*: `l10n.invitePreviewInvitedBy(isolate(name))`. There is no widget for this and there should not be — the unit being isolated is a run, not a paragraph.
+For interpolation into a localized sentence, call sites pass an isolated *argument*: `l10n.invitePreviewInvitedBy(isolateWithin(name, Directionality.of(context)))`. There is no widget for this and there should not be — the unit being isolated is a run, not a paragraph.
 
 ## Decision 3 — The boundary: isolate **content**, never **chrome**
 
@@ -144,7 +147,7 @@ The session brief asked for the mixed cases the choice mishandles. There are som
 
 ## Decision 7 — The failing test asserts geometry, not the mechanism
 
-`app/test/core/l10n/bidi_isolate_test.dart` (helper) and the widget assertion:
+`app/test/core/widgets/content_text_test.dart` — the geometry assertion, the `ContentText` contract, and the `isolate()` unit rows all live in the one file (the seam is small enough that splitting it would separate the guard from the thing it guards):
 
 > The terminator must bind to the **trailing side of its own run**: for LTR content, `terminatorBox.left >= lastLetterBox.right`; for RTL content, `terminatorBox.right <= lastLetterBox.left`.
 
@@ -166,6 +169,10 @@ They move to `find.text(isolate('…'))`. This is deliberate: after this diff, *
 | `coach_screen_test.dart:314`, `:326` | `expect(find.text('Coach message.'), findsNothing)` |
 
 go **green either way** after isolation: the raw string stops matching whether the content is genuinely absent *or* present-and-isolated. A `findsOneWidget` row fails loudly and gets fixed; a `findsNothing` row passes silently and stops testing anything. Every one of them must move to the isolated query in the same commit, and the migration is not complete until `findsNothing` rows are audited specifically.
+
+**As built, the migration was FOUR assertions, not seventeen** — the conditional seam of D9 leaves `tr`/`en` cells pristine, so only the `ar` rows moved, which are exactly the defect cases. The four `findsNothing` rows moved to `find.textContaining`, which matches through the isolate and so can still fail.
+
+**The build-diff review's fair objection, answered rather than dismissed:** those four migrated rows now build their expected string with `isolateWithin(...)` — the same function the production code calls. That *is* the self-referential shape addendum 43 warns about, and if `isolateWithin` were wrong those rows would agree with it. It is accepted here because of a division of labour that must survive future edits: **the migrated rows are LOCATORS, not behaviour assertions.** What the seam actually does is proven by `content_text_test.dart`'s geometry rows, which never call `isolate` or `isolateWithin` and measure the framework's layout output instead. Delete or weaken those geometry rows and this compromise stops being safe.
 
 ## Decision 9 — The declared golden set (ADR-025 D8)
 
@@ -259,7 +266,7 @@ The completeness critic returned **zero findings** but settled the open guarante
 
 ## Consequences
 
-- One new pure function, one new widget, and a mechanical edit at 12 call sites. A new screen rendering content inherits the fix by using `ContentText`.
+- Two new pure functions, one new widget, and a mechanical edit at **11 call sites** (8 `ContentText`, 3 isolated arguments — counted from the tree, not from the D3 table, whose rows name *construction* sites where several funnel into one `Text`). A new screen rendering content inherits the fix by using `ContentText`.
 - ~48 RTL goldens re-baselined; zero LTR goldens; three slice-0 firewall guards must stay green.
 - The a11y tree gets *cleaner* (pristine `semanticsLabel`), not dirtier.
 - A residual we are not fixing: nothing *enforces* that a future content-render site uses `ContentText`. `rtl_lint` cannot tell content from chrome. This is recorded as the honest gap it is rather than papered over with a guard that would mostly restate `grep` (ADR-024's lesson).

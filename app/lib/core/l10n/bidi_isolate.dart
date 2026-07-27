@@ -76,6 +76,15 @@ String isolate(String text) =>
 /// spec-shaped "skip to the first strongly-directional character" tests —
 /// **not** `detectRtlDirectionality`, which is a majority heuristic and
 /// disagrees with first-strong in both directions.
+// DEBT (#137): first-strong comes from intl, whose RTL character class is
+// `֑-߿יִ-﷽ﹰ-ﻼ`. **Arabic Extended-A
+// (U+08A0-U+08FF) is outside it — and intl's LTR class MATCHES it.** Measured:
+// U+08A0 is Bidi_Class AL (strong RTL), yet `Bidi.startsWithLtr` returns true.
+// Adlam (U+1E900) matches neither class. So content beginning with one of those
+// characters, rendered in LTR chrome, is silently left un-isolated and the
+// mirror defect survives. Bounded and low-risk here — Gulf Arabic and Turkish
+// both sit inside the covered ranges — but SILENT, which is why it is written
+// down rather than absorbed.
 String isolateWithin(String text, TextDirection ambient) {
   if (text.isEmpty) return text;
   // rtl_lint bans bare TextDirection literals because they are almost always a
