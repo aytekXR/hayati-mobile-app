@@ -16,6 +16,8 @@
 >
 > **S050 addendum — (50) ADDENDUM 19 HAS NOW BEEN BROKEN THREE TIMES, INCLUDING BY THE SESSION THAT COINED IT.** *When a diff corrects a claim, grep the WHOLE repo for that claim.* S048 committed `Gemfile.lock`, updated ADR-032 and `fastlane/README.md` — and left `release.yml:415-418` saying *"there is no lock"*, which is **the one file the claim is about** (#129). S045 discovered prod was live on Node 20 and added a red block to the top of `operator-expected.md` without correcting the summary 35 lines below it, which went on telling the founder *"nothing on the engineering side now carries a deadline"* for five sessions. The rule keeps failing because people grep for the **thing they changed** (`Gemfile.lock`, `nodejs20`) rather than for the **claim they falsified** (*"there is no lock"*, *"no deadline remains"*) — which is phrased differently everywhere it appears. **Grep for the negation and the paraphrase, not just the noun.**
 >
+> **S050 addendum — (51) A REMAINDER DEFERRED INTO PROSE IS A REMAINDER THAT GETS LOST — AND A DOC IS AN INDEX TO AUDIT, NOT ONLY A THING TO EDIT.** The redesign-wave review found a real, user-visible RTL rendering defect on 2026-07-26 and recorded it in `operator-expected.md` as *"scheduled for the next agent session."* **No issue was filed; no session picked it up.** It surfaced only when S050 was *pruning that file* and asked, of each item the prose named, "is this tracked anywhere?" — one `gh issue list | grep` per item, and the answer for that one was no (**#133**). Two rules follow. **(a)** `session-rules.md` §2 says discoveries go to `gh issue create`; a prose bullet in a doc is **not** a tracker, however prominent the doc. **(b)** When you edit a status document, **audit every claim it makes against the tracker and the tree, item by item** — the edit is the cheap part, and the audit is where the findings are. The same pass also caught that `SLACK_WEBHOOK_URL` still does not exist (item 5 genuinely open, not stale) — a claim that would have been dropped as "surely done by now" if pruning had been treated as formatting.
+>
 > **S049 addendum — (48) A PREMISE THAT WAS REPLACED RATHER THAN MEASURED IS LIKELY WRONG AGAIN.** ADR-029 D6 correctly retired *"macOS minutes bill at 10× on this private repo"* and offered *"macOS runners queue far longer than ubuntu"* in its place. **Measured at S049 over 24 macOS jobs: queue time is 0.1 min — about six seconds — median AND max.** The substitute was as false as the original, S047 repeated it verbatim while auditing other stale claims, and a THIRD copy sat on another gate neither session touched. When you retire a load-bearing claim, **measure the replacement or mark it unmeasured** — do not reason your way to a new one.
 >
 > **S048 addendum — (47) A NEW RULE CAN MAKE OLD ROWS VACUOUS.** S048 added a fifth rule to the release-lane lint, and four *pre-existing* mutation rows silently began returning an INPUT error (exit 64) instead of the violation they assert — so they passed for the wrong reason, invisibly. After adding a rule, **re-run every row**, not only the new ones. Corollary: when mutating a version-constraint check, mutate **both halves** of the operator — always-true is caught by seven rows, while incrementing the *wrong segment* (silently admitting a MAJOR bump) was caught by **exactly one**.
@@ -32,11 +34,42 @@
 >
 > **Standing binding-invariants note:** **M6.1 (ADR-018 rev 4)** the four lock invariants; **M6.2 (ADR-019)** the seven cascade invariants, deletion notice sends NO push, export `formatVersion` 2; **ADR-023** consent/legal is BINDING — `users.consent` server-owned, the three-way legal-version source-sentinel means a legal-text revision bumps ALL THREE in one diff, `docs/legal/` byte-synced to `app/assets/legal/` under a drift test, withdrawal is PROSPECTIVE by DV doctrine; **ADR-024** `tool/ci/slack_notify.sh` is the single notifier with NO vote on the build and ALL policy in the script; **ADR-025** the slice-0 firewall stays live (lock-screen forbidden-API sentinel, brandkit→Dart token parity, the 96-pair frozen-sentence digest); **ADR-026** the `seasonalWindow` vocabulary is CLOSED and gated in FIVE readers — adding a season is a five-file change, **but only FOUR of the five are parity-guarded: see #130, the objective below**; **ADR-032** release signing is fastlane `match` + MANUAL, the build NAME comes from pubspec while the build NUMBER is CI-synthesized, `store_metadata` uses the narrow ASC-only credential check, and `fastlane/metadata/*/name.txt` is PINNED to **İkimiz** because `deliver(force: true)` would otherwise rename the live App Store listing — all four enforced per-PR by `tool/release_lane_lint.dart` (**74** mutation checks, up from 56 at S048).
 
-## Objective — Session 051: **#130 — make ADR-026's "five readers" claim true by construction, not by discipline.**
+## Objective — Session 051: **#133 — Latin-script text inside the Arabic RTL chrome puts its punctuation on the wrong end. Fix it at the shared seam.**
 
-**Why this one first.** It is the only item in the queue that is a **guarantee-vs-mechanism gap** — the class this repo has repeatedly found to be its highest-value — and it is fully landable on Linux with no founder, device, or credential. It is also properly TDD-shaped: the failing test exists before the fix, because *the test is the fix*.
+> **Re-ranked after this file was first written.** S050 originally queued #130 here. Pruning `operator-expected.md` later in the same session surfaced **#133**, which outranks it: #130 is a *latent* guard gap (no shipped pack sets `seasonalWindow` yet), while #133 is **a live, visible defect in committed goldens** that mangles the two things the product is actually about — the daily question and the answers each partner writes. #130 moves to the top of the follow-on list below, with its full brief intact.
 
-### The defect
+### The defect, confirmed by reading the golden rather than the prose
+
+`app/test/.../goldens/paired_home_screen/revealed_streak.ar.rtl.png` — **three instances in one screen**:
+
+| Should read | Actually renders |
+|---|---|
+| `…küçük bir şey ne?` | `…küçük bir` / **`?şey ne`** |
+| `Kahvaltıda birlikte gülmemiz.` | **`.Kahvaltıda birlikte gülmemiz`** |
+| `Sabah çayını birlikte içmemiz.` | **`.Sabah çayını birlikte içmemiz`** |
+
+The bidi algorithm is behaving **correctly** for the input it was given: a neutral character (`?`, `.`) at the boundary of an LTR run inside an RTL paragraph takes the *paragraph* direction unless it is isolated. So this is not a Flutter bug to work around — it is missing isolation at our seam.
+
+**Provenance, and the reason it is worth a session:** the redesign-wave review found it on 2026-07-26 and wrote it into `operator-expected.md` as *"scheduled for the next agent session with directional isolates."* **No issue was ever filed and no session picked it up** — it surfaced only because S050 checked whether every item that prose named was tracked anywhere. **A remainder deferred into a prose document is a remainder that gets lost** (`session-rules.md` §2 exists for exactly this; see the archaeology note in addendum 51 below).
+
+### Acceptance criteria
+
+1. **A failing test first**: render Latin-script content under `TextDirection.rtl` and assert trailing punctuation lands at the trailing edge. Demonstrate red before green.
+2. **Fix at the shared text-rendering seam, not per-screen**, so a new screen inherits it. Prefer **FSI/PDI** (`⁨`…`⁩`, first-strong isolate) for *user-authored* text — the app cannot know what language a partner typed. A content-directed `Directionality` is only correct where the content's language is known (the question pack knows its own locale); do not use it for free text.
+3. **Audit the other RTL goldens for the same signature.** Three instances were in the first screen looked at, which is rarely where a defect stops.
+4. **Golden re-baseline under ADR-025 D8 / W4**: declare the expected file set in the PR **before** running `--update-goldens`, and paste `git status --porcelain -- 'app/test/**/*.png'` beside it. This legitimately changes RTL cells — a changed golden *outside* the declared set is still a defect to explain.
+5. `flutter analyze` clean · full suite green · coverage gate · `dart format` · **`flutter gen-l10n` in `app/` first**.
+6. Close **#133** with the PR.
+
+**Design-review before writing the fix.** The question worth adversarial attention: **FSI at the widget seam versus at the string boundary.** Isolating the whole widget's text is simpler but changes how *mixed* strings (Arabic sentence containing a Latin name) resolve; isolating per-run is more correct and more code. Pick deliberately, and write down which mixed cases the choice gets wrong — there will be some.
+
+### Then, in priority order
+
+**#130 — make ADR-026's "five readers" claim true by construction, not by discipline.**
+
+It is the queue's only **guarantee-vs-mechanism gap** — the class this repo has repeatedly found highest-value — and it is fully landable on Linux with no founder, device, or credential. Properly TDD-shaped: the failing test *is* the fix.
+
+#### #130 — the defect
 
 ADR-026 D3 guarantees the seasonal vocabulary is **"enforced in five places."** All five readers do reject an unknown value. What is missing is the **parity net** that keeps the five in sync:
 
@@ -54,7 +87,7 @@ Nothing in `app/test/` reads `content/schema/question-pack.schema.json`.
 
 **The failure it permits:** add a season to the schema, validator and TS parser; forget the Dart file. The validator passes, the TS parser passes, **CI is fully green**, and the app throws `FormatException` at pack-load **on a real device**. Latent today only because no shipped pack sets `seasonalWindow` — which is exactly what ADR-026 exists to change.
 
-### Acceptance criteria
+#### #130 — acceptance criteria
 
 1. **A failing test first.** `app/test/features/daily_question/seasonal_window_parity_test.dart` reads `content/schema/question-pack.schema.json`, extracts the `seasonalWindow` enum, and asserts **set-equality** with `knownSeasonalWindows`. Demonstrate it fails against a mutated list before the guard is real. Pattern to follow: `app/test/core/design_system/brandkit_token_parity_test.dart` already reads a JSON source-of-truth from a Dart test; `functions/test/unit/schema-agreement.test.ts` is the same idea on the TS side.
 2. **Widen it while you are there.** `category` and `register` have the identical comment-instead-of-guard shape in `question_test.dart` (a hardcoded expectation plus a `// content/schema/… enum: …` comment). One parity test covering **every enum in the schema** closes all three and makes the claim true by construction. Prefer the general form over three specific ones — but if a schema enum has a deliberate reason not to be mirrored in Dart, **say so in the test** rather than silently omitting it.
@@ -65,7 +98,7 @@ Nothing in `app/test/` reads `content/schema/question-pack.schema.json`.
 
 **Design-review the plan before writing the test** (standing review-ordering note, 26 consecutive passes). The design question worth adversarial attention: **is set-equality the right assertion, or should the app's list be permitted to be a strict subset?** A reader that knows fewer seasons than the schema fails closed (rejects a valid pack) — a reader that knows more fails open. Those are not symmetric, and the test should encode the answer deliberately rather than by default.
 
-### Then, in priority order, for the sessions after
+### And after those
 
 - **#131** — 7 high npm advisories in `functions/`, two (`google-gax`, `fast-xml-parser`) in the `firebase-admin@14.2.0` tree that **ships to production**. `npm audit fix` claims all seven are non-breaking; **verify rather than trust**. **Do NOT run `npm audit fix --force`** — npm's advice for the 7 *moderate* findings is to downgrade `firebase-admin` to **10.3.0**, which would undo ADR-031 and conflict with ADR-030. Then decide whether CI should carry an audit gate at all, arguing it honestly against ADR-024's lesson (an honest gap beats a guard that mostly restates something else); a dispatch-only or scheduled report in `gemfile-lock.yml`'s shape may fit better than a `main`-reddening gate.
 - **#129** — delete `release.yml`'s false `Gemfile.lock` comment (uncontroversial), and decide on `--frozen`. Read the issue's honest scoping first: **no doc ever claimed the release lane installs frozen**, so this is the S044 lesson applied to the producer and not the consumer, not a broken written guarantee. The `--frozen` half should land on a run someone is watching (addendum 44).
