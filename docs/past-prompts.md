@@ -1839,3 +1839,76 @@ Deliberately **not** `pilot(distribute_external: true)`: that needs `skip_waitin
 **Operator action required: YES, and it is blocking the user-visible half.** New items **2(c)** (connect the domain + `FIREBASE_SERVICE_ACCOUNT` + **fill the legal blanks** + enable Associated Domains) and **2(d)** (Test Information for Beta App Review). The invite link points at a domain that is not serving yet, which is why the code and the deploy lane ship together.
 
 **Outcome:** the founder's four-part directive is complete in code. **ADR-035**, **ADR-036**, **ADR-037** written. #140 remains the top engineering item and moves to Session 055.
+
+## Session 055 — 2026-07-28 — **the last gap between a good build and five testers was four form fields, and the gate protecting the legal text could not read Turkish**
+
+**Objective (founder directive, superseding the queued #140):** make the website and the iOS app ready for TestFlight and testers, and make sure testers can actually get the app.
+
+**Session hygiene.** Five other claudes on this box, all confirmed by cwd to be other repos (`ams-pulse`, `yanki-mvp`, `unhooked`, `ai-videos`, `$HOME`). One was my own pre-`/clear` background bash, walked up the ppid chain first so I did not report myself. Session number re-derived from `git log`, not from the resume prompt's prose.
+
+**The session opened on a merge nobody had done.** PR **#145** — the whole S054 rename, the site generator, universal links and TestFlight auto-assignment — was **green, mergeable, and still open**. S054's log says "complete in code"; it was complete on a branch. Merged first, because everything else depended on it. A session that reads the log and not the platform would have rebuilt it.
+
+### Preemptions, run live (all unchanged)
+
+**#115 still HTML 403** — seven sessions. **Prod runtime 11 × `nodejs22`** confirmed, not inherited. **`RC_WEBHOOK_TOKEN` still absent on dev** — re-probed *with prod as a passing control* after the first probe returned exit 1 and an empty stderr file, which is a probe that has reported nothing (S051's rule, fired again): dev 404, prod exit 0. **Dependabot alerts still disabled.** Zero open PRs after the merge.
+
+### What was actually blocking the testers, measured
+
+`testflight-testers.yml --status`, run 30391917460:
+
+```
+app: ikimiz (com.beyondkaira.hayati)
+beta groups:  'founders' (internal)  'arkadaslar' (external)  'Friends' (external)
+builds:       110 VALID (2026-07-27, real icon)  109  3  2  1
+readiness:    MISSING - review contact email / first name / last name / phone
+```
+
+**Four fields.** Not the description, not the feedback email — `review_readiness()` checks both and reported neither, so both were already set. A good build had been sitting in TestFlight for a day waiting on a form, and this page had been telling the founder it needed "your copy".
+
+The tool's own docstring said those gaps were *"founder-owned copy that no session can write for them."* **Half true, in the expensive direction.** The four *facts* are the founder's — a name, an email, a phone. The *write* is a PATCH on an API this repo already authenticates against with credentials CI already holds. That asymmetry is the whole of **ADR-038**.
+
+### The design review earned its cost, and one finding was a rule this repo had already written down
+
+Five lenses × two verifiers + a completeness critic; 38 agents, **0 errors**, 16 raw findings, **5 survived**, 1 dropped to the per-lens cap **and logged** (it was true, and became operator item 2(d)). The critic returned an empty list — checked against its transcript rather than trusted (S041): 43 tool calls, real work, and it independently found that `list_builds` does not fetch `buildBetaDetail`.
+
+- **"The tool never prints a value" had no mechanism.** ADR-024 had already settled this class — `slack_notify_test.sh` carries an `assert_no_leak` sentinel — and ADR-038 asserted the same guarantee with nothing behind it. Now four *distinct* sentinels (one per field, so a leak names which one escaped) across the set / unchanged / dry-run / create paths, and the partial-credential failure text is asserted to name the **secret** and contain none of the **values**.
+- **"Apple returns a conflict for a duplicate submission" was a guess wearing a fact's clothes.** The review found 409 and 422 both claimed in the wild and neither measured here. Replaced by reading `externalBuildState` *before* posting; the error path survives only as a race backstop that demands an error family **and** a phrase, because either half alone swallows a real failure or misses the real one.
+- **The state enum is not five values.** Printed verbatim now, with only two fail-safe subsets in code: already-through-the-gate (skip) and the two export-compliance states (refuse, and name the one-click fix). An unknown state still attempts, which is the safe direction.
+- `--dry-run` was unspecified for both new writes — and the workflow's `dry_run` input **defaults to true**, so that is the first path anyone exercises.
+- ADR-038 was missing from the index.
+
+### Wiring the release lane created a bug the reviewers never saw
+
+`release.yml` passes `--set-review-contact` on **every** release. With `read_review_contact()` failing closed, a founder who has not set the four secrets would abort **before the build assignment** — silently repealing ADR-037's guarantee that every release build reaches the Friends group, while `continue-on-error` kept the release green. Exactly S053's addendum-58 shape: the fix for a finding carrying its own defect. The write now reports, continues, and still exits non-zero, and a test drives `main()` with the secrets unset to prove the assignment POST still happens.
+
+### The placeholder gate could not read Turkish or Arabic
+
+`PLACEHOLDER_MARKERS = ("to be completed by the founder", "TO BE COMPLETED")`. Measured across all six legal documents:
+
+| | detector hits | real unfilled blanks |
+|---|---|---|
+| `privacy-policy.en.md`, `terms.en.md` | 2 each | 2 each |
+| `privacy-policy.tr.md`, `terms.tr.md` | **0** | 2 each |
+| `privacy-policy.ar.md`, `terms.ar.md` | **0** | 2 each |
+
+A gate whose entire stated purpose is *"a privacy policy served at a public URL must not read 'to be completed by the founder'"* reported **clean** for a Turkish privacy policy that says exactly that, in Turkish, to this product's primary market. It was blind in English too: the governing-law blank says "to be **determined** by the founder's lawyer" and matched nothing — it was flagged only because a sibling blank happened to share the file, so filling that sibling would have silenced the gate with `[GOVERNING LAW — …]` still on the page. And the two markers are **one** pattern: `"TO BE COMPLETED".lower()` is a substring of the other under the case-insensitive match, so every count it printed was doubled (S053's unit lesson, in a second tool).
+
+Fixed by matching the **shape** — a bracketed span containing an em dash — which every blank has in all three languages. Language-independent **by construction** rather than by a translator remembering to add a marker: the S054 lesson about preserving a premise instead of patching it, applied to the guard rather than the copy. All **12** distinct blanks now detected. The comment that caused the blindness ("matched as literal fragments rather than a generic `\[.*\]` so ordinary bracketed prose can never trip the gate") is replaced by tests for that exact worry — bracketed prose, an em dash in prose, and a bracket and dash on separate lines all still pass.
+
+### A green run that proved nothing, caught before it shipped
+
+The four new `build_site_test.py` suites were added and the run went green — with the tests **never executed**. The file registers tests as bare function references in a tuple inside `main()`, and the edit that "registered" them matched nothing. `EXIT=0`, 38 ok lines, four suites silently absent. Found by grepping the log for a string only the new tests print. This is the same class as everything else in this session: a green check that guards nothing is worse than no check, because it is also a claim.
+
+### The website: created, deployed, proven — and DNS points somewhere else
+
+Created the `ikimiz` Hosting site in `hayatiapp-prod` (it did not exist; `firebase.json` has pinned `"site": "ikimiz"` since S054, so `deploy-site.yml` would have failed at the deploy step) and deployed the generated site to a preview channel. All six legal pages in three languages, `lang`/`dir` correct including `dir="rtl"` for Arabic, the AASA served as `application/json`, `/i/ABC123` rewriting to the invite page, security headers present. The **live** channel is deliberately still 404.
+
+**And the domain does not point at Firebase.** `ikimiz.beyondkaira.com` → **161.97.172.146**, the founder's own VPS (same IP as the apex, HTTP 404, TLS cert covering `beyondkaira.com` only, no wildcard record). ADR-036 assumed a domain waiting to be connected; there is an explicit `A` record that has to be *replaced*. Recorded in operator item 2(e) with the measurement rather than the assumption.
+
+**The legal blanks were deliberately NOT filled.** The founder chose the values (themselves as controller, `aytek@beyondkaira.com`, Turkish law) but the controller's **legal identity** needs their actual full legal name, and guessing a real person's name into a privacy policy is not a judgement call a session gets to make. Filling two of three buys nothing — the gate still refuses — and the set touches ADR-023's binding legal-version machinery, so all three should land in one diff. Named in 2(e), not half-done.
+
+**Verification:** testflight self-tests green (4 new suites + 1 regression test, exit 0 measured without a pipe) · 4 mutants killed (leak a value / drop the dry-run guard / swallow any 422 / treat an unknown state as submitted) · `build_site_test.py` 38 → **57** checks, 2 mutants killed (the old English rule fails 13; any-bracket fails the cry-wolf pair) · `dart format` 0 changed · five workflows parse · ADR index **38 rows / 38 files**, verified both directions · working tree clean after both review workflows returned (S037's addendum).
+
+**Operator action required: YES, and 2(c) is now two minutes of work.** Four `gh secret set` lines and one dispatch puts build 110 in front of Apple's reviewer. **2(d) is newly blocking** — the `applinks:` entitlement means the *next* release build fails to sign until Associated Domains is ticked on the App ID; build 110 predates it, which is why 2(c) ships 110.
+
+**Outcome:** **ADR-038** written and merged. **#146** filed. #140 remains the top engineering item and moves to Session 056.

@@ -44,9 +44,38 @@ BUNDLE_ID = "com.beyondkaira.hayati"
 DOMAIN = "ikimiz.beyondkaira.com"
 BRAND = "ikimiz"
 
-# Unfilled blanks the founder still owes. Matched as literal fragments rather
-# than a generic `\[.*\]` so ordinary bracketed prose can never trip the gate.
-PLACEHOLDER_MARKERS = ("to be completed by the founder", "TO BE COMPLETED")
+# Unfilled blanks the founder still owes.
+#
+# MEASURED, not assumed. Every blank in the corpus — in all three languages —
+# has the identical shape: a bracketed span containing an EM DASH,
+# `[LABEL — explanation]`. Session 055 measured the previous rule (two English
+# phrases) against all six documents and found it blind to FOUR of them: both
+# Turkish files say `kurucu tarafından doldurulacak`, both Arabic ones
+# `يُستكمل من قِبل المؤسِّس`, and neither contains an English word. The gate
+# whose entire purpose is "a public privacy policy must not say 'to be
+# completed by the founder'" reported zero hits for the Turkish privacy policy
+# that says exactly that, in Turkish, to this product's primary market.
+#
+# It was blind in English too. The governing-law blank reads "to be DETERMINED
+# by the founder's lawyer" and matches neither phrase; it was flagged only
+# incidentally, because a sibling blank happened to share the file. Fill that
+# sibling and the gate goes quiet with `[GOVERNING LAW — …]` still on the page.
+#
+# Matching the SHAPE instead of the WORDS is what makes this language-
+# independent BY CONSTRUCTION rather than by a translator remembering to add a
+# marker (the S054 lesson: preserve the premise, do not patch it). What it
+# trades for is a false positive on legitimate bracketed prose containing an em
+# dash — of which the corpus has zero — and such a positive is self-explaining,
+# because the offending span is printed verbatim in the error.
+PLACEHOLDER_SPAN = re.compile(r"\[[^\[\]\n]*—[^\[\]\n]*\]")
+
+# Belt and braces, for a blank someone writes without an em dash. ONE entry per
+# distinct pattern: the old tuple's "TO BE COMPLETED" is a case-insensitive
+# substring of its own first element, so every count it printed was doubled.
+PLACEHOLDER_PHRASES = (
+    "to be completed by the founder",
+    "to be determined by the founder",
+)
 
 LOCALES = {
     "en": {"dir": "ltr", "lang": "en", "privacy": "Privacy Policy", "terms": "Terms of Service"},
@@ -196,7 +225,26 @@ def lang_nav(kind: str, current: str) -> str:
 
 
 def check_placeholders(name: str, text: str) -> list[str]:
-    return [m for m in PLACEHOLDER_MARKERS if m.lower() in text.lower()]
+    """The unfilled blanks in one document, as the VERBATIM offending spans.
+
+    Returning the span rather than the marker that matched it is deliberate: the
+    error has to tell the founder which blank, in which language, is still open
+    — and it is the only thing that makes a false positive diagnosable rather
+    than mysterious.
+    """
+    hits = [match.group(0) for match in PLACEHOLDER_SPAN.finditer(text)]
+    lowered = text.lower()
+    for phrase in PLACEHOLDER_PHRASES:
+        # Only if no span already covers it, so one blank is never counted twice.
+        if phrase in lowered and not any(phrase in hit.lower() for hit in hits):
+            hits.append(phrase)
+    seen: set[str] = set()
+    unique: list[str] = []
+    for hit in hits:
+        if hit not in seen:
+            seen.add(hit)
+            unique.append(hit)
+    return unique
 
 
 def build(out_dir: pathlib.Path, legal_dir: pathlib.Path, allow_placeholders: bool) -> int:

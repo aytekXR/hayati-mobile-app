@@ -467,12 +467,26 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          # ADR-038 D4: a release is already an intentional act, and a build
+          # that ships and then sits blocked on a form nobody filled is the
+          # whole failure this lane exists to prevent. Idempotent — a run where
+          # all four already match writes nothing and says "unchanged".
+          # It does NOT submit for Beta App Review: that puts the app in front
+          # of an Apple reviewer, which stays a deliberate dispatch (D3).
+          ASC_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_FIRST_NAME }}
+          ASC_REVIEW_CONTACT_LAST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_LAST_NAME }}
+          ASC_REVIEW_CONTACT_EMAIL: ${{ secrets.ASC_REVIEW_CONTACT_EMAIL }}
+          ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}
         run: |
           pip install --quiet 'pyjwt[crypto]==2.10.1'
           # The same synthesized number the build carries (ADR-032 D3).
+          # --set-review-contact is passed unconditionally; if the four secrets
+          # are unset the tool fails closed naming them, and this step is
+          # continue-on-error, so the release still reports the binary it shipped.
           python3 tool/ci/testflight_testers.py \
             --bundle-id com.beyondkaira.hayati \
             --group Friends \
+            --set-review-contact \
             --assign-build-number "$((100 + GITHUB_RUN_NUMBER))" \
             --wait-minutes 25
       - name: fastlane store_metadata (deliver per locale)

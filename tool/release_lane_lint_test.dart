@@ -394,6 +394,80 @@ void main() {
     _check('R3: names the missing job', err.contains('no `sign-upload:` job'));
   }
 
+  // ------------------------------------- RULE 3's gate exemption (ADR-038) ---
+  //
+  // Three rows, because an allow-list you cannot mutate is an allow-list that
+  // proves nothing. The MUST-STAY-GREEN row is the one that makes the other two
+  // mean something: it is what distinguishes a real exemption from a rule that
+  // was simply switched off.
+  {
+    // MUST STAY GREEN. A gate-exempt secret read by a continue-on-error step is
+    // the ADR-038 D4 shape and must NOT fail — the Test Information write is
+    // deliberately survivable, and demanding it in the gate would abort the
+    // release before the build assignment (repealing ADR-037 silently).
+    final (code, _, err) = _mutant(
+      workflow: _healthyWorkflow.replaceFirst(
+        '        run: bundle exec fastlane ios store_metadata',
+        '        run: bundle exec fastlane ios store_metadata\n'
+            '      - name: assign to Friends\n'
+            '        continue-on-error: true\n'
+            '        env:\n'
+            '          ASC_KEY_ID: \${{ secrets.ASC_KEY_ID }}\n'
+            '          ASC_ISSUER_ID: \${{ secrets.ASC_ISSUER_ID }}\n'
+            '          ASC_API_KEY_P8_BASE64: \${{ secrets.ASC_API_KEY_P8_BASE64 }}\n'
+            '          ASC_REVIEW_CONTACT_FIRST_NAME: \${{ secrets.ASC_REVIEW_CONTACT_FIRST_NAME }}\n'
+            '          ASC_REVIEW_CONTACT_PHONE: \${{ secrets.ASC_REVIEW_CONTACT_PHONE }}\n'
+            '        run: python3 tool/ci/testflight_testers.py --set-review-contact',
+      ),
+    );
+    _check(
+      'R3x: an exempt secret in a continue-on-error step PASSES',
+      code == 0,
+    );
+    _check(
+      'R3x: and the gate is not reported as incomplete',
+      !err.contains('does not check ASC_REVIEW_CONTACT'),
+    );
+  }
+  {
+    // The exemption's premise, falsified: the same secret in a step whose
+    // failure is NOT survivable. Then "its absence is fine" is simply untrue and
+    // the gate's promise really has been broken.
+    final (code, _, err) = _mutant(
+      workflow: _healthyWorkflow.replaceFirst(
+        '        run: bundle exec fastlane ios store_metadata',
+        '        run: bundle exec fastlane ios store_metadata\n'
+            '      - name: assign to Friends\n'
+            '        env:\n'
+            '          ASC_REVIEW_CONTACT_PHONE: \${{ secrets.ASC_REVIEW_CONTACT_PHONE }}\n'
+            '        run: python3 tool/ci/testflight_testers.py --set-review-contact',
+      ),
+    );
+    _check('R3x: an exempt secret in a BLOCKING step fails', code == 1);
+    _check(
+      'R3x: and says the exemption or the step is wrong',
+      err.contains('ASC_REVIEW_CONTACT_PHONE') &&
+          err.contains('not survivable'),
+    );
+  }
+  {
+    // A secret that is NOT on the exemption list still has to be gated — the
+    // allow-list must not have widened into "anything in a soft step is fine".
+    final (code, _, err) = _mutant(
+      workflow: _healthyWorkflow.replaceFirst(
+        '        run: bundle exec fastlane ios store_metadata',
+        '        run: bundle exec fastlane ios store_metadata\n'
+            '      - name: extra\n'
+            '        continue-on-error: true\n'
+            '        env:\n'
+            '          SOME_OTHER_SECRET: \${{ secrets.SOME_OTHER_SECRET }}\n'
+            '        run: echo hi',
+      ),
+    );
+    _check('R3x: a non-exempt secret is still gated', code == 1);
+    _check('R3x: names it', err.contains('does not check SOME_OTHER_SECRET'));
+  }
+
   {
     // THE ORPHAN DIRECTION, made real. `consumed` is measured with the GATE STEP
     // EXCLUDED. Measured over the whole job it was vacuous by construction: the

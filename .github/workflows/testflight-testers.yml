@@ -35,6 +35,19 @@ on:
         description: 'Attach the newest VALID build to the group (a group with no build is inert)'
         type: boolean
         default: false
+      # ADR-038. NOTE what is NOT here: a text box for the contact details.
+      # This repository is PUBLIC and workflow_dispatch inputs are recorded in
+      # run metadata, so a box asking for the founder's mobile number would
+      # publish it permanently. The values come from `release` environment
+      # secrets; these two inputs only choose whether to act.
+      set_review_contact:
+        description: 'Write the Beta App Review contact from the ASC_REVIEW_CONTACT_* secrets'
+        type: boolean
+        default: false
+      submit_for_review:
+        description: 'Submit the newest VALID build for Beta App Review (outward-facing — Apple sees it)'
+        type: boolean
+        default: false
 
 concurrency:
   group: testflight-testers
@@ -72,6 +85,14 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           STATUS_ONLY: ${{ inputs.status_only }}
           ASSIGN_BUILD: ${{ inputs.assign_latest_build }}
+          SET_CONTACT: ${{ inputs.set_review_contact }}
+          SUBMIT_REVIEW: ${{ inputs.submit_for_review }}
+          # The four founder facts. Absent secrets resolve to empty strings and
+          # the tool fails closed naming them, rather than writing three of four.
+          ASC_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_FIRST_NAME }}
+          ASC_REVIEW_CONTACT_LAST_NAME: ${{ secrets.ASC_REVIEW_CONTACT_LAST_NAME }}
+          ASC_REVIEW_CONTACT_EMAIL: ${{ secrets.ASC_REVIEW_CONTACT_EMAIL }}
+          ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}
         run: |
           args=(--bundle-id com.beyondkaira.hayati
                 --group "$GROUP_NAME"
@@ -82,4 +103,6 @@ jobs:
           if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
           if [ "$STATUS_ONLY" = "true" ]; then args+=(--status); fi
           if [ "$ASSIGN_BUILD" = "true" ]; then args+=(--assign-latest-build); fi
+          if [ "$SET_CONTACT" = "true" ]; then args+=(--set-review-contact); fi
+          if [ "$SUBMIT_REVIEW" = "true" ]; then args+=(--submit-for-review); fi
           python3 tool/ci/testflight_testers.py "${args[@]}"

@@ -29,6 +29,12 @@ assert _spec is not None and _spec.loader is not None
 tf = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(tf)
 
+# `test_await_build` monkeypatches tf.list_builds and never puts it back, so any
+# later test that drives main() would silently inherit its last stub — which is
+# an EXPIRED build, quietly turning "assignment happened" into "nothing to
+# assign". Captured here, restored by the test that needs the real one.
+_REAL_LIST_BUILDS = tf.list_builds
+
 _failures: list[str] = []
 
 
@@ -173,10 +179,297 @@ def test_await_build() -> None:
           tf.await_build("t", "app", "110", 60, sleep=lambda _s: None), None)
 
 
+# ---------------------------------------------------------------------------
+# ADR-038 — Test Information and Beta App Review
+# ---------------------------------------------------------------------------
+
+# Values chosen so a leak is unmistakable in a diff AND so each is a distinct
+# needle: a sentinel test that reuses one string cannot tell you WHICH field
+# escaped. The phone shape mirrors a real one because that is the value whose
+# escape into a public log actually costs the founder something.
+SENTINELS = {
+    "ASC_REVIEW_CONTACT_FIRST_NAME": "SENTINELFIRST",
+    "ASC_REVIEW_CONTACT_LAST_NAME": "SENTINELLAST",
+    "ASC_REVIEW_CONTACT_EMAIL": "sentinel@leak.invalid",
+    "ASC_REVIEW_CONTACT_PHONE": "+905550000000",
+}
+
+
+def _fake_call(script):
+    """Replace tf._call with a scripted responder; records every request."""
+    seen = []
+
+    def call(_token, method, path, body=None):
+        seen.append((method, path, body))
+        for match_method, match_fragment, response in script:
+            if method == match_method and match_fragment in path:
+                if isinstance(response, Exception):
+                    raise response
+                return response
+        return {}
+
+    tf._call = call
+    return seen
+
+
+def test_read_review_contact() -> None:
+    print("read_review_contact")
+    check("all four present", tf.read_review_contact(dict(SENTINELS)),
+          {"contactFirstName": "SENTINELFIRST", "contactLastName": "SENTINELLAST",
+           "contactEmail": "sentinel@leak.invalid", "contactPhone": "+905550000000"})
+    check("whitespace stripped",
+          tf.read_review_contact({**SENTINELS, "ASC_REVIEW_CONTACT_EMAIL": "  a@b.co \n"})
+          ["contactEmail"], "a@b.co")
+    # ALL FOUR or nothing: a partial write leaves the readiness check reporting
+    # a gap the log just claimed to close.
+    partial = {k: v for k, v in SENTINELS.items() if k != "ASC_REVIEW_CONTACT_PHONE"}
+    check_raises("missing phone fails closed",
+                 lambda: tf.read_review_contact(partial), "ASC_REVIEW_CONTACT_PHONE")
+    check_raises("names ALL missing secrets",
+                 lambda: tf.read_review_contact({}), "ASC_REVIEW_CONTACT_FIRST_NAME")
+    # And the failure must name the secret, never a value it did receive.
+    try:
+        tf.read_review_contact(partial)
+    except tf.AscError as failure:
+        check("failure text leaks no value",
+              any(s in str(failure) for s in SENTINELS.values()), False)
+
+
+def test_set_review_contact_never_leaks() -> None:
+    """THE guarantee of ADR-038 D1, asserted rather than promised (rule S020).
+
+    This repository is PUBLIC and workflow logs are permanent. GitHub's secret
+    masking is a backstop; the design is that a value is never formatted into
+    an output string at all. That is only true if something checks."""
+    print("set_review_contact")
+    contact = tf.read_review_contact(dict(SENTINELS))
+
+    # Nothing set yet -> a real PATCH, and the summary names FIELDS only.
+    seen = _fake_call([
+        ("GET", "betaAppReviewDetail", {"data": {"id": "detail-1", "attributes": {}}}),
+        ("PATCH", "betaAppReviewDetails/detail-1", {}),
+    ])
+    line = tf.set_review_contact("t", "app-1", contact)
+    check("summary names the fields", sorted(line.split("set ")[1].split(", ")),
+          ["contactEmail", "contactFirstName", "contactLastName", "contactPhone"])
+    check("summary leaks NO value", [s for s in SENTINELS.values() if s in line], [])
+    check("patched the id read from the app relationship",
+          [p for m, p, _ in seen if m == "PATCH"], ["/v1/betaAppReviewDetails/detail-1"])
+    check("the values DID reach Apple",
+          [b for m, _, b in seen if m == "PATCH"][0]["data"]["attributes"], contact)
+
+    # Already correct -> no write at all, and still no value in the line.
+    seen = _fake_call([
+        ("GET", "betaAppReviewDetail", {"data": {"id": "detail-1", "attributes": contact}}),
+    ])
+    line = tf.set_review_contact("t", "app-1", contact)
+    check("unchanged says so", "unchanged" in line, True)
+    check("unchanged writes nothing", [m for m, _, _ in seen if m != "GET"], [])
+    check("unchanged leaks NO value", [s for s in SENTINELS.values() if s in line], [])
+
+    # dry-run must not write. The review found this unspecified; it is now pinned.
+    seen = _fake_call([
+        ("GET", "betaAppReviewDetail", {"data": {"id": "detail-1", "attributes": {}}}),
+    ])
+    line = tf.set_review_contact("t", "app-1", contact, dry_run=True)
+    check("dry-run says WOULD SET", "WOULD SET" in line, True)
+    check("dry-run writes nothing", [m for m, _, _ in seen if m != "GET"], [])
+    check("dry-run leaks NO value", [s for s in SENTINELS.values() if s in line], [])
+
+    # No detail resource yet -> create it, with the app relationship.
+    seen = _fake_call([
+        ("GET", "betaAppReviewDetail", {"data": None}),
+        ("POST", "betaAppReviewDetails", {}),
+    ])
+    line = tf.set_review_contact("t", "app-1", contact)
+    posted = [b for m, p, b in seen if m == "POST"][0]
+    check("creates when absent",
+          posted["data"]["relationships"]["app"]["data"]["id"], "app-1")
+    check("create leaks NO value", [s for s in SENTINELS.values() if s in line], [])
+
+
+def test_submit_for_review() -> None:
+    print("submit_for_review")
+    ready = {"contactEmail": "a@b.co", "contactFirstName": "A",
+             "contactLastName": "B", "contactPhone": "+1"}
+    build = {"id": "b-110", "attributes": {"version": "110"}}
+
+    def script(state, *extra):
+        return [
+            ("GET", "betaAppReviewDetail", {"data": {"id": "d", "attributes": ready}}),
+            ("GET", "betaAppLocalizations",
+             {"data": [{"attributes": {"locale": "en-US", "description": "d",
+                                       "feedbackEmail": "f@x.co"}}]}),
+            ("GET", "buildBetaDetail",
+             {"data": {"attributes": {"externalBuildState": state}}}),
+            *extra,
+        ]
+
+    seen = _fake_call(script("PROCESSING", ("POST", "betaAppReviewSubmissions", {})))
+    check("submits when eligible",
+          "submitted for Beta App Review" in tf.submit_for_review("t", "app", build), True)
+    check("posted the build relationship",
+          [b for m, p, b in seen if m == "POST"][0]["data"]["relationships"]["build"]["data"]["id"],
+          "b-110")
+
+    # dry-run: no POST. Unspecified in the first draft of the ADR; pinned here.
+    seen = _fake_call(script("PROCESSING", ("POST", "betaAppReviewSubmissions", {})))
+    line = tf.submit_for_review("t", "app", build, dry_run=True)
+    check("dry-run says WOULD", "WOULD submit" in line, True)
+    check("dry-run posts nothing", [m for m, _, _ in seen if m == "POST"], [])
+
+    # Already through the gate -> a no-op that SAYS SO, not an error and not a
+    # second submission. Each state checked, because a wrong one submits twice.
+    for state in sorted(tf.ALREADY_SUBMITTED_STATES):
+        seen = _fake_call(script(state, ("POST", "betaAppReviewSubmissions", {})))
+        line = tf.submit_for_review("t", "app", build)
+        check(f"{state} is a no-op", "nothing to submit" in line, True)
+        check(f"{state} posts nothing", [m for m, _, _ in seen if m == "POST"], [])
+
+    # Export compliance blocks review, and the message must name the fix.
+    for state in tf.BLOCKED_BEFORE_REVIEW_STATES:
+        _fake_call(script(state))
+        check_raises(f"{state} refuses",
+                     lambda: tf.submit_for_review("t", "app", build), state)
+
+    # An unknown state is NOT treated as "already submitted" — it tries, which
+    # is the safe direction because the POST is itself a guard.
+    _fake_call(script("SOME_STATE_APPLE_ADDED_LATER",
+                      ("POST", "betaAppReviewSubmissions", {})))
+    check("an unknown state still attempts",
+          "submitted for Beta App Review" in tf.submit_for_review("t", "app", build), True)
+
+    # Refuses outright when Test Information is incomplete: an avoidable
+    # rejection is recorded against the founder's app forever.
+    _fake_call([
+        ("GET", "betaAppReviewDetail", {"data": {"id": "d", "attributes": {}}}),
+        ("GET", "betaAppLocalizations", {"data": []}),
+    ])
+    check_raises("refuses when Test Information is incomplete",
+                 lambda: tf.submit_for_review("t", "app", build), "refusing to submit")
+
+
+def test_looks_already_submitted() -> None:
+    """The BACKSTOP for a duplicate submission. The primary guard is the state
+    read; this only covers the race. It requires BOTH an error family AND a
+    phrase precisely because this repo has NOT measured which status Apple
+    returns — the design review found 409 and 422 both claimed in the wild."""
+    print("looks_already_submitted")
+    check("422 + phrase", tf.looks_already_submitted(
+        "POST /v1/x -> HTTP 422: {'detail':'Another build is in review'}"), True)
+    check("409 + phrase", tf.looks_already_submitted(
+        "POST /v1/x -> HTTP 409: already submitted"), True)
+    # The two halves that must NOT be enough on their own.
+    check("422 without the phrase is a REAL error", tf.looks_already_submitted(
+        "POST /v1/x -> HTTP 422: {'detail':'Invalid build id'}"), False)
+    check("the phrase without the family is a REAL error", tf.looks_already_submitted(
+        "POST /v1/x -> HTTP 500: already submitted"), False)
+    check("401 is never swallowed", tf.looks_already_submitted(
+        "POST /v1/x -> HTTP 401: Authentication credentials are missing"), False)
+
+
+def test_missing_contact_does_not_block_assignment() -> None:
+    """ADR-037's guarantee must survive ADR-038's new flag.
+
+    `release.yml` passes --set-review-contact on EVERY release. If a missing
+    ASC_REVIEW_CONTACT_* secret aborted the run, the build assignment would
+    stop happening for any founder who has not set the four secrets — a
+    regression invisible to every other test, because the release step is
+    continue-on-error and would still look green."""
+    print("missing contact does not block assignment")
+    tf.list_builds = _REAL_LIST_BUILDS  # see the note beside _REAL_LIST_BUILDS
+    for name in SENTINELS:
+        os.environ.pop(name, None)
+
+    seen = _fake_call([
+        ("GET", "/v1/apps?", {"data": [{"id": "app-1", "attributes": {"name": "ikimiz"}}]}),
+        ("GET", "/v1/betaGroups?", {"data": [{"id": "g-1", "attributes": {
+            "name": "Friends", "isInternalGroup": False}}]}),
+        ("GET", "betaGroups/g-1/betaTesters", {"data": []}),
+        ("GET", "/v1/builds?", {"data": [{"id": "b-110", "attributes": {
+            "version": "110", "processingState": "VALID", "expired": False}}]}),
+        ("GET", "betaAppReviewDetail", {"data": {"id": "d", "attributes": {}}}),
+        ("GET", "betaAppLocalizations", {"data": []}),
+        ("POST", "builds/b-110/relationships/betaGroups", {}),
+    ])
+    argv, real_token = sys.argv, tf._token
+    tf._token = lambda: "fake-jwt"  # the ASC key path has its own tests above
+    sys.argv = ["testflight_testers.py", "--bundle-id", "com.beyondkaira.hayati",
+                "--group", "Friends", "--set-review-contact", "--assign-latest-build"]
+    try:
+        code = tf.main()
+    finally:
+        sys.argv, tf._token = argv, real_token
+
+    check("the build WAS still assigned",
+          [p for m, p, _ in seen if m == "POST" and "relationships/betaGroups" in p],
+          ["/v1/builds/b-110/relationships/betaGroups"])
+    check("no contact was written",
+          [p for m, p, _ in seen if m in ("PATCH",) or (m == "POST" and "betaAppReviewDetails" in p)],
+          [])
+    check("but the run still exits non-zero", code, 1)
+
+
+def test_dry_run_against_a_missing_group_still_exits_non_zero() -> None:
+    """Found by the build-diff review, and it is the MOST LIKELY first dispatch.
+
+    `dry_run` defaults to true in the workflow, and a group that does not exist
+    yet is exactly the state someone dry-runs against. The early return in that
+    branch was an unconditional `return 0`, so it discarded the exit code a
+    failed contact write had just set — reporting a clean run for the one case
+    where the log had literally printed the error."""
+    print("dry-run against a missing group still exits non-zero")
+    tf.list_builds = _REAL_LIST_BUILDS
+    for name in SENTINELS:
+        os.environ.pop(name, None)
+
+    _fake_call([
+        ("GET", "/v1/apps?", {"data": [{"id": "app-1", "attributes": {"name": "ikimiz"}}]}),
+        ("GET", "/v1/betaGroups?", {"data": []}),  # no group of that name
+        ("GET", "betaAppReviewDetail", {"data": {"id": "d", "attributes": {}}}),
+    ])
+    argv, real_token = sys.argv, tf._token
+    tf._token = lambda: "fake-jwt"
+    sys.argv = ["testflight_testers.py", "--bundle-id", "com.beyondkaira.hayati",
+                "--group", "Nope", "--set-review-contact", "--dry-run"]
+    try:
+        code = tf.main()
+    finally:
+        sys.argv, tf._token = argv, real_token
+    check("the early return carries the exit code", code, 1)
+
+    # And the other direction: with the secrets present, the same dry run is a
+    # clean 0 — otherwise the check above would pass for a tool that always
+    # failed.
+    os.environ.update(SENTINELS)
+    _fake_call([
+        ("GET", "/v1/apps?", {"data": [{"id": "app-1", "attributes": {"name": "ikimiz"}}]}),
+        ("GET", "/v1/betaGroups?", {"data": []}),
+        ("GET", "betaAppReviewDetail", {"data": {"id": "d", "attributes": {}}}),
+    ])
+    argv, real_token = sys.argv, tf._token
+    tf._token = lambda: "fake-jwt"
+    sys.argv = ["testflight_testers.py", "--bundle-id", "com.beyondkaira.hayati",
+                "--group", "Nope", "--set-review-contact", "--dry-run"]
+    try:
+        code = tf.main()
+    finally:
+        sys.argv, tf._token = argv, real_token
+        for name in SENTINELS:
+            os.environ.pop(name, None)
+    check("and is 0 when nothing failed", code, 0)
+
+
 def main() -> int:
     test_parse_emails()
     test_token()
     test_await_build()
+    test_read_review_contact()
+    test_set_review_contact_never_leaks()
+    test_submit_for_review()
+    test_looks_already_submitted()
+    test_missing_contact_does_not_block_assignment()
+    test_dry_run_against_a_missing_group_still_exits_non_zero()
     if _failures:
         print(f"\n{len(_failures)} check(s) FAILED: {', '.join(_failures)}")
         return 1

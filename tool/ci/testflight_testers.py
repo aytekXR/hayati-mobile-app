@@ -213,6 +213,242 @@ def list_builds(token: str, app_id: str, limit: int = 5) -> list[dict]:
     return _call(token, "GET", f"/v1/builds?{query}").get("data", [])
 
 
+# ---------------------------------------------------------------------------
+# ADR-038 — Test Information, Beta App Review, and the state that actually
+# answers "can my friends install it?"
+# ---------------------------------------------------------------------------
+
+# The four Beta App Review contact fields, as (secret name, Apple attribute).
+# They arrive as SECRETS and never as workflow inputs: this repository is
+# public, and `workflow_dispatch` inputs are recorded in run metadata that
+# anyone can read — a dispatch box would publish the founder's mobile number
+# permanently (ADR-038 D1).
+REVIEW_CONTACT_ENV = (
+    ("ASC_REVIEW_CONTACT_FIRST_NAME", "contactFirstName"),
+    ("ASC_REVIEW_CONTACT_LAST_NAME", "contactLastName"),
+    ("ASC_REVIEW_CONTACT_EMAIL", "contactEmail"),
+    ("ASC_REVIEW_CONTACT_PHONE", "contactPhone"),
+)
+
+
+def read_review_contact(env: dict | None = None) -> dict:
+    """Collect the four contact values, or fail closed naming what is missing.
+
+    ALL FOUR or nothing, deliberately. Apple accepts a partial contact and the
+    Test Information page still reads as incomplete, so a three-of-four write
+    would leave `review_readiness()` reporting a gap the log had just claimed
+    to close — a green step guarding nothing, which is the defect shape this
+    repo keeps meeting.
+
+    Raises with the missing NAMES. Never echoes a value; see `set_review_contact`.
+    """
+    source = os.environ if env is None else env
+    values: dict[str, str] = {}
+    missing: list[str] = []
+    for name, attribute in REVIEW_CONTACT_ENV:
+        raw = (source.get(name) or "").strip()
+        if raw:
+            values[attribute] = raw
+        else:
+            missing.append(name)
+    if missing:
+        raise AscError(
+            "Beta App Review contact is not configured: "
+            + ", ".join(missing)
+            + " unset. All four are required — Apple accepts a partial contact "
+            "and the page still reads as incomplete. See docs/operator-expected.md."
+        )
+    return values
+
+
+def set_review_contact(
+    token: str, app_id: str, contact: dict, dry_run: bool = False
+) -> str:
+    """PATCH (or create) the app's betaAppReviewDetail. Returns a status LINE.
+
+    THE RETURN VALUE IS THE POINT OF THE FUNCTION'S SHAPE: it names the
+    ATTRIBUTES that changed and never their values, because this string is
+    printed into a public repository's workflow log. GitHub's own masking is a
+    backstop, not the design — a value that is never formatted into a string
+    cannot be un-masked by an accident. `testflight_testers_test.py` pins this
+    with a sentinel test that fails if any contact value reaches the output.
+
+    The detail resource's id is READ from the app relationship rather than
+    assumed to equal the app id: it is the only shape here Apple documents but
+    this repo has not measured, and a GET we already make answers it for free.
+    """
+    detail = _call(token, "GET", f"/v1/apps/{app_id}/betaAppReviewDetail").get("data")
+    current = (detail or {}).get("attributes") or {}
+    changed = sorted(
+        attribute
+        for attribute, wanted in contact.items()
+        if (current.get(attribute) or "").strip() != wanted
+    )
+    if not changed:
+        return "review contact: unchanged (all four already match)"
+    if dry_run:
+        return "review contact: WOULD SET " + ", ".join(changed)
+
+    detail_id = (detail or {}).get("id")
+    if detail_id:
+        _call(
+            token,
+            "PATCH",
+            f"/v1/betaAppReviewDetails/{detail_id}",
+            {
+                "data": {
+                    "type": "betaAppReviewDetails",
+                    "id": detail_id,
+                    "attributes": contact,
+                }
+            },
+        )
+    else:
+        _call(
+            token,
+            "POST",
+            "/v1/betaAppReviewDetails",
+            {
+                "data": {
+                    "type": "betaAppReviewDetails",
+                    "attributes": contact,
+                    "relationships": {
+                        "app": {"data": {"type": "apps", "id": app_id}}
+                    },
+                }
+            },
+        )
+    return "review contact: set " + ", ".join(changed)
+
+
+def build_beta_detail(token: str, build_id: str) -> dict:
+    """The build's BETA states — what Apple's reviewer thinks, not its encoder.
+
+    `processingState` (which `list_builds` returns) is about Apple's ENCODER.
+    A build can read VALID forever and never reach a tester. `externalBuildState`
+    is the only field that answers the question the founder is actually asking,
+    and until ADR-038 nothing here printed it.
+
+    Fetched per build rather than via `include=`: the builds list is capped at
+    five in `print_status`, and a separate GET keeps a failure attributable to
+    one build instead of emptying the whole listing.
+    """
+    data = _call(token, "GET", f"/v1/builds/{build_id}/buildBetaDetail").get("data")
+    return (data or {}).get("attributes") or {}
+
+
+def build_group_names(token: str, build_id: str) -> list[str]:
+    """Which beta groups a build is attached to. A build in no group is inert."""
+    query = urllib.parse.urlencode({"limit": 200})
+    data = _call(token, "GET", f"/v1/builds/{build_id}/betaGroups?{query}").get(
+        "data", []
+    )
+    return [group.get("attributes", {}).get("name", "?") for group in data]
+
+
+# States meaning the build has already entered, or passed, the external gate.
+# Read as DATA and never as a closed enum: Apple has added states to this field
+# before (the export-compliance pair below among them), and a tool that
+# switch-cases on a fixed list would read an unknown state as "not submitted"
+# and submit a second time. Anything not named here is printed VERBATIM and
+# treated as not-yet-submitted, which is the safe direction: the submission
+# call itself is the second guard.
+ALREADY_SUBMITTED_STATES = frozenset(
+    {
+        "WAITING_FOR_BETA_REVIEW",
+        "IN_BETA_REVIEW",
+        "READY_FOR_BETA_TESTING",
+        "BETA_APPROVED",
+    }
+)
+
+# States where submitting is guaranteed to fail, and for a reason the founder
+# can fix in one click. Naming it beats letting Apple return an opaque error.
+BLOCKED_BEFORE_REVIEW_STATES = {
+    "MISSING_EXPORT_COMPLIANCE": (
+        "Apple needs the export-compliance answer for this build first "
+        "(App Store Connect -> TestFlight -> the build -> 'Manage' next to "
+        "Export Compliance). It is one question about encryption."
+    ),
+    "IN_EXPORT_COMPLIANCE_REVIEW": (
+        "Apple is still reviewing this build's export-compliance declaration. "
+        "Beta App Review cannot start until that clears."
+    ),
+}
+
+# Backstop only. The PRIMARY guard against a duplicate submission is reading
+# `externalBuildState` first; this exists for the race where two dispatches
+# overlap. Deliberately requires BOTH an error-family match AND a phrase match:
+# this repo has NOT measured which status Apple returns for a duplicate (the
+# design review found 409 and 422 both claimed in the wild), so a rule keyed on
+# either one alone would swallow an unrelated failure or miss the real one.
+_ALREADY_SUBMITTED_MARKERS = (
+    "already been submitted",
+    "already submitted",
+    "another build is in review",
+    "is in review",
+    "already in review",
+)
+
+
+def looks_already_submitted(message: str) -> bool:
+    lowered = message.lower()
+    if "http 409" not in lowered and "http 422" not in lowered:
+        return False
+    return any(marker in lowered for marker in _ALREADY_SUBMITTED_MARKERS)
+
+
+def submit_for_review(
+    token: str, app_id: str, build: dict, dry_run: bool = False
+) -> str:
+    """Submit ONE build for Beta App Review. Refuses rather than earning a no.
+
+    Outward-facing: this puts the founder's app in front of an Apple reviewer,
+    and a rejection is recorded against the app. So it is never implied by
+    another flag (ADR-038 D3), and it refuses outright if `review_readiness`
+    still reports a gap — submitting an app Apple will bounce costs a round
+    trip and teaches the lane's operator to ignore its output.
+    """
+    gaps = review_readiness(token, app_id)
+    if gaps:
+        raise AscError(
+            "refusing to submit for Beta App Review — Apple would reject it:\n  "
+            + "\n  ".join(gaps)
+        )
+
+    version = build.get("attributes", {}).get("version")
+    state = build_beta_detail(token, build["id"]).get("externalBuildState") or "UNKNOWN"
+    if state in ALREADY_SUBMITTED_STATES:
+        return f"build {version}: already {state} — nothing to submit"
+    if state in BLOCKED_BEFORE_REVIEW_STATES:
+        raise AscError(
+            f"build {version} is {state} and cannot be submitted yet. "
+            + BLOCKED_BEFORE_REVIEW_STATES[state]
+        )
+    if dry_run:
+        return f"build {version}: WOULD submit for Beta App Review (state={state})"
+
+    try:
+        _call(
+            token,
+            "POST",
+            "/v1/betaAppReviewSubmissions",
+            {
+                "data": {
+                    "type": "betaAppReviewSubmissions",
+                    "relationships": {
+                        "build": {"data": {"type": "builds", "id": build["id"]}}
+                    },
+                }
+            },
+        )
+    except AscError as failure:
+        if looks_already_submitted(str(failure)):
+            return f"build {version}: Apple says it is already submitted — no-op"
+        raise
+    return f"build {version}: submitted for Beta App Review"
+
+
 def await_build(
     token: str,
     app_id: str,
@@ -272,8 +508,15 @@ def review_readiness(token: str, app_id: str) -> list[str]:
 
     Returned as a list of human-readable gaps (empty = nothing missing that this
     API can see). Beta App Review is the reason a filled-in group can still
-    deliver nothing, and the missing pieces are all founder-owned copy — so
-    naming them beats a generic "submit for review" instruction.
+    deliver nothing, so naming the gaps beats a generic "submit for review".
+
+    THE GAPS SPLIT IN TWO, and this docstring used to blur them. The four
+    CONTACT fields are founder-owned FACTS — a name, an email, a phone — and
+    `--set-review-contact` writes them from secrets (ADR-038). The localization
+    fields (description, feedback email) are founder-owned COPY: the founder's
+    voice in the founder's languages, which a session filling in with an AI
+    draft would be the unhelpful kind of helpful. Only the second half is
+    something no session can write.
     """
     gaps: list[str] = []
     detail = _call(token, "GET", f"/v1/apps/{app_id}/betaAppReviewDetail").get(
@@ -340,6 +583,19 @@ def print_status(token: str, app: dict, group_name: str) -> None:
             print(f"      icon: {icon}")
         else:
             print("      icon: (not reported by the API for this build)")
+
+        # ADR-038 D5. `processingState` above is Apple's ENCODER; these two are
+        # Apple's REVIEWER and the internal lane. Printed verbatim — no mapping
+        # through a closed enum, so a state Apple adds tomorrow still shows up.
+        # Group membership sits on the same rows because a build in no group
+        # delivers to nobody however healthy every other field looks.
+        beta = build_beta_detail(token, build["id"])
+        print(
+            f"      external={beta.get('externalBuildState') or '(none)'}  "
+            f"internal={beta.get('internalBuildState') or '(none)'}"
+        )
+        groups = build_group_names(token, build["id"])
+        print(f"      groups: {', '.join(groups) if groups else '(none — inert)'}")
 
     gaps = review_readiness(token, app_id)
     print("\nbeta app review readiness (external testers need this):")
@@ -408,6 +664,24 @@ def main() -> int:
             "group full of testers is inert — membership alone delivers nothing."
         ),
     )
+    parser.add_argument(
+        "--set-review-contact",
+        action="store_true",
+        help=(
+            "Write the four Beta App Review contact fields from the "
+            "ASC_REVIEW_CONTACT_* secrets. Never from a workflow input: this "
+            "repo is public and dispatch inputs are world-readable (ADR-038 D1)."
+        ),
+    )
+    parser.add_argument(
+        "--submit-for-review",
+        action="store_true",
+        help=(
+            "Submit the newest VALID build for Beta App Review. Outward-facing: "
+            "refuses if Test Information is incomplete, and is never implied by "
+            "another flag (ADR-038 D3)."
+        ),
+    )
     args = parser.parse_args()
 
     emails = parse_emails(args.testers)
@@ -419,13 +693,38 @@ def main() -> int:
         print_status(token, app, args.group)
         return 0
 
+    # Before the group work, so a contact write is not hostage to a group
+    # problem — and idempotent, so an earlier partial run costs nothing.
+    #
+    # NOT fatal, and that is load-bearing. `release.yml` passes this flag on
+    # every release. If a missing ASC_REVIEW_CONTACT_* secret aborted here, the
+    # BUILD ASSIGNMENT below would never run and ADR-037's guarantee — every
+    # release build reaches the Friends group — would silently stop holding for
+    # any founder who has not set the four secrets yet. Report it, remember it,
+    # keep going, and still exit non-zero so nothing reads as clean.
+    exit_code = 0
+    if args.set_review_contact:
+        try:
+            print(set_review_contact(
+                token, app["id"], read_review_contact(), dry_run=args.dry_run
+            ))
+        except AscError as failure:
+            print(f"::error::{failure}", file=sys.stderr)
+            print("continuing — the build assignment below is a separate promise.")
+            exit_code = 1
+
     group = find_group(token, app["id"], args.group)
     if group is None:
         if args.dry_run:
             print(f"group: {args.group!r} does NOT exist — would create (external)")
             for email in emails:
                 print(f"  would add {email}")
-            return 0
+            # `exit_code`, NOT 0. A dry run against a group that does not exist
+            # yet is the most likely FIRST dispatch anyone makes — the workflow's
+            # dry_run input defaults to true — so returning 0 here would report
+            # a clean run for the exact case where a missing contact secret was
+            # just announced. Found by the build-diff review.
+            return exit_code
         group = create_group(token, app["id"], args.group)
         print(f"group: created {args.group!r} id={group['id']} (external)")
     else:
@@ -499,13 +798,40 @@ def main() -> int:
         gaps = review_readiness(token, app["id"])
         if gaps:
             # Loud, because this is the difference between "the group is set up"
-            # and "your friends can actually install it" — and every gap here is
-            # founder-owned copy that no session can write for them.
+            # and "your friends can actually install it".
             print("\nBUT external testers still cannot install until Beta App")
             print("Review passes, and Apple needs this first:")
             for gap in gaps:
                 print(f"  MISSING - {gap}")
-    return 0
+            # Say what closes it. The line this replaced claimed every gap here
+            # was "founder-owned copy that no session can write for them", which
+            # ADR-038 falsified for the contact half — and leaving it would have
+            # sent the founder to fill a form by hand next to the flag that
+            # fills it. Only printed when a CONTACT gap is actually present.
+            if any("review contact" in gap for gap in gaps):
+                print("\nThe contact fields are writable from secrets — see")
+                print("docs/operator-expected.md item 2(c): set the four")
+                print("ASC_REVIEW_CONTACT_* secrets, then re-run this workflow")
+                print("with set_review_contact=true.")
+
+    if args.submit_for_review:
+        # Deliberately LAST: a build should be attached to the group before it
+        # goes to review, so an approval lands on a build testers can already
+        # see. Newest VALID build only — the same rule --assign-latest-build
+        # uses, for the same reason (a PROCESSING build has no asset).
+        candidates = [
+            build
+            for build in list_builds(token, app["id"], limit=10)
+            if build["attributes"].get("processingState") == "VALID"
+            and not build["attributes"].get("expired")
+        ]
+        if not candidates:
+            print("\nno VALID unexpired build to submit for review.")
+        else:
+            print("\n" + submit_for_review(
+                token, app["id"], candidates[0], dry_run=args.dry_run
+            ))
+    return exit_code
 
 
 if __name__ == "__main__":
