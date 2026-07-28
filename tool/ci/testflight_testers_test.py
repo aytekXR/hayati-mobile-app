@@ -460,6 +460,36 @@ def test_dry_run_against_a_missing_group_still_exits_non_zero() -> None:
     check("and is 0 when nothing failed", code, 0)
 
 
+def test_group_membership_is_looked_up_the_readable_way() -> None:
+    """The direction is the whole point, and Apple decided it, not us.
+
+    `GET /v1/builds/{id}/betaGroups` returns 403 FORBIDDEN_ERROR — that
+    relationship allows only CREATE and DELETE. Measured against the real API
+    AFTER the hermetic tests, five review lenses and a completeness critic had
+    all passed the forward version. This test pins the direction so nobody
+    "simplifies" it back."""
+    print("group membership is looked up the readable way")
+    seen = _fake_call([
+        ("GET", "/v1/betaGroups?", {"data": [
+            {"id": "g-1", "attributes": {"name": "Friends"}},
+            {"id": "g-2", "attributes": {"name": "arkadaslar"}},
+        ]}),
+        ("GET", "betaGroups/g-1/builds", {"data": [{"id": "b-110"}]}),
+        ("GET", "betaGroups/g-2/builds", {"data": [{"id": "b-109"}, {"id": "b-110"}]}),
+    ])
+    got = tf.group_names_by_build("t", "app-1")
+    check("a build in two groups lists both", sorted(got["b-110"]),
+          ["Friends", "arkadaslar"])
+    check("a build in one group lists one", got["b-109"], ["arkadaslar"])
+    check("a build in none is absent", "b-1" in got, False)
+    # The forbidden call must never be made.
+    check("never asks builds->betaGroups",
+          [p for _, p, _ in seen if "/betaGroups" in p and p.startswith("/v1/builds")],
+          [])
+    check("one call per group, not per build",
+          len([p for _, p, _ in seen if "/builds" in p and "betaGroups/" in p]), 2)
+
+
 def main() -> int:
     test_parse_emails()
     test_token()
@@ -470,6 +500,7 @@ def main() -> int:
     test_looks_already_submitted()
     test_missing_contact_does_not_block_assignment()
     test_dry_run_against_a_missing_group_still_exits_non_zero()
+    test_group_membership_is_looked_up_the_readable_way()
     if _failures:
         print(f"\n{len(_failures)} check(s) FAILED: {', '.join(_failures)}")
         return 1
