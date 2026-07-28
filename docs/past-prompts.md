@@ -1912,3 +1912,29 @@ Created the `ikimiz` Hosting site in `hayatiapp-prod` (it did not exist; `fireba
 **Operator action required: YES, and 2(c) is now two minutes of work.** Four `gh secret set` lines and one dispatch puts build 110 in front of Apple's reviewer. **2(d) is newly blocking** — the `applinks:` entitlement means the *next* release build fails to sign until Associated Domains is ticked on the App ID; build 110 predates it, which is why 2(c) ships 110.
 
 **Outcome:** **ADR-038** written and merged. **#146** filed. #140 remains the top engineering item and moves to Session 056.
+
+### S055 post-merge addendum — the bug only Apple could find, and the picture it completed
+
+After the merge, `testflight-testers.yml --status` was dispatched against the **real** App Store Connect API — the "read the ARTEFACT, not just the source" rule, applied to a lane that had until then only ever met a fake. It exited **1**:
+
+```
+403 FORBIDDEN_ERROR — The relationship 'betaGroups' does not allow 'GET_RELATED'.
+Allowed operations are: CREATE, DELETE
+```
+
+`GET /v1/builds/{id}/betaGroups` does not exist. The hermetic tests could not see it — this file's own test docstring predicted exactly that (*"a fake that agrees with a wrong assumption is worse than no test"*) — and **neither could twelve review agents across two workflows**, because none of them can call Apple. Five design lenses, five build-diff lenses and two completeness critics all passed the forward direction.
+
+**Two failures, not one.** The forbidden call also took the *build listing* down with it: exit 1 after printing a single build. A read-only status command that dies on an optional extra tells the founder less than one that degrades and says so. Both per-build extras are now individually survivable, and the lookup is inverted to the readable direction (group → builds, one call per group). PR **#148**, merged, then **re-dispatched and proven: exit 0, full listing**.
+
+What the two runs together established, which is the answer the founder's directive was actually asking for:
+
+```
+build 110  processing=VALID  external=READY_FOR_BETA_SUBMISSION  internal=IN_BETA_TESTING
+           groups: founders, Friends
+```
+
+- **`internal=IN_BETA_TESTING`** — build 110 is installable **today** by the `founders` internal group. Nothing on the operator page is required for that. This had been true since 27 July and nobody had measured it.
+- **`groups: founders, Friends`** — the build is already attached to the external group too, so `--assign-latest-build` is not part of the remaining recipe. The operator page was corrected.
+- **`READY_FOR_BETA_SUBMISSION`** is in neither of the named state sets and printed **verbatim**, on the first real run — ADR-038 D5's open-enum decision paying off immediately rather than theoretically.
+
+The remaining gap is exactly four fields, and it is the founder's to fill.
