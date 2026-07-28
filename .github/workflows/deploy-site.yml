@@ -1,0 +1,110 @@
+# deploy-site — publish ikimiz.beyondkaira.com from docs/legal/.
+#
+# WHY DISPATCH-ONLY, and not on push to main. This publishes a PUBLIC page that
+# the App Store listing points at. Publishing is outward-facing and effectively
+# irreversible (the old text is gone the moment the new one is live, and search
+# engines and Apple both fetch it), so it is a thing someone does on purpose —
+# the same reasoning that keeps `testflight-testers.yml` and `gemfile-lock.yml`
+# off the push path. `main` merging is not consent to publish.
+#
+# WHY THE SITE IS GENERATED AND NOT COMMITTED. `docs/legal/*.md` is already
+# byte-synced into `app/assets/legal/` under a drift test (ADR-023): the app and
+# the repo must never disagree about what the policy says. A committed HTML copy
+# would be a THIRD thing to drift, and drift in a legal document is exactly the
+# failure that test exists to catch. `tool/ci/build_site.py` renders the pages
+# at deploy time from the one source.
+#
+# THE PLACEHOLDER GATE IS THE POINT. `docs/legal/` still contains
+# "[FOUNDER LEGAL ENTITY — to be completed by the founder]" and a contact blank.
+# A privacy policy served at a public URL that Apple points to must not say
+# that, so the builder REFUSES by default. `allow_placeholders` exists only so
+# the plumbing can be proven end to end on a PREVIEW channel before the founder
+# fills the blanks in — and the live channel refuses it outright below.
+#
+# OPERATOR PREREQUISITES (neither of which a session can do):
+#   1. A Hosting site named `ikimiz` in the `hayatiapp-prod` project, with the
+#      custom domain ikimiz.beyondkaira.com connected — Firebase issues the TXT
+#      and A records to add at the beyondkaira.com registrar.
+#   2. A repository secret FIREBASE_SERVICE_ACCOUNT holding a service-account
+#      JSON with the Firebase Hosting Admin role. No such secret exists today;
+#      until it does this workflow fails closed at the auth step rather than
+#      pretending to deploy.
+name: deploy-site
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'live (the real domain) or preview (a temporary URL)'
+        required: true
+        default: preview
+        type: choice
+        options: [preview, live]
+      allow_placeholders:
+        description: 'Build even though the legal text still has unfilled blanks. PREVIEW ONLY.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy-site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      # Refuse the combination that would put "to be completed by the founder"
+      # on the live domain. Checked HERE as well as in the builder because the
+      # builder's flag is per-build while this is a policy about the CHANNEL,
+      # and a policy that lives only in a tool cannot see which channel it is.
+      - name: live channel refuses placeholder text
+        if: ${{ inputs.channel == 'live' && inputs.allow_placeholders }}
+        run: |
+          echo "::error::allow_placeholders is not permitted on the live channel."
+          echo "::error::Fill the blanks in docs/legal/ first, or deploy to preview."
+          exit 1
+
+      - name: build the site from docs/legal/
+        run: |
+          python3 tool/ci/build_site.py --out web/public \
+            ${{ inputs.allow_placeholders && '--allow-placeholders' || '' }}
+
+      # Fail closed and say WHY, rather than letting the deploy step emit an
+      # opaque auth error. Same shape as release.yml's secrets gate (ADR-021 D4).
+      - name: secrets gate
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set. See docs/operator-expected.md"
+            echo "::error::item 2(c): create a service account with the Firebase Hosting Admin"
+            echo "::error::role and add its JSON as a repository secret."
+            exit 1
+          fi
+          echo "FIREBASE_SERVICE_ACCOUNT present."
+
+      - name: deploy
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > /tmp/sa.json
+          npm install -g firebase-tools@15.22.4
+          if [ "${{ inputs.channel }}" = "live" ]; then
+            firebase deploy --only hosting:ikimiz --project hayatiapp-prod \
+              --message "deploy-site ${{ github.sha }}"
+          else
+            firebase hosting:channel:deploy "preview-${{ github.run_number }}" \
+              --only ikimiz --project hayatiapp-prod --expires 7d
+          fi
+
+      - name: what is live now
+        if: ${{ inputs.channel == 'live' }}
+        run: |
+          echo "Deployed. Verify the two things Apple and the app actually fetch:"
+          echo "  curl -sI https://ikimiz.beyondkaira.com/privacy | head -1"
+          echo "  curl -s  https://ikimiz.beyondkaira.com/.well-known/apple-app-site-association"

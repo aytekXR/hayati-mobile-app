@@ -15,7 +15,7 @@ import {
 } from './invite-service';
 
 /**
- * All Hayati callables live in europe-west1: closest single region to both
+ * All ikimiz callables live in europe-west1: closest single region to both
  * Istanbul and Riyadh and consistent with the eur3 Firestore placement
  * (architecture.md §1). The M2.2 client must construct its callable instance
  * with this region.

@@ -1,4 +1,4 @@
-# Legal documents — Hayati
+# Legal documents — ikimiz
 
 This directory holds the in-app privacy policy and terms, one document per locale, plus this control file. The six documents are the app's real legal texts: they render in-app (sign-in footer, consent gate links, paywall links row, and the Settings legal hub) and are byte-copied into `app/assets/legal/`.
 

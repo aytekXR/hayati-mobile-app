@@ -62,8 +62,21 @@ void main() {
 
   /// SHA-256 over UTF-8 of the sorted `"<locale>.<key>=<value>\n"` lines.
   /// Re-stamp only after working through the checklist in this file's header.
+  ///
+  /// **Re-stamped 2026-07-28 (Session 054, ADR-035) — the app was renamed
+  /// Hayati → ikimiz, and the three `consent*` sentences name the app.**
+  /// Checklist step 2 asks whether the change is MATERIAL, because a material
+  /// `consent*` change is a legal-version event that re-asks every user. This
+  /// one is **not**, and the reasoning is recorded here rather than left to be
+  /// re-derived: what a user consents to is the set of processors (Google,
+  /// Apple, Anthropic), the data categories, the purposes, and the controller
+  /// — and this diff changes **none** of them. Only the product's trade name
+  /// moved. `currentLegalVersion` therefore stays at **2** and nobody is
+  /// re-gated. The Arabic sentences were additionally restructured so the
+  /// Latin wordmark never occupies the first-strong position (ADR-035 D3);
+  /// that is a rendering fix, not a change in what is promised.
   const expectedDigest =
-      'c001b89423069e65f3e998d3526d976b12105f2b132192f14b61cb3f8a15ae35';
+      '25f48bac0b56907cb533faa9010fdcc9641add163598c0a6117c653f08871bdf';
 
   /// The number of frozen pairs at the time of the last deliberate re-stamp.
   /// Pinned separately from the digest so a failure can distinguish "someone

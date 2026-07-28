@@ -27,15 +27,19 @@ export interface PushPayload {
 
 // The neutral title used in EVERY discreet payload — "the app name at most"
 // (ADR-012). Kept latin across all three languages so a shoulder-surfed lock
-// screen reveals nothing about the app's nature; "Hayati" reads as any app name.
-const APP_NAME = 'Hayati';
+// screen reveals nothing about the app's nature; "ikimiz" is an ordinary
+// Turkish word ("the two of us"), so it gives even less away than a coined
+// brand would — but note it is NOT neutral to a Turkish reader, which is a
+// property ADR-012's discretion argument should be re-checked against if the
+// discreet-notification promise is ever restated (ADR-035 D5).
+const APP_NAME = 'ikimiz';
 
 // Discreet body: identical regardless of kind, name, or streak — the whole point
 // is that NO event specific leaks. "Something is waiting" and nothing more.
 const DISCREET_BODY: Record<PushLanguage, string> = {
-  en: 'Something is waiting for you in Hayati.',
-  tr: 'Hayati\'de seni bekleyen bir şey var.',
-  ar: 'هناك ما ينتظرك في Hayati.',
+  en: 'Something is waiting for you in ikimiz.',
+  tr: 'ikimiz\'de seni bekleyen bir şey var.',
+  ar: 'هناك ما ينتظرك في ikimiz.',
 };
 
 // partnerAnswered fires only POST-first-answer, to the member who has not
@@ -50,22 +54,22 @@ function partnerAnsweredNormal(language: PushLanguage, partnerName?: string): Pu
   if (name) {
     switch (language) {
       case 'en':
-        return { title: `${name} answered`, body: `${name} answered today's question. Open Hayati to add yours.` };
+        return { title: `${name} answered`, body: `${name} answered today's question. Open ikimiz to add yours.` };
       case 'tr':
-        return { title: `${name} cevapladı`, body: `${name} bugünün sorusunu cevapladı. Hayati'de sen de cevapla.` };
+        return { title: `${name} cevapladı`, body: `${name} bugünün sorusunu cevapladı. ikimiz'de sen de cevapla.` };
       case 'ar':
-        return { title: `أجاب ${name}`, body: `أجاب ${name} عن سؤال اليوم. افتح Hayati وأضف إجابتك.` };
+        return { title: `أجاب ${name}`, body: `أجاب ${name} عن سؤال اليوم. افتح ikimiz وأضف إجابتك.` };
     }
   }
   // Degrade gracefully when no partner name resolved — name-free copy, never an
   // 'undefined' interpolation (M3.4 rule).
   switch (language) {
     case 'en':
-      return { title: 'Your partner answered', body: `Your partner answered today's question. Open Hayati to add yours.` };
+      return { title: 'Your partner answered', body: `Your partner answered today's question. Open ikimiz to add yours.` };
     case 'tr':
-      return { title: 'Partnerin cevapladı', body: 'Partnerin bugünün sorusunu cevapladı. Hayati\'de sen de cevapla.' };
+      return { title: 'Partnerin cevapladı', body: 'Partnerin bugünün sorusunu cevapladı. ikimiz\'de sen de cevapla.' };
     case 'ar':
-      return { title: 'أجاب شريكك', body: 'أجاب شريكك عن سؤال اليوم. افتح Hayati وأضف إجابتك.' };
+      return { title: 'أجاب شريكك', body: 'أجاب شريكك عن سؤال اليوم. افتح ikimiz وأضف إجابتك.' };
   }
 }
 
@@ -75,11 +79,11 @@ function partnerAnsweredNormal(language: PushLanguage, partnerName?: string): Pu
 function revealNormal(language: PushLanguage): PushPayload {
   switch (language) {
     case 'en':
-      return { title: 'You both answered', body: `You both answered today's question. Open Hayati to read it together.` };
+      return { title: 'You both answered', body: `You both answered today's question. Open ikimiz to read it together.` };
     case 'tr':
-      return { title: 'İkiniz de cevapladınız', body: 'Bugünün sorusunu ikiniz de cevapladınız. Partnerinin cevabını görmek için Hayati\'yi aç.' };
+      return { title: 'İkiniz de cevapladınız', body: 'Bugünün sorusunu ikiniz de cevapladınız. Partnerinin cevabını görmek için ikimiz\'i aç.' };
     case 'ar':
-      return { title: 'أجبتما كلاكما', body: 'أجبتما عن سؤال اليوم. افتح Hayati لتقرآ إجابتيكما معًا.' };
+      return { title: 'أجبتما كلاكما', body: 'أجبتما عن سؤال اليوم. افتح ikimiz لتقرآ إجابتيكما معًا.' };
   }
 }
 
@@ -97,20 +101,20 @@ function streakAtRiskNormal(language: PushLanguage, streakCount?: number): PushP
   if (count !== undefined) {
     switch (language) {
       case 'en':
-        return { title: 'Keep your streak going', body: `You're on a ${count}-day streak together. Answer today's question in Hayati before midnight to keep it.` };
+        return { title: 'Keep your streak going', body: `You're on a ${count}-day streak together. Answer today's question in ikimiz before midnight to keep it.` };
       case 'tr':
-        return { title: 'Serinizi sürdürün', body: `${count} günlük seriniz sürüyor. Gece yarısından önce Hayati'de bugünün sorusunu cevaplayıp devam ettirin.` };
+        return { title: 'Serinizi sürdürün', body: `${count} günlük seriniz sürüyor. Gece yarısından önce ikimiz'de bugünün sorusunu cevaplayıp devam ettirin.` };
       case 'ar':
-        return { title: 'حافِظا على تتابعكما', body: `تتابعكما بلغ ${count} يومًا. أجيبا عن سؤال اليوم في Hayati قبل منتصف الليل لتحافظا عليه.` };
+        return { title: 'حافِظا على تتابعكما', body: `تتابعكما بلغ ${count} يومًا. أجيبا عن سؤال اليوم في ikimiz قبل منتصف الليل لتحافظا عليه.` };
     }
   }
   switch (language) {
     case 'en':
-      return { title: 'Keep your streak going', body: `Your streak together is still alive. Answer today's question in Hayati before midnight to keep it.` };
+      return { title: 'Keep your streak going', body: `Your streak together is still alive. Answer today's question in ikimiz before midnight to keep it.` };
     case 'tr':
-      return { title: 'Serinizi sürdürün', body: 'Seriniz hâlâ sürüyor. Gece yarısından önce Hayati\'de bugünün sorusunu cevaplayıp devam ettirin.' };
+      return { title: 'Serinizi sürdürün', body: 'Seriniz hâlâ sürüyor. Gece yarısından önce ikimiz\'de bugünün sorusunu cevaplayıp devam ettirin.' };
     case 'ar':
-      return { title: 'حافِظا على تتابعكما', body: 'تتابعكما ما زال مستمرًا. أجيبا عن سؤال اليوم في Hayati قبل منتصف الليل لتحافظا عليه.' };
+      return { title: 'حافِظا على تتابعكما', body: 'تتابعكما ما زال مستمرًا. أجيبا عن سؤال اليوم في ikimiz قبل منتصف الليل لتحافظا عليه.' };
   }
 }
 

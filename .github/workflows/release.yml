@@ -64,7 +64,7 @@ jobs:
       # the ratchet flag — the empty privacy/support URL files warn+count instead
       # of hard-failing until the founder supplies a domain (ADR-020 D5).
       - name: store metadata lint
-        run: dart tool/store_metadata_lint.dart --allow-empty-urls tr en-US
+        run: dart tool/store_metadata_lint.dart tr en-US
       # ADR-032: the release lane's own internal agreement — the fail-closed
       # gate covers the secrets the job consumes, each fastlane step is fed what
       # its lane requires, the build name still comes from pubspec, and
@@ -447,6 +447,34 @@ jobs:
           # Publishable RevenueCat iOS SDK key (repo variable, ships in the binary).
           REVENUECAT_IOS_API_KEY: ${{ vars.REVENUECAT_IOS_API_KEY }}
         run: bundle exec fastlane ios beta
+      - name: assign the new build to the Friends group
+        # ADR-037. The founder asked that every new build reach the external
+        # "Friends" group automatically, so this runs on every release rather
+        # than by dispatch — the deliberate exception to the rule that a merge
+        # must never email a real person, because here that IS the request.
+        #
+        # NOT `pilot(distribute_external: true)`: that needs
+        # skip_waiting_for_build_processing to be false, which parks the macOS
+        # job in Apple's processing queue for the whole wait. The upload stays
+        # fast and the assignment waits separately, here, on cheap ubuntu.
+        #
+        # NON-BLOCKING on purpose (continue-on-error): the binary already
+        # shipped in the step above, and Apple's processing queue is a third
+        # party's schedule. Reddening a release because a queue was slow is the
+        # cries-wolf mistake ADR-034 rejected; the tool prints how to re-run.
+        continue-on-error: true
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: |
+          pip install --quiet 'pyjwt[crypto]==2.10.1'
+          # The same synthesized number the build carries (ADR-032 D3).
+          python3 tool/ci/testflight_testers.py \
+            --bundle-id com.beyondkaira.hayati \
+            --group Friends \
+            --assign-build-number "$((100 + GITHUB_RUN_NUMBER))" \
+            --wait-minutes 25
       - name: fastlane store_metadata (deliver per locale)
         # Pushes fastlane/metadata TR/EN via deliver(skip_binary_upload). NON-BLOCKING
         # (continue-on-error): store copy is native-review-gated (ADR-020 D8) and must

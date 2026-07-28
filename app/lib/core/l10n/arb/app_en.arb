@@ -147,7 +147,7 @@
   "@inviteShareButton": {
     "description": "Button that opens the system share sheet with the invite message"
   },
-  "inviteShareMessage": "I picked an app for us — one question a day, just for the two of us. My invite code: {code}. Get Hayati, then enter the code. I'm waiting for you ❤️ {link}",
+  "inviteShareMessage": "I picked an app for us — one question a day, just for the two of us. My invite code: {code}. Get ikimiz, then enter the code. I'm waiting for you ❤️ {link}",
   "@inviteShareMessage": {
     "description": "WhatsApp share text, code-first (product-copy pairing rewrite): the code leads because custom-scheme links are not tappable in chat apps; the single licensed ❤️ closes the message, off the glanceable first line (discretion rule); the link trails for when universal links ship",
     "placeholders": {
@@ -349,7 +349,7 @@
   "@pairedNoDayBody": {
     "description": "Body of the no-day-yet state; the screen streams the day doc in live when the hourly rollover assigns it"
   },
-  "pairedPackUpdateTitle": "Update Hayati",
+  "pairedPackUpdateTitle": "Update ikimiz",
   "@pairedPackUpdateTitle": {
     "description": "Title of the pack-lag state: the day doc references a pack/question this install does not bundle (deployed Function outpaced the app) — the remedy is an app update, not a retry"
   },
@@ -375,7 +375,7 @@
   "@streakMercyUsed": {
     "description": "Compact caption beside the Sage leaf glyph on the streak strip when this ISO week's grace token has been consumed (product-copy 'Streak strip, mercy indicator'; graceTokens == 0 on the server streak) — forgiveness framing, never 'streak freeze' mechanics. TR/AR renderings are drafts pending native register review."
   },
-  "privacySpotlightTitle": "Keep Hayati between you two",
+  "privacySpotlightTitle": "Keep ikimiz between you two",
   "@privacySpotlightTitle": {
     "description": "One-time privacy spotlight card title on the first solo home (redesign M-6); care, never paranoia"
   },
@@ -413,7 +413,7 @@
   "@soloAnswerSavedCaption": {
     "description": "Subtle confirmation under the answer field once the persisted answer matches the entry; the answer stays editable all day"
   },
-  "soloNudgeBody": "Hayati is better together. Invite your partner — your reflections will be waiting when you pair up.",
+  "soloNudgeBody": "ikimiz is better together. Invite your partner — your reflections will be waiting when you pair up.",
   "@soloNudgeBody": {
     "description": "Persistent invite-nudge banner on every solo state: honest better-together framing, invitational never guilt-tripping (docs/prd.md F1, brand voice §7)"
   },
@@ -425,11 +425,11 @@
   "@soloCompletedTitle": {
     "description": "Title of the day-8+ solo state — the 7-question cycle finished and never repeats (docs/adr/009)"
   },
-  "soloCompletedBody": "Seven days of reflection, done. Hayati is built for two — pair up to keep going, and your answers will be waiting.",
+  "soloCompletedBody": "Seven days of reflection, done. ikimiz is built for two — pair up to keep going, and your answers will be waiting.",
   "@soloCompletedBody": {
     "description": "Body of the completed solo state; honest that the ritual continues only as a couple"
   },
-  "paywallTitle": "Hayati Premium",
+  "paywallTitle": "ikimiz Premium",
   "@paywallTitle": {
     "description": "Title of the paywall screen (PRD F4)"
   },
@@ -675,11 +675,11 @@
   "@settingsLockTitle": {
     "description": "Row 1 title: the PIN lock"
   },
-  "settingsLockSubtitleOff": "Protect Hayati with a 6-digit PIN.",
+  "settingsLockSubtitleOff": "Protect ikimiz with a 6-digit PIN.",
   "@settingsLockSubtitleOff": {
     "description": "Row 1 subtitle when no PIN is set"
   },
-  "settingsLockSubtitleOn": "Hayati asks for your PIN when you open it, and again if you've been away for more than a minute.",
+  "settingsLockSubtitleOn": "ikimiz asks for your PIN when you open it, and again if you've been away for more than a minute.",
   "@settingsLockSubtitleOn": {
     "description": "Subtitle when the lock is ON. MUST disclose the 60s grace window — a categorical \"every time you open it\" is false and over-claims the layer's own fail-direction (review finding DVUX-2)."
   },
@@ -711,7 +711,7 @@
   "@settingsBiometricWarningTitle": {
     "description": "Title of the DV warning shown BEFORE the biometric toggle is written (review finding DVUX-1)"
   },
-  "settingsBiometricWarningBody": "Anyone whose face or fingerprint is saved on this phone can unlock Hayati. Your PIN stays private to you.",
+  "settingsBiometricWarningBody": "Anyone whose face or fingerprint is saved on this phone can unlock ikimiz. Your PIN stays private to you.",
   "@settingsBiometricWarningBody": {
     "description": "The DV warning body: the app cannot know whose biometrics are enrolled on a shared device (ADR-018 D1)"
   },
@@ -783,7 +783,7 @@
   "@settingsChangePinSaveFailed": {
     "description": "Honest failure when the new-PIN write fails (changePin returned Aborted) — the old PIN is still in force (ADR-018 D8)"
   },
-  "lockTitle": "Hayati is locked",
+  "lockTitle": "ikimiz is locked",
   "@lockTitle": {
     "description": "Title on the lock screen overlay"
   },
@@ -816,7 +816,7 @@
   "@lockBiometricCta": {
     "description": "Button on the lock screen that runs the biometric accelerator"
   },
-  "lockBiometricReason": "Unlock Hayati",
+  "lockBiometricReason": "Unlock ikimiz",
   "@lockBiometricReason": {
     "description": "The reason string passed to the OS biometric prompt"
   },
@@ -876,7 +876,7 @@
   "@dataRightsExportRowTitle": {
     "description": "Settings row that opens the self-serve data export (ADR-019 D5)"
   },
-  "dataRightsExportRowSubtitle": "See and copy the data Hayati holds for you.",
+  "dataRightsExportRowSubtitle": "See and copy the data ikimiz holds for you.",
   "@dataRightsExportRowSubtitle": {
     "description": "Subtitle for the download-my-data settings row"
   },
@@ -892,7 +892,7 @@
   "@dataRightsExportTitle": {
     "description": "Title of the export screen. Says \"your data\" — no completeness over-claim (ADR-019 D5)"
   },
-  "dataRightsExportIntro": "This is your data, as Hayati holds it. Copy it anywhere you like.",
+  "dataRightsExportIntro": "This is your data, as ikimiz holds it. Copy it anywhere you like.",
   "@dataRightsExportIntro": {
     "description": "Intro line above the exported JSON document"
   },
@@ -1071,7 +1071,7 @@
   "@consentTitle": {
     "description": "Title of the special-category consent gate (ADR-023 D3). TR/AR use the RESPECTFUL register on legal surfaces (ADR-020 D8 precedent)."
   },
-  "consentIntro": "Hayati stores the reflections you write and the answers you share with your partner, and processes your messages with the coach in the moment, without saving them. We treat this as sensitive and ask for your clear consent before these features begin — it is required because this content is the heart of the app.",
+  "consentIntro": "ikimiz stores the reflections you write and the answers you share with your partner, and processes your messages with the coach in the moment, without saving them. We treat this as sensitive and ask for your clear consent before these features begin — it is required because this content is the heart of the app.",
   "@consentIntro": {
     "description": "Consent gate paragraph — what is processed and why (the special-category bundle, ADR-023 D1/D3). Consistent with docs/legal/privacy-policy. TR/AR respectful register."
   },
@@ -1079,7 +1079,7 @@
   "@consentDataLocation": {
     "description": "Consent gate paragraph — the honest data-location split (ADR-023 Context/D3, finding honesty-1). No 'all your data in the EU' over-claim. TR/AR respectful register."
   },
-  "consentProcessors": "Google runs sign-in, storage, and crash reporting on our instructions. Apple handles the App Store and Sign in with Apple. The coach is powered by Anthropic, which processes your coach messages in the moment to write a reply and does not use them to train its models. There is no advertising or tracking in Hayati.",
+  "consentProcessors": "Google runs sign-in, storage, and crash reporting on our instructions. Apple handles the App Store and Sign in with Apple. The coach is powered by Anthropic, which processes your coach messages in the moment to write a reply and does not use them to train its models. There is no advertising or tracking in ikimiz.",
   "@consentProcessors": {
     "description": "Consent gate paragraph — the processors, honest to the shipped reality (ADR-023 D3/D6). TR/AR respectful register."
   },
@@ -1087,7 +1087,7 @@
   "@consentRights": {
     "description": "Consent gate paragraph — rights and the withdrawal path both live in Settings (ADR-023 D3). TR/AR respectful register."
   },
-  "consentAgeStatement": "Hayati is for adults. By continuing you also confirm that you are 18 or older — a condition of the Terms, separate from your consent above.",
+  "consentAgeStatement": "ikimiz is for adults. By continuing you also confirm that you are 18 or older — a condition of the Terms, separate from your consent above.",
   "@consentAgeStatement": {
     "description": "Consent gate 18+ eligibility statement — framed as a Terms condition, its OWN paragraph, deliberately NOT part of the consent-button sentence (ADR-023 D3, finding legal-5). TR/AR respectful register."
   },

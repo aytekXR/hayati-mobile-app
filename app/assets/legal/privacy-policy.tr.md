@@ -1,12 +1,12 @@
 # Gizlilik Politikası ve Aydınlatma Metni
 
-Bu metin, Hayati'nin hangi verileri neden topladığını, bu verilerin nerede tutulduğunu ve sahip olduğunuz seçimleri açıklar. Aynı zamanda 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamındaki aydınlatma metnidir. Amacımız kulağa etkileyici gelmek değil, uygulamanın gerçekte yaptığıyla karşılaştırılabilir olmaktır. Buradaki bir cümle uygulamanın yapamayacağı bir şeyi vaat ediyorsa, bu bir hatadır ve bunu bize bildirmenizi isteriz.
+Bu metin, ikimiz'in hangi verileri neden topladığını, bu verilerin nerede tutulduğunu ve sahip olduğunuz seçimleri açıklar. Aynı zamanda 6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamındaki aydınlatma metnidir. Amacımız kulağa etkileyici gelmek değil, uygulamanın gerçekte yaptığıyla karşılaştırılabilir olmaktır. Buradaki bir cümle uygulamanın yapamayacağı bir şeyi vaat ediyorsa, bu bir hatadır ve bunu bize bildirmenizi isteriz.
 
 Sürüm 2. Yürürlük tarihi: 26 Temmuz 2026.
 
 ## Veri sorumlusu kimdir
 
-Hayati, burada açıklanan kişisel verilerden sorumlu veri sorumlusu olan [KURUCU/ŞİRKET TÜZEL KİMLİĞİ — kurucu tarafından doldurulacak] tarafından işletilir.
+ikimiz, burada açıklanan kişisel verilerden sorumlu veri sorumlusu olan [KURUCU/ŞİRKET TÜZEL KİMLİĞİ — kurucu tarafından doldurulacak] tarafından işletilir.
 
 Gizlilikle ilgili konularda bize [İLETİŞİM ADRESİ — kurucu tarafından doldurulacak] üzerinden ulaşabilirsiniz.
 
@@ -48,19 +48,19 @@ Her amaç için hukuki sebebi ayrıca belirtiyoruz, çünkü hukuki sebebi gizle
 - RevenueCat, abonelikler bağlandığında abonelik durumunu bizim adımıza işleyecektir. Henüz yapılandırılmamıştır.
 - Koç, Anthropic tarafından, Claude API'si aracılığıyla çalıştırılır. Koçla yazışırken mesajlarınız, size yanıt yazabilmesi için o an Anthropic'e gönderilir ve Anthropic bunları bizim adımıza işler. Anthropic'in ticari API şartları uyarınca, konuşmalarınızı modellerini eğitmek için kullanmaz. Koçtan hiçbir şey saklamayız — ne sunucularımızda ne de cihazınızda; mesajlarınız yalnızca yanıtı üretmek için, o an Anthropic'e gönderilir. Koç mesajlarınızın Anthropic'e gönderilmesi, standart bir sözleşmeyle güvence altına alınan sınır ötesi bir aktarımdır; ve Anthropic bu içeriğin yeni bir alıcısı olduğundan, bu metin sürümünü yükseltir ve rızanızı tekrar ister.
 
-İlişkinize dair içeriğinizi reklam için kullanmayız ve Hayati'de reklam yoktur. Uygulamada bugün herhangi bir analitik veya takip ürünü bulunmamaktadır; ileride böyle bir şey eklersek, bu metne dâhil edilmeden, kendi ayrı ve isteğe bağlı onayıyla gelecektir.
+İlişkinize dair içeriğinizi reklam için kullanmayız ve ikimiz'de reklam yoktur. Uygulamada bugün herhangi bir analitik veya takip ürünü bulunmamaktadır; ileride böyle bir şey eklersek, bu metne dâhil edilmeden, kendi ayrı ve isteğe bağlı onayıyla gelecektir.
 
-## Hayati'yi cihazınızda gizli tutmak
+## ikimiz'i cihazınızda gizli tutmak
 
-Hayati'nin gizliliğinin bir kısmı kendi cihazınızdadır; bunu abartmak yerine dürüst sınırlarıyla anlatıyoruz:
+ikimiz'in gizliliğinin bir kısmı kendi cihazınızdadır; bunu abartmak yerine dürüst sınırlarıyla anlatıyoruz:
 
-- Hayati'yi 6 haneli bir PIN ile kilitleyebilir, isteğe bağlı bir kısayol olarak Face ID veya Touch ID kullanabilirsiniz. Bu yerel bir korumadır: uygulamaya gündelik erişimi engeller, ancak adli düzeyde değildir ve kendi cihaz kimlik bilgilerinize sahip birini alt edemez. SIM kartınıza (SMS kodu için) veya cihaz Apple kimliğinize sahip biri, hesap kurtarma yoluyla içeri girmeye zorlayabilir — bu da sizi çıkışa alır ve PIN'i kaldırır, böylece fark edebileceğiniz bir iz bırakır.
+- ikimiz'i 6 haneli bir PIN ile kilitleyebilir, isteğe bağlı bir kısayol olarak Face ID veya Touch ID kullanabilirsiniz. Bu yerel bir korumadır: uygulamaya gündelik erişimi engeller, ancak adli düzeyde değildir ve kendi cihaz kimlik bilgilerinize sahip birini alt edemez. SIM kartınıza (SMS kodu için) veya cihaz Apple kimliğinize sahip biri, hesap kurtarma yoluyla içeri girmeye zorlayabilir — bu da sizi çıkışa alır ve PIN'i kaldırır, böylece fark edebileceğiniz bir iz bırakır.
 - Sade uygulama simgesi, ana ekranınızda sade bir simge gösterir. Uygulamanın adı simgenin altında görünmeye devam eder; değişen simgenin görüntüsüdür, adı değil.
-- Hayati bugün anlık bildirim (push) göndermez. İleride bildirim gönderimi eklenirse, gizli bildirimler ayarı bir bildirimin ne kadarını göstereceğini belirler — yalnızca yeni bir şey geldiğini gösterir, soru veya cevap metnini asla — ve Arapça için varsayılan olarak açıktır.
+- ikimiz bugün anlık bildirim (push) göndermez. İleride bildirim gönderimi eklenirse, gizli bildirimler ayarı bir bildirimin ne kadarını göstereceğini belirler — yalnızca yeni bir şey geldiğini gösterir, soru veya cevap metnini asla — ve Arapça için varsayılan olarak açıktır.
 
 ## Verilerinizi ne kadar süre saklıyoruz
 
-Hayati'de hiçbir şey bir zamanlayıcıyla kendiliğinden sona ermez. Yansımalarınız ve cevaplarınız siz silene kadar kalır.
+ikimiz'de hiçbir şey bir zamanlayıcıyla kendiliğinden sona ermez. Yansımalarınız ve cevaplarınız siz silene kadar kalır.
 
 - Davet kodları oluşturulmalarından 48 saat sonra çalışmayı durdurur; ancak davet kaydının kendisi hesabınız silinene kadar saklanır.
 - Hesabınızı silmek, verilerinizin yok edildiği yoldur — ayrı bir sona erme süresi yoktur.
@@ -78,7 +78,7 @@ Diğer haklarınız için yukarıdaki adresten bize ulaşabilirsiniz.
 
 ## Rızanız ve rızanızı geri almanız
 
-Hayati'de tam olarak tek bir rıza vardır: yansımalarınızın, paylaştığınız cevapların ve koç mesajlarınızın işlenmesine ilişkin rızanız. Toplu onay kutuları ya da var olmayan şeyler için düğmeler yoktur.
+ikimiz'de tam olarak tek bir rıza vardır: yansımalarınızın, paylaştığınız cevapların ve koç mesajlarınızın işlenmesine ilişkin rızanız. Toplu onay kutuları ya da var olmayan şeyler için düğmeler yoktur.
 
 Bu rızayı Ayarlar'daki hukuki ekrandan istediğiniz zaman geri alabilirsiniz. Ücretsizdir, tek bir onay gerektirir ve sizden rıza verirkenkinden fazlasını istemez. Rızanızı geri aldığınızda mahrem özellikler duraklar ve bunları kullanmak isterseniz tekrar rıza vermeniz istenir.
 

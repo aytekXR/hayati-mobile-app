@@ -13,7 +13,7 @@
 > re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 036.
 
-_Last refreshed: 2026-07-28, **Session 053 close**._
+_Last refreshed: 2026-07-28, **Session 054 close**._
 
 **Where things stand in one line:** the MVP is code-complete, both backends now
 run **current** code and **current Firestore rules**, and a TestFlight build
@@ -176,6 +176,91 @@ you. Neither is a session's call, even though the account has the permission.
 session as **unreachable** — one hangs off a `rimraf` that `google-gax` declares
 and never imports, the other sits under an optional Google Cloud Storage package
 these Functions never load. They are recorded in ADR-034, not forgotten.
+
+## 2(c). The rename shipped — four steps are yours, and the first two gate the rest
+
+**The app is now `ikimiz` everywhere a user can see** (ADR-035): UI copy in all
+three languages, the home-screen label, the App Store listing name, the legal
+documents, and the push notifications. ⚠️ **The listing name changes on your
+next release run** — `deliver(force: true)` pushes `name.txt`, which now reads
+`ikimiz`.
+
+The shared invite link also changed, from `hayati://invite/<code>` to
+**`https://ikimiz.beyondkaira.com/i/<code>`** (ADR-036). Old links still work.
+But the new one points at a domain that **is not serving yet**, and that is
+step 1.
+
+### 1. Connect the domain (nothing else here works until this is done)
+
+Firebase console → `hayatiapp-prod` → **Hosting** → create a site named
+**`ikimiz`** → **Add custom domain** → `ikimiz.beyondkaira.com`. Firebase shows
+you a **TXT** record to verify ownership and then **A** records; add both at the
+`beyondkaira.com` registrar. TLS is issued automatically.
+
+### 2. Add the deploy credential
+
+```sh
+gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json
+```
+
+A service account in `hayatiapp-prod` with the **Firebase Hosting Admin** role.
+Until it exists the deploy workflow **fails closed and names it** rather than
+pretending to deploy. Then:
+
+```sh
+gh workflow run deploy-site.yml -f channel=preview -f allow_placeholders=true
+```
+
+That gives you a temporary URL to look at without touching the real domain.
+
+### 3. ⚠️ Fill the legal blanks — this BLOCKS the live site, on purpose
+
+`docs/legal/` still says **"[FOUNDER LEGAL ENTITY — to be completed by the
+founder]"** and has a blank contact address, in all six documents. A privacy
+policy served at a public URL that Apple points to must not say that, so the
+builder **refuses** to publish it and the live channel refuses the override.
+
+Two blanks, six files: the legal entity that operates ikimiz, and a contact
+address for privacy questions. Once they are filled:
+
+```sh
+gh workflow run deploy-site.yml -f channel=live
+```
+
+### 4. Enable Associated Domains on the App ID
+
+Apple Developer portal → Certificates, Identifiers & Profiles → **Identifiers**
+→ `com.beyondkaira.hayati` → tick **Associated Domains** → Save.
+
+**Why a session cannot:** `match` fetches provisioning profiles **readonly**
+(ADR-032) precisely so CI can never mint credentials. An App ID missing this
+capability makes the *signing step fail* with an entitlement mismatch — loudly,
+not silently — but it has to be you who ticks the box.
+
+---
+
+## 2(d). TestFlight: every build now goes to Friends — and one page still blocks it
+
+Every release now attaches its build to the external **Friends** group
+automatically (ADR-037), which is what you asked for. The honest state:
+
+**Your five testers will still receive nothing** until Apple's **Beta App
+Review** passes, and review will not start until the **Test Information** page
+is filled in: App Store Connect → your app → **TestFlight** → *Test
+Information* — beta app description, feedback email, marketing/privacy contact.
+
+That is your copy and your contact details; no script can write them. The lane
+prints exactly which fields are missing after every assignment, so you can also
+just read the release run's log.
+
+To attach the **existing** latest build now, without waiting for a release:
+
+```sh
+gh workflow run testflight-testers.yml
+```
+
+**Internal testers are unaffected** — they keep getting every build instantly,
+with no review.
 
 ---
 

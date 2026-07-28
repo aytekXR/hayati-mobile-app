@@ -1,12 +1,12 @@
 # Privacy Policy
 
-This policy explains what Hayati collects, why, where it lives, and the choices you have. It is written to be checked against what the app actually does, not to sound impressive. If a sentence here promises something the app cannot do, that is a mistake we want to hear about.
+This policy explains what ikimiz collects, why, where it lives, and the choices you have. It is written to be checked against what the app actually does, not to sound impressive. If a sentence here promises something the app cannot do, that is a mistake we want to hear about.
 
 Version 2. Effective 26 July 2026.
 
-## Who runs Hayati
+## Who runs ikimiz
 
-Hayati is operated by [FOUNDER LEGAL ENTITY — to be completed by the founder], the data controller responsible for the personal data described here.
+ikimiz is operated by [FOUNDER LEGAL ENTITY — to be completed by the founder], the data controller responsible for the personal data described here.
 
 You can reach us about privacy at [CONTACT ADDRESS — to be completed by the founder].
 
@@ -48,19 +48,19 @@ We state a legal basis for each purpose, because a notice that hides the basis i
 - RevenueCat will process subscription status on our behalf once subscriptions are connected. It is not yet configured.
 - The coach is powered by Anthropic, through its Claude API. When you chat with the coach, your messages are sent to Anthropic in the moment so it can write a reply, and Anthropic processes them on our behalf. Under Anthropic's commercial API terms, it does not use your conversations to train its models. We store nothing from the coach — not on our servers, and not on your device; your messages are sent to Anthropic only in the moment, to produce the reply. Sending your coach messages to Anthropic is a cross-border transfer, covered by a standard contract, and because Anthropic is a new recipient of that content, this version of the notice raises its version and asks for your consent again.
 
-We do not use your relationship content for advertising, and there is no advertising in Hayati. There is no analytics or tracking product in the app today; if we ever add one, it will arrive with its own separate opt-in, not folded into this notice.
+We do not use your relationship content for advertising, and there is no advertising in ikimiz. There is no analytics or tracking product in the app today; if we ever add one, it will arrive with its own separate opt-in, not folded into this notice.
 
-## Keeping Hayati private on your device
+## Keeping ikimiz private on your device
 
-Some of Hayati's privacy is on your own device, and we describe its honest limits rather than oversell it:
+Some of ikimiz's privacy is on your own device, and we describe its honest limits rather than oversell it:
 
-- You can lock Hayati with a 6-digit PIN, with Face ID or Touch ID as an optional shortcut. This is a local protection: it blocks casual access to the app, but it is not forensic-grade and it will not defeat someone who holds your own device credentials. A person with your SIM (for the SMS code) or your device Apple ID can force a way in through account recovery — which signs you out and removes the PIN, so it leaves a trace you can see.
+- You can lock ikimiz with a 6-digit PIN, with Face ID or Touch ID as an optional shortcut. This is a local protection: it blocks casual access to the app, but it is not forensic-grade and it will not defeat someone who holds your own device credentials. A person with your SIM (for the SMS code) or your device Apple ID can force a way in through account recovery — which signs you out and removes the PIN, so it leaves a trace you can see.
 - The discreet app icon shows a plain icon on your home screen. The app's name still appears under it; the icon image changes, the name does not.
-- Hayati does not send push notifications today. If notification delivery is added later, the discreet-notifications setting controls how much a notification reveals — showing only that something new arrived, never the question or answer text — and it is on by default in Arabic.
+- ikimiz does not send push notifications today. If notification delivery is added later, the discreet-notifications setting controls how much a notification reveals — showing only that something new arrived, never the question or answer text — and it is on by default in Arabic.
 
 ## How long we keep your data
 
-Nothing in Hayati expires on a timer. Your reflections and answers stay until you delete them.
+Nothing in ikimiz expires on a timer. Your reflections and answers stay until you delete them.
 
 - Invite codes stop working 48 hours after they are made, but the invite record itself is kept until your account is deleted.
 - Deleting your account is the way your data is erased — there is no separate expiry.
@@ -78,7 +78,7 @@ For the other rights, contact us at the address above.
 
 ## Your consent, and how to withdraw it
 
-There is exactly one consent in Hayati: your consent to process your reflections, the answers you share, and your coach messages. There are no bundled boxes and no toggles for things that do not exist.
+There is exactly one consent in ikimiz: your consent to process your reflections, the answers you share, and your coach messages. There are no bundled boxes and no toggles for things that do not exist.
 
 You can withdraw this consent at any time from the legal screen in Settings. It is free, takes one confirmation, and asks nothing more of you than granting it did. When you withdraw, the reflective features pause and you will be asked to consent again if you want to use them.
 

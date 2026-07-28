@@ -1786,3 +1786,56 @@ The **ADR-claim auditor returned zero findings** after independently reproducing
 **Operator action required:** yes, one new — **item 2(b), enable Dependabot alerts**. It is not blocking; the session completed without it.
 
 **Outcome:** done. **#131 closed.** **ADR-034** written.
+
+## Session 054 — 2026-07-28 — **the rename to `ikimiz`: a find/replace would have shipped broken Turkish, and the brand collided with the product's own vocabulary**
+
+**Objective (founder directive, superseding the queued #140):** rename every customer-facing reference from "Hayati" to "ikimiz"; move shared links to `ikimiz.beyondkaira.com`; serve the legal pages there; and make the TestFlight **Friends** group receive every build.
+
+**Three decisions were the founder's, and were asked before any code:** the casing (**lowercase `ikimiz`**, accepting that this renames the LIVE App Store listing — the store and home-screen label were already `İkimiz` from ADR-032 D6); the hosting substrate (**Firebase Hosting**, not the nginx/VPS the request assumed — the project is already entirely Firebase, so there is no server to patch and no TLS to renew); and TestFlight (**auto-assign every build**, accepting Beta App Review).
+
+### The rename is a copy rewrite, and that is the whole finding
+
+**`ikimiz` is an ordinary Turkish word meaning "the two of us."** In a product *about* two people it collides with the copy's own vocabulary, and a substitution ships nonsense:
+
+| Key | Substitution gives | Why it fails |
+|---|---|---|
+| `privacySpotlightTitle` | "ikimiz **ikinizin** arasında kalsın" | mixes *our two* with *your two* |
+| `soloCompletedBody` | "ikimiz iki kişi için tasarlandı" | "the two of us were designed for two people" |
+| `soloNudgeBody` | "ikimiz birlikte daha güzel" | reads as the pronoun, not the app |
+| `inviteShareMessage` | "her gün **ikimize** … **ikimiz'i** indir" | same word as pronoun AND brand, one line apart |
+
+Four sentences were rewritten; where the brand could not sit without ambiguity it was **dropped from that sentence** rather than forced in.
+
+**And the suffixes change, because the stem now ends in a consonant.** `Hayati'yi` → **`ikimiz'i`** (not `ikimiz'yi` — the `y` buffer is only for vowel-final stems), `Hayati'nin` → **`ikimiz'in`**. Verified after the fact across every surface: the only forms that exist are `ikimiz'de`, `ikimiz'i`, `ikimiz'in`.
+
+**The Arabic case nearly broke ADR-033 without anything going red.** The brand becomes a **Latin wordmark inside RTL chrome**, and ADR-033 D3 deliberately does not isolate chrome — on the stated premise that *a chrome sentence's first-strong direction already equals the paragraph's*. `"حياتي مقفل"` → `"ikimiz مقفل"` would have begun an RTL paragraph with a strong-LTR character, falsifying that premise silently. Every Arabic string is instead restructured to **lead with an Arabic word** (`تطبيق ikimiz مقفل`), which preserves the premise by construction rather than patching it, and adds no isolation controls. The push bodies already had this shape and keep it.
+
+**The legal version was deliberately NOT bumped, and the reasoning is recorded next to the constant.** Three `consent*` strings sit inside the frozen-sentence digest, whose checklist asks whether a change is *material* — because a material one re-asks every user. It is not: processors (Google, Apple, Anthropic), data categories, purposes and controller are all unchanged; only the trade name moved. `currentLegalVersion` stays **2**.
+
+**Goldens declared before regenerating (ADR-025 D8): 91 modified / 0 added / 0 deleted across 7 suites — matched one-for-one, per suite, no churn.** Three renamed strings moved *no* golden and each reason was checked: `pairedPackUpdateTitle` renders only in a state the paired-home set does not cover; `privacySpotlightTitle` is inside the 33 solo-home cells; `inviteShareMessage` is asserted by a **self-referential** widget test that builds its expectation from `l10n` (pre-existing).
+
+### The site is generated, because a third copy of a legal document is a third thing to drift
+
+`docs/legal/` is already byte-synced into `app/assets/legal/` under a drift test (ADR-023). Committing HTML would add a third copy, so `tool/ci/build_site.py` renders the pages at deploy time and `web/public/` is gitignored. The Markdown subset is only what the corpus measurably uses; an unrecognised line becomes a paragraph so legal prose is never silently dropped; and **link syntax is deliberately unimplemented** because the corpus has zero links but does contain `[FOUNDER LEGAL ENTITY — to be completed by the founder]`, which a link parser would hide inside an anchor.
+
+**The placeholder gate is the point:** the builder refuses to publish a policy that still says "to be completed by the founder", and the live channel refuses the override outright — a policy about the *channel* cannot live in the tool, which cannot see which channel it is. Both directions tested.
+
+**Invite links** move to `https://ikimiz.beyondkaira.com/i/<code>` with an AASA file and an `applinks:` entitlement. **The old custom scheme is still parsed** — sent links live in chat history forever, and whoever follows a months-old invite is least able to diagnose it. `inviteLinkFor()` is now the single constructor, pinned by a round-trip test; 12 new parser tests including *another host serving the same path shape is rejected*.
+
+### TestFlight: a named exception, and an honest bound
+
+S052 wrote that adding an external tester "must not be a side effect of a merge." The founder asked for exactly that, so it is now an **exception that is named** rather than a quiet reversal — creating testers stays dispatch-only, since that is what emails a *new* person.
+
+Deliberately **not** `pilot(distribute_external: true)`: that needs `skip_waiting_for_build_processing: false`, parking the expensive macOS runner in Apple's queue on every release. The upload stays fast; `--assign-build-number` polls on ubuntu until the build is **VALID**, because a `PROCESSING` build has no installable asset and attaching it would report success while delivering nothing — the `store_metadata`/#140 shape met a third time. Non-blocking, per ADR-034: a slow Apple queue must not redden a release whose binary already shipped.
+
+**The bound is stated rather than papered over:** external testers receive nothing until the founder fills **Test Information** and Beta App Review passes. The tool names the missing fields after every assignment.
+
+**ADR-020 D5's empty-URL ratchet is closed** — real privacy/support URLs landed, so `--allow-empty-urls` is gone from both `ci.yml` and `release.yml`.
+
+**The `$?`-after-a-pipe trap fired twice more** (an e2e exit code, then a `dart format` check whose exit 1 was masked — and `--output=none` meant it had only *reported*, not written). Fourth and fifth times across three sessions.
+
+**Verification:** app **1590 passed** (12 new), functions **979 passed** (97.28%), `flutter analyze` clean, `dart format` 0 changed (re-checked without a pipe), release-lane lint PASS — now asserting `name.txt is "ikimiz"` — store-metadata lint PASS **without** the flag, `build_site` 10 self-tests, `testflight_testers` self-tests incl. 7 new `await_build` cases, shellcheck clean, all five workflows parse, ADR index 37/37.
+
+**Operator action required: YES, and it is blocking the user-visible half.** New items **2(c)** (connect the domain + `FIREBASE_SERVICE_ACCOUNT` + **fill the legal blanks** + enable Associated Domains) and **2(d)** (Test Information for Beta App Review). The invite link points at a domain that is not serving yet, which is why the code and the deploy lane ship together.
+
+**Outcome:** the founder's four-part directive is complete in code. **ADR-035**, **ADR-036**, **ADR-037** written. #140 remains the top engineering item and moves to Session 055.

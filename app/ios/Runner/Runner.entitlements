@@ -12,5 +12,28 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- Universal links for invite URLs (ADR-036). `applinks:` makes iOS fetch
+	     https://ikimiz.beyondkaira.com/.well-known/apple-app-site-association
+	     and claim /i/* for this app, so a partner tapping an invite in WhatsApp
+	     lands in the app instead of Safari. Two things about this are easy to
+	     get wrong and are therefore written down:
+
+	       * the AASA fetch happens at INSTALL time over TLS and Apple follows
+	         no redirects, so the domain must already be serving before a build
+	         carrying this entitlement is useful — deploy-site.yml first;
+	       * the entitlement must exist in the PROVISIONING PROFILE too, which
+	         means the Associated Domains capability has to be enabled on the
+	         App ID in the Apple Developer portal. `match` fetches profiles
+	         readonly (ADR-032), so it cannot add the capability itself: an
+	         un-updated profile makes the signing step fail with a profile/
+	         entitlement mismatch rather than silently shipping a dead link.
+	         That is an operator step, recorded in operator-expected.md.
+
+	     The custom `hayati://` scheme in Info.plist stays alongside this so
+	     invites already sitting in someone's chat history keep working. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:ikimiz.beyondkaira.com</string>
+	</array>
 </dict>
 </plist>
