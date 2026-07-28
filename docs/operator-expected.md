@@ -250,13 +250,17 @@ incomplete, so the tool refuses a partial write and names what is missing.
 # Look first. Writes nothing, invites nobody.
 gh workflow run testflight-testers.yml -f dry_run=true -f set_review_contact=true
 
-# Then, for real: fill the page, attach build 110 to Friends, submit for review.
+# Then, for real: fill the page and send build 110 to Beta App Review.
 gh workflow run testflight-testers.yml \
   -f dry_run=false \
   -f set_review_contact=true \
-  -f assign_latest_build=true \
   -f submit_for_review=true
 ```
+
+> **`assign_latest_build` is not needed** — measured at the S055 close, build 110
+> is already attached to **`founders, Friends`**. The group is not empty and the
+> build is not unassigned; only the contact fields are missing. Pass
+> `-f assign_latest_build=true` anyway if you like: it is idempotent.
 
 `submit_for_review` **refuses** if anything is still missing rather than earning you
 a rejection, and is a no-op if the build is already through the gate. Apple's Beta
