@@ -210,6 +210,73 @@ List<String> checkLaneCredentialHelpers(String fastfile, List<String> passes) {
   return violations;
 }
 
+/// Secrets the `sign-upload` job consumes that the fail-closed gate deliberately
+/// does NOT demand, each mapped to the reason it is exempt.
+///
+/// THE GATE'S PROMISE IS ABOUT CREDENTIALS. ADR-021 D4 exists so a *partial
+/// signing set* never reaches fastlane to die minutes later in an opaque error.
+/// ADR-038 D4 introduced a genuinely different category: four facts about the
+/// founder that the Test Information write needs. Their absence must NOT fail
+/// the release — the binary has already shipped by the time that step runs, and
+/// aborting there would skip the build assignment and silently repeal ADR-037's
+/// guarantee that every release build reaches the Friends group.
+///
+/// So adding them to the gate is not a fix, it is the regression. The exemption
+/// is NAMED here, with the reason, rather than the rule weakened — and
+/// [checkNonFatalSecretsAreActuallyNonFatal] proves the premise instead of
+/// trusting this map, so the exemption cannot be used to smuggle a real
+/// credential past the gate by editing a constant.
+const nonFatalSecrets = <String, String>{
+  'ASC_REVIEW_CONTACT_FIRST_NAME':
+      'ADR-038 D4 — non-fatal Test Information write',
+  'ASC_REVIEW_CONTACT_LAST_NAME':
+      'ADR-038 D4 — non-fatal Test Information write',
+  'ASC_REVIEW_CONTACT_EMAIL': 'ADR-038 D4 — non-fatal Test Information write',
+  'ASC_REVIEW_CONTACT_PHONE': 'ADR-038 D4 — non-fatal Test Information write',
+};
+
+/// Every exempt secret must be read ONLY by steps that are `continue-on-error`.
+///
+/// This is what makes [nonFatalSecrets] a claim the lint checks rather than an
+/// escape hatch. A secret whose absence is survivable must sit in a step whose
+/// failure is survivable; the moment one is read by a blocking step, the
+/// exemption is false and the gate's promise really has been broken.
+List<String> checkNonFatalSecretsAreActuallyNonFatal(
+  String job,
+  List<String> passes,
+) {
+  final secretRef = RegExp(r'\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}');
+  final violations = <String>[];
+  for (final step in steps(job)) {
+    final referenced = secretRef
+        .allMatches(step)
+        .map((m) => m.group(1)!)
+        .where(nonFatalSecrets.containsKey)
+        .toSet();
+    if (referenced.isEmpty) continue;
+    if (!RegExp(
+      r'^\s+continue-on-error:\s*true\s*$',
+      multiLine: true,
+    ).hasMatch(step)) {
+      final name =
+          RegExp(r'- name: (.+)').firstMatch(step)?.group(1)?.trim() ?? '?';
+      violations.add(
+        'step "$name" reads ${(referenced.toList()..sort()).join(', ')}, which '
+        '`nonFatalSecrets` exempts from the signing gate on the grounds that '
+        'their absence is survivable — but that step is NOT '
+        '`continue-on-error: true`, so it is not survivable. Either the '
+        'exemption is wrong or the step is.',
+      );
+    }
+  }
+  if (violations.isEmpty) {
+    passes.add(
+      'every gate-exempt secret is read only by continue-on-error steps',
+    );
+  }
+  return violations;
+}
+
 /// RULE 3 — the fail-closed gate names every secret the job consumes, and none
 /// it does not (ADR-032 D4); RULE 3b — every fastlane step is fed its lane's
 /// required inputs.
@@ -264,19 +331,32 @@ List<String> checkGateCoversConsumedSecrets(
       r'missing\+=\("([A-Z0-9_]+)"\)',
     ).allMatches(gate).map((m) => m.group(1)!).toSet();
 
-    final unchecked = consumed.difference(checked).toList()..sort();
+    // The exemption, and the check that the exemption is TRUE — see
+    // [nonFatalSecrets]. Subtracting an allow-list without verifying its
+    // premise would be a lint that can be silenced by editing a constant.
+    violations.addAll(checkNonFatalSecretsAreActuallyNonFatal(job, passes));
+
+    final unchecked =
+        consumed
+            .difference(checked)
+            .difference(nonFatalSecrets.keys.toSet())
+            .toList()
+          ..sort();
     if (unchecked.isNotEmpty) {
       violations.add(
         'the signing secrets gate does not check ${unchecked.join(', ')}, '
         'which the sign-upload job consumes. ADR-021 D4 promises the FIRST '
         'step names the FULL missing set so a partial set never reaches '
         'fastlane; an unchecked secret breaks exactly that promise — it dies '
-        'minutes later inside fastlane instead.',
+        'minutes later inside fastlane instead. If the secret is deliberately '
+        'optional, name it in `nonFatalSecrets` with its reason instead of '
+        'adding it to the gate.',
       );
     } else {
       passes.add(
-        'the signing secrets gate checks all ${consumed.length} secrets the '
-        'sign-upload job consumes',
+        'the signing secrets gate checks every credential the sign-upload job '
+        'consumes (${checked.length} demanded, '
+        '${nonFatalSecrets.length} deliberately optional)',
       );
     }
 
