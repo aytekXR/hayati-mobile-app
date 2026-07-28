@@ -16,8 +16,8 @@
 _Last refreshed: 2026-07-28, **Session 055 close**._
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
-current code and current rules, and a good TestFlight build (**110**, real icon)
-has been sitting there since 27 July — **the only thing between it and your five
+current code and current rules, and build **110** (real icon) is **installable on
+your own phone right now** via the `founders` internal group — **the only thing between it and your five
 testers is four contact fields, and item 2(c) is now a four-line recipe for
 them**; the website is built and proven on a preview URL and waits only on a DNS
 record and one legal blank; the product's one unproven link is still a **real
@@ -204,6 +204,24 @@ beta app review readiness (external testers need this):
 filled in — only the four *contact* fields are empty, and none of them is copy. They
 are your name, your email and your phone number. A good build has been sitting in
 TestFlight since 27 July waiting on a form.
+
+> ### ✅ You can install build 110 today. Right now.
+>
+> Measured against Apple immediately after the Session 055 merge:
+>
+> ```
+> build 110  processing=VALID  external=READY_FOR_BETA_SUBMISSION  internal=IN_BETA_TESTING
+> ```
+>
+> **`internal=IN_BETA_TESTING`** means the **`founders`** internal group already has
+> it. Open TestFlight on your iPhone and it is there — no review, no waiting, nothing
+> below required. If your partner is not seeing it, she is not in that group yet:
+> App Store Connect → **Users and Access** → invite her Apple ID → add her to
+> `founders`. Internal testers never wait for Beta App Review.
+>
+> `external=READY_FOR_BETA_SUBMISSION` is the other half: the *external* groups
+> (`Friends`, `arkadaslar`) are not in review yet, which is what the four fields
+> below unblock.
 
 A session can now write that form for you (ADR-038), but the four values are facts
 about *you*, so they come from secrets rather than from a text box. **They must not

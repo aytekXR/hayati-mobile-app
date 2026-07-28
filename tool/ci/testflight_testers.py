@@ -337,13 +337,33 @@ def build_beta_detail(token: str, build_id: str) -> dict:
     return (data or {}).get("attributes") or {}
 
 
-def build_group_names(token: str, build_id: str) -> list[str]:
-    """Which beta groups a build is attached to. A build in no group is inert."""
-    query = urllib.parse.urlencode({"limit": 200})
-    data = _call(token, "GET", f"/v1/builds/{build_id}/betaGroups?{query}").get(
-        "data", []
-    )
-    return [group.get("attributes", {}).get("name", "?") for group in data]
+def group_names_by_build(token: str, app_id: str) -> dict:
+    """Map build id -> the beta groups it is attached to. Inverted DELIBERATELY.
+
+    The obvious call is `GET /v1/builds/{id}/betaGroups`, and Apple refuses it:
+
+        403 FORBIDDEN_ERROR — The relationship 'betaGroups' does not allow
+        'GET_RELATED'. Allowed operations are: CREATE, DELETE
+
+    Measured against the real API on 2026-07-28, after the hermetic tests, five
+    design-review lenses and a completeness critic had all passed the forward
+    version — none of them can call Apple, which is exactly what this file's own
+    test docstring says about mocking Apple's shapes. The readable direction is
+    group -> builds, so ask each group once and invert.
+
+    Cost is one call per beta group (three here), not one per build.
+    """
+    query = urllib.parse.urlencode({"filter[app]": app_id, "limit": 200})
+    groups = _call(token, "GET", f"/v1/betaGroups?{query}").get("data", [])
+    by_build: dict[str, list[str]] = {}
+    for group in groups:
+        name = group.get("attributes", {}).get("name", "?")
+        builds = _call(
+            token, "GET", f"/v1/betaGroups/{group['id']}/builds?limit=200"
+        ).get("data", [])
+        for build in builds:
+            by_build.setdefault(build["id"], []).append(name)
+    return by_build
 
 
 # States meaning the build has already entered, or passed, the external gate.
@@ -558,6 +578,18 @@ def print_status(token: str, app: dict, group_name: str) -> None:
         marker = " <-- target" if attributes["name"] == group_name else ""
         print(f"  {attributes['name']!r} ({kind}){marker}")
 
+    # One inverted lookup for the whole listing (see group_names_by_build), and
+    # a FAILURE HERE MUST NOT EMPTY THE LISTING: a read-only status command that
+    # dies on an optional extra tells the founder less than one that degrades and
+    # says so. This is what the forbidden per-build call actually cost — it took
+    # the build list down with it.
+    try:
+        groups_by_build = group_names_by_build(token, app_id)
+        groups_available = True
+    except AscError as failure:
+        print(f"\n(group membership unavailable: {failure})")
+        groups_by_build, groups_available = {}, False
+
     print("\nbuilds (newest first):")
     for build in list_builds(token, app_id):
         attributes = build["attributes"]
@@ -589,13 +621,19 @@ def print_status(token: str, app: dict, group_name: str) -> None:
         # through a closed enum, so a state Apple adds tomorrow still shows up.
         # Group membership sits on the same rows because a build in no group
         # delivers to nobody however healthy every other field looks.
-        beta = build_beta_detail(token, build["id"])
-        print(
-            f"      external={beta.get('externalBuildState') or '(none)'}  "
-            f"internal={beta.get('internalBuildState') or '(none)'}"
-        )
-        groups = build_group_names(token, build["id"])
-        print(f"      groups: {', '.join(groups) if groups else '(none — inert)'}")
+        try:
+            beta = build_beta_detail(token, build["id"])
+            print(
+                f"      external={beta.get('externalBuildState') or '(none)'}  "
+                f"internal={beta.get('internalBuildState') or '(none)'}"
+            )
+        except AscError as failure:
+            print(f"      beta state unavailable: {failure}")
+        if groups_available:
+            groups = groups_by_build.get(build["id"], [])
+            print(
+                f"      groups: {', '.join(groups) if groups else '(none — inert)'}"
+            )
 
     gaps = review_readiness(token, app_id)
     print("\nbeta app review readiness (external testers need this):")
