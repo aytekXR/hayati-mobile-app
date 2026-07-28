@@ -213,6 +213,51 @@ def list_builds(token: str, app_id: str, limit: int = 5) -> list[dict]:
     return _call(token, "GET", f"/v1/builds?{query}").get("data", [])
 
 
+def await_build(
+    token: str,
+    app_id: str,
+    build_number: str,
+    wait_seconds: int,
+    sleep: "callable" = None,
+) -> dict | None:
+    """Poll until the build with `build_number` reaches VALID, or give up.
+
+    WHY POLLING IS NEEDED AT ALL. `pilot` uploads with
+    `skip_waiting_for_build_processing: true` so the release job does not sit
+    idle for Apple's processing queue. But a build that is still PROCESSING has
+    no installable asset, and attaching it to a group would report success while
+    delivering nothing — the exact failure shape this repo keeps meeting. So the
+    release lane uploads fast and this waits separately.
+
+    Returns the build dict once VALID, or None on timeout/absence. Never raises
+    on timeout: a build that has not finished processing is not a broken release,
+    and reddening the release job for Apple's queue would be the same
+    cries-wolf mistake as gating on a third party's schedule (ADR-034).
+    """
+    import time as _time
+
+    naptime = sleep or _time.sleep
+    deadline_polls = max(1, wait_seconds // 30)
+    for attempt in range(deadline_polls):
+        for build in list_builds(token, app_id, limit=20):
+            attributes = build.get("attributes", {})
+            if str(attributes.get("version")) != str(build_number):
+                continue
+            state = attributes.get("processingState")
+            if state == "VALID" and not attributes.get("expired"):
+                return build
+            if state in ("INVALID", "FAILED"):
+                print(f"build {build_number} is {state} — Apple rejected the upload.")
+                return None
+            print(f"build {build_number} is {state}; waiting…")
+            break
+        else:
+            print(f"build {build_number} not visible to the API yet; waiting…")
+        if attempt < deadline_polls - 1:
+            naptime(30)
+    return None
+
+
 def assign_build(token: str, build_id: str, group_id: str) -> None:
     _call(
         token,
@@ -338,6 +383,24 @@ def main() -> int:
         help="Read-only: print groups, builds and Beta App Review readiness, then exit.",
     )
     parser.add_argument(
+        "--assign-build-number",
+        help=(
+            "Attach THIS build number to the group once Apple finishes "
+            "processing it. Used by release.yml so every new build reaches the "
+            "group automatically; --assign-latest-build is the manual twin."
+        ),
+    )
+    parser.add_argument(
+        "--wait-minutes",
+        type=int,
+        default=20,
+        help=(
+            "How long to wait for --assign-build-number to become VALID. A "
+            "timeout is NOT a failure: the build is fine, Apple's queue is slow, "
+            "and the assignment can be re-run."
+        ),
+    )
+    parser.add_argument(
         "--assign-latest-build",
         action="store_true",
         help=(
@@ -394,6 +457,24 @@ def main() -> int:
         print(f"\n{args.group!r} now has {len(final)} tester(s):")
         for email in final:
             print(f"  - {email}")
+
+    if args.assign_build_number:
+        build = await_build(
+            token, app["id"], args.assign_build_number, args.wait_minutes * 60
+        )
+        if build is None:
+            print(
+                f"\nbuild {args.assign_build_number} did not reach VALID within "
+                f"{args.wait_minutes} min — NOT assigned. Re-run this workflow, or "
+                "use --assign-latest-build once processing finishes."
+            )
+        elif args.dry_run:
+            print(f"\nwould assign build {args.assign_build_number} to {args.group!r}")
+        else:
+            assign_build(token, build["id"], group["id"])
+            print(f"\nassigned build {args.assign_build_number} to {args.group!r}")
+        for gap in review_readiness(token, app["id"]):
+            print(f"  - {gap}")
 
     if args.assign_latest_build:
         # VALID only: a build still PROCESSING has no installable asset, and

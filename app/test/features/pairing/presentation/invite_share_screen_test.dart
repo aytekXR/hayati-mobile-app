@@ -90,11 +90,14 @@ void main() {
         expect(launcher.sharedMessages, hasLength(1));
         final message = launcher.sharedMessages.single;
         expect(message, contains('ABCD2345'));
-        expect(message, contains('hayati://invite/ABCD2345'));
+        expect(message, contains('https://ikimiz.beyondkaira.com/i/ABCD2345'));
         // The composed message is exactly the localized template.
         expect(
           message,
-          l10n.inviteShareMessage('ABCD2345', 'hayati://invite/ABCD2345'),
+          l10n.inviteShareMessage(
+            'ABCD2345',
+            'https://ikimiz.beyondkaira.com/i/ABCD2345',
+          ),
         );
       });
     }

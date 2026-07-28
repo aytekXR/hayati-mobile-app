@@ -7,6 +7,7 @@ import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/presentation/state/auth_controller.dart';
+import '../domain/invite_deep_link.dart';
 import '../domain/issued_invite.dart';
 import 'partner_preview_screen.dart';
 import 'state/invite_share_controller.dart';
@@ -16,7 +17,7 @@ import 'state/invite_share_controller.dart';
 /// + expiry, and shares the localized WhatsApp message (code-first per the
 /// product-copy pairing rewrite — the code leads because custom-scheme links
 /// are not tappable in chat apps, the ❤️ closes off the glanceable first
-/// line, and the `hayati://invite/<code>` deep link trails; composed here
+/// line, and the `https://ikimiz.beyondkaira.com/i/<code>` link trails; composed here
 /// from l10n). Brand
 /// styling comes from the theme (core/design_system) plus the spacing tokens;
 /// logical-direction only (RTL-safe). Carries the sign-out affordance so a
@@ -129,7 +130,7 @@ class _InviteReadyView extends ConsumerWidget {
     // The share text is composed HERE (l10n + deep link) so the launcher seam
     // stays a dumb "share this string" adapter and the message is asserted in
     // widget tests without a method channel.
-    final link = 'hayati://invite/${invite.code}';
+    final link = inviteLinkFor(invite.code);
     final message = l10n.inviteShareMessage(invite.code, link);
     unawaited(ref.read(inviteShareControllerProvider.notifier).share(message));
   }

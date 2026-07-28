@@ -105,13 +105,14 @@ jobs:
         run: dart content/validator/validate.dart
       # M6.3 store-metadata enforcement (ADR-020 D6): lint self-tests, then the
       # credential-free precheck lint over fastlane/metadata — Apple char limits,
-      # required files per locale, unknown-filename hard fail. --allow-empty-urls
-      # is the ratchet: drop it once the founder supplies the privacy/support URLs
-      # (ADR-020 D5, operator-expected). Plain dart:-only, so pre-pub-get.
+      # required files per locale, unknown-filename hard fail. ADR-020 D5's
+      # --allow-empty-urls ratchet is CLOSED as of ADR-036: the privacy and
+      # support URLs now point at ikimiz.beyondkaira.com, so the flag is gone and
+      # an empty URL file reddens the build. Plain dart:-only, so pre-pub-get.
       - name: store metadata lint self-tests
         run: dart tool/store_metadata_lint_test.dart
       - name: store metadata lint
-        run: dart tool/store_metadata_lint.dart --allow-empty-urls tr en-US
+        run: dart tool/store_metadata_lint.dart tr en-US
       # ADR-032 — release-lane self-agreement, per-PR. release.yml only runs on a
       # tag or a dispatch, so between two releases its internals can drift with
       # every required check green; that is exactly what happened when PR #117
@@ -152,6 +153,14 @@ jobs:
       # through a smoke test while guarding nothing.
       - name: npm audit delta self-tests
         run: python3 tool/ci/npm_audit_delta_test.py
+      # ADR-036: the generator that renders ikimiz.beyondkaira.com from
+      # docs/legal/. Hermetic (no network, no Firebase), so it sits here rather
+      # than in the deploy lane — which is dispatch-only and therefore would not
+      # catch a broken generator until someone tried to publish. It also pins
+      # the placeholder gate in BOTH directions: unfilled legal blanks must fail
+      # the build, and clean text must not need the escape flag.
+      - name: site generator self-tests
+        run: python3 tool/ci/build_site_test.py
       - name: pub get
         working-directory: app
         run: flutter pub get

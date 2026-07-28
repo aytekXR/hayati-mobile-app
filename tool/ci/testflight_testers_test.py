@@ -120,9 +120,63 @@ def test_token() -> None:
     check_raises("non-PEM secret fails closed", tf._token, "PKCS#8 PEM")
 
 
+def _build(version, state, expired=False):
+    return {"id": f"id-{version}", "attributes": {"version": version,
+            "processingState": state, "expired": expired}}
+
+
+def test_await_build() -> None:
+    """`await_build` is what stops the release lane attaching a build that has
+    no installable asset yet — reporting success while delivering nothing."""
+    calls = {"n": 0}
+    naps = []
+
+    def once(builds):
+        return lambda _t, _a, limit=5: builds
+
+    # VALID straight away.
+    tf.list_builds = once([_build("110", "VALID"), _build("109", "VALID")])
+    got = tf.await_build("t", "app", "110", 600, sleep=naps.append)
+    check("returns the VALID build", got["id"], "id-110")
+    check("and did not sleep", naps, [])
+
+    # PROCESSING, then VALID — the case the polling exists for.
+    seq = [[_build("110", "PROCESSING")], [_build("110", "PROCESSING")],
+           [_build("110", "VALID")]]
+    def stepper(_t, _a, limit=5):
+        calls["n"] += 1
+        return seq[min(calls["n"] - 1, len(seq) - 1)]
+    tf.list_builds = stepper
+    naps.clear()
+    got = tf.await_build("t", "app", "110", 600, sleep=naps.append)
+    check("waits through PROCESSING then returns", got["id"], "id-110")
+    check("and slept between polls", len(naps) >= 1, True)
+
+    # Apple rejected it: stop immediately rather than burning the timeout.
+    tf.list_builds = once([_build("110", "INVALID")])
+    naps.clear()
+    check("INVALID gives up at once", tf.await_build("t", "app", "110", 600, sleep=naps.append), None)
+    check("without sleeping", naps, [])
+
+    # Timeout is not an error, and must not return a not-VALID build.
+    tf.list_builds = once([_build("110", "PROCESSING")])
+    check("timeout returns None", tf.await_build("t", "app", "110", 60, sleep=lambda _s: None), None)
+
+    # Matches by NUMBER, not by position — the newest build is not necessarily ours.
+    tf.list_builds = once([_build("111", "VALID"), _build("110", "VALID")])
+    check("matches the requested build number",
+          tf.await_build("t", "app", "110", 600, sleep=lambda _s: None)["id"], "id-110")
+
+    # An expired build is not installable either.
+    tf.list_builds = once([_build("110", "VALID", expired=True)])
+    check("an expired build is not accepted",
+          tf.await_build("t", "app", "110", 60, sleep=lambda _s: None), None)
+
+
 def main() -> int:
     test_parse_emails()
     test_token()
+    test_await_build()
     if _failures:
         print(f"\n{len(_failures)} check(s) FAILED: {', '.join(_failures)}")
         return 1
