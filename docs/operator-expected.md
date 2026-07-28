@@ -13,13 +13,20 @@
 > re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 036.
 
-_Last refreshed: 2026-07-28, **Session 054 close**._
+_Last refreshed: 2026-07-28, **Session 055 close**._
 
-**Where things stand in one line:** the MVP is code-complete, both backends now
-run **current** code and **current Firestore rules**, and a TestFlight build
-from `main` carries the real app icon; the product's one unproven link is a
-**real purchase**, and the only thing standing in front of it that a session
-cannot do is item 0(a) below.
+**Where things stand in one line:** the MVP is code-complete, both backends run
+current code and current rules, and a good TestFlight build (**110**, real icon)
+has been sitting there since 27 July — **the only thing between it and your five
+testers is four contact fields, and item 2(c) is now a four-line recipe for
+them**; the website is built and proven on a preview URL and waits only on a DNS
+record and one legal blank; the product's one unproven link is still a **real
+purchase**, behind item 0(a).
+
+> **⚠️ Read 2(c) and 2(d) first.** 2(c) is ~2 minutes and puts the app in your
+> friends' hands. 2(d) is one checkbox in Apple's portal and, until it is ticked,
+> **the next release build will fail to sign** — build 110 predates that
+> entitlement, which is why 2(c) ships 110 rather than cutting a new build.
 
 > **⚠️ What Session 052 found, because it is the thing most likely to bite you
 > again.** Your "Something went wrong" bug was never in the app. **Firestore
@@ -177,90 +184,153 @@ session as **unreachable** — one hangs off a `rimraf` that `google-gax` declar
 and never imports, the other sits under an optional Google Cloud Storage package
 these Functions never load. They are recorded in ADR-034, not forgotten.
 
-## 2(c). The rename shipped — four steps are yours, and the first two gate the rest
+## 🔴 2(c). Get the app to your five testers — **four secrets, then one command**
 
-**The app is now `ikimiz` everywhere a user can see** (ADR-035): UI copy in all
-three languages, the home-screen label, the App Store listing name, the legal
-documents, and the push notifications. ⚠️ **The listing name changes on your
-next release run** — `deliver(force: true)` pushes `name.txt`, which now reads
-`ikimiz`.
+**This is the shortest path on this page and it is worth doing first.** Session 055
+measured what actually stands between your testers and the app, and it is smaller
+than this page used to imply:
 
-The shared invite link also changed, from `hayati://invite/<code>` to
-**`https://ikimiz.beyondkaira.com/i/<code>`** (ADR-036). Old links still work.
-But the new one points at a domain that **is not serving yet**, and that is
-step 1.
-
-### 1. Connect the domain (nothing else here works until this is done)
-
-Firebase console → `hayatiapp-prod` → **Hosting** → create a site named
-**`ikimiz`** → **Add custom domain** → `ikimiz.beyondkaira.com`. Firebase shows
-you a **TXT** record to verify ownership and then **A** records; add both at the
-`beyondkaira.com` registrar. TLS is issued automatically.
-
-### 2. Add the deploy credential
-
-```sh
-gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json
+```
+app: ikimiz (com.beyondkaira.hayati)
+builds: 110 VALID (2026-07-27, real icon)  109 VALID  3  2  1
+beta app review readiness (external testers need this):
+  MISSING - Test Information: review contact email is empty
+  MISSING - Test Information: review contact first name is empty
+  MISSING - Test Information: review contact last name is empty
+  MISSING - Test Information: review contact phone is empty
 ```
 
-A service account in `hayatiapp-prod` with the **Firebase Hosting Admin** role.
-Until it exists the deploy workflow **fails closed and names it** rather than
-pretending to deploy. Then:
+**That is the whole gap.** The beta description and the feedback email are already
+filled in — only the four *contact* fields are empty, and none of them is copy. They
+are your name, your email and your phone number. A good build has been sitting in
+TestFlight since 27 July waiting on a form.
+
+A session can now write that form for you (ADR-038), but the four values are facts
+about *you*, so they come from secrets rather than from a text box. **They must not
+go in a workflow input: this repository is public, and dispatch inputs are recorded
+in run metadata anyone can read — a box asking for your mobile number would publish
+it permanently.**
+
+### Step 1 — set four secrets (once, ~1 minute)
 
 ```sh
-gh workflow run deploy-site.yml -f channel=preview -f allow_placeholders=true
+gh secret set ASC_REVIEW_CONTACT_FIRST_NAME --env release --body 'Aytek'
+gh secret set ASC_REVIEW_CONTACT_LAST_NAME  --env release --body 'YOUR SURNAME'
+gh secret set ASC_REVIEW_CONTACT_EMAIL      --env release --body 'aytek@beyondkaira.com'
+gh secret set ASC_REVIEW_CONTACT_PHONE      --env release --body '+90XXXXXXXXXX'
 ```
 
-That gives you a temporary URL to look at without touching the real domain.
+The `release` environment, to match `ASC_KEY_ID`/`ASC_ISSUER_ID`. Apple wants a phone
+number it could actually reach; it is not published to testers.
 
-### 3. ⚠️ Fill the legal blanks — this BLOCKS the live site, on purpose
+⚠️ **All four or none.** Apple accepts three of four and still shows the page as
+incomplete, so the tool refuses a partial write and names what is missing.
 
-`docs/legal/` still says **"[FOUNDER LEGAL ENTITY — to be completed by the
-founder]"** and has a blank contact address, in all six documents. A privacy
-policy served at a public URL that Apple points to must not say that, so the
-builder **refuses** to publish it and the live channel refuses the override.
-
-Two blanks, six files: the legal entity that operates ikimiz, and a contact
-address for privacy questions. Once they are filled:
+### Step 2 — write the page, attach the build, and start the review
 
 ```sh
-gh workflow run deploy-site.yml -f channel=live
+# Look first. Writes nothing, invites nobody.
+gh workflow run testflight-testers.yml -f dry_run=true -f set_review_contact=true
+
+# Then, for real: fill the page, attach build 110 to Friends, submit for review.
+gh workflow run testflight-testers.yml \
+  -f dry_run=false \
+  -f set_review_contact=true \
+  -f assign_latest_build=true \
+  -f submit_for_review=true
 ```
 
-### 4. Enable Associated Domains on the App ID
+`submit_for_review` **refuses** if anything is still missing rather than earning you
+a rejection, and is a no-op if the build is already through the gate. Apple's Beta
+App Review typically takes 24–48 h for a first submission. After that your five
+testers get the install.
 
-Apple Developer portal → Certificates, Identifiers & Profiles → **Identifiers**
-→ `com.beyondkaira.hayati` → tick **Associated Domains** → Save.
+### What you can check at any time, without changing anything
 
-**Why a session cannot:** `match` fetches provisioning profiles **readonly**
-(ADR-032) precisely so CI can never mint credentials. An App ID missing this
-capability makes the *signing step fail* with an entitlement mismatch — loudly,
-not silently — but it has to be you who ticks the box.
+```sh
+gh workflow run testflight-testers.yml -f status_only=true
+```
+
+It now prints, per build, `externalBuildState` — Apple's **reviewer** — next to the
+`processingState` that is only Apple's **encoder**, plus which groups the build is
+attached to. `READY_FOR_BETA_TESTING` is the state that means your friends can
+install it. A build can read `VALID` forever and reach nobody.
+
+> **Two external groups exist**: `Friends` (which every release is auto-assigned to)
+> and `arkadaslar` (yours, pre-existing). Anyone in `arkadaslar` and not in `Friends`
+> receives nothing. Tracked as **issue #146** — a session can list who is where; only
+> you can decide whether to re-invite them, since that emails them again.
+> **Internal testers (`founders`) are unaffected and never need review.**
 
 ---
 
-## 2(d). TestFlight: every build now goes to Friends — and one page still blocks it
+## 🔴 2(d). Enable **Associated Domains** on the App ID — the next release build cannot sign without it
 
-Every release now attaches its build to the external **Friends** group
-automatically (ADR-037), which is what you asked for. The honest state:
+Apple Developer portal → Certificates, Identifiers & Profiles → **Identifiers** →
+`com.beyondkaira.hayati` → tick **Associated Domains** → Save.
 
-**Your five testers will still receive nothing** until Apple's **Beta App
-Review** passes, and review will not start until the **Test Information** page
-is filled in: App Store Connect → your app → **TestFlight** → *Test
-Information* — beta app description, feedback email, marketing/privacy contact.
+**This is now blocking, not optional.** ADR-036 put `applinks:ikimiz.beyondkaira.com`
+into `Runner.entitlements`, and the entitlement must exist in the **provisioning
+profile** too. `match` fetches profiles **readonly** (ADR-032) precisely so CI can
+never mint credentials, so it cannot add the capability itself — the signing step
+will fail with an entitlement mismatch. Loudly, not silently, but it will fail.
 
-That is your copy and your contact details; no script can write them. The lane
-prints exactly which fields are missing after every assignment, so you can also
-just read the release run's log.
+**Build 110 predates the entitlement and is unaffected**, which is exactly why 2(c)
+above ships *that* build rather than cutting a new one. Do this before the next
+release run.
 
-To attach the **existing** latest build now, without waiting for a release:
+---
 
-```sh
-gh workflow run testflight-testers.yml
+## 2(e). The website — the site now exists and is proven; the live domain needs you
+
+**Session 055 created the Hosting site and deployed the real pages to a preview
+channel.** All six legal documents render in three languages, the Apple
+app-site-association file serves as `application/json`, and `/i/<code>` rewrites to
+the invite page. Nothing about the generator is unproven any more:
+
+> **https://ikimiz--s055-preview-md20kd9a.web.app** — expires 2026-08-04
+
+Two things stand between that and the real domain.
+
+### (i) The DNS record points somewhere else — measured, not assumed
+
+```
+ikimiz.beyondkaira.com  ->  161.97.172.146     (your own VPS: HTTP 404,
+beyondkaira.com         ->  161.97.172.146      TLS cert covers the apex only)
 ```
 
-**Internal testers are unaffected** — they keep getting every build instantly,
-with no review.
+There is an explicit `A` record for `ikimiz` pointing at your server, not a wildcard.
+Firebase Hosting needs it pointed at Firebase instead:
+
+Firebase console → `hayatiapp-prod` → **Hosting** → the **`ikimiz`** site (it exists
+now) → **Add custom domain** → `ikimiz.beyondkaira.com`. Firebase gives you a `TXT`
+record to prove ownership and then the `A` records to replace `161.97.172.146` with.
+TLS is issued automatically. **Nothing else on this page depends on it** — TestFlight
+and Beta App Review do not need the website.
+
+### (ii) One legal blank is still open, and it is the one only you can fill
+
+You chose (Session 055): **you personally as the data controller, contact
+aytek@beyondkaira.com, governed by Turkish law.** Two of those three are ready to
+write. The third — the controller's **legal identity as it should appear in a privacy
+policy** — needs your actual full legal name, which no session should guess. Send it
+and all three land in all six documents in one diff.
+
+Until then the builder **refuses** to publish, which is the point: a policy Apple's
+listing points at must not say "to be completed by the founder". **That gate was
+itself broken and is now fixed** — it matched two English phrases and was blind to
+both Turkish and both Arabic documents, so a Turkish privacy policy saying exactly
+that, to your primary market, would have passed as clean.
+
+### (iii) Optional — let CI deploy it
+
+```sh
+gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json   # Firebase Hosting Admin, hayatiapp-prod
+gh workflow run deploy-site.yml -f channel=live                 # once the blank above is filled
+```
+
+Not required: Session 055 deployed the preview with the Firebase CLI login already on
+the dev box. The secret only matters if you want the deploy to run from CI.
 
 ---
 
@@ -328,15 +398,14 @@ caps distribution certificates at 3.
 **Users and Access** → invite her Apple ID → add her to the internal group
 (internal groups get builds instantly, no Beta App Review).
 
-**The `Friends` external group (Session 052) — one step is still yours.** The
-group exists and its testers are added, via the new manual-dispatch lane
-`gh workflow run testflight-testers.yml` (see `tool/ci/testflight_testers.py`;
-it is idempotent, so re-running it never re-emails anyone). But **external
-testers receive nothing until a build is assigned to their group and that build
-clears Apple's Beta App Review** — and Beta App Review needs the **Test
-Information** page filled in (beta app description, feedback email, contact
-details), which is your copy and your contact details, not a session's. Internal
-testers are unaffected: they get every build immediately.
+**The `Friends` external group — see item 2(c) above, which now supersedes what
+used to be written here.** This page used to say the Test Information page was
+"your copy and your contact details, not a session's". Session 055 measured that
+and it was half wrong in the expensive direction: the description and feedback
+email were **already filled in**, and the four remaining fields are not copy at
+all — they are your name, email and phone. A session can write them, from
+secrets. Item 2(c) is the four-line version. Internal testers are unaffected:
+they get every build immediately, with no review.
 
 ⚠️ **Sequencing that matters for these five people.** Give them a build from
 `main` at or after commit `fa990e6` — *not* the build that was in TestFlight
@@ -557,6 +626,7 @@ these.
 | **#140** | Nothing in CI compares what is merged to what is DEPLOYED. Firestore rules sat un-deployed for 18 days behind six green milestones — the cause of your "Something went wrong". Both projects are current now; the missing gate is not built. |
 | **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
 | **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app now applies on screen. Latent: no current wording is affected. |
+| **#146** | Two external beta groups exist (`Friends`, which every release is assigned to, and your pre-existing `arkadaslar`). Anyone in `arkadaslar` and not in `Friends` receives nothing, with every check green. A session can list who is where; re-inviting them emails them, so that part is yours. |
 | **#130** | ADR-026 claims the seasonal vocabulary is guarded in five readers; the app's copy has no parity test. |
 | **#129** | The release lane's `Gemfile.lock` comment is false, the lane installs unfrozen, and no release run has touched the committed lock. |
 | **#121** | Confirm a likely-dead App Store Connect key step in the release lane. **Needs your go-ahead only** — proving it means dispatching the lane, which uploads a real binary to your TestFlight. |
