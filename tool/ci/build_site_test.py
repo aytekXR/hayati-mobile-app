@@ -135,6 +135,80 @@ def test_clean_text_passes_without_the_flag() -> None:
         check("clean legal text needs no flag", bs.build(root / "out", legal, False), 0)
 
 
+def test_placeholder_gate_is_language_independent() -> None:
+    """Session 055. The gate used to match two ENGLISH phrases, and was blind to
+    four of the six real documents — both Turkish and both Arabic.
+
+    A privacy policy served to this product's PRIMARY market saying
+    `[KURUCU/ŞİRKET TÜZEL KİMLİĞİ — kurucu tarafından doldurulacak]` is exactly
+    what the gate exists to prevent, and the gate said clean. These are the real
+    strings from docs/legal/, not invented ones."""
+    real_blanks = {
+        "tr-entity": "[KURUCU/ŞİRKET TÜZEL KİMLİĞİ — kurucu tarafından doldurulacak]",
+        "tr-contact": "[İLETİŞİM ADRESİ — kurucu tarafından doldurulacak]",
+        "tr-law": "[GEÇERLİ HUKUK — kurucunun hukuk danışmanı tarafından belirlenecek]",
+        "ar-entity": "[الكيان القانوني للمؤسِّس — يُستكمل من قِبل المؤسِّس]",
+        "ar-contact": "[عنوان التواصل — يُستكمل من قِبل المؤسِّس]",
+        "ar-law": "[القانون الحاكم — يُحدَّد من قِبل محامي المؤسِّس]",
+        "en-entity": "[FOUNDER LEGAL ENTITY — to be completed by the founder]",
+        "en-contact": "[CONTACT ADDRESS — to be completed by the founder]",
+        # The English blank the OLD rule also missed: "determined", not "completed".
+        "en-law": "[GOVERNING LAW — to be determined by the founder's lawyer]",
+    }
+    for label, blank in real_blanks.items():
+        check(f"{label} is detected", bs.check_placeholders("x.md", f"Operated by {blank}."),
+              [blank])
+
+    # And each one must actually FAIL a build, not merely be findable.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN + "\n" + real_blanks["tr-law"] + "\n")
+        check("a Turkish-only blank fails the build",
+              bs.build(root / "out", legal, allow_placeholders=False), 1)
+
+
+def test_placeholder_gate_does_not_cry_wolf() -> None:
+    """The other direction, which is the whole reason the old rule was narrow.
+
+    Bracketed prose without an em dash, and em-dashed prose without brackets,
+    must both pass — otherwise the fix trades a silent gate for a stuck one."""
+    for label, text in (
+        ("bracketed prose", "See section [4] and clause [b] of the annex."),
+        ("an em dash in prose", "We keep your data — and only your data — in the EU."),
+        ("a bracket and a dash on different lines", "See [4]\n\nand — separately — this."),
+        ("a filled blank", "ikimiz is operated by Aytek Erdoğan, an individual."),
+    ):
+        check(f"{label} is NOT a placeholder", bs.check_placeholders("x.md", text), [])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN + "\nSee clause [4] — it matters.\n")
+        check("prose with brackets AND a dash still builds clean",
+              bs.build(root / "out", legal, allow_placeholders=False), 0)
+
+
+def test_one_blank_is_counted_once() -> None:
+    """S053's unit lesson, applied to this tool. The old tuple's second marker
+    was a case-insensitive substring of its first, so a single blank reported
+    two hits and every count the log printed was doubled."""
+    one = "Operated by [FOUNDER LEGAL ENTITY — to be completed by the founder]."
+    check("one blank, one hit", len(bs.check_placeholders("x.md", one)), 1)
+    twice = one + "\n\n" + one
+    check("the same blank twice is still one hit",
+          len(bs.check_placeholders("x.md", twice)), 1)
+    two_different = one + "\nReach us at [CONTACT ADDRESS — to be completed by the founder]."
+    check("two different blanks are two hits",
+          len(bs.check_placeholders("x.md", two_different)), 2)
+
+
+def test_a_blank_without_an_em_dash_is_still_caught() -> None:
+    """The belt-and-braces half. The shape rule is the primary net; the phrase
+    list catches a blank someone writes without the em dash."""
+    check("phrase without brackets",
+          bs.check_placeholders("x.md", "Operated by to be completed by the founder."),
+          ["to be completed by the founder"])
+
+
 def test_missing_source_is_an_error_not_an_empty_page() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
@@ -197,6 +271,10 @@ def main() -> int:
         test_html_in_prose_is_escaped,
         test_link_syntax_is_not_implemented,
         test_placeholder_gate_fails_the_build,
+        test_placeholder_gate_is_language_independent,
+        test_placeholder_gate_does_not_cry_wolf,
+        test_one_blank_is_counted_once,
+        test_a_blank_without_an_em_dash_is_still_caught,
         test_clean_text_passes_without_the_flag,
         test_missing_source_is_an_error_not_an_empty_page,
         test_routes_and_rtl,
