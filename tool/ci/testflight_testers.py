@@ -508,8 +508,15 @@ def review_readiness(token: str, app_id: str) -> list[str]:
 
     Returned as a list of human-readable gaps (empty = nothing missing that this
     API can see). Beta App Review is the reason a filled-in group can still
-    deliver nothing, and the missing pieces are all founder-owned copy — so
-    naming them beats a generic "submit for review" instruction.
+    deliver nothing, so naming the gaps beats a generic "submit for review".
+
+    THE GAPS SPLIT IN TWO, and this docstring used to blur them. The four
+    CONTACT fields are founder-owned FACTS — a name, an email, a phone — and
+    `--set-review-contact` writes them from secrets (ADR-038). The localization
+    fields (description, feedback email) are founder-owned COPY: the founder's
+    voice in the founder's languages, which a session filling in with an AI
+    draft would be the unhelpful kind of helpful. Only the second half is
+    something no session can write.
     """
     gaps: list[str] = []
     detail = _call(token, "GET", f"/v1/apps/{app_id}/betaAppReviewDetail").get(
@@ -712,7 +719,12 @@ def main() -> int:
             print(f"group: {args.group!r} does NOT exist — would create (external)")
             for email in emails:
                 print(f"  would add {email}")
-            return 0
+            # `exit_code`, NOT 0. A dry run against a group that does not exist
+            # yet is the most likely FIRST dispatch anyone makes — the workflow's
+            # dry_run input defaults to true — so returning 0 here would report
+            # a clean run for the exact case where a missing contact secret was
+            # just announced. Found by the build-diff review.
+            return exit_code
         group = create_group(token, app["id"], args.group)
         print(f"group: created {args.group!r} id={group['id']} (external)")
     else:
@@ -786,12 +798,21 @@ def main() -> int:
         gaps = review_readiness(token, app["id"])
         if gaps:
             # Loud, because this is the difference between "the group is set up"
-            # and "your friends can actually install it" — and every gap here is
-            # founder-owned copy that no session can write for them.
+            # and "your friends can actually install it".
             print("\nBUT external testers still cannot install until Beta App")
             print("Review passes, and Apple needs this first:")
             for gap in gaps:
                 print(f"  MISSING - {gap}")
+            # Say what closes it. The line this replaced claimed every gap here
+            # was "founder-owned copy that no session can write for them", which
+            # ADR-038 falsified for the contact half — and leaving it would have
+            # sent the founder to fill a form by hand next to the flag that
+            # fills it. Only printed when a CONTACT gap is actually present.
+            if any("review contact" in gap for gap in gaps):
+                print("\nThe contact fields are writable from secrets — see")
+                print("docs/operator-expected.md item 2(c): set the four")
+                print("ASC_REVIEW_CONTACT_* secrets, then re-run this workflow")
+                print("with set_review_contact=true.")
 
     if args.submit_for_review:
         # Deliberately LAST: a build should be attached to the group before it

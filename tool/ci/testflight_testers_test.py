@@ -410,6 +410,56 @@ def test_missing_contact_does_not_block_assignment() -> None:
     check("but the run still exits non-zero", code, 1)
 
 
+def test_dry_run_against_a_missing_group_still_exits_non_zero() -> None:
+    """Found by the build-diff review, and it is the MOST LIKELY first dispatch.
+
+    `dry_run` defaults to true in the workflow, and a group that does not exist
+    yet is exactly the state someone dry-runs against. The early return in that
+    branch was an unconditional `return 0`, so it discarded the exit code a
+    failed contact write had just set — reporting a clean run for the one case
+    where the log had literally printed the error."""
+    print("dry-run against a missing group still exits non-zero")
+    tf.list_builds = _REAL_LIST_BUILDS
+    for name in SENTINELS:
+        os.environ.pop(name, None)
+
+    _fake_call([
+        ("GET", "/v1/apps?", {"data": [{"id": "app-1", "attributes": {"name": "ikimiz"}}]}),
+        ("GET", "/v1/betaGroups?", {"data": []}),  # no group of that name
+        ("GET", "betaAppReviewDetail", {"data": {"id": "d", "attributes": {}}}),
+    ])
+    argv, real_token = sys.argv, tf._token
+    tf._token = lambda: "fake-jwt"
+    sys.argv = ["testflight_testers.py", "--bundle-id", "com.beyondkaira.hayati",
+                "--group", "Nope", "--set-review-contact", "--dry-run"]
+    try:
+        code = tf.main()
+    finally:
+        sys.argv, tf._token = argv, real_token
+    check("the early return carries the exit code", code, 1)
+
+    # And the other direction: with the secrets present, the same dry run is a
+    # clean 0 — otherwise the check above would pass for a tool that always
+    # failed.
+    os.environ.update(SENTINELS)
+    _fake_call([
+        ("GET", "/v1/apps?", {"data": [{"id": "app-1", "attributes": {"name": "ikimiz"}}]}),
+        ("GET", "/v1/betaGroups?", {"data": []}),
+        ("GET", "betaAppReviewDetail", {"data": {"id": "d", "attributes": {}}}),
+    ])
+    argv, real_token = sys.argv, tf._token
+    tf._token = lambda: "fake-jwt"
+    sys.argv = ["testflight_testers.py", "--bundle-id", "com.beyondkaira.hayati",
+                "--group", "Nope", "--set-review-contact", "--dry-run"]
+    try:
+        code = tf.main()
+    finally:
+        sys.argv, tf._token = argv, real_token
+        for name in SENTINELS:
+            os.environ.pop(name, None)
+    check("and is 0 when nothing failed", code, 0)
+
+
 def main() -> int:
     test_parse_emails()
     test_token()
@@ -419,6 +469,7 @@ def main() -> int:
     test_submit_for_review()
     test_looks_already_submitted()
     test_missing_contact_does_not_block_assignment()
+    test_dry_run_against_a_missing_group_still_exits_non_zero()
     if _failures:
         print(f"\n{len(_failures)} check(s) FAILED: {', '.join(_failures)}")
         return 1
