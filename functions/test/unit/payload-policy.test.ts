@@ -81,7 +81,12 @@ describe('composePush', () => {
     it('keeps the title to the neutral app name only', () => {
       for (const kind of KINDS) {
         for (const language of LANGUAGES) {
-          expect(composePush({ kind, language, discreet: true }).title).toBe('Hayati');
+          // Deliberately a LITERAL, not an import of APP_NAME: asserting the
+          // constant against itself would pass for any value, including one
+          // that leaks what the app is for. ADR-012's discreet-title promise is
+          // only guarded while this string is written out here. (S054: moved
+          // Hayati -> ikimiz with the rename, ADR-035.)
+          expect(composePush({ kind, language, discreet: true }).title).toBe('ikimiz');
         }
       }
     });

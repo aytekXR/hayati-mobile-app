@@ -1,36 +1,36 @@
 # Kullanım Koşulları
 
-Bu koşullar, sizinle Hayati arasındaki sözleşmedir. Sade bir dille yazılmıştır ve içindeki her taahhüt, uygulamanın gerçekte nasıl çalıştığıyla örtüşecek şekilde kaleme alınmıştır.
+Bu koşullar, sizinle ikimiz arasındaki sözleşmedir. Sade bir dille yazılmıştır ve içindeki her taahhüt, uygulamanın gerçekte nasıl çalıştığıyla örtüşecek şekilde kaleme alınmıştır.
 
 Sürüm 2. Yürürlük tarihi: 26 Temmuz 2026.
 
-## Hayati'yi kimler kullanabilir
+## ikimiz'i kimler kullanabilir
 
-Hayati yetişkinler içindir. Kullanabilmek için 18 yaşında veya daha büyük olmanız gerekir. Uygulamada ilk rızanızı verdiğinizde, aynı zamanda 18 yaşında veya daha büyük olduğunuzu da beyan edersiniz; bu, verilerinizi nasıl işlediğimize ilişkin rızanızdan ayrı olarak, Hayati'yi kullanmanın bir koşuludur.
+ikimiz yetişkinler içindir. Kullanabilmek için 18 yaşında veya daha büyük olmanız gerekir. Uygulamada ilk rızanızı verdiğinizde, aynı zamanda 18 yaşında veya daha büyük olduğunuzu da beyan edersiniz; bu, verilerinizi nasıl işlediğimize ilişkin rızanızdan ayrı olarak, ikimiz'i kullanmanın bir koşuludur.
 
-Hayati, ilişkileri üzerine emek veren çiftler için bir yol arkadaşıdır. Bir arkadaşlık (dating) hizmeti, bir eşleştirme hizmeti veya bir uygulamayı birinden gizlemenin bir yolu değildir.
+ikimiz, ilişkileri üzerine emek veren çiftler için bir yol arkadaşıdır. Bir arkadaşlık (dating) hizmeti, bir eşleştirme hizmeti veya bir uygulamayı birinden gizlemenin bir yolu değildir.
 
-## Hayati'yi kim işletir
+## ikimiz'i kim işletir
 
-Hayati, [KURUCU/ŞİRKET TÜZEL KİMLİĞİ — kurucu tarafından doldurulacak] tarafından işletilir.
+ikimiz, [KURUCU/ŞİRKET TÜZEL KİMLİĞİ — kurucu tarafından doldurulacak] tarafından işletilir.
 
 ## Partnerinizle paylaşmak ne anlama gelir
 
-Hayati, eşleşmeyi seçen iki kişi için tasarlanmıştır. Bir cevabı paylaştığınızda, o günün sorusunu ikiniz de yanıtladıktan sonra partneriniz tam olarak yazdığınız şeyi okur. Lütfen bunu göz önünde bulundurarak yazın. Özel solo yansımalarınız size ait kalır ve partnerinize gösterilmez.
+ikimiz, eşleşmeyi seçen iki kişi için tasarlanmıştır. Bir cevabı paylaştığınızda, o günün sorusunu ikiniz de yanıtladıktan sonra partneriniz tam olarak yazdığınız şeyi okur. Lütfen bunu göz önünde bulundurarak yazın. Özel solo yansımalarınız size ait kalır ve partnerinize gösterilmez.
 
 Ortak alanı iki taraftan biri sonlandırabilir. Siz veya partneriniz bir hesabı silerse, aranızdaki tüm ortak alan — her paylaşılan cevabın iki tarafı da — ikiniz için de kalıcı olarak silinir; bu, Gizlilik Politikamızda açıklandığı şekildedir. Her kişinin kendi özel yansımaları ve hesabı yalnızca ait olduğu kişi için varlığını sürdürür. Silme geri alınamaz ve partnerin daha önce gördüğü şeyi geri alamaz.
 
 ## Yazdıklarınız size aittir
 
-Hayati'de yazdıklarınız size aittir. Hizmeti yürütebilmek için, yansımalarınızı ve paylaştığınız cevapları saklamamıza ve paylaştığınız cevapları partnerinize göstermemize — tam olarak Gizlilik Politikamızda açıklandığı şekilde — izin verirsiniz. İçeriğinizi reklam için kullanmayız, satmayız ve Hayati'de reklam yoktur. Başka bir kişi hakkında yazdıklarınızı paylaşma hakkına sahip olduğunuzdan emin olmak sizin sorumluluğunuzdadır.
+ikimiz'de yazdıklarınız size aittir. Hizmeti yürütebilmek için, yansımalarınızı ve paylaştığınız cevapları saklamamıza ve paylaştığınız cevapları partnerinize göstermemize — tam olarak Gizlilik Politikamızda açıklandığı şekilde — izin verirsiniz. İçeriğinizi reklam için kullanmayız, satmayız ve ikimiz'de reklam yoktur. Başka bir kişi hakkında yazdıklarınızı paylaşma hakkına sahip olduğunuzdan emin olmak sizin sorumluluğunuzdadır.
 
 ## Abonelikler ve ödeme
 
-Hayati Premium, her iki partner için de Premium'u açan tek bir aboneliktir. Günlük sorunuz ve seriniz her zaman ücretsizdir.
+ikimiz Premium, her iki partner için de Premium'u açan tek bir aboneliktir. Günlük sorunuz ve seriniz her zaman ücretsizdir.
 
 Aboneliğinizi App Store üzerinden satın alır ve yönetirsiniz. Faturalandırma, yenilemeler, fiyatlar ve varsa ücretsiz deneme, App Store hesabınız kapsamında Apple tarafından yürütülür ve siz iptal edene kadar yenilenir.
 
-Hayati hesabınızı silmek aboneliğinizi iptal etmez. Abonelik, Hayati'nin erişemeyeceği App Store'da bulunur; bu nedenle onu App Store ayarlarınızdan kendiniz iptal etmeniz gerekir. İptal etmek, gelecekteki yenilemeleri durdurur; bir geri ödeme oluşturmaz, geri ödeme Apple'ın takdirindedir.
+ikimiz hesabınızı silmek aboneliğinizi iptal etmez. Abonelik, ikimiz'in erişemeyeceği App Store'da bulunur; bu nedenle onu App Store ayarlarınızdan kendiniz iptal etmeniz gerekir. İptal etmek, gelecekteki yenilemeleri durdurur; bir geri ödeme oluşturmaz, geri ödeme Apple'ın takdirindedir.
 
 ## Yapay zekâ koçunu kullanmak
 
@@ -40,17 +40,17 @@ Hayatınızdaki bir şey ciddi ya da güvensiz hissettiriyorsa, lütfen güvendi
 
 Koç konuşmaları saklanmaz. Yalnızca siz kullanırken cihazınızın belleğinde tutulur ve uygulamayı kapattığınızda ya da çıkış yaptığınızda kaybolur.
 
-## Hayati'yi adil kullanmak
+## ikimiz'i adil kullanmak
 
-Lütfen Hayati'yi amacına uygun kullanın — kendi ilişkiniz için — ve hiç kimseyi taciz etmek, tehdit etmek veya zarar vermek, hukuku çiğnemek ya da hizmetin işleyişine müdahale etmek için kullanmayın. Başka birinin verilerine ulaşmaya veya uygulamanın güvenlik önlemlerini aşmaya çalışmayın. Yazdıklarınızdan siz sorumlusunuz.
+Lütfen ikimiz'i amacına uygun kullanın — kendi ilişkiniz için — ve hiç kimseyi taciz etmek, tehdit etmek veya zarar vermek, hukuku çiğnemek ya da hizmetin işleyişine müdahale etmek için kullanmayın. Başka birinin verilerine ulaşmaya veya uygulamanın güvenlik önlemlerini aşmaya çalışmayın. Yazdıklarınızdan siz sorumlusunuz.
 
 Birine zarar vermek veya hizmeti kötüye kullanmak için kullanılan erişimi askıya alabilir veya sonlandırabiliriz.
 
 ## Neyi taahhüt edebilir, neyi edemeyiz
 
-Hayati'yi güvenilir ve dürüst tutmak için çok çalışıyoruz, ancak onu olduğu gibi sunuyoruz. Her zaman erişilebilir, hatasız veya kesintisiz olacağını taahhüt edemeyiz ve uygulama hiçbir türden profesyonel tavsiyenin yerini tutmaz.
+ikimiz'i güvenilir ve dürüst tutmak için çok çalışıyoruz, ancak onu olduğu gibi sunuyoruz. Her zaman erişilebilir, hatasız veya kesintisiz olacağını taahhüt edemeyiz ve uygulama hiçbir türden profesyonel tavsiyenin yerini tutmaz.
 
-Hukukun izin verdiği ölçüde Hayati, uygulamayı kullanmanızdan doğan dolaylı veya öngörülemeyen zararlardan sorumlu değildir. Bu koşullardaki hiçbir hüküm, sınırlanamayacak yasal haklarınızı — veri koruma ve tüketici haklarınız dâhil — sınırlamaz.
+Hukukun izin verdiği ölçüde ikimiz, uygulamayı kullanmanızdan doğan dolaylı veya öngörülemeyen zararlardan sorumlu değildir. Bu koşullardaki hiçbir hüküm, sınırlanamayacak yasal haklarınızı — veri koruma ve tüketici haklarınız dâhil — sınırlamaz.
 
 ## Uygulanacak hukuk
 

@@ -45,13 +45,13 @@ const String _gemfileLockSubpath = 'Gemfile.lock';
 /// This is a SOURCE SENTINEL, not a style preference. `store_metadata` runs
 /// `deliver(force: true)`, which skips the confirmation prompt — so whatever
 /// sits in `name.txt` is pushed over the LIVE App Store listing on the next
-/// release. The founder renamed the app to "İkimiz" (one of ADR-020 D1's own
+/// release. The founder renamed the app to "ikimiz" (one of ADR-020 D1's own
 /// vetted alternates); the repo still said "Hayati", and only the fact that
 /// `store_metadata` was broken kept it from renaming the listing back.
 ///
 /// Changing the store name is a deliberate act with a live consequence. Edit
 /// this constant AND every `name.txt` in the same commit, and say why.
-const String pinnedStoreName = 'İkimiz';
+const String pinnedStoreName = 'ikimiz';
 
 /// Lane -> the credential helper it MUST call.
 ///
