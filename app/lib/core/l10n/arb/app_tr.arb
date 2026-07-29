@@ -255,5 +255,11 @@
   "consentAgeStatement": "ikimiz yetişkinler içindir. Devam ederek 18 yaşında veya daha büyük olduğunuzu da onaylarsınız — bu, yukarıdaki onayınızdan ayrı, Koşulların bir şartıdır.",
   "consentCta": "Onaylıyorum ve devam ediyorum",
   "consentError": "Bu işlem tamamlanamadı. Lütfen tekrar deneyin.",
-  "consentStaleError": "Bu işlem şu anda tamamlanamadı. Lütfen daha sonra tekrar deneyin."
+  "consentStaleError": "Bu işlem şu anda tamamlanamadı. Lütfen daha sonra tekrar deneyin.",
+  "bootFailedTitle": "Başlatılamadı",
+  "bootFailedBody": "Uygulama açılışını tamamlayamadı. Bağlantınızı kontrol edip tekrar deneyin.",
+  "bootFailedDetails": "Teknik ayrıntılar",
+  "loadingSlowBody": "Bu her zamankinden uzun sürüyor. Bağlantınızı kontrol edin.",
+  "inviteCopyLink": "Bağlantıyı kopyala",
+  "inviteCopiedConfirmation": "Kopyalandı"
 }

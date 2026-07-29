@@ -1102,5 +1102,29 @@
   "consentStaleError": "This couldn't be completed right now. Please try again later.",
   "@consentStaleError": {
     "description": "The persistent stale-after-accept error (ADR-023 D3, finding appflow-3): the grant succeeded but the streamed consent still fails the gate; the CTA is NOT re-offered. TR/AR respectful register."
+  },
+  "bootFailedTitle": "Couldn't start",
+  "@bootFailedTitle": {
+    "description": "Title of the boot-failure screen (ADR-039) — shown INSTEAD of a dead launch image when the pre-first-frame bootstrap throws. Carries no brand name: the brand comes from core/config, never the ARBs (frontend-brandkit §1). TR/AR respectful register."
+  },
+  "bootFailedBody": "The app couldn't finish starting up. Check your connection and try again.",
+  "@bootFailedBody": {
+    "description": "Boot-failure body copy (ADR-039). Names the honest first thing to check — most bootstrap failures are network-shaped (Firebase init, App Attest) — without promising that is the cause. TR/AR respectful register."
+  },
+  "bootFailedDetails": "Technical details",
+  "@bootFailedDetails": {
+    "description": "Expander label above the raw bootstrap error on the boot-failure screen (ADR-039). The error is platform text, never user content, so showing it turns 'it is broken' into a diagnosable report from a tester."
+  },
+  "loadingSlowBody": "This is taking longer than usual. Check your connection.",
+  "@loadingSlowBody": {
+    "description": "Revealed under a spinner that has run past the slow threshold (ADR-039) — the escape copy above Try again / Sign out. Deliberately not an error claim: the load may still land. TR/AR respectful register."
+  },
+  "inviteCopyLink": "Copy link",
+  "@inviteCopyLink": {
+    "description": "Secondary affordance on the invite share screen: copies the invite link to the clipboard for pasting anywhere the share sheet does not reach."
+  },
+  "inviteCopiedConfirmation": "Copied",
+  "@inviteCopiedConfirmation": {
+    "description": "Transient confirmation after the invite link is copied to the clipboard."
   }
 }

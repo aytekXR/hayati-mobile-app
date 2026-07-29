@@ -27,9 +27,23 @@ class RcPurchasesRepository implements PurchasesRepository {
 
   /// Configures RevenueCat at bootstrap when [kRevenueCatIosApiKey] is present;
   /// a no-op (leaving the adapter unconfigured) when the key is empty.
+  ///
+  /// FAIL-OPEN (ADR-039). This is the third pre-first-frame await, so a throw
+  /// escaped `main()` and the app never reached `runApp` — it sat on the launch
+  /// image forever. The adapter ALREADY has a well-defined unconfigured mode
+  /// (`_configured` stays false: `logIn`/`logOut` no-op, the buying methods
+  /// throw [PurchasesUnavailableException] and the paywall renders its honest
+  /// unavailable state), so a configure failure has a correct place to land. A
+  /// dead splash is not it: nobody can buy anything from a screen that never
+  /// appears.
   static Future<void> configureIfKeyed() async {
     if (kRevenueCatIosApiKey.isEmpty) return;
-    await Purchases.configure(PurchasesConfiguration(kRevenueCatIosApiKey));
+    try {
+      await Purchases.configure(PurchasesConfiguration(kRevenueCatIosApiKey));
+    } catch (failure) {
+      debugPrint('RevenueCat configure failed, staying unconfigured: $failure');
+      return;
+    }
     _configured = true;
   }
 

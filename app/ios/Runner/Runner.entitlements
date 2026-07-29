@@ -12,11 +12,12 @@
 	<array>
 		<string>Default</string>
 	</array>
-	<!-- Universal links for invite URLs (ADR-036). `applinks:` makes iOS fetch
-	     https://ikimiz.beyondkaira.com/.well-known/apple-app-site-association
-	     and claim /i/* for this app, so a partner tapping an invite in WhatsApp
-	     lands in the app instead of Safari. Two things about this are easy to
-	     get wrong and are therefore written down:
+	<!-- Universal links for invite URLs (ADR-036, hosts revised by ADR-039).
+	     `applinks:` makes iOS fetch
+	     https://<host>/.well-known/apple-app-site-association and claim /i/*
+	     for this app, so a partner tapping an invite in WhatsApp lands in the
+	     app instead of Safari. Two things about this are easy to get wrong and
+	     are therefore written down:
 
 	       * the AASA fetch happens at INSTALL time over TLS and Apple follows
 	         no redirects, so the domain must already be serving before a build
@@ -29,10 +30,22 @@
 	         entitlement mismatch rather than silently shipping a dead link.
 	         That is an operator step, recorded in operator-expected.md.
 
+	     BOTH hosts are claimed, and the ORDER here is not the order that
+	     matters — what matters is that the Firebase Hosting default domain is
+	     present at all. It is the only one of the two that serves anything
+	     today: ikimiz.beyondkaira.com still points at the founder's VPS and
+	     fails TLS, so a build claiming it alone claims a domain Apple cannot
+	     fetch an AASA from, and every invite link opens Safari (or a
+	     certificate warning) instead of the app. Claiming both costs one line
+	     and makes the DNS cutover a no-op for already-installed builds.
+	     Mirrors kInviteLinkHosts in invite_deep_link.dart — the app must not
+	     parse a host iOS was never told to hand it.
+
 	     The custom `hayati://` scheme in Info.plist stays alongside this so
 	     invites already sitting in someone's chat history keep working. -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+		<string>applinks:ikimiz.web.app</string>
 		<string>applinks:ikimiz.beyondkaira.com</string>
 	</array>
 </dict>

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -338,6 +339,56 @@ void main() {
       expect(
         invitePreviewUri(flavor: AppFlavor.prod, useEmulator: false).toString(),
         'https://europe-west1-hayatiapp-prod.cloudfunctions.net/invitePreview',
+      );
+    });
+  });
+
+  // A STALLED connection is the failure this bound exists for, and it is not
+  // the same thing as a closed one. A TCP connection that opens and then goes
+  // quiet — a captive portal, a half-dead cellular handover — raises neither
+  // SocketException nor ClientException: `client.get` simply never completes,
+  // and `package:http` applies no deadline of its own. The invitee's very first
+  // screen is this preview's spinner, and the AsyncValue feeding it has
+  // auto-retry disabled, so an unbounded GET pinned that spinner up until the
+  // app was killed (ADR-039).
+  group('a stalled request is bounded', () {
+    testWidgets('never-answering request becomes a network failure', (
+      tester,
+    ) async {
+      final repo = repoOn(MockClient((_) => Completer<http.Response>().future));
+
+      Object? caught;
+      unawaited(
+        repo
+            .preview('ABCD2345')
+            .then((_) {}, onError: (Object e) => caught = e),
+      );
+
+      // Just short of the deadline the request is still open: a slow cold start
+      // of the Cloud Function must not be cancelled out from under.
+      await tester.pump(kInvitePreviewTimeout - const Duration(seconds: 1));
+      expect(caught, isNull);
+
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        caught,
+        isA<InviteNetworkException>(),
+        reason: 'mapped to the taxonomy that puts the user on the retry view',
+      );
+    });
+
+    testWidgets('a prompt response is untouched by the bound', (tester) async {
+      final repo = repoOn(
+        MockClient(
+          (_) async => http.Response(jsonEncode({'status': 'valid'}), 200),
+        ),
+      );
+
+      await expectLater(
+        repo.preview('ABCD2345'),
+        completion(
+          const InvitePreviewResult(status: InvitePreviewStatus.valid),
+        ),
       );
     });
   });

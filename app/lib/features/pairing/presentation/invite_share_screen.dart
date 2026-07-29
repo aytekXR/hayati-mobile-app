@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design_system/radius_tokens.dart';
@@ -14,14 +15,21 @@ import 'state/invite_share_controller.dart';
 
 /// The real pairing entry point after profile capture (M2.2, replacing the M1
 /// placeholder): issues the caller's invite via `createInvite`, shows the code
-/// + expiry, and shares the localized WhatsApp message (code-first per the
-/// product-copy pairing rewrite — the code leads because custom-scheme links
-/// are not tappable in chat apps, the ❤️ closes off the glanceable first
-/// line, and the `https://ikimiz.beyondkaira.com/i/<code>` link trails; composed here
-/// from l10n). Brand
-/// styling comes from the theme (core/design_system) plus the spacing tokens;
-/// logical-direction only (RTL-safe). Carries the sign-out affordance so a
-/// stalled pairing never strands the user.
+/// + expiry, and offers TWO ways to hand it to a partner — the platform share
+/// sheet, and a plain copy of the link for the conversation the sheet cannot
+/// reach.
+///
+/// The message is code-first per the product-copy pairing rewrite: the code
+/// leads, the ❤️ closes off the glanceable first line, and the link trails. The
+/// code keeps the lead even now that the link is a real https URL (ADR-036/039)
+/// — a code survives being retyped, read aloud, or pasted into a chat app that
+/// mangles URLs, and it is the only half that works for a partner who has the
+/// app but never taps the link. Composed here from l10n + [inviteLinkFor], so
+/// the launcher seam stays a dumb "share this string" adapter.
+///
+/// Brand styling comes from the theme (core/design_system) plus the spacing
+/// tokens; logical-direction only (RTL-safe). Carries the sign-out affordance so
+/// a stalled pairing never strands the user.
 class InviteShareScreen extends ConsumerWidget {
   const InviteShareScreen({super.key});
 
@@ -98,6 +106,18 @@ class _InviteReadyView extends ConsumerWidget {
                   onPressed: () => _share(ref, l10n),
                   child: Text(l10n.inviteShareButton),
                 ),
+                const SizedBox(height: SpacingTokens.x2),
+                // The share sheet is the primary path and stays primary. This
+                // is the path it does not cover: the partner who is reached on
+                // a channel the sheet has no target for, or who is already in
+                // the conversation and only needs something to paste. Copying
+                // the LINK rather than the code because the link contains the
+                // code — a recipient can always retype the eight characters
+                // out of the URL, but cannot reconstruct the URL from them.
+                TextButton(
+                  onPressed: () => _copyLink(context, l10n),
+                  child: Text(l10n.inviteCopyLink),
+                ),
                 const SizedBox(height: SpacingTokens.x4),
                 // Modest cross-path for the invitee who received only a WhatsApp
                 // code (no deep link): opens the partner-preview / manual-entry
@@ -133,6 +153,32 @@ class _InviteReadyView extends ConsumerWidget {
     final link = inviteLinkFor(invite.code);
     final message = l10n.inviteShareMessage(invite.code, link);
     unawaited(ref.read(inviteShareControllerProvider.notifier).share(message));
+  }
+
+  void _copyLink(BuildContext context, AppLocalizations l10n) {
+    // Read the messenger BEFORE the await: this widget can be swapped out by
+    // the gate mid-copy (a partner joining lands `coupleId` and re-routes), and
+    // `ScaffoldMessenger.of` on a deactivated context throws.
+    final messenger = ScaffoldMessenger.of(context);
+    // Clipboard.setData goes to a platform channel and can reject. Two rules,
+    // both deliberate:
+    //
+    //  * the confirmation is shown only AFTER the write lands — never claim a
+    //    copy that did not happen, or the user pastes an empty message;
+    //  * the failure is swallowed with an explicit error arm rather than left
+    //    unhandled. `installErrorHooks` routes an escaped async error to
+    //    `recordError(..., fatal: true)`, and a clipboard hiccup is not a fatal
+    //    crash — reporting it as one would poison the crash-free rate with an
+    //    event nobody can act on.
+    unawaited(
+      Clipboard.setData(ClipboardData(text: inviteLinkFor(invite.code))).then(
+        (_) => messenger.showSnackBar(
+          SnackBar(content: Text(l10n.inviteCopiedConfirmation)),
+        ),
+        onError: (Object failure) =>
+            debugPrint('invite link copy failed: $failure'),
+      ),
+    );
   }
 }
 

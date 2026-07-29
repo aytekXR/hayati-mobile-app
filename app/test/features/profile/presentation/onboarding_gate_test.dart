@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/l10n/bidi_isolate.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
+import 'package:hayati_app/core/widgets/slow_load_escape.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/daily_question/domain/couple.dart';
@@ -153,6 +154,107 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       await tester.pumpAndSettle();
       expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('a healthy load never shows the escape', (tester) async {
+      final l10n = l10nFor(const Locale('en'));
+      await pumpGate(tester);
+      await tester.pumpAndSettle();
+      // Past the threshold, with the stream long since settled.
+      await tester.pump(kSlowLoadThreshold * 2);
+
+      expect(find.text(l10n.loadingSlowBody), findsNothing);
+    });
+  });
+
+  // The regression group for the reported symptom: signing in and landing on a
+  // spinner that never goes away. `profileStream` is a Firestore DOCUMENT
+  // listener, and one whose target is not cached raises no event at all until
+  // the server answers — so an unreachable backend used to leave this gate,
+  // the FIRST screen after sign-in, on a bare spinner with no retry, no error
+  // and no sign-out. The only exit was deleting the app.
+  group('the loading state is never a dead end (ADR-039)', () {
+    Future<FakeAuthRepository> pumpStalledGate(
+      WidgetTester tester, {
+      Locale locale = const Locale('en'),
+    }) async {
+      final profiles = FakeProfileRepository(neverEmits: true);
+      final auth = FakeAuthRepository(initialUser: user);
+      final invites = FakeInviteRepository();
+      final previews = FakeInvitePreviewRepository();
+      final deepLinks = FakeDeepLinkSource();
+      addTearDown(profiles.dispose);
+      addTearDown(auth.dispose);
+      addTearDown(invites.dispose);
+      addTearDown(previews.dispose);
+      addTearDown(deepLinks.dispose);
+      await tester.pumpWidget(
+        localizedApp(
+          const OnboardingGate(user: user),
+          locale: locale,
+          overrides: [
+            profileRepositoryProvider.overrideWith((ref) => profiles),
+            authRepositoryProvider.overrideWith((ref) => auth),
+            inviteRepositoryProvider.overrideWith((ref) => invites),
+            invitePreviewRepositoryProvider.overrideWith((ref) => previews),
+            deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+            localFlagStoreProvider.overrideWithValue(nameCaptured()),
+          ],
+        ),
+      );
+      return auth;
+    }
+
+    testWidgets(
+      'a stream that never emits still shows only a spinner at first',
+      (tester) async {
+        final l10n = l10nFor(const Locale('en'));
+        await pumpStalledGate(tester);
+        await tester.pump();
+
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.text(l10n.tryAgain), findsNothing);
+        expect(find.text(l10n.signOut), findsNothing);
+      },
+    );
+
+    testWidgets('offers retry AND sign-out once the load is slow', (
+      tester,
+    ) async {
+      final l10n = l10nFor(const Locale('en'));
+      await pumpStalledGate(tester);
+      await tester.pump(kSlowLoadThreshold);
+
+      expect(find.text(l10n.loadingSlowBody), findsOneWidget);
+      expect(find.text(l10n.tryAgain), findsOneWidget);
+      // Sign-out is the half that makes this an EXIT rather than another
+      // retry loop against a backend that is not answering.
+      expect(find.text(l10n.signOut), findsOneWidget);
+    });
+
+    testWidgets('the sign-out escape actually signs out', (tester) async {
+      final l10n = l10nFor(const Locale('en'));
+      final auth = await pumpStalledGate(tester);
+      await tester.pump(kSlowLoadThreshold);
+
+      await tester.tap(find.text(l10n.signOut));
+      await tester.pump();
+
+      expect(auth.signOutCalls, 1);
+    });
+
+    testWidgets('retry re-subscribes the profile stream', (tester) async {
+      final l10n = l10nFor(const Locale('en'));
+      await pumpStalledGate(tester);
+      await tester.pump(kSlowLoadThreshold);
+
+      // The invalidate is the recovery for the transient case; it must at least
+      // not throw and must leave the escape available for a second attempt.
+      await tester.tap(find.text(l10n.tryAgain));
+      await tester.pump();
+      await tester.pump(kSlowLoadThreshold);
+
+      expect(find.text(l10n.tryAgain), findsOneWidget);
     });
   });
 

@@ -262,6 +262,100 @@ def test_aasa_is_valid_and_points_at_the_real_app() -> None:
               (out / ".well-known/apple-app-site-association.json").exists(), False)
 
 
+def test_invite_only_serves_the_link_and_no_legal_text() -> None:
+    """--invite-only publishes the invite surface and NOTHING under /privacy.
+
+    Both halves matter. The half that unblocks the product: the invite page and
+    the app-site-association file exist, so an invite link resolves and iOS can
+    claim it, on a day when a legal document still has a blank in it. The half
+    that keeps the gate honest: no legal document is written, so the build is
+    not shipping unfinished policy text — it is shipping none.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        # Deliberately UNFILLED legal text: this is the state the flag exists
+        # for, and a fixture with clean text would prove nothing.
+        legal = _write_legal(root, "# T\n\n[FOUNDER LEGAL ENTITY — to be completed by the founder]\n")
+        out = root / "out"
+        code = bs.build(out, legal, False, invite_only=True)
+
+        check("invite-only build succeeds despite the blanks", code, 0)
+        check("invite page is served", (out / "invite.html").exists(), True)
+        check("aasa is served", (out / ".well-known/apple-app-site-association").exists(), True)
+        check("index is served", (out / "index.html").exists(), True)
+        check("404 is served", (out / "404.html").exists(), True)
+
+        # The gate's actual rule, asserted as an absence.
+        check("no english privacy page", (out / "privacy/index.html").exists(), False)
+        check("no turkish privacy page", (out / "privacy/tr/index.html").exists(), False)
+        check("no terms page", (out / "terms/index.html").exists(), False)
+        check(
+            "no unfilled legal text anywhere in the output",
+            any(
+                "to be completed by the founder" in p.read_text(encoding="utf-8")
+                for p in out.rglob("*")
+                if p.is_file()
+            ),
+            False,
+        )
+
+        # An index linking to pages this build did not write would hand the
+        # invitee a 404 from the site's own navigation.
+        index = (out / "index.html").read_text(encoding="utf-8")
+        check('index does not link to /privacy', 'href="/privacy"' in index, False)
+        check('index does not link to /terms', 'href="/terms"' in index, False)
+
+
+def test_full_build_still_links_the_legal_pages() -> None:
+    """The default build is unchanged — invite-only must not leak into it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN)
+        out = root / "out"
+        check("clean full build succeeds", bs.build(out, legal, False), 0)
+        index = (out / "index.html").read_text(encoding="utf-8")
+        check('index links /privacy', 'href="/privacy"' in index, True)
+        check('index links /terms', 'href="/terms"' in index, True)
+        check("privacy page written", (out / "privacy/index.html").exists(), True)
+
+
+def test_invite_page_never_offers_a_dead_app_store_button() -> None:
+    """No CTA pointing at an App Store id that does not exist yet.
+
+    The invite page is the ONLY thing most invitees ever see of this product. A
+    button that 404s there does not read as "not released yet", it reads as a
+    broken product, at the exact moment someone is deciding whether to trust it.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN)
+        out = root / "out"
+        bs.build(out, legal, False, invite_only=True)
+        invite = (out / "invite.html").read_text(encoding="utf-8")
+
+        placeholder_is_still_set = not bs.APP_STORE_ID.strip("0")
+        check(
+            "placeholder id renders honest beta copy, not a link",
+            "apps.apple.com" in invite,
+            not placeholder_is_still_set,
+        )
+        if placeholder_is_still_set:
+            check("beta copy names the real next step",
+                  "TestFlight" in invite, True)
+        # Either way the code, and a way to lift it, are always present.
+        check("the code element is present", 'id="code"' in invite, True)
+        check("a copy affordance is present", 'id="copy"' in invite, True)
+
+
+def test_invite_only_refuses_the_placeholder_flag() -> None:
+    """The two flags are not composable, and saying so beats guessing."""
+    check(
+        "--invite-only with --allow-placeholders exits 2",
+        bs.main(["--out", "/tmp/unused-build-site-test", "--invite-only", "--allow-placeholders"]),
+        2,
+    )
+
+
 def main() -> int:
     print("build_site self-tests")
     for fn in (
@@ -279,6 +373,10 @@ def main() -> int:
         test_missing_source_is_an_error_not_an_empty_page,
         test_routes_and_rtl,
         test_aasa_is_valid_and_points_at_the_real_app,
+        test_invite_only_serves_the_link_and_no_legal_text,
+        test_full_build_still_links_the_legal_pages,
+        test_invite_page_never_offers_a_dead_app_store_button,
+        test_invite_only_refuses_the_placeholder_flag,
     ):
         print(f"\n{fn.__name__}")
         fn()

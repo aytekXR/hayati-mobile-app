@@ -45,6 +45,11 @@ on:
         required: false
         default: false
         type: boolean
+      invite_only:
+        description: 'Publish ONLY the invite surface (invite page + Apple app-site-association). No legal pages. Safe on live while the legal blanks are open.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -68,9 +73,15 @@ jobs:
           echo "::error::Fill the blanks in docs/legal/ first, or deploy to preview."
           exit 1
 
+      # invite_only is deliberately NOT gated on the channel, unlike
+      # allow_placeholders above. The two look similar and are opposites: that
+      # flag publishes unfinished legal text, this one publishes none at all.
+      # Going live with the invite surface while the legal blanks are still open
+      # is the POINT — it is what makes a shared invite link resolve today.
       - name: build the site from docs/legal/
         run: |
           python3 tool/ci/build_site.py --out web/public \
+            ${{ inputs.invite_only && '--invite-only' || '' }} \
             ${{ inputs.allow_placeholders && '--allow-placeholders' || '' }}
 
       # Fail closed and say WHY, rather than letting the deploy step emit an
