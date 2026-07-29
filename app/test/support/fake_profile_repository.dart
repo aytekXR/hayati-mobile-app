@@ -10,8 +10,18 @@ import 'package:hayati_app/features/profile/domain/relationship_profile.dart';
 /// listen, then live updates — the onboarding router depends on that first
 /// emission to leave its loading state.
 class FakeProfileRepository implements ProfileRepository {
-  FakeProfileRepository({Map<String, RelationshipProfile>? initialProfiles})
-    : _profiles = {...?initialProfiles};
+  FakeProfileRepository({
+    Map<String, RelationshipProfile>? initialProfiles,
+    this.neverEmits = false,
+  }) : _profiles = {...?initialProfiles};
+
+  /// Models the Firestore behaviour that ADR-039 exists for: a DOCUMENT
+  /// listener whose target is not in the local cache raises NO event until the
+  /// server answers — not an empty snapshot, not an error. A client that cannot
+  /// reach the backend therefore leaves the consumer's `AsyncValue.isLoading`
+  /// true forever, which is not something the default fake (which replays
+  /// immediately, like a healthy listen) can express.
+  final bool neverEmits;
 
   final Map<String, RelationshipProfile> _profiles;
   final Map<String, StreamController<RelationshipProfile?>> _controllers = {};
@@ -46,6 +56,13 @@ class FakeProfileRepository implements ProfileRepository {
 
   @override
   Stream<RelationshipProfile?> watchProfile(String uid) async* {
+    if (neverEmits) {
+      // Never yields and never completes — no initial replay, no error, no
+      // done. The subscription simply hangs, as it does against an unreachable
+      // Firestore.
+      await Completer<void>().future;
+      return;
+    }
     yield _profiles[uid];
     // await-for (not yield*) so an emitted error TERMINATES this stream,
     // exactly like the real repository's generator — with yield* the fake

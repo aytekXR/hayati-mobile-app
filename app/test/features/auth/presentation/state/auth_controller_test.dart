@@ -289,6 +289,107 @@ void main() {
     );
   });
 
+  // The AuthSigningIn spinner used to have no way out (ADR-039). The sign-in
+  // future crosses a native authorization sheet and a Firebase credential
+  // exchange, neither of which is guaranteed to call back — and while it was in
+  // flight the manual-op gate also suppressed the repository stream, so nothing
+  // else could rescue the state either. These run under `testWidgets` for its
+  // fake clock: a two-minute bound is not something a plain `test` can advance.
+  group('the signing-in state is bounded (ADR-039)', () {
+    for (final provider in ['apple', 'google']) {
+      testWidgets('$provider: a sign-in that never returns lands on an error', (
+        tester,
+      ) async {
+        final (container, fake) = makeContainer();
+        // Never settles — the exact shape of the failure being guarded.
+        final never = Completer<AuthUser>();
+        fake.onSignInWithApple = () => never.future;
+        fake.onSignInWithGoogle = () => never.future;
+
+        final notifier = container.read(authControllerProvider.notifier);
+        unawaited(
+          provider == 'apple'
+              ? notifier.signInWithApple()
+              : notifier.signInWithGoogle(),
+        );
+        await tester.pump();
+        expect(container.read(authControllerProvider), const AuthSigningIn());
+
+        // One tick short of the deadline it is still signing in: a real user
+        // typing an Apple ID password must not be cancelled out from under.
+        await tester.pump(
+          kInteractiveSignInTimeout - const Duration(seconds: 1),
+        );
+        expect(container.read(authControllerProvider), const AuthSigningIn());
+
+        await tester.pump(const Duration(seconds: 1));
+        expect(
+          container.read(authControllerProvider),
+          isA<AuthError>(),
+          reason: 'the spinner must not be the terminal state',
+        );
+      });
+    }
+
+    testWidgets('the timeout surfaces as NETWORK, so the copy is actionable', (
+      tester,
+    ) async {
+      final (container, fake) = makeContainer();
+      fake.onSignInWithApple = () => Completer<AuthUser>().future;
+
+      unawaited(
+        container.read(authControllerProvider.notifier).signInWithApple(),
+      );
+      await tester.pump(kInteractiveSignInTimeout);
+
+      final state = container.read(authControllerProvider);
+      expect(state, isA<AuthError>());
+      // Network copy ("Check your connection and try again") rather than the
+      // generic "Something went wrong" — see the constant's doc comment.
+      expect((state as AuthError).failure, isA<AuthNetworkException>());
+    });
+
+    testWidgets('a LATE success is not lost — the gate is released', (
+      tester,
+    ) async {
+      // The load-bearing half of the design. The timeout does not cancel the
+      // underlying sign-in; it releases the manual-op gate that was suppressing
+      // the repository stream. So if the session does land after the deadline,
+      // the stream — now unsuppressed — puts the user straight into the app
+      // from under the error view, with no second tap.
+      final (container, fake) = makeContainer();
+      fake.onSignInWithApple = () => Completer<AuthUser>().future;
+
+      unawaited(
+        container.read(authControllerProvider.notifier).signInWithApple(),
+      );
+      await tester.pump(kInteractiveSignInTimeout);
+      expect(container.read(authControllerProvider), isA<AuthError>());
+
+      // Firebase finally reports the restored session on authStateChanges.
+      fake.emit(testUser);
+      await tester.pump();
+
+      expect(
+        container.read(authControllerProvider),
+        const AuthSignedIn(testUser),
+      );
+    });
+
+    testWidgets('a normal sign-in is untouched by the bound', (tester) async {
+      final (container, fake) = makeContainer();
+      fake.onSignInWithApple = () async => testUser;
+
+      await container.read(authControllerProvider.notifier).signInWithApple();
+      await tester.pump(kInteractiveSignInTimeout * 2);
+
+      expect(
+        container.read(authControllerProvider),
+        const AuthSignedIn(testUser),
+      );
+    });
+  });
+
   group('signOut', () {
     test('moves the state to signed out', () async {
       final (container, fake) = makeContainer(initialUser: testUser);

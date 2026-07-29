@@ -53,6 +53,41 @@ void main() {
     });
   });
 
+  group('accepts the Firebase Hosting default domains (ADR-039)', () {
+    // The same Hosting site, reachable under names Google owns the TLS for.
+    // These are what invites are BUILT on until the custom domain's DNS moves,
+    // so the parser accepting them is not a convenience — it is the link
+    // working at all.
+    test('returns the code on the web.app host', () {
+      expect(parse('https://ikimiz.web.app/i/ABCD2345'), 'ABCD2345');
+    });
+
+    test('returns the code on the firebaseapp.com host', () {
+      expect(parse('https://ikimiz.firebaseapp.com/i/ABCD2345'), 'ABCD2345');
+    });
+
+    test('uppercases a lowercase code, as on every host', () {
+      expect(parse('https://ikimiz.web.app/i/abcd2345'), 'ABCD2345');
+    });
+
+    test('the host is matched case-insensitively', () {
+      expect(parse('https://IKIMIZ.Web.App/i/ABCD2345'), 'ABCD2345');
+    });
+
+    test('a LOOK-ALIKE Hosting subdomain is rejected', () {
+      // Anyone may register a Firebase site; only OUR site names are invites.
+      expect(parse('https://ikimiz-evil.web.app/i/ABCD2345'), isNull);
+      expect(parse('https://evil.web.app/i/ABCD2345'), isNull);
+    });
+
+    test('the path rules are the same as on the custom host', () {
+      expect(parse('https://ikimiz.web.app/x/ABCD2345'), isNull);
+      expect(parse('https://ikimiz.web.app/i/ABCD2345/extra'), isNull);
+      expect(parse('http://ikimiz.web.app/i/ABCD2345'), isNull);
+      expect(parse('https://ikimiz.web.app/i/ABCD01IO'), isNull);
+    });
+  });
+
   group('inviteLinkFor builds what the parser accepts', () {
     test('round-trips', () {
       // The share sheet and the parser used to be able to drift; one
@@ -63,11 +98,20 @@ void main() {
       );
     });
 
-    test('is an https link on the published host', () {
-      expect(
-        inviteLinkFor('ABCD2345'),
-        'https://ikimiz.beyondkaira.com/i/ABCD2345',
-      );
+    test('is an https link on a host this project actually serves', () {
+      // Pinned against the SET, not one literal: the emitted host is meant to
+      // move (kInviteLinkUsesCustomDomain) and this test must not have to be
+      // edited on a day when nothing about the contract changed. What must
+      // never happen is emitting a host the parser would reject — which the
+      // round-trip above already forbids — or a host nobody serves.
+      expect(inviteLinkFor('ABCD2345'), 'https://$kInviteLinkHost/i/ABCD2345');
+      expect(kInviteLinkHosts, contains(kInviteLinkHost));
+    });
+
+    test('the custom domain stays PARSED even while it is not emitted', () {
+      // The DNS cutover must not orphan a single link already in a chat.
+      expect(kInviteLinkHosts, contains(kInviteLinkCustomHost));
+      expect(parse('https://$kInviteLinkCustomHost/i/ABCD2345'), 'ABCD2345');
     });
   });
 

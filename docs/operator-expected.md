@@ -301,6 +301,75 @@ will fail with an entitlement mismatch. Loudly, not silently, but it will fail.
 above ships *that* build rather than cutting a new one. Do this before the next
 release run.
 
+> **While you are on that page, one more question to answer (ADR-039).** The prod
+> App Check provider is **App Attest**, but `Runner.entitlements` deliberately
+> does *not* declare `com.apple.developer.devicecheck.appattest-environment` — so
+> prod attestation cannot currently succeed. It is harmless today (App Check
+> activation now fails open instead of blocking the boot, and enforcement is off),
+> but it will hard-break the day enforcement is switched on. A session did not add
+> the entitlement blind: it changes what the provisioning profile must contain,
+> `match` runs **readonly** (ADR-032), and a wrong guess turns this into the next
+> signing mystery. When you are in the portal for Associated Domains, check
+> whether **App Attest** appears in the capability list for
+> `com.beyondkaira.hayati` and say what you see — that one observation settles it.
+
+---
+
+## 🔴 2(e0). Make invite links work — **one command, no DNS, no legal blank** (ADR-039)
+
+**Measured at the Session 056 open, and it is the reason invites are not
+spreading:**
+
+```
+$ curl -sI https://ikimiz.beyondkaira.com/i/9U4VUVRV
+curl: (60) SSL: no alternative certificate subject name matches target host name
+$ curl -so /dev/null -w '%{http_code}\n' https://ikimiz.web.app/i/9U4VUVRV
+404
+```
+
+**Every invite link the app has ever shared lands on a browser security
+warning.** `ikimiz.beyondkaira.com` still points at your VPS (2(e)(i) below),
+whose certificate covers the apex only — so the invitee's first contact with this
+product is a red "This Connection Is Not Private" screen, at the exact moment
+they are deciding whether to trust what their partner just sent them. Nothing
+about the app was wrong; the link had nowhere to land.
+
+Two things changed in code, and one thing is left for you:
+
+* invites are now built on **`ikimiz.web.app`** — Firebase Hosting's own domain
+  for the *same site*, with TLS Google issues and renews. It needs **no DNS
+  record from anybody**. The custom domain is still parsed, so nothing already
+  sent breaks and moving to it later is a one-line change;
+* the site builder gained **`--invite-only`**, which publishes the invite page
+  and the Apple `app-site-association` file and **no legal documents at all** —
+  so the open legal blank in 2(e)(ii) no longer holds your invite links hostage.
+  It is not a loophole in that gate: a build that publishes no policy cannot
+  publish an unfinished one.
+
+### What you run
+
+```sh
+gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json   # if not set yet
+gh workflow run deploy-site.yml -f channel=live -f invite_only=true
+```
+
+### How to tell it worked
+
+```sh
+curl -so /dev/null -w '%{http_code}\n' https://ikimiz.web.app/i/9U4VUVRV        # want 200
+curl -s https://ikimiz.web.app/.well-known/apple-app-site-association           # want the JSON
+```
+
+**A session did not run this for you** because it publishes a page on your live
+production hosting under your name. The build is proven locally and the command
+above is the whole of it.
+
+⚠️ **The link opens the WEB PAGE, not the app, until 2(d) is done.** iOS only
+hands a URL to an app whose build carried the Associated Domains entitlement, and
+build 110 predates it. Until then the page does its job — it shows the code and
+tells the invitee what to do with it — which is still enormously better than a
+certificate error.
+
 ---
 
 ## 2(e). The website — the site now exists and is proven; the live domain needs you

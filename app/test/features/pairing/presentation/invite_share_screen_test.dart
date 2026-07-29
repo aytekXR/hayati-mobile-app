@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/pairing/domain/deep_link_source.dart';
+import 'package:hayati_app/features/pairing/domain/invite_deep_link.dart';
 import 'package:hayati_app/features/pairing/domain/invite_exception.dart';
 import 'package:hayati_app/features/pairing/domain/invite_preview_repository.dart';
 import 'package:hayati_app/features/pairing/domain/invite_repository_provider.dart';
@@ -90,17 +92,91 @@ void main() {
         expect(launcher.sharedMessages, hasLength(1));
         final message = launcher.sharedMessages.single;
         expect(message, contains('ABCD2345'));
-        expect(message, contains('https://ikimiz.beyondkaira.com/i/ABCD2345'));
+        // Asserted through the ONE constructor, not a literal host: the host is
+        // designed to move (ADR-039), and a duplicated literal here would turn
+        // that move into a test edit in a file that has nothing to say about it.
+        // What this pins is that the shared message carries the real link.
+        expect(message, contains(inviteLinkFor('ABCD2345')));
         // The composed message is exactly the localized template.
         expect(
           message,
-          l10n.inviteShareMessage(
-            'ABCD2345',
-            'https://ikimiz.beyondkaira.com/i/ABCD2345',
-          ),
+          l10n.inviteShareMessage('ABCD2345', inviteLinkFor('ABCD2345')),
         );
       });
     }
+  });
+
+  group('copy-link affordance (ADR-039)', () {
+    // The share sheet is the primary path; this is the one it does not cover —
+    // the partner reached on a channel the sheet has no target for, or already
+    // in the conversation and only needing something to paste.
+    testWidgets('copies the invite LINK and confirms only after it lands', (
+      tester,
+    ) async {
+      final l10n = l10nFor(const Locale('en'));
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied.add((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      final (invites, launcher) = makeFakes();
+      await pumpScreen(tester, invites, launcher);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(l10n.inviteCopyLink));
+      await tester.pumpAndSettle();
+
+      // The LINK, not the bare code: a recipient can always retype the eight
+      // characters out of a URL, but cannot reconstruct the URL from them.
+      expect(copied, [inviteLinkFor('ABCD2345')]);
+      expect(find.text(l10n.inviteCopiedConfirmation), findsOneWidget);
+    });
+
+    testWidgets('a failed copy is quiet — no false confirmation, no crash', (
+      tester,
+    ) async {
+      final l10n = l10nFor(const Locale('en'));
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            throw PlatformException(code: 'unavailable');
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      final (invites, launcher) = makeFakes();
+      await pumpScreen(tester, invites, launcher);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(l10n.inviteCopyLink));
+      await tester.pumpAndSettle();
+
+      // Never claim a copy that did not happen — the user would paste nothing.
+      expect(find.text(l10n.inviteCopiedConfirmation), findsNothing);
+      // And the failure must not escape into the zone handler, which reports
+      // fatal: a clipboard hiccup is not a crash.
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('have-a-code affordance', () {

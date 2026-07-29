@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../../core/storage/local_flag_store.dart';
+import '../../../core/widgets/slow_load_escape.dart';
 import '../../auth/domain/auth_user.dart';
+import '../../auth/presentation/state/auth_controller.dart';
 import '../../daily_question/presentation/paired_home_screen.dart';
 import '../../daily_question/presentation/solo_home_screen.dart';
 import '../../data_rights/presentation/couple_ended_notice_screen.dart';
@@ -63,8 +67,35 @@ class OnboardingGate extends ConsumerWidget {
     // carries previous error/value across states): in-flight (first load or
     // explicit retry) → spinner; settled error → retry view; settled data →
     // route below.
+    //
+    // The in-flight branch is a [SlowLoadEscape], not a bare spinner, and this
+    // is the screen that made ADR-039 necessary. `profileStream` is a Firestore
+    // DOCUMENT listener, and a document listener whose target is not in the
+    // local cache raises no event whatsoever until the server answers — not an
+    // empty snapshot, not an error. So a first sign-in that cannot reach
+    // Firestore leaves `isLoading` true indefinitely, and the bare spinner that
+    // used to live here had no retry, no sign-out and no error: the first screen
+    // after signing in was a dead end with a working session behind it.
+    //
+    // Sign-out is offered ALONGSIDE retry deliberately. Retry alone assumes the
+    // fault is transient; a user whose session is somehow unusable needs the
+    // door as well, and every other blocking surface in this app (the consent
+    // gate, the invite share screen, the solo error view) already carries one.
     if (profile.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return SlowLoadEscape(
+        actions: [
+          FilledButton(
+            onPressed: () => ref.invalidate(profileStreamProvider(user.uid)),
+            child: Text(AppLocalizations.of(context).tryAgain),
+          ),
+          const SizedBox(height: SpacingTokens.x4),
+          TextButton(
+            onPressed: () =>
+                unawaited(ref.read(authControllerProvider.notifier).signOut()),
+            child: Text(AppLocalizations.of(context).signOut),
+          ),
+        ],
+      );
     }
     final error = profile.error;
     if (error != null) {

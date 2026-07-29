@@ -1,3 +1,4 @@
+import 'dart:async' show TimeoutException;
 import 'dart:convert';
 import 'dart:io' show SocketException;
 
@@ -8,6 +9,15 @@ import '../../../core/firebase/firebase_bootstrap.dart';
 import '../domain/invite_exception.dart';
 import '../domain/invite_preview.dart';
 import '../domain/invite_preview_repository.dart';
+
+/// Ceiling on the zero-auth preview GET (ADR-039).
+///
+/// `package:http` applies NO timeout of its own, and the callables this app
+/// speaks to elsewhere get one from the Cloud Functions SDK — this plain GET was
+/// the one request in the app with no bound at all. Fifteen seconds is well past
+/// a cold Cloud Function start (the realistic slow case) and well short of a
+/// person's patience with a screen that shows only a spinner.
+const Duration kInvitePreviewTimeout = Duration(seconds: 15);
 
 /// [InvitePreviewRepository] over a plain `package:http` [http.Client] and a
 /// pre-derived [baseUri] (see [invitePreviewUri]). The preview is an
@@ -30,11 +40,22 @@ class HttpInvitePreviewRepository implements InvitePreviewRepository {
     );
     final http.Response response;
     try {
-      response = await _client.get(uri);
+      response = await _client.get(uri).timeout(kInvitePreviewTimeout);
     } on SocketException catch (failure) {
       throw InviteNetworkException(message: '$failure');
     } on http.ClientException catch (failure) {
       throw InviteNetworkException(message: '$failure');
+    } on TimeoutException {
+      // A STALLED connection is not a closed one, and only this branch catches
+      // it: a TCP connection that opens and then goes quiet — a captive portal,
+      // a half-dead cellular handover — never raises SocketException or
+      // ClientException, so `_client.get` simply never completes. The invitee's
+      // very first screen is this preview's spinner (M2.3, the activation
+      // moment), and the AsyncValue that feeds it has auto-retry disabled, so an
+      // unbounded GET meant that spinner stayed up until the app was killed.
+      // Mapped to the network taxonomy because that is what it is, and because
+      // it puts the user on the retry view that already exists.
+      throw const InviteNetworkException(message: 'preview request timed out');
     }
     return _mapResponse(response);
   }

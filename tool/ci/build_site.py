@@ -22,8 +22,24 @@ the App Store points to must not read "to be completed by the founder".
 to a preview channel before the founder fills them in, but the flag has to be
 passed on purpose and the build says loudly what it let through.
 
+`--invite-only` IS NOT A WAY AROUND THAT GATE — it is the observation that the
+gate and the invite links were never actually coupled. The gate's rule is "do
+not PUBLISH a legal document that still has a blank in it". An invite-only build
+publishes no legal document at all: it emits the invite page, the Apple
+app-site-association file, a 404 and an index, and writes nothing under
+/privacy or /terms. The rule is satisfied by construction rather than by
+exception, and the placeholder check is not consulted because there is nothing
+for it to check.
+
+It exists because the coupling had a real cost. The invite link in every shared
+message resolves to this site, and until the site is live that link is dead —
+so a blank in a legal document was silently holding the product's entire
+word-of-mouth loop hostage to a fact about the founder's legal name. The two
+have nothing to do with each other, and now they are not tied together.
+
 Usage:
     python3 tool/ci/build_site.py --out web/public [--allow-placeholders]
+    python3 tool/ci/build_site.py --out web/public --invite-only
 """
 
 from __future__ import annotations
@@ -43,6 +59,12 @@ BUNDLE_ID = "com.beyondkaira.hayati"
 
 DOMAIN = "ikimiz.beyondkaira.com"
 BRAND = "ikimiz"
+
+# The App Store numeric id, once the app has one. All-zeros means "not on the
+# App Store yet" — the app is TestFlight-only — and the invite page renders beta
+# copy instead of a button pointing at a 404. Set this in the same diff that
+# ships the first public release.
+APP_STORE_ID = "0000000000"
 
 # Unfilled blanks the founder still owes.
 #
@@ -112,7 +134,12 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 a{color:var(--rose)}
 .cta{display:inline-block;margin-top:1.5rem;background:var(--night);color:var(--sand);
   padding:.8rem 1.4rem;border-radius:999px;text-decoration:none;font-weight:600}
+/* The copy-code CTA is a <button>, which does not inherit font or cursor from
+   body the way the <a> does — without this it renders as a system-chrome button
+   next to a pill and looks like a different site. */
+button.cta{border:0;cursor:pointer;font-family:inherit;font-size:1rem;line-height:1.7}
 .code{font-size:2rem;font-weight:700;letter-spacing:.12em;margin:1rem 0}
+.note{color:var(--muted);font-size:.95rem;margin-top:1.5rem}
 """
 
 
@@ -194,8 +221,21 @@ def _table(rows: list[str]) -> str:
     return "".join(out)
 
 
-def page(title: str, locale: str, body: str, langs: str = "") -> str:
+def page(title: str, locale: str, body: str, langs: str = "", legal_footer: bool = True) -> str:
+    """Wrap `body` in the site chrome.
+
+    `legal_footer=False` drops the footer's Privacy/Terms links, and exists for
+    `--invite-only` builds where those pages are deliberately not written. The
+    footer is on EVERY page, so leaving it in would have put two 404s at the
+    bottom of the invite page — the one page an invitee actually sees.
+    """
     meta = LOCALES[locale]
+    footer = f"{BRAND}"
+    if legal_footer:
+        footer += (
+            f" · <a href=\"/privacy\">{LOCALES[locale]['privacy']}</a>"
+            f" · <a href=\"/terms\">{LOCALES[locale]['terms']}</a>"
+        )
     return f"""<!doctype html>
 <html lang="{meta['lang']}" dir="{meta['dir']}">
 <head>
@@ -209,7 +249,7 @@ def page(title: str, locale: str, body: str, langs: str = "") -> str:
 <header><a class="brand" href="/">{BRAND}</a><span class="tag">{html.escape(title)}</span></header>
 {body}
 {langs}
-<footer>{BRAND} · <a href="/privacy">{LOCALES[locale]['privacy']}</a> · <a href="/terms">{LOCALES[locale]['terms']}</a></footer>
+<footer>{footer}</footer>
 </div></body></html>
 """
 
@@ -247,24 +287,30 @@ def check_placeholders(name: str, text: str) -> list[str]:
     return unique
 
 
-def build(out_dir: pathlib.Path, legal_dir: pathlib.Path, allow_placeholders: bool) -> int:
+def build(
+    out_dir: pathlib.Path,
+    legal_dir: pathlib.Path,
+    allow_placeholders: bool,
+    invite_only: bool = False,
+) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     found: list[str] = []
 
-    for kind, stem in (("privacy", "privacy-policy"), ("terms", "terms")):
-        for loc in ("en", "tr", "ar"):
-            src = legal_dir / f"{stem}.{loc}.md"
-            if not src.exists():
-                raise BuildError(f"missing legal source: {src}")
-            md = src.read_text(encoding="utf-8")
-            hits = check_placeholders(src.name, md)
-            if hits:
-                found.append(f"{src.name}: {hits}")
-            title = LOCALES[loc]["privacy"] if kind == "privacy" else LOCALES[loc]["terms"]
-            doc = page(title, loc, markdown_to_html(md), lang_nav(kind, loc))
-            target = out_dir / kind if loc == "en" else out_dir / kind / loc
-            target.mkdir(parents=True, exist_ok=True)
-            (target / "index.html").write_text(doc, encoding="utf-8")
+    if not invite_only:
+        for kind, stem in (("privacy", "privacy-policy"), ("terms", "terms")):
+            for loc in ("en", "tr", "ar"):
+                src = legal_dir / f"{stem}.{loc}.md"
+                if not src.exists():
+                    raise BuildError(f"missing legal source: {src}")
+                md = src.read_text(encoding="utf-8")
+                hits = check_placeholders(src.name, md)
+                if hits:
+                    found.append(f"{src.name}: {hits}")
+                title = LOCALES[loc]["privacy"] if kind == "privacy" else LOCALES[loc]["terms"]
+                doc = page(title, loc, markdown_to_html(md), lang_nav(kind, loc))
+                target = out_dir / kind if loc == "en" else out_dir / kind / loc
+                target.mkdir(parents=True, exist_ok=True)
+                (target / "index.html").write_text(doc, encoding="utf-8")
 
     # Apple universal links. Served from /.well-known/ with no extension and
     # `application/json` (firebase.json sets the header) — Apple fetches this
@@ -283,30 +329,78 @@ def build(out_dir: pathlib.Path, legal_dir: pathlib.Path, allow_placeholders: bo
     # The invite landing page. On iOS with the app installed the OS intercepts
     # this URL and the page never renders; everyone else gets the code and a way
     # to install. The code is read from the PATH, never sent anywhere.
-    invite = """<h1>You've been invited</h1>
+    #
+    # The CTA is CONDITIONAL on the App Store id being real, the same discipline
+    # as the legal placeholder gate one function up. While the app is
+    # TestFlight-only, `apps.apple.com/app/id0000000000` is a 404 — and a dead
+    # button on the one page an invitee ever sees is worse than no button:
+    # it reads as a broken product at the exact moment someone is deciding
+    # whether to trust it. So an unset id renders honest beta copy instead.
+    if APP_STORE_ID.strip("0"):
+        cta = f'<a class="cta" href="https://apps.apple.com/app/id{APP_STORE_ID}">Get {BRAND}</a>'
+    else:
+        cta = (
+            f"<p class=\"note\">{BRAND} is in private beta. Ask the person who invited "
+            "you to send you their TestFlight invitation, then enter the code above.</p>"
+        )
+    invite = f"""<h1>You've been invited</h1>
 <p>Your invite code is</p>
 <div class="code" id="code">…</div>
-<p>Open ikimiz and enter this code to pair.</p>
-<a class="cta" href="https://apps.apple.com/app/id0000000000">Get ikimiz</a>
+<p><button class="cta" id="copy" type="button">Copy code</button></p>
+<p>Open {BRAND} and enter this code to pair.</p>
+{cta}
 <script>
   var m = location.pathname.match(/\\/i\\/([A-Za-z0-9]+)/);
-  document.getElementById('code').textContent = m ? m[1].toUpperCase() : 'unknown';
+  var code = m ? m[1].toUpperCase() : 'unknown';
+  document.getElementById('code').textContent = code;
+  var button = document.getElementById('copy');
+  button.addEventListener('click', function () {{
+    // navigator.clipboard needs a secure context; this page is https-only, but
+    // guard anyway so the button is never a no-op that looks like a success.
+    if (!navigator.clipboard) {{ return; }}
+    navigator.clipboard.writeText(code).then(function () {{
+      button.textContent = 'Copied';
+    }});
+  }});
 </script>"""
-    (out_dir / "invite.html").write_text(page("Invite", "en", invite), encoding="utf-8")
-
-    index = f"""<h1>{BRAND}</h1>
-<p>One question a day, for two.</p>
-<p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>"""
-    (out_dir / "index.html").write_text(page("ikimiz", "en", index), encoding="utf-8")
-
-    (out_dir / "404.html").write_text(
-        page("Not found", "en", "<h1>Not found</h1><p>That page does not exist.</p>"), encoding="utf-8"
+    (out_dir / "invite.html").write_text(
+        page("Invite", "en", invite, legal_footer=not invite_only), encoding="utf-8"
     )
 
-    print(f"built {DOMAIN} -> {out_dir}")
+    # In invite-only mode /privacy and /terms are not written, so the index must
+    # not link to them — a 404 behind a link the site itself offers is exactly
+    # the broken-looking detail an invitee reads as "do not trust this".
+    legal_links = (
+        ""
+        if invite_only
+        else '\n<p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>'
+    )
+    index = f"""<h1>{BRAND}</h1>
+<p>One question a day, for two.</p>{legal_links}"""
+    (out_dir / "index.html").write_text(
+        page("ikimiz", "en", index, legal_footer=not invite_only), encoding="utf-8"
+    )
+
+    (out_dir / "404.html").write_text(
+        page(
+            "Not found",
+            "en",
+            "<h1>Not found</h1><p>That page does not exist.</p>",
+            legal_footer=not invite_only,
+        ),
+        encoding="utf-8",
+    )
+
+    label = "invite surface only" if invite_only else DOMAIN
+    print(f"built {label} -> {out_dir}")
     for p in sorted(out_dir.rglob("*")):
         if p.is_file():
             print(f"    {p.relative_to(out_dir)}")
+
+    if invite_only:
+        print("::notice::--invite-only: no legal documents were written, so the "
+              "placeholder gate did not apply. /privacy and /terms are NOT served "
+              "by this build.")
 
     if found:
         msg = "unfilled placeholders in published legal text:\n  " + "\n  ".join(found)
@@ -327,9 +421,29 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", default="web/public")
     ap.add_argument("--legal-dir", default="docs/legal")
     ap.add_argument("--allow-placeholders", action="store_true")
+    ap.add_argument(
+        "--invite-only",
+        action="store_true",
+        help="build the invite surface (invite page, AASA, index, 404) and NO "
+        "legal documents — see the module docstring for why this is not a way "
+        "around the placeholder gate",
+    )
     a = ap.parse_args(argv)
+    if a.invite_only and a.allow_placeholders:
+        # Not a real combination: --invite-only writes no legal document, so
+        # there is nothing for --allow-placeholders to permit. Accepting both
+        # silently would let a live deploy carry a flag deploy-site.yml refuses,
+        # and leave a reader unsure which one governed the build.
+        print("::error::--invite-only writes no legal documents, so "
+              "--allow-placeholders has nothing to allow. Pass one or the other.")
+        return 2
     try:
-        return build(pathlib.Path(a.out), pathlib.Path(a.legal_dir), a.allow_placeholders)
+        return build(
+            pathlib.Path(a.out),
+            pathlib.Path(a.legal_dir),
+            a.allow_placeholders,
+            invite_only=a.invite_only,
+        )
     except BuildError as exc:
         print(f"::error::{exc}")
         return 2

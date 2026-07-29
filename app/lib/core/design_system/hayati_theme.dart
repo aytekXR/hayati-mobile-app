@@ -6,13 +6,34 @@ import 'radius_tokens.dart';
 import 'spacing_tokens.dart';
 import 'typography_tokens.dart';
 
+/// Memo for [hayatiTheme], keyed by language code.
+///
+/// Bounded by construction: the only keys inserted are RESOLVED locale language
+/// codes, and `AppLocalizations.supportedLocales` has three entries, so this map
+/// cannot grow past three. [ThemeData] is immutable, so one instance is safely
+/// shared by every caller.
+final Map<String, ThemeData> _themeCache = <String, ThemeData>{};
+
 /// The full dark brand [ThemeData], built from the token files ONLY (no color
 /// or size literals live here). [languageCode] selects the per-script body
 /// line-height in [TypographyTokens] (Arabic reads at 1.7, everything else at
 /// 1.5), so callers rebuild the theme when the resolved locale changes.
 ///
 /// MVP is dark-first, single theme (docs/mvp.md OUT list).
-ThemeData hayatiTheme({required String languageCode}) {
+///
+/// MEMOIZED, and not as a micro-optimisation (ADR-039). The app root calls this
+/// from `MaterialApp.builder`, which sits ABOVE the Navigator and therefore
+/// rebuilds on every route push and pop. Each call built a fresh [ThemeData] —
+/// a large object graph including a full [TextTheme] — and then handed that NEW
+/// INSTANCE to the `Theme` wrapping the entire app. `Theme` notifies dependents
+/// on instance inequality, so every widget in the tree that had ever called
+/// `Theme.of(context)` — which in this app is nearly all of them — was rebuilt
+/// by a route push that changed nothing about the theme. Returning the same
+/// instance for the same language collapses both costs to a map lookup.
+ThemeData hayatiTheme({required String languageCode}) =>
+    _themeCache[languageCode] ??= _buildHayatiTheme(languageCode);
+
+ThemeData _buildHayatiTheme(String languageCode) {
   // Colour brand text with sand (sand-on-night 13.6:1 — well past the >=4.5
   // brandkit rule); displayColor covers the display/headline hero styles.
   final textTheme = TypographyTokens.textThemeFor(
