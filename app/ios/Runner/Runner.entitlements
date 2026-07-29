@@ -12,41 +12,40 @@
 	<array>
 		<string>Default</string>
 	</array>
-	<!-- Universal links for invite URLs (ADR-036, hosts revised by ADR-039).
-	     `applinks:` makes iOS fetch
-	     https://<host>/.well-known/apple-app-site-association and claim /i/*
-	     for this app, so a partner tapping an invite in WhatsApp lands in the
-	     app instead of Safari. Two things about this are easy to get wrong and
-	     are therefore written down:
+	<!-- com.apple.developer.associated-domains IS DELIBERATELY ABSENT (ADR-040).
+	     It was here, claiming applinks:ikimiz.web.app and
+	     applinks:ikimiz.beyondkaira.com (ADR-036/039), and it was REMOVED so a
+	     build could ship. Read ADR-040 before adding it back — the reason is a
+	     hard external dependency, not an oversight.
 
-	       * the AASA fetch happens at INSTALL time over TLS and Apple follows
-	         no redirects, so the domain must already be serving before a build
-	         carrying this entitlement is useful — deploy-site.yml first;
-	       * the entitlement must exist in the PROVISIONING PROFILE too, which
-	         means the Associated Domains capability has to be enabled on the
-	         App ID in the Apple Developer portal. `match` fetches profiles
-	         readonly (ADR-032), so it cannot add the capability itself: an
-	         un-updated profile makes the signing step fail with a profile/
-	         entitlement mismatch rather than silently shipping a dead link.
-	         That is an operator step, recorded in operator-expected.md.
+	     The entitlement must also exist in the PROVISIONING PROFILE, which means
+	     the Associated Domains capability has to be enabled on the App ID in the
+	     Apple Developer portal. `match` fetches profiles READONLY (ADR-032), so
+	     it cannot add the capability itself: a build claiming a domain its
+	     profile does not carry fails at CODESIGN with an entitlement mismatch.
+	     Measured, not assumed — no build has ever been signed with this key
+	     (build 110 came from fa990e6, which predates ADR-036), so the portal
+	     capability has never been exercised and cannot be presumed present.
 
-	     BOTH hosts are claimed, and the ORDER here is not the order that
-	     matters — what matters is that the Firebase Hosting default domain is
-	     present at all. It is the only one of the two that serves anything
-	     today: ikimiz.beyondkaira.com still points at the founder's VPS and
-	     fails TLS, so a build claiming it alone claims a domain Apple cannot
-	     fetch an AASA from, and every invite link opens Safari (or a
-	     certificate warning) instead of the app. Claiming both costs one line
-	     and makes the DNS cutover a no-op for already-installed builds.
-	     Mirrors kInviteLinkHosts in invite_deep_link.dart — the app must not
-	     parse a host iOS was never told to hand it.
+	     While it is absent, invite links still work — they just resolve in the
+	     BROWSER rather than opening the app. https://ikimiz.web.app/i/<code>
+	     serves a page showing the code with a copy button, and the invitee
+	     enters it via "Have a code?" (PartnerPreviewScreen). That is one extra
+	     step for the invitee and zero blocked releases, which is the trade
+	     ADR-040 makes.
 
-	     The custom `hayati://` scheme in Info.plist stays alongside this so
+	     TO RESTORE (in this order, or the build breaks):
+	       1. enable Associated Domains for com.beyondkaira.hayati in the
+	          Apple Developer portal and let the profile regenerate;
+	       2. re-add the key below with BOTH hosts;
+	       3. the AASA is ALREADY served and correct at
+	          https://ikimiz.web.app/.well-known/apple-app-site-association
+	          (verified live) — Apple fetches it at INSTALL time over TLS and
+	          follows no redirects, so nothing else is needed there.
+	     Keep the host list mirroring kInviteLinkHosts in invite_deep_link.dart:
+	     the app must not parse a host iOS was never told to hand it.
+
+	     The custom `hayati://` scheme in Info.plist is untouched throughout, so
 	     invites already sitting in someone's chat history keep working. -->
-	<key>com.apple.developer.associated-domains</key>
-	<array>
-		<string>applinks:ikimiz.web.app</string>
-		<string>applinks:ikimiz.beyondkaira.com</string>
-	</array>
 </dict>
 </plist>
