@@ -1980,3 +1980,24 @@ $ git merge-base --is-ancestor 6d1f736 fa990e6 ; echo $?
 * **Not done, deliberately:** the App Attest entitlement (an operator observation, not a guess — `match` is readonly); the `PrivacyGuard` shield (audited, left alone); **#140 itself**.
 
 **Next objective written to resume-prompt.md:** #140 — for the fifth time, and now with the argument for why it keeps losing: every session that deferred it did so for something that was *visibly on fire*, and #140 is a gate against something that is *silently* wrong. That asymmetry is the issue's own subject matter.
+
+### Session 056 late addendum — the founder handoff had already happened, and ADR-037's guarantee had never once held
+
+Two findings arrived after the close entry above was written, both from asking Apple instead of reading a green check.
+
+**1. `Friends` already had the five testers.** The founder said *"I will give phone names and emails later"*; they were already in the group, and nothing in the repo or in `--status` reported it (that is exactly #146's gap — the membership line only prints on the add/assign path, so neither `--status` nor `--dry-run` can answer "who is in this group"). Measured: `ahmetsahinerr66@icloud.com`, `erencemozturk@icloud.com`, `kazimutkucitoglu@gmail.com`, `m.yahyaonder@gmail.com`, `seymabutun9@gmail.com`. **So the four `ASC_REVIEW_CONTACT_*` values were never merely the *next* step — they were the LAST one.**
+
+**2. ADR-037's title claim was false from the day it was written.** *"Every build reaches the Friends group automatically."* Build 112's release was the **first** run to reach that step (build 110's predates the ADR) and it died on `ModuleNotFoundError: No module named 'jwt'`: `sign-upload` has no `actions/setup-python`, so bare `pip install` and `python3` were different interpreters on `macos-15`. The install printed a pip-upgrade notice; the import did not exist; `continue-on-error` took the release green. Apple's answer was the only thing that told the truth:
+
+```
+build 112  processing=VALID  groups: founders            <- not Friends
+build 110  processing=VALID  groups: founders, Friends
+```
+
+Build 112 was attached by a manual `testflight-testers.yml` dispatch — the exact step ADR-037 exists to remove — and the lane was fixed structurally (`setup-python` + `python3 -m pip` + an `import jwt, cryptography` assertion ahead of the 25-minute Apple wait). `continue-on-error` **stays**; the finding is that **non-blocking must not mean unread**.
+
+The sharpest part is that **ADR-038 D4 predicted this exact failure in these exact words** — *"silently repealing ADR-037's guarantee … while `continue-on-error` kept the release green"* — and defended the wrong layer. Every guard there assumed the tool *runs*, and its hermetic test imports `jwt` from this box's environment, so it could not have caught this in either direction. Recorded as **addendum 69**, with dated corrections on both ADRs.
+
+**Also worth carrying:** the first release dispatch failed in `integration` on `auth_emulator_test` — *"Connecting to the VM Service timed out"* after a ~10-minute SwiftPM fetch. Diagnosed as infra flake **by control, not by vibe**: main's own `integration-emulator` had run the same five suites green on `3e248aa` thirty minutes earlier. A re-dispatch passed.
+
+**Final state at the close:** ADR-039 + ADR-040 merged and green on main; `https://ikimiz.web.app/i/<code>` live (200, AASA `application/json`); **build 112 VALID in TestFlight and attached to `Friends`, where the five testers already are**; the release lane's assignment step fixed; four founder-owned secrets the only remaining blocker.
