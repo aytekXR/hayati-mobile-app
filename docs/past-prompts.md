@@ -1938,3 +1938,45 @@ build 110  processing=VALID  external=READY_FOR_BETA_SUBMISSION  internal=IN_BET
 - **`READY_FOR_BETA_SUBMISSION`** is in neither of the named state sets and printed **verbatim**, on the first real run — ADR-038 D5's open-enum decision paying off immediately rather than theoretically.
 
 The remaining gap is exactly four fields, and it is the founder's to fill.
+
+## Session 056 — 2026-07-30 — **two founder bug reports were one shape: the product's failure mode was silence — and the build the testers would install predated every fix**
+
+**Objective (from resume-prompt.md):** #140 — nothing in CI compares what is MERGED to what is DEPLOYED.
+
+**Outcome:** **#140 deferred a fourth time, and again for a founder directive** — say it plainly, because three prior sessions deferred it and the pattern is now the finding. The directive: *"make ready for `friends` review … make sure website is ready for linksharing inbetween couples … too many unstaged pushed changes, either push or ignore."*
+
+The session opened on a tree with **38 modified/untracked files and ~1,400 insertions** already written and never committed — a complete, tested slice sitting at risk in a working directory. Resolving that was the first instruction and the first act.
+
+**Commits:** [#151](https://github.com/aytekXR/hayati-mobile-app/pull/151) (ADR-039, `3e248aa`) · [#152](https://github.com/aytekXR/hayati-mobile-app/pull/152) (ADR-040, `50a7b2e`)
+
+**CI:** green on both, and the **post-merge main run for #151 was watched to completion** including `integration-emulator` (main-only by cost design) — `quality`, `functions-rules`, `integration-emulator`, `ios-build-smoke`, `slack-notify` all success. Local, with the commands CI runs: 1625 tests, coverage **87.42%** (gate 68).
+
+**Docs touched:** `docs/adr/039-*.md`, `docs/adr/040-*.md`, `docs/adr/README.md` (40 rows), `docs/operator-expected.md` (substantially rewritten — see below), `docs/past-prompts.md`, `docs/resume-prompt.md`.
+
+### What ADR-039 found: not a defect, a class
+
+There was no single bug behind *"loading screen is always on"*. **Every blocking wait on the path from launch to paired was unbounded, and every blocking screen on that path was a dead end.** Any one of them produces that report; none of them produces an actionable one. `main()`'s four pre-frame awaits were unguarded, so a throw meant `runApp` was never called and iOS held the launch storyboard **forever** — no frame, no error, and **no crash report, because the reporter is itself one of the four awaits.** Fail-open where a degraded mode exists, `BootFailureApp` for the rest. **ADR-022's sentinel never moved: a `try` block adds no `await`.**
+
+### The measurement that reframed the whole session
+
+```
+$ git merge-base --is-ancestor 6d1f736 fa990e6 ; echo $?
+1        # 6d1f736 = ikimiz rename + ADR-036. Build 110 came from fa990e6.
+```
+
+**`Friends` was attached to build 110, and build 110 predates every fix.** It *is* the build with the endless loading screen, and it shares unclickable `hayati://` links. `operator-expected.md` had been telling the founder — in a 🔴 item, in a four-line recipe — to spend a 24–48 h Beta App Review submitting **that build** to five people. The page was not wrong about the *gap* (four contact fields, still true); it was wrong about the *build*, and nothing in it could notice, because the build number was written down when it was the newest one and never re-derived.
+
+**That is addendum 45 again (query the platform, not the docs), except the stale claim was an instruction, and following it would have cost two days and burned the first impression of five real people.**
+
+### Notes / debt logged
+
+* **`--invite-only` (ADR-039 D6).** The site builder refused to publish while a legal document still read *"to be completed by the founder"* — correct, and it had an unpriced cost: **the invite link in every shared message resolves to that site**, so a blank about the founder's legal name was silently holding the product's entire word-of-mouth loop hostage. Not an exception to the gate: an invite-only build publishes **no legal document at all**, so the rule holds by construction.
+* **The website is LIVE**, on founder authorization given in-session, and **verified rather than asserted**: `/i/<code>` → 200, AASA → 200 `application/json`, `/privacy` → 404 with nothing linking to it. Before: `ikimiz.web.app` → **404** and the custom domain → **TLS failure**, i.e. *every invite link the app had ever emitted landed on a browser security warning.*
+* **`"**/.*"` in `firebase.json` did NOT eat `.well-known`** — the classic Hosting gotcha, checked by deploying and curling rather than by reasoning about glob semantics. `found 4 files`, AASA served with the right content type.
+* **ADR-040 — a working build today beats a perfect link nobody can install.** The founder chose it from two options put to them explicitly. The entitlement removal is documented **inside `Runner.entitlements`**, with ordered restoration steps, because that is where someone will be standing when the question occurs to them.
+* **The share copy was checked, not assumed.** The obvious way ADR-040 could have shipped a lie is a message promising a tap that no longer happens. All three locales already said *get the app, then enter the code* — so no string moved. **Verifying the thing you did not change is part of changing something.**
+* **`gh run view --job N --log` returned zero lines** and would have read as "the tests did not run" — the S055 addendum-61 check, defeated by tooling rather than by the tests. `gh api .../actions/jobs/N/logs` returned all four new assertions. **An empty result from a tool is unverified, not negative** (S041, in a new instrument).
+* **Two leftover `until [ "$(gh ...)" ]` background loops from this repo's own prior session had been spinning for ~2 days** and were killed. The session-hygiene note keeps earning its place. A `ps`-based pid-chain walk written on the fly also mis-parsed `/proc/<pid>/stat` (comm contains spaces) and printed 20k characters of garbage — a reminder that the diagnostic can be the defect.
+* **Not done, deliberately:** the App Attest entitlement (an operator observation, not a guess — `match` is readonly); the `PrivacyGuard` shield (audited, left alone); **#140 itself**.
+
+**Next objective written to resume-prompt.md:** #140 — for the fifth time, and now with the argument for why it keeps losing: every session that deferred it did so for something that was *visibly on fire*, and #140 is a gate against something that is *silently* wrong. That asymmetry is the issue's own subject matter.

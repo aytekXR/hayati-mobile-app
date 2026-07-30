@@ -194,6 +194,20 @@ these Functions never load. They are recorded in ADR-034, not forgotten.
 measured what actually stands between your testers and the app, and it is smaller
 than this page used to imply:
 
+> ### ⚠️ Session 056 correction: aim this at the NEW build, not build 110
+>
+> Everything below is still right about *the gap* — four contact fields, nothing
+> else. It is now wrong about *the build*. **Build 110 came from `fa990e6`, which
+> predates both fixes: it IS the build with the loading screen that never ends,
+> and its invite links are the unclickable `hayati://` kind.** Submitting 110 to
+> Beta App Review would spend a 24–48 h review handing your friends the exact
+> build you filed two bug reports about.
+>
+> A fresh build carrying ADR-039 and ADR-040 was cut on **2026-07-30** and is
+> auto-assigned to `Friends` (ADR-037). Confirm which build you are about to
+> submit with `status_only=true` — you want the **newest VALID** one — and pass
+> `-f assign_latest_build=true` so the newest is the one attached.
+
 ```
 app: ikimiz (com.beyondkaira.hayati)
 builds: 110 VALID (2026-07-27, real icon)  109 VALID  3  2  1
@@ -209,7 +223,7 @@ filled in — only the four *contact* fields are empty, and none of them is copy
 are your name, your email and your phone number. A good build has been sitting in
 TestFlight since 27 July waiting on a form.
 
-> ### ✅ You can install build 110 today. Right now.
+> ### ✅ You can install the build today. Right now.
 >
 > Measured against Apple immediately after the Session 055 merge:
 >
@@ -222,6 +236,10 @@ TestFlight since 27 July waiting on a form.
 > below required. If your partner is not seeing it, she is not in that group yet:
 > App Store Connect → **Users and Access** → invite her Apple ID → add her to
 > `founders`. Internal testers never wait for Beta App Review.
+>
+> **Install the newest build, not 110** — see the S056 correction above. 110 is the
+> one with the loading screen that never ends. The 2026-07-30 build is the one to
+> put on your own phone first.
 >
 > `external=READY_FOR_BETA_SUBMISSION` is the other half: the *external* groups
 > (`Friends`, `arkadaslar`) are not in review yet, which is what the four fields
@@ -254,17 +272,18 @@ incomplete, so the tool refuses a partial write and names what is missing.
 # Look first. Writes nothing, invites nobody.
 gh workflow run testflight-testers.yml -f dry_run=true -f set_review_contact=true
 
-# Then, for real: fill the page and send build 110 to Beta App Review.
+# Then, for real: fill the page, attach the NEWEST build, and send it to review.
 gh workflow run testflight-testers.yml \
   -f dry_run=false \
   -f set_review_contact=true \
+  -f assign_latest_build=true \
   -f submit_for_review=true
 ```
 
-> **`assign_latest_build` is not needed** — measured at the S055 close, build 110
-> is already attached to **`founders, Friends`**. The group is not empty and the
-> build is not unassigned; only the contact fields are missing. Pass
-> `-f assign_latest_build=true` anyway if you like: it is idempotent.
+> **`assign_latest_build=true` IS needed now** — corrected from the S055 text,
+> which said it was not. That was true when build 110 was the newest build; it is
+> not true now that a fresh one exists, and the flag is what makes the newest the
+> attached one. It is idempotent, so passing it costs nothing either way.
 
 `submit_for_review` **refuses** if anything is still missing rather than earning you
 a rejection, and is a no-op if the build is already through the gate. Apple's Beta
@@ -408,16 +427,21 @@ error. Tick 2(d) and the next build restores the direct hand-off.
 
 ---
 
-## 2(e). The website — the site now exists and is proven; the live domain needs you
+## 2(e). The website — the invite half is LIVE; the pretty domain and the legal pages need you
 
-**Session 055 created the Hosting site and deployed the real pages to a preview
-channel.** All six legal documents render in three languages, the Apple
-app-site-association file serves as `application/json`, and `/i/<code>` rewrites to
-the invite page. Nothing about the generator is unproven any more:
+**Read 2(e0) above first: the invite surface is deployed and serving.** This item is
+now only about the two things that are still *not* served — the **custom domain** and
+the **legal pages** — neither of which blocks invites, TestFlight, or Beta App Review
+any more.
 
-> **https://ikimiz--s055-preview-md20kd9a.web.app** — expires 2026-08-04
+**Session 055 proved the full generator** (all six legal documents in three
+languages, AASA as `application/json`, `/i/<code>` rewriting to the invite page) on a
+preview channel that has since expired. **Session 056 published the invite-only
+subset to the live channel**, which is why `https://ikimiz.web.app/i/<code>` answers
+today while `/privacy` and `/terms` return 404 — deliberately, and with nothing
+linking to them.
 
-Two things stand between that and the real domain.
+Two things stand between that and the full site on your own domain.
 
 ### (i) The DNS record points somewhere else — measured, not assumed
 
