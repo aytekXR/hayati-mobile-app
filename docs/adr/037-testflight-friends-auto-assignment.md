@@ -3,7 +3,38 @@
 - **Status:** Accepted
 - **Date:** 2026-07-28 (Session 054)
 - **Deciders:** founder (that external testers should get every build); session agent (upload-fast/assign-separately, and the non-blocking posture)
-- **Related:** **#139** (the S052 lane that created the group), **ADR-032** (the release lane), **ADR-034** (why a third party's schedule must not redden a build), `tool/ci/testflight_testers.py`
+- **Related:** **#139** (the S052 lane that created the group), **ADR-032** (the release lane), **ADR-034** (why a third party's schedule must not redden a build), **ADR-040** (the build this ADR's guarantee was first measured on), `tool/ci/testflight_testers.py`
+
+> ## ⚠️ Correction — 2026-07-30 (Session 056): this ADR's central guarantee did not hold on its first execution
+>
+> **The title claim was false for two days and nothing said so.** ADR-037 was
+> written in S054; the release that followed it (build 112, run `30502948416`) was
+> the **first** release run to reach the assignment step at all — build 110's
+> release predates this ADR — and that step **failed**:
+>
+> ```
+> ModuleNotFoundError: No module named 'jwt'
+> ##[error]Process completed with exit code 1
+> ```
+>
+> The `sign-upload` job had no `actions/setup-python`, so bare `pip install` and
+> `python3` resolved to **different interpreters** on `macos-15`. The install
+> reported success. The import did not exist. And because Decision 3 makes the
+> step `continue-on-error` — still the right call — **the release reported
+> success while no build was attached to anything.** Build 112 had to be assigned
+> by a separate `testflight-testers.yml` dispatch, exactly the manual step this
+> ADR exists to remove.
+>
+> Fixed by pinning the interpreter (`actions/setup-python` + `python3 -m pip`, so
+> installer and runner are the same by **construction**, not by PATH order) and by
+> asserting the import *before* the 25-minute Apple wait, so a missing dependency
+> fails loudly at a named line instead of silently inside a tolerated step.
+>
+> **The lesson is not "continue-on-error was wrong".** It is that **non-blocking
+> must not mean unread** — a tolerated failure still needs a reader, and this one
+> had none. Decision 3's reasoning stands; Decision 3's *verification* was
+> missing, and that is the gap. It is the #140 shape (a green check that guards
+> nothing) inside the very lane ADR-037 built, met for the fourth recorded time.
 
 ## Context
 

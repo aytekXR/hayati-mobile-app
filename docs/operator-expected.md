@@ -19,10 +19,11 @@ _Last refreshed: 2026-07-30, **Session 056 close**._
 current code and current rules, **both of your bug reports are fixed and merged**
 (ADR-039 — the permanent loading screen, and invite links that landed on a
 certificate error), the **invite site is LIVE** (`https://ikimiz.web.app/i/<code>`
-→ 200, verified, item 2(e0) closed), and a fresh build carrying all of it is going
-to TestFlight — so **the only thing between your five friends and a working app is
-the four contact fields in item 2(c)**; the product's one unproven link is still a
-**real purchase**, behind item 0(a).
+→ 200, verified, item 2(e0) closed), and **build 112 carrying all of it is in
+TestFlight and attached to `Friends`, where your five testers already are** — so
+**the only thing between those five people and a working app is the four contact
+fields in item 2(c)**, one `gh secret set` each; the product's one unproven link
+is still a **real purchase**, behind item 0(a).
 
 > **⚠️ Read 2(c) first — it is now the ONLY thing between your friends and a
 > working app.** Four contact fields, ~2 minutes. Everything else on the path is
@@ -203,10 +204,27 @@ than this page used to imply:
 > Beta App Review would spend a 24–48 h review handing your friends the exact
 > build you filed two bug reports about.
 >
-> A fresh build carrying ADR-039 and ADR-040 was cut on **2026-07-30** and is
-> auto-assigned to `Friends` (ADR-037). Confirm which build you are about to
-> submit with `status_only=true` — you want the **newest VALID** one — and pass
-> `-f assign_latest_build=true` so the newest is the one attached.
+> **Build 112 is that build**, cut on **2026-07-30**, carrying ADR-039 and
+> ADR-040. Measured against Apple after upload:
+>
+> ```
+> build 112  processing=VALID  groups: founders, Friends
+> 'Friends' now has 5 tester(s):
+>   ahmetsahinerr66@icloud.com   erencemozturk@icloud.com
+>   kazimutkucitoglu@gmail.com   m.yahyaonder@gmail.com
+>   seymabutun9@gmail.com
+> ```
+>
+> **Your five friends are already in the group and the right build is already
+> attached to it.** Everything below Step 1 is done. The four secrets are the
+> only thing left.
+>
+> ⚠️ **It was NOT auto-assigned, despite ADR-037 promising it would be.** That
+> step failed on its first ever execution (`ModuleNotFoundError: No module named
+> 'jwt'`) and, being `continue-on-error`, took the release green with it. A
+> session attached build 112 by hand and fixed the lane. **The habit worth
+> keeping: after any release, run `status_only=true` and read `groups:` — do not
+> infer delivery from a green release.**
 
 ```
 app: ikimiz (com.beyondkaira.hayati)
@@ -272,13 +290,18 @@ incomplete, so the tool refuses a partial write and names what is missing.
 # Look first. Writes nothing, invites nobody.
 gh workflow run testflight-testers.yml -f dry_run=true -f set_review_contact=true
 
-# Then, for real: fill the page, attach the NEWEST build, and send it to review.
+# Then, for real: fill the page and send build 112 to Beta App Review.
+# (assign_latest_build is harmless and idempotent — 112 is already attached.)
 gh workflow run testflight-testers.yml \
   -f dry_run=false \
   -f set_review_contact=true \
   -f assign_latest_build=true \
   -f submit_for_review=true
 ```
+
+**That single command is the last step.** Apple's Beta App Review is typically
+24–48 h for a first submission; after it passes, all five names above get the
+install notification automatically.
 
 > **`assign_latest_build=true` IS needed now** — corrected from the S055 text,
 > which said it was not. That was true when build 110 was the newest build; it is

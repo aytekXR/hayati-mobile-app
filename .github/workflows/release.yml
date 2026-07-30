@@ -430,6 +430,15 @@ jobs:
           XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
           xcodebuild -version
+      # Pins the interpreter the Friends-assignment step below installs into and
+      # runs from. Without it this job had NO managed python, so bare `pip` and
+      # `python3` were different interpreters and the assignment step could never
+      # import PyJWT (S056 — it failed on its first ever run, silently, behind
+      # continue-on-error). Same version and same shape as
+      # testflight-testers.yml, which is the lane that demonstrably works.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: fastlane beta (match sign + TestFlight)
         # match installs the Apple Distribution cert + App Store profile from the
         # encrypted MATCH_GIT_URL into the CI keychain, then the Flutter build signs
@@ -462,6 +471,14 @@ jobs:
         # shipped in the step above, and Apple's processing queue is a third
         # party's schedule. Reddening a release because a queue was slow is the
         # cries-wolf mistake ADR-034 rejected; the tool prints how to re-run.
+        #
+        # ⚠️ The cost of that non-blocking choice was measured at S056: this step
+        # failed on its FIRST EVER execution (release run 30502948416, build 112)
+        # and the release still reported success. `continue-on-error` is still
+        # right — Apple's queue is a third party's schedule — but "non-blocking"
+        # must not mean "unread". Whoever dispatches a release reads THIS step's
+        # log, or confirms with `-f status_only=true`, before believing a build
+        # reached anybody.
         continue-on-error: true
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -478,7 +495,24 @@ jobs:
           ASC_REVIEW_CONTACT_EMAIL: ${{ secrets.ASC_REVIEW_CONTACT_EMAIL }}
           ASC_REVIEW_CONTACT_PHONE: ${{ secrets.ASC_REVIEW_CONTACT_PHONE }}
         run: |
-          pip install --quiet 'pyjwt[crypto]==2.10.1'
+          # `python3 -m pip`, NOT bare `pip` — and this is the whole reason this
+          # step has never once worked (S056). On macos-15 there is no
+          # actions/setup-python in this job, so bare `pip` resolves to a
+          # DIFFERENT interpreter than `python3`: the install reported success,
+          # printed a pip-upgrade notice, and then `python3` raised
+          # `ModuleNotFoundError: No module named 'jwt'`. Because the step is
+          # continue-on-error, the release went green while ADR-037's central
+          # guarantee — every build reaches Friends automatically — silently did
+          # not happen. Routing pip through the same interpreter that runs the
+          # script makes them the same by CONSTRUCTION rather than by PATH order.
+          # The setup-python step above is what keeps that interpreter free of
+          # PEP-668 "externally managed" refusals, exactly as
+          # testflight-testers.yml does it.
+          python3 -m pip install --quiet 'pyjwt[crypto]==2.10.1'
+          # Prove the import before spending 25 minutes on Apple's queue: a
+          # missing module must fail HERE, loudly, and not as a silent no-op
+          # inside a continue-on-error step.
+          python3 -c "import jwt, cryptography; print('pyjwt', jwt.__version__, 'ok')"
           # The same synthesized number the build carries (ADR-032 D3).
           # --set-review-contact is passed unconditionally; if the four secrets
           # are unset the tool fails closed naming them, and this step is
