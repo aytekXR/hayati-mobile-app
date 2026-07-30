@@ -127,6 +127,27 @@ ADR-037's guarantee that every release build reaches the Friends group, while `c
 kept the release green. The write now reports, continues, and still exits non-zero. A dedicated test
 drives `main()` with the secrets unset and asserts the assignment POST still happens.
 
+> **⚠️ Correction — 2026-07-30 (Session 056): D4 named the right failure and the wrong layer.**
+>
+> The paragraph above predicts, precisely, *"silently repealing ADR-037's guarantee that every
+> release build reaches the Friends group, while `continue-on-error` kept the release green."* That
+> is exactly what happened on the first release after these ADRs shipped (build 112, run
+> `30502948416`) — **and not for any of the reasons defended against here.** The step never reached
+> `read_review_contact()`, never reached the assignment POST, and never ran a line of
+> `testflight_testers.py`: it died on `import jwt`, because `sign-upload` had no
+> `actions/setup-python` and bare `pip` installed into a different interpreter than `python3`.
+>
+> So the non-fatal write and its dedicated test were both correct and both irrelevant. **The
+> hardening was one layer too high.** Every guard here assumed the tool RUNS; nothing established
+> that its dependencies were importable, and the hermetic test could not — it imports `jwt` from the
+> dev box's own environment, which is precisely the S055 warning about a fake that agrees with your
+> assumption, one level down in the stack.
+>
+> Fixed in `release.yml` (pinned interpreter + an explicit `import jwt, cryptography` assertion
+> before the 25-minute Apple wait). **The transferable rule: when you harden a step against its
+> failure modes, enumerate the ones BELOW your abstraction too — "the script raises" and "the script
+> never started" are different failures, and only the first one has a test.**
+
 ### D7 — `--dry-run` covers both new writes, and says which
 
 The review found dry-run semantics unstated for the two new operations — a gap that matters because
