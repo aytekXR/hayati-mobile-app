@@ -13,20 +13,24 @@
 > re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 036.
 
-_Last refreshed: 2026-07-28, **Session 055 close**._
+_Last refreshed: 2026-07-30, **Session 056 close**._
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
-current code and current rules, and build **110** (real icon) is **installable on
-your own phone right now** via the `founders` internal group — **the only thing between it and your five
-testers is four contact fields, and item 2(c) is now a four-line recipe for
-them**; the website is built and proven on a preview URL and waits only on a DNS
-record and one legal blank; the product's one unproven link is still a **real
-purchase**, behind item 0(a).
+current code and current rules, **both of your bug reports are fixed and merged**
+(ADR-039 — the permanent loading screen, and invite links that landed on a
+certificate error), the **invite site is LIVE** (`https://ikimiz.web.app/i/<code>`
+→ 200, verified, item 2(e0) closed), and a fresh build carrying all of it is going
+to TestFlight — so **the only thing between your five friends and a working app is
+the four contact fields in item 2(c)**; the product's one unproven link is still a
+**real purchase**, behind item 0(a).
 
-> **⚠️ Read 2(c) and 2(d) first.** 2(c) is ~2 minutes and puts the app in your
-> friends' hands. 2(d) is one checkbox in Apple's portal and, until it is ticked,
-> **the next release build will fail to sign** — build 110 predates that
-> entitlement, which is why 2(c) ships 110 rather than cutting a new build.
+> **⚠️ Read 2(c) first — it is now the ONLY thing between your friends and a
+> working app.** Four contact fields, ~2 minutes. Everything else on the path is
+> done: the fixes for your two bug reports are merged (ADR-039), the invite site
+> is **live** (2(e0) is complete — `https://ikimiz.web.app/i/<code>` returns 200),
+> and a fresh build carrying all of it is on its way to TestFlight. 2(d) is no
+> longer blocking — ADR-040 traded universal links for a build that ships today,
+> so an invite link opens the web page rather than the app until you tick it.
 
 > **⚠️ What Session 052 found, because it is the thing most likely to bite you
 > again.** Your "Something went wrong" bug was never in the app. **Firestore
@@ -286,20 +290,33 @@ install it. A build can read `VALID` forever and reach nobody.
 
 ---
 
-## 🔴 2(d). Enable **Associated Domains** on the App ID — the next release build cannot sign without it
+## 🟡 2(d). Enable **Associated Domains** on the App ID — invite links open the app instead of the browser
 
 Apple Developer portal → Certificates, Identifiers & Profiles → **Identifiers** →
 `com.beyondkaira.hayati` → tick **Associated Domains** → Save.
 
-**This is now blocking, not optional.** ADR-036 put `applinks:ikimiz.beyondkaira.com`
-into `Runner.entitlements`, and the entitlement must exist in the **provisioning
-profile** too. `match` fetches profiles **readonly** (ADR-032) precisely so CI can
-never mint credentials, so it cannot add the capability itself — the signing step
-will fail with an entitlement mismatch. Loudly, not silently, but it will fail.
+**No longer blocking — downgraded from 🔴 by ADR-040.** It *was* blocking: the
+entitlement must exist in the **provisioning profile** as well as in
+`Runner.entitlements`, and `match` fetches profiles **readonly** (ADR-032)
+precisely so CI can never mint credentials, so the signing step would have failed
+with an entitlement mismatch. Rather than hold every release behind a portal
+visit, the entitlement was **removed** and a working build ships without it.
 
-**Build 110 predates the entitlement and is unaffected**, which is exactly why 2(c)
-above ships *that* build rather than cutting a new one. Do this before the next
-release run.
+**What you lose until you tick it:** an invite link opens the **web page** rather
+than jumping straight into the app. The page shows the code with a copy button,
+and the invitee enters it via "Have a code?" — one extra step, for the invitee
+only. Nothing is broken; it is one tap less direct.
+
+**What ticking it buys:** the next build after it re-adds the entitlement (ordered
+steps are written inside `app/ios/Runner/Runner.entitlements`), and from then on a
+tapped invite lands in the app. The `apple-app-site-association` file is **already
+live and verified** at `https://ikimiz.web.app/.well-known/apple-app-site-association`,
+so nothing else is needed on the web side.
+
+**Say what you see either way.** A session cannot read the portal, so nobody knows
+whether this capability is already enabled — no build has ever been signed with
+the entitlement (build 110 predates it), so it has never been exercised. If it
+turns out to be enabled already, restoring universal links is a two-line change.
 
 > **While you are on that page, one more question to answer (ADR-039).** The prod
 > App Check provider is **App Attest**, but `Runner.entitlements` deliberately
@@ -315,10 +332,28 @@ release run.
 
 ---
 
-## 🔴 2(e0). Make invite links work — **one command, no DNS, no legal blank** (ADR-039)
+## ✅ 2(e0). Invite links now work — **DONE, live, verified** (ADR-039)
 
-**Measured at the Session 056 open, and it is the reason invites are not
-spreading:**
+> **Kept on this page (against the open-items-only rule) for one session, because
+> it is the item that answers your second bug report.** Delete at the next close.
+
+**You authorized the publish in-session and it is done.** Deployed to your live
+`ikimiz` Hosting site on **2026-07-30**, invite surface only:
+
+```
+$ curl -so /dev/null -w '%{http_code}  %{content_type}\n' https://ikimiz.web.app/i/9U4VUVRV
+200  text/html; charset=utf-8
+$ curl -so /dev/null -w '%{http_code}  %{content_type}\n' \
+    https://ikimiz.web.app/.well-known/apple-app-site-association
+200  application/json
+$ curl -so /dev/null -w '%{http_code}\n' https://ikimiz.web.app/privacy
+404                       # correct — this build publishes no legal text, and nothing links to it
+```
+
+Roll back at any time with `firebase hosting:rollback --project hayatiapp-prod`.
+
+**What it was before (measured at the Session 056 open), which is why this
+mattered:**
 
 ```
 $ curl -sI https://ikimiz.beyondkaira.com/i/9U4VUVRV
@@ -334,7 +369,7 @@ product is a red "This Connection Is Not Private" screen, at the exact moment
 they are deciding whether to trust what their partner just sent them. Nothing
 about the app was wrong; the link had nowhere to land.
 
-Two things changed in code, and one thing is left for you:
+Two things changed in code to make that possible:
 
 * invites are now built on **`ikimiz.web.app`** — Firebase Hosting's own domain
   for the *same site*, with TLS Google issues and renews. It needs **no DNS
@@ -346,29 +381,30 @@ Two things changed in code, and one thing is left for you:
   It is not a loophole in that gate: a build that publishes no policy cannot
   publish an unfinished one.
 
-### What you run
+### How it was deployed, and how to redeploy it
+
+The deploy used the local `firebase` CLI, which is logged in as you — **not** CI,
+because `FIREBASE_SERVICE_ACCOUNT` is still unset (checked again this session):
 
 ```sh
-gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json   # if not set yet
+python3 tool/ci/build_site.py --out web/public --invite-only
+firebase deploy --only hosting:ikimiz --project hayatiapp-prod
+```
+
+To move it into CI instead — worth doing, so the site is not dependent on one
+laptop's login:
+
+```sh
+gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json
 gh workflow run deploy-site.yml -f channel=live -f invite_only=true
 ```
 
-### How to tell it worked
-
-```sh
-curl -so /dev/null -w '%{http_code}\n' https://ikimiz.web.app/i/9U4VUVRV        # want 200
-curl -s https://ikimiz.web.app/.well-known/apple-app-site-association           # want the JSON
-```
-
-**A session did not run this for you** because it publishes a page on your live
-production hosting under your name. The build is proven locally and the command
-above is the whole of it.
-
-⚠️ **The link opens the WEB PAGE, not the app, until 2(d) is done.** iOS only
-hands a URL to an app whose build carried the Associated Domains entitlement, and
-build 110 predates it. Until then the page does its job — it shows the code and
-tells the invitee what to do with it — which is still enormously better than a
-certificate error.
+⚠️ **The link opens the WEB PAGE, not the app** — by deliberate choice, not
+oversight. See **ADR-040**: the Associated Domains entitlement was removed so a
+build could ship today without waiting on item 2(d). The page does its job — it
+shows the code with a copy button and tells the invitee to enter it under "Have a
+code?" — which is one tap less direct, and enormously better than a certificate
+error. Tick 2(d) and the next build restores the direct hand-off.
 
 ---
 
