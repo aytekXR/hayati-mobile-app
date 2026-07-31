@@ -490,6 +490,110 @@ def test_group_membership_is_looked_up_the_readable_way() -> None:
           len([p for _, p, _ in seen if "/builds" in p and "betaGroups/" in p]), 2)
 
 
+def test_merge_group() -> None:
+    """Merging is a DELETE wearing a friendly name, so every guard is pinned.
+
+    The founder asked to collapse `arkadaslar` into `Friends` and keep one
+    group. The dangerous version of that request is the one that deletes the
+    source before proving the members landed — a silent, unrecoverable loss of
+    someone's access that every status read afterwards would report as clean.
+    So the ordering (link -> RE-READ -> delete) is the guarantee, and the
+    re-read is asserted here rather than assumed."""
+    print("merge_group")
+    target = {"id": "tgt-1", "attributes": {"name": "Friends", "isInternalGroup": False}}
+
+    def groups(source=None):
+        return [
+            {"id": "tgt-1", "attributes": {"name": "Friends", "isInternalGroup": False}},
+            *([source] if source else []),
+        ]
+
+    external_source = {"id": "src-1",
+                       "attributes": {"name": "arkadaslar", "isInternalGroup": False}}
+
+    # Merging a group into itself is a pure delete with a reassuring label.
+    _fake_call([("GET", "/v1/betaGroups?", {"data": groups(external_source)})])
+    check_raises("refuses merging a group into itself",
+                 lambda: tf.merge_group("t", "app-1", "friends", target), "itself")
+
+    # A typo must NOT read as "already merged" — that is the false-clean this
+    # repo keeps being bitten by. Refuse, and name what does exist.
+    _fake_call([("GET", "/v1/betaGroups?", {"data": groups(external_source)})])
+    try:
+        tf.merge_group("t", "app-1", "arkadaslr", target)
+        check("refuses an unknown source group", "no error", "AscError")
+    except tf.AscError as failure:
+        check("unknown source names the typo", "arkadaslr" in str(failure), True)
+        check("unknown source lists what exists", "arkadaslar" in str(failure), True)
+
+    # Internal groups mean App Store Connect SEATS, not invites. Deleting one is
+    # a different act than the founder asked for.
+    _fake_call([("GET", "/v1/betaGroups?", {"data": groups(
+        {"id": "src-1", "attributes": {"name": "founders", "isInternalGroup": True}})})])
+    check_raises("refuses to delete an INTERNAL group",
+                 lambda: tf.merge_group("t", "app-1", "founders", target), "internal")
+
+    # ---- the happy path, with a stateful fake: the target membership must
+    # actually CHANGE between the link and the verification re-read, which a
+    # fragment-matched script cannot express.
+    def stateful(*, link_lands: bool):
+        state = {"target": [{"id": "u2", "attributes": {"email": "b@x.co"}}],
+                 "deleted": [], "linked": [], "reads": 0}
+
+        def call(_token, method, path, body=None):
+            if method == "GET" and "/v1/betaGroups?" in path:
+                return {"data": groups(external_source)}
+            if method == "GET" and "betaGroups/src-1/betaTesters" in path:
+                return {"data": [{"id": "u1", "attributes": {"email": "A@x.co"}},
+                                 {"id": "u2", "attributes": {"email": "b@x.co"}}]}
+            if method == "GET" and "betaGroups/tgt-1/betaTesters" in path:
+                state["reads"] += 1
+                return {"data": list(state["target"])}
+            if method == "POST" and "betaGroups/tgt-1/relationships" in path:
+                state["linked"] = [d["id"] for d in body["data"]]
+                if link_lands:
+                    state["target"].append(
+                        {"id": "u1", "attributes": {"email": "A@x.co"}})
+                return {}
+            if method == "DELETE":
+                state["deleted"].append(path)
+                return {}
+            return {}
+
+        tf._call = call
+        return state
+
+    state = stateful(link_lands=True)
+    lines = tf.merge_group("t", "app-1", "arkadaslar", target)
+    check("links ONLY the member not already in the target", state["linked"], ["u1"])
+    check("deletes the source group, once", state["deleted"], ["/v1/betaGroups/src-1"])
+    check("re-reads the target to verify before deleting", state["reads"] >= 2, True)
+    check("says what moved", any("A@x.co" in line for line in lines), True)
+    # Case-insensitivity is not cosmetic: 'A@x.co' vs 'a@x.co' deciding
+    # membership would re-invite a tester who is already there.
+    state = stateful(link_lands=True)
+    state["target"] = [{"id": "u1", "attributes": {"email": "a@x.co"}},
+                       {"id": "u2", "attributes": {"email": "b@x.co"}}]
+    tf.merge_group("t", "app-1", "arkadaslar", target)
+    check("a case-differing email counts as already present", state["linked"], [])
+    check("an already-merged group is still deleted",
+          state["deleted"], ["/v1/betaGroups/src-1"])
+
+    # THE load-bearing case: the link did not land. Deleting now would strip a
+    # real person's access and every later status read would look clean.
+    state = stateful(link_lands=False)
+    check_raises("refuses to delete when a member did not land",
+                 lambda: tf.merge_group("t", "app-1", "arkadaslar", target), "A@x.co")
+    check("nothing deleted when verification fails", state["deleted"], [])
+
+    # dry run touches nothing at all — especially not DELETE.
+    state = stateful(link_lands=True)
+    lines = tf.merge_group("t", "app-1", "arkadaslar", target, dry_run=True)
+    check("dry run links nothing", state["linked"], [])
+    check("dry run deletes nothing", state["deleted"], [])
+    check("dry run says WOULD", any("WOULD" in line for line in lines), True)
+
+
 def main() -> int:
     test_parse_emails()
     test_token()
@@ -501,6 +605,7 @@ def main() -> int:
     test_missing_contact_does_not_block_assignment()
     test_dry_run_against_a_missing_group_still_exits_non_zero()
     test_group_membership_is_looked_up_the_readable_way()
+    test_merge_group()
     if _failures:
         print(f"\n{len(_failures)} check(s) FAILED: {', '.join(_failures)}")
         return 1
