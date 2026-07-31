@@ -132,12 +132,16 @@ def find_app(token: str, bundle_id: str) -> dict:
     return found[0]
 
 
+def list_groups(token: str, app_id: str) -> list[dict]:
+    query = urllib.parse.urlencode({"filter[app]": app_id, "limit": 200})
+    return _call(token, "GET", f"/v1/betaGroups?{query}").get("data", [])
+
+
 def find_group(token: str, app_id: str, name: str) -> dict | None:
     """Look the group up by app, then match the name HERE rather than with a
     server-side filter[name]: the list filter is exact and case-sensitive, and
     a near-miss would silently create a second 'friends' beside 'Friends'."""
-    query = urllib.parse.urlencode({"filter[app]": app_id, "limit": 200})
-    for group in _call(token, "GET", f"/v1/betaGroups?{query}").get("data", []):
+    for group in list_groups(token, app_id):
         if group["attributes"]["name"].strip().casefold() == name.strip().casefold():
             return group
     return None
@@ -154,13 +158,23 @@ def create_group(token: str, app_id: str, name: str) -> dict:
     return _call(token, "POST", "/v1/betaGroups", payload)["data"]
 
 
-def group_member_emails(token: str, group_id: str) -> set[str]:
+def group_members(token: str, group_id: str) -> list[dict]:
+    """The tester RECORDS in a group, not just their addresses.
+
+    `merge_group` needs the ids: linking a tester to another group by id is one
+    call and cannot mis-resolve, whereas re-deriving them from an email would
+    round-trip through `filter[email]` and depend on Apple's case handling for
+    an address we already hold."""
     query = urllib.parse.urlencode({"limit": 200})
-    members = _call(
+    return _call(
         token, "GET", f"/v1/betaGroups/{group_id}/betaTesters?{query}"
     ).get("data", [])
+
+
+def group_member_emails(token: str, group_id: str) -> set[str]:
     return {
-        (tester["attributes"].get("email") or "").casefold() for tester in members
+        (tester["attributes"].get("email") or "").casefold()
+        for tester in group_members(token, group_id)
     }
 
 
@@ -203,6 +217,116 @@ def add_tester(token: str, group_id: str, email: str) -> str:
         },
     )
     return "invited-new"
+
+
+def merge_group(
+    token: str,
+    app_id: str,
+    source_name: str,
+    target: dict,
+    dry_run: bool = False,
+) -> list[str]:
+    """Move every tester from `source_name` into `target`, then DELETE the source.
+
+    Founder request (S057): *"merge those groups and only keep Friends"* — two
+    external groups had been a standing source of confusion (issue #146), and
+    one group that always gets the build is simpler than two that might.
+
+    THE ORDER IS THE GUARANTEE: link, then RE-READ the target, then delete. A
+    version that deletes on the strength of a 2xx from the link call would, on
+    the day Apple accepts the request and does not apply it, silently strip a
+    real person's access — and every `--status` afterwards would report a clean
+    single-group setup, because the evidence would be gone with the group. This
+    refuses to delete unless it has SEEN each member on the other side.
+
+    Deleting a beta group does not delete its testers: `betaTesters` are
+    app-scoped, so anyone who was only in the source remains a tester on the app
+    and is now in the target as well.
+    """
+    lines: list[str] = []
+    target_name = target["attributes"]["name"]
+    if source_name.strip().casefold() == target_name.strip().casefold():
+        raise AscError(
+            f"refusing to merge {source_name!r} into itself — that is a plain "
+            "delete wearing a friendlier name. Name a different source group."
+        )
+
+    source = find_group(token, app_id, source_name)
+    if source is None:
+        # Loudly, NOT as a no-op. A mistyped source that reported "nothing to
+        # merge" would read exactly like a successful second run while the real
+        # group sat untouched — the false-clean this repo keeps paying for.
+        existing = ", ".join(
+            repr(group["attributes"]["name"]) for group in list_groups(token, app_id)
+        )
+        raise AscError(
+            f"no beta group named {source_name!r} exists for this app. "
+            f"Existing groups: {existing}. (If you have already merged it, that "
+            "is the expected message — there is nothing left to do.)"
+        )
+    if source["attributes"].get("isInternalGroup"):
+        raise AscError(
+            f"{source_name!r} is an internal group. Internal membership is an "
+            "App Store Connect USER SEAT, not an invite, so deleting it is a "
+            "different act than merging external testers. Refusing."
+        )
+
+    members = group_members(token, source["id"])
+    already = group_member_emails(token, target["id"])
+    moving = [
+        tester
+        for tester in members
+        if (tester["attributes"].get("email") or "").casefold() not in already
+    ]
+    staying = len(members) - len(moving)
+    lines.append(
+        f"merge: {source_name!r} has {len(members)} tester(s); "
+        f"{staying} already in {target_name!r}, {len(moving)} to move"
+    )
+    for tester in moving:
+        lines.append(f"  move {tester['attributes'].get('email')}")
+
+    if dry_run:
+        lines.append(
+            f"  WOULD move the above into {target_name!r}, verify, then "
+            f"DELETE the group {source_name!r}"
+        )
+        return lines
+
+    if moving:
+        _call(
+            token,
+            "POST",
+            f"/v1/betaGroups/{target['id']}/relationships/betaTesters",
+            {
+                "data": [
+                    {"type": "betaTesters", "id": tester["id"]} for tester in moving
+                ]
+            },
+        )
+
+    # The re-read. Not a formality — this is the only thing standing between a
+    # partially-applied link and an unrecoverable delete.
+    confirmed = group_member_emails(token, target["id"])
+    missing = sorted(
+        (tester["attributes"].get("email") or "")
+        for tester in members
+        if (tester["attributes"].get("email") or "").casefold() not in confirmed
+    )
+    if missing:
+        raise AscError(
+            f"NOT deleting {source_name!r}: after the move, "
+            f"{', '.join(missing)} still cannot be seen in {target_name!r}. "
+            "Both groups are intact — re-run, or add them by hand. Nothing was "
+            "lost, which is the point of checking."
+        )
+
+    _call(token, "DELETE", f"/v1/betaGroups/{source['id']}")
+    lines.append(
+        f"  verified all {len(members)} tester(s) in {target_name!r}; "
+        f"deleted the group {source_name!r}"
+    )
+    return lines
 
 
 def list_builds(token: str, app_id: str, limit: int = 5) -> list[dict]:
@@ -703,6 +827,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--merge-group",
+        help=(
+            "Move every tester out of THIS group into --group, then delete it. "
+            "Outward-facing and destructive: links, RE-READS to confirm each "
+            "member landed, and only then deletes. Refuses on an unknown or "
+            "internal source rather than reporting a false clean."
+        ),
+    )
+    parser.add_argument(
         "--set-review-contact",
         action="store_true",
         help=(
@@ -778,6 +911,15 @@ def main() -> int:
                 "Rename it or pick another name — adding external testers to it "
                 "is not the same request."
             )
+
+    # BEFORE the tester adds, so `already` below is computed against the merged
+    # membership — otherwise a merge and an --testers add naming the same person
+    # in one dispatch would try to link them twice.
+    if args.merge_group:
+        for line in merge_group(
+            token, app["id"], args.merge_group, group, dry_run=args.dry_run
+        ):
+            print(line)
 
     already = group_member_emails(token, group["id"])
     for email in emails:
