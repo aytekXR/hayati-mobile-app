@@ -92,7 +92,7 @@ jobs:
         run: |
           if [ -z "$SA" ]; then
             echo "::error::FIREBASE_SERVICE_ACCOUNT is not set. See docs/operator-expected.md"
-            echo "::error::item 2(c): create a service account with the Firebase Hosting Admin"
+            echo "::error::item 2(e)(iii): create a service account with the Firebase Hosting Admin"
             echo "::error::role and add its JSON as a repository secret."
             exit 1
           fi
