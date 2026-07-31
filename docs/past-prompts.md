@@ -2001,3 +2001,74 @@ The sharpest part is that **ADR-038 D4 predicted this exact failure in these exa
 **Also worth carrying:** the first release dispatch failed in `integration` on `auth_emulator_test` — *"Connecting to the VM Service timed out"* after a ~10-minute SwiftPM fetch. Diagnosed as infra flake **by control, not by vibe**: main's own `integration-emulator` had run the same five suites green on `3e248aa` thirty minutes earlier. A re-dispatch passed.
 
 **Final state at the close:** ADR-039 + ADR-040 merged and green on main; `https://ikimiz.web.app/i/<code>` live (200, AASA `application/json`); **build 112 VALID in TestFlight and attached to `Friends`, where the five testers already are**; the release lane's assignment step fixed; four founder-owned secrets the only remaining blocker.
+
+---
+
+## Session 057 — 2026-07-31 — **the external-TestFlight path ran end to end for the first time: ADR-037's auto-assignment finally worked, and the only remaining blocker is four facts about a person**
+
+**Objective (from resume-prompt.md):** the standing override at the top of the S056 resume file — *"if the founder handoff has arrived, the session is: set the four secrets, dispatch the review-contact write + newest-build assignment + submission."* The founder's words: *"Are we ready for the Testflight testing for external? If not, make it ready. … Send the latest release to the Testflight and update operator expected such that only open items are there."*
+
+**Outcome:** **Not ready at the open; everything a session can do is now done.** A release was cut, uploaded, and — for the first time in this project's history — **auto-assigned to the external group by the lane itself**. The single remaining gap is the four `ASC_REVIEW_CONTACT_*` values, which are facts about the founder (surname, phone) that no session may invent.
+
+**Commits:** this entry's PR (docs prune + one stale CI cross-reference).
+
+**#140 deferred a FIFTH time**, and again for a founder directive with five real people behind it. Addendum 68 stands unrefuted and is now five sessions old.
+
+### What was measured, not assumed
+
+Every claim below came from asking Apple, never from reading this repo's own docs.
+
+```
+build 113  processing=VALID  uploaded=2026-07-31   external=READY_FOR_BETA_SUBMISSION
+                                                    internal=IN_BETA_TESTING
+                                                    groups: founders, Friends
+beta app review readiness:
+  MISSING - Test Information: review contact {email, first name, last name, phone} is empty
+```
+
+Four gaps, all four the same shape, none of them copy. The beta description and feedback email were already filled in. `external=READY_FOR_BETA_SUBMISSION` (and **not** `MISSING_EXPORT_COMPLIANCE`) also settles a question nobody had asked out loud: the export-compliance declaration is already answered in `Info.plist`, so it is not a hidden fifth blocker.
+
+### ADR-037's central guarantee held for the first time — release run #13
+
+S056 found that *"every build reaches `Friends` automatically"* had **never once been true** (`ModuleNotFoundError: No module named 'jwt'`, silently green behind `continue-on-error`). PR #154 fixed it structurally. This session is the first evidence it works, and the evidence is the step's own log rather than the run's green tick:
+
+```
+pyjwt 2.10.1 ok
+group: reusing existing 'Friends' id=bf019059-… (external)
+'Friends' now has 5 tester(s): …
+build 113 not visible to the API yet; waiting…      (×6)
+assigned build 113 to 'Friends'
+```
+
+**The habit S056 asked for is what produced this line.** A green release still says nothing; the step's log does. Note also that the *same* step failed loudly and correctly on the review-contact half (`ASC_REVIEW_CONTACT_* unset`) and then printed **`continuing — the build assignment below is a separate promise.`** — a fail-closed contact write that does not take the assignment down with it. That separation was designed in ADR-038 D4 and this run is the first time both halves were exercised in one execution, in opposite directions.
+
+### Issue #146 closed by measurement — the stranded set was empty
+
+The issue reserved a founder decision: two external groups exist, only `Friends` is auto-assigned, so *"anyone in `arkadaslar` and not in `Friends` receives nothing"*, and re-inviting them emails real people. A read-only dispatch answered it:
+
+```
+'arkadaslar' now has 1 tester(s):  seymabutun9@gmail.com
+'Friends'    now has 5 tester(s):  … seymabutun9@gmail.com
+```
+
+**One member, already in the other group.** The decision had no subject. Closed with the measurement attached, and removed from the operator page as a non-item.
+
+**The generalisable part:** the issue was filed on a *structural* observation (two groups, one auto-assigned) and was worded as though the harm followed from the structure. It did not — the harm depended on **membership**, which nobody had listed, because at the time nothing in the tool could list it. A risk inferred from shape is a hypothesis; it needs a population before it is a finding.
+
+### The operator page prune (the founder's third instruction)
+
+809 → ~440 lines. Deleted: item **2(e0)** (marked ✅ DONE with *"delete at the next close"* — honoured); the Session-052 Firestore-rules narrative (both projects current; the surviving fact is #140's table row); the **build-110** "you can install today" box and the `fa990e6` sequencing warning (both moot at build 113); the *"Domain purchase + AASA hosting"* activation bullet (the domain is already owned and the AASA is already live — the real remainder is a DNS record, which is 2(e)(i)); and the #146 row.
+
+Two deliberate structural choices:
+
+* **Item numbers were preserved, not renumbered.** `tool/ci/testflight_testers.py:851` and `.github/workflows/deploy-site.yml` cite them by name, as do three ADRs and `implementation-plan.md`. Renumbering a checklist is exactly the kind of tidy-up that manufactures stale cross-references — the sin addendum 64 is about. The file now says so in its own header.
+* **The recipe names no build number.** Per addendum 64's closing instruction (*"prefer 'the newest VALID build' to a number"*), both dispatch blocks act on the newest VALID build, so the recipe cannot rot the way the build-110 version did. The build number appears only in the dated *measurement*, where being a snapshot is the point.
+
+**And the prune found a stale cross-reference of exactly the predicted kind:** `deploy-site.yml`'s secrets gate told the founder to *"See docs/operator-expected.md item 2(c)"* for `FIREBASE_SERVICE_ACCOUNT`. Item 2(c) is the TestFlight-testers item; the service account lives in 2(e)(iii). The pointer was inside an `::error::` line — a string a human only ever reads at the moment their deploy just failed. Fixed in this diff.
+
+### Notes / debt logged
+
+* **`gh` was pointed at the wrong repo slug for three calls.** `repos/aytekXR/hayati` 404'd; the remote is `aytekXR/hayati-mobile-app`. A 404 from the logs API reads identically to "this run produced no logs" — the S056 addendum-65 shape again, in a third instrument. `gh repo view --json nameWithOwner` settled it in one call.
+* **The one thing a session cannot close:** a surname and a phone number. `gh api user` returns `name=Aytek E`, and the git history carries a personal email that *suggests* a surname — which is precisely why it was not used. Apple's Beta App Review contact is a real person Apple may actually call; a plausible guess is worse than an empty field, because an empty field is honestly reported by the tool and a wrong one is not.
+
+**Final state at the close:** build **113** VALID in TestFlight, attached to `founders` + `Friends`, carrying every fix from ADR-039/ADR-040; the five testers in place; export compliance answered; Test Information copy complete; **the four contact fields the only gap, and the only item on the founder's critical path.**

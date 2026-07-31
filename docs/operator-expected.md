@@ -1,4 +1,4 @@
-# Operator Expected — what Hayati needs from you (the founder)
+# Operator Expected — what İkimiz needs from you (the founder)
 
 > **Canonical, committed** operator checklist (founder request, Session 009): the
 > single place to see what is expected from you, refreshed at every session
@@ -9,42 +9,117 @@
 > `docs/past-prompts.md`; engineering decisions live in `docs/adr/`; tracked
 > engineering work lives in GitHub issues.
 >
-> Re-pruned to open-items-only on **2026-07-27 (Session 050)** — the file had
-> re-accumulated ~450 lines of ✅ DONE blocks, superseded corrections and session
-> narrative since the last prune at Session 036.
+> **The item numbers are stable identifiers, not an order.** `tool/ci/testflight_testers.py`,
+> `.github/workflows/deploy-site.yml` and several ADRs cite them by name, so a
+> surviving item keeps its number even when the list around it shrinks. Read
+> top-to-bottom for priority.
+>
+> Re-pruned to open-items-only on **2026-07-31 (Session 057)** — the file had
+> re-accumulated ~350 lines of ✅ DONE blocks, superseded corrections and session
+> narrative since the last prune at Session 050.
 
-_Last refreshed: 2026-07-30, **Session 056 close**._
+_Last refreshed: 2026-07-31, **Session 057**._
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
-current code and current rules, **both of your bug reports are fixed and merged**
-(ADR-039 — the permanent loading screen, and invite links that landed on a
-certificate error), the **invite site is LIVE** (`https://ikimiz.web.app/i/<code>`
-→ 200, verified, item 2(e0) closed), and **build 112 carrying all of it is in
-TestFlight and attached to `Friends`, where your five testers already are** — so
-**the only thing between those five people and a working app is the four contact
-fields in item 2(c)**, one `gh secret set` each; the product's one unproven link
-is still a **real purchase**, behind item 0(a).
+current code and current rules, the invite site is live, and **build 113 — cut
+today from `main`, carrying every fix you reported — is in TestFlight, VALID, and
+attached to `Friends` where your five testers already are.** External delivery is
+now blocked on exactly one thing: **four contact fields Apple has never had**
+(item 2(c), four `gh secret set` lines). The product's one unproven link is still
+a **real purchase**, behind item 0(a).
 
-> **⚠️ Read 2(c) first — it is now the ONLY thing between your friends and a
-> working app.** Four contact fields, ~2 minutes. Everything else on the path is
-> done: the fixes for your two bug reports are merged (ADR-039), the invite site
-> is **live** (2(e0) is complete — `https://ikimiz.web.app/i/<code>` returns 200),
-> and a fresh build carrying all of it is on its way to TestFlight. 2(d) is no
-> longer blocking — ADR-040 traded universal links for a build that ships today,
-> so an invite link opens the web page rather than the app until you tick it.
+> **⚠️ Read 2(c) first.** It is the ONLY thing between your five friends and a
+> working app, it takes about a minute, and everything else on that path is
+> finished and measured.
 
-> **⚠️ What Session 052 found, because it is the thing most likely to bite you
-> again.** Your "Something went wrong" bug was never in the app. **Firestore
-> rules had not been deployed since 2026-07-09** — prod and dev were both
-> serving the M2.1 ruleset, so six milestones of rules (solo answers, couple
-> days, answers, subscriptions, coach usage, consent) existed only in the repo
-> and every read they governed was denied. Separately, prod **Functions** ran
-> code from 2026-07-25 21:54 UTC. Both are now current on both projects.
->
-> Nothing in CI compares what is *merged* to what is *deployed*, for rules or
-> for functions — which is why this sat green for eighteen days. **Issue #140**
-> tracks the missing gate. Until it exists, treat "it is on `main`" and "it is
-> live" as separate facts.
+---
+
+# 🔴 2(c). Four secrets — the only thing left between your friends and the app
+
+Measured against Apple at **2026-07-31 11:20 UTC**, immediately after the
+build-113 release:
+
+```
+app: ikimiz (com.beyondkaira.hayati)  id=6794737016
+
+builds (newest first):
+  build 113  processing=VALID  uploaded=2026-07-31   external=READY_FOR_BETA_SUBMISSION
+                                                     internal=IN_BETA_TESTING
+                                                     groups: founders, Friends
+'Friends' has 5 tester(s):
+  ahmetsahinerr66@icloud.com   erencemozturk@icloud.com
+  kazimutkucitoglu@gmail.com   m.yahyaonder@gmail.com
+  seymabutun9@gmail.com
+
+beta app review readiness (external testers need this):
+  MISSING - Test Information: review contact email is empty
+  MISSING - Test Information: review contact first name is empty
+  MISSING - Test Information: review contact last name is empty
+  MISSING - Test Information: review contact phone is empty
+```
+
+**That is the whole gap.** The beta description and the feedback email are
+already filled in. The four that are empty are not copy — they are your name,
+your email and a phone number Apple could reach. They are not published to
+testers.
+
+### Step 1 — set four secrets (yours, ~1 minute)
+
+```sh
+gh secret set ASC_REVIEW_CONTACT_FIRST_NAME --env release --body 'Aytek'
+gh secret set ASC_REVIEW_CONTACT_LAST_NAME  --env release --body 'YOUR SURNAME'
+gh secret set ASC_REVIEW_CONTACT_EMAIL      --env release --body 'aytek@beyondkaira.com'
+gh secret set ASC_REVIEW_CONTACT_PHONE      --env release --body '+90XXXXXXXXXX'
+```
+
+The `release` environment, to match `ASC_KEY_ID`/`ASC_ISSUER_ID`.
+
+⚠️ **All four or none.** Apple accepts three of four and still shows the page as
+incomplete, so the tool refuses a partial write and names what is missing.
+
+⚠️ **They must not go in a workflow input.** This repository is **public** and
+`workflow_dispatch` inputs are recorded in run metadata anyone can read — a box
+asking for your mobile number would publish it permanently. That is why the
+values come from secrets and the workflow only has a yes/no flag (ADR-038).
+
+### Step 2 — write the page and start the review (one dispatch)
+
+```sh
+# Look first. Writes nothing, invites nobody.
+gh workflow run testflight-testers.yml -f dry_run=true -f set_review_contact=true
+
+# Then, for real: fill the page and send the newest VALID build to Beta App Review.
+gh workflow run testflight-testers.yml \
+  -f dry_run=false \
+  -f set_review_contact=true \
+  -f assign_latest_build=true \
+  -f submit_for_review=true
+```
+
+Both act on **the newest VALID build**, whatever its number is by the time you
+run them — deliberately, so this recipe cannot rot the way the build-110 version
+of it did. `assign_latest_build` is idempotent and `submit_for_review` **refuses**
+if anything is still missing, rather than earning you a rejection.
+
+Apple's Beta App Review is typically **24–48 h** for a first submission. After it
+passes, all five testers get the install notification automatically.
+
+### What you can check at any time, without changing anything
+
+```sh
+gh workflow run testflight-testers.yml -f status_only=true
+```
+
+It prints, per build, `externalBuildState` — Apple's **reviewer** — next to the
+`processingState` that is only Apple's **encoder**, plus which groups the build is
+attached to. `READY_FOR_BETA_TESTING` is the state that means your friends can
+install. **A build can read `VALID` forever and reach nobody.**
+
+> **You and your partner can install right now, without any of the above.**
+> `internal=IN_BETA_TESTING` means the internal **`founders`** group already has
+> build 113 — open TestFlight on your iPhone and it is there. Internal testers
+> never wait for Beta App Review. If your partner is not seeing it: App Store
+> Connect → **Users and Access** → invite her Apple ID → add her to `founders`.
 
 ---
 
@@ -57,16 +132,11 @@ RevenueCat's calls *before* your code runs. RevenueCat can never report a
 subscription, renewal or cancellation. The charge goes through, Premium never
 turns on, and **nothing anywhere reports an error**.
 
-Re-probed at the Session 052 close (2026-07-27 16:26 UTC), immediately after a
-full eleven-function redeploy: **still returning Google's HTML 403.** Unchanged
-for five sessions.
-
-**That redeploy settles a question this page used to leave open.** The old
-wording said HTML *after* a fresh deploy would mean "something is actively
-removing that binding." It does not. A deploy does not grant public-invoker
-permission, so a redeploy was never going to create one — the honest reading is
-simply that **the binding has never existed**, and the `gcloud` command below is
-still the only thing that will create it. Nothing is fighting you.
+Re-probed at the Session 052 close, immediately after a full eleven-function
+redeploy: **still returning Google's HTML 403.** A deploy does not grant
+public-invoker permission, so the honest reading is that **the binding has never
+existed** — nothing is fighting you, and the command below is the only thing that
+will create it.
 
 ```sh
 gcloud run services add-iam-policy-binding revenuecatwebhook \
@@ -109,7 +179,7 @@ product), then **revoke the RevenueCat `sk_` v2 key**.
 It is **IRREVERSIBLE** — Apple cannot turn it off once on, and it would create a
 second entitlement source the server does not control (ADR-015).
 
-## 0(c). Put `RC_WEBHOOK_TOKEN` on **dev** — the only safe place to rehearse item 0(a)
+## 0(c). Put `RC_WEBHOOK_TOKEN` on **dev** — the only safe place to rehearse 0(a)
 
 **Dev is missing the shared secret, so dev runs ten of the eleven functions.**
 `revenueCatWebhook` never deploys there. Measured at the Session 051 open, with
@@ -126,8 +196,7 @@ $ firebase functions:secrets:access RC_WEBHOOK_TOKEN --project hayatiapp-prod
 
 Why this is yours and not a session's: the value must be **the same token you
 configure in the RevenueCat dashboard**, and a session cannot read your
-dashboard. It is ADR-013 work to do *with* you — it takes one command once you
-have the token in front of you:
+dashboard.
 
 ```sh
 printf '%s' '<the token from RevenueCat>' | \
@@ -141,9 +210,9 @@ session can deploy the eleventh function there, prove the token check refuses an
 unsigned POST with **JSON** rather than Google's HTML, and hand you a verified
 procedure instead of a leap.
 
-This has been quietly true since Session 013 and was never written down here —
-it lived only in the session-to-session prompt. Filed now because a remainder
-that lives only in prose is a remainder that gets lost.
+---
+
+# Console and portal items
 
 ## 2(a). Set a Firebase budget alert
 
@@ -184,165 +253,22 @@ conflict with ADR-030. Automatic PRs would propose exactly that, repeatedly.
 you. Neither is a session's call, even though the account has the permission.
 
 **What you will see, and what it means:** the two open advisories
-(`brace-expansion`, `uuid`) will appear immediately. Both were measured this
-session as **unreachable** — one hangs off a `rimraf` that `google-gax` declares
-and never imports, the other sits under an optional Google Cloud Storage package
-these Functions never load. They are recorded in ADR-034, not forgotten.
-
-## 🔴 2(c). Get the app to your five testers — **four secrets, then one command**
-
-**This is the shortest path on this page and it is worth doing first.** Session 055
-measured what actually stands between your testers and the app, and it is smaller
-than this page used to imply:
-
-> ### ⚠️ Session 056 correction: aim this at the NEW build, not build 110
->
-> Everything below is still right about *the gap* — four contact fields, nothing
-> else. It is now wrong about *the build*. **Build 110 came from `fa990e6`, which
-> predates both fixes: it IS the build with the loading screen that never ends,
-> and its invite links are the unclickable `hayati://` kind.** Submitting 110 to
-> Beta App Review would spend a 24–48 h review handing your friends the exact
-> build you filed two bug reports about.
->
-> **Build 112 is that build**, cut on **2026-07-30**, carrying ADR-039 and
-> ADR-040. Measured against Apple after upload:
->
-> ```
-> build 112  processing=VALID  groups: founders, Friends
-> 'Friends' now has 5 tester(s):
->   ahmetsahinerr66@icloud.com   erencemozturk@icloud.com
->   kazimutkucitoglu@gmail.com   m.yahyaonder@gmail.com
->   seymabutun9@gmail.com
-> ```
->
-> **Your five friends are already in the group and the right build is already
-> attached to it.** Everything below Step 1 is done. The four secrets are the
-> only thing left.
->
-> ⚠️ **It was NOT auto-assigned, despite ADR-037 promising it would be.** That
-> step failed on its first ever execution (`ModuleNotFoundError: No module named
-> 'jwt'`) and, being `continue-on-error`, took the release green with it. A
-> session attached build 112 by hand and fixed the lane. **The habit worth
-> keeping: after any release, run `status_only=true` and read `groups:` — do not
-> infer delivery from a green release.**
-
-```
-app: ikimiz (com.beyondkaira.hayati)
-builds: 110 VALID (2026-07-27, real icon)  109 VALID  3  2  1
-beta app review readiness (external testers need this):
-  MISSING - Test Information: review contact email is empty
-  MISSING - Test Information: review contact first name is empty
-  MISSING - Test Information: review contact last name is empty
-  MISSING - Test Information: review contact phone is empty
-```
-
-**That is the whole gap.** The beta description and the feedback email are already
-filled in — only the four *contact* fields are empty, and none of them is copy. They
-are your name, your email and your phone number. A good build has been sitting in
-TestFlight since 27 July waiting on a form.
-
-> ### ✅ You can install the build today. Right now.
->
-> Measured against Apple immediately after the Session 055 merge:
->
-> ```
-> build 110  processing=VALID  external=READY_FOR_BETA_SUBMISSION  internal=IN_BETA_TESTING
-> ```
->
-> **`internal=IN_BETA_TESTING`** means the **`founders`** internal group already has
-> it. Open TestFlight on your iPhone and it is there — no review, no waiting, nothing
-> below required. If your partner is not seeing it, she is not in that group yet:
-> App Store Connect → **Users and Access** → invite her Apple ID → add her to
-> `founders`. Internal testers never wait for Beta App Review.
->
-> **Install the newest build, not 110** — see the S056 correction above. 110 is the
-> one with the loading screen that never ends. The 2026-07-30 build is the one to
-> put on your own phone first.
->
-> `external=READY_FOR_BETA_SUBMISSION` is the other half: the *external* groups
-> (`Friends`, `arkadaslar`) are not in review yet, which is what the four fields
-> below unblock.
-
-A session can now write that form for you (ADR-038), but the four values are facts
-about *you*, so they come from secrets rather than from a text box. **They must not
-go in a workflow input: this repository is public, and dispatch inputs are recorded
-in run metadata anyone can read — a box asking for your mobile number would publish
-it permanently.**
-
-### Step 1 — set four secrets (once, ~1 minute)
-
-```sh
-gh secret set ASC_REVIEW_CONTACT_FIRST_NAME --env release --body 'Aytek'
-gh secret set ASC_REVIEW_CONTACT_LAST_NAME  --env release --body 'YOUR SURNAME'
-gh secret set ASC_REVIEW_CONTACT_EMAIL      --env release --body 'aytek@beyondkaira.com'
-gh secret set ASC_REVIEW_CONTACT_PHONE      --env release --body '+90XXXXXXXXXX'
-```
-
-The `release` environment, to match `ASC_KEY_ID`/`ASC_ISSUER_ID`. Apple wants a phone
-number it could actually reach; it is not published to testers.
-
-⚠️ **All four or none.** Apple accepts three of four and still shows the page as
-incomplete, so the tool refuses a partial write and names what is missing.
-
-### Step 2 — write the page, attach the build, and start the review
-
-```sh
-# Look first. Writes nothing, invites nobody.
-gh workflow run testflight-testers.yml -f dry_run=true -f set_review_contact=true
-
-# Then, for real: fill the page and send build 112 to Beta App Review.
-# (assign_latest_build is harmless and idempotent — 112 is already attached.)
-gh workflow run testflight-testers.yml \
-  -f dry_run=false \
-  -f set_review_contact=true \
-  -f assign_latest_build=true \
-  -f submit_for_review=true
-```
-
-**That single command is the last step.** Apple's Beta App Review is typically
-24–48 h for a first submission; after it passes, all five names above get the
-install notification automatically.
-
-> **`assign_latest_build=true` IS needed now** — corrected from the S055 text,
-> which said it was not. That was true when build 110 was the newest build; it is
-> not true now that a fresh one exists, and the flag is what makes the newest the
-> attached one. It is idempotent, so passing it costs nothing either way.
-
-`submit_for_review` **refuses** if anything is still missing rather than earning you
-a rejection, and is a no-op if the build is already through the gate. Apple's Beta
-App Review typically takes 24–48 h for a first submission. After that your five
-testers get the install.
-
-### What you can check at any time, without changing anything
-
-```sh
-gh workflow run testflight-testers.yml -f status_only=true
-```
-
-It now prints, per build, `externalBuildState` — Apple's **reviewer** — next to the
-`processingState` that is only Apple's **encoder**, plus which groups the build is
-attached to. `READY_FOR_BETA_TESTING` is the state that means your friends can
-install it. A build can read `VALID` forever and reach nobody.
-
-> **Two external groups exist**: `Friends` (which every release is auto-assigned to)
-> and `arkadaslar` (yours, pre-existing). Anyone in `arkadaslar` and not in `Friends`
-> receives nothing. Tracked as **issue #146** — a session can list who is where; only
-> you can decide whether to re-invite them, since that emails them again.
-> **Internal testers (`founders`) are unaffected and never need review.**
-
----
+(`brace-expansion`, `uuid`) will appear immediately. Both were measured as
+**unreachable** — one hangs off a `rimraf` that `google-gax` declares and never
+imports, the other sits under an optional Google Cloud Storage package these
+Functions never load. They are recorded in ADR-034, not forgotten.
 
 ## 🟡 2(d). Enable **Associated Domains** on the App ID — invite links open the app instead of the browser
 
 Apple Developer portal → Certificates, Identifiers & Profiles → **Identifiers** →
 `com.beyondkaira.hayati` → tick **Associated Domains** → Save.
 
-**No longer blocking — downgraded from 🔴 by ADR-040.** It *was* blocking: the
-entitlement must exist in the **provisioning profile** as well as in
-`Runner.entitlements`, and `match` fetches profiles **readonly** (ADR-032)
-precisely so CI can never mint credentials, so the signing step would have failed
-with an entitlement mismatch. Rather than hold every release behind a portal
-visit, the entitlement was **removed** and a working build ships without it.
+**Not blocking** (ADR-040). It *was*: the entitlement must exist in the
+**provisioning profile** as well as in `Runner.entitlements`, and `match` fetches
+profiles **readonly** (ADR-032) precisely so CI can never mint credentials, so
+signing would have failed with an entitlement mismatch. Rather than hold every
+release behind a portal visit, the entitlement was **removed** and working builds
+ship without it.
 
 **What you lose until you tick it:** an invite link opens the **web page** rather
 than jumping straight into the app. The page shows the code with a copy button,
@@ -357,14 +283,14 @@ so nothing else is needed on the web side.
 
 **Say what you see either way.** A session cannot read the portal, so nobody knows
 whether this capability is already enabled — no build has ever been signed with
-the entitlement (build 110 predates it), so it has never been exercised. If it
-turns out to be enabled already, restoring universal links is a two-line change.
+the entitlement, so it has never been exercised. If it turns out to be enabled
+already, restoring universal links is a two-line change.
 
 > **While you are on that page, one more question to answer (ADR-039).** The prod
 > App Check provider is **App Attest**, but `Runner.entitlements` deliberately
 > does *not* declare `com.apple.developer.devicecheck.appattest-environment` — so
 > prod attestation cannot currently succeed. It is harmless today (App Check
-> activation now fails open instead of blocking the boot, and enforcement is off),
+> activation fails open instead of blocking the boot, and enforcement is off),
 > but it will hard-break the day enforcement is switched on. A session did not add
 > the entitlement blind: it changes what the provisioning profile must contain,
 > `match` runs **readonly** (ADR-032), and a wrong guess turns this into the next
@@ -374,95 +300,11 @@ turns out to be enabled already, restoring universal links is a two-line change.
 
 ---
 
-## ✅ 2(e0). Invite links now work — **DONE, live, verified** (ADR-039)
-
-> **Kept on this page (against the open-items-only rule) for one session, because
-> it is the item that answers your second bug report.** Delete at the next close.
-
-**You authorized the publish in-session and it is done.** Deployed to your live
-`ikimiz` Hosting site on **2026-07-30**, invite surface only:
-
-```
-$ curl -so /dev/null -w '%{http_code}  %{content_type}\n' https://ikimiz.web.app/i/9U4VUVRV
-200  text/html; charset=utf-8
-$ curl -so /dev/null -w '%{http_code}  %{content_type}\n' \
-    https://ikimiz.web.app/.well-known/apple-app-site-association
-200  application/json
-$ curl -so /dev/null -w '%{http_code}\n' https://ikimiz.web.app/privacy
-404                       # correct — this build publishes no legal text, and nothing links to it
-```
-
-Roll back at any time with `firebase hosting:rollback --project hayatiapp-prod`.
-
-**What it was before (measured at the Session 056 open), which is why this
-mattered:**
-
-```
-$ curl -sI https://ikimiz.beyondkaira.com/i/9U4VUVRV
-curl: (60) SSL: no alternative certificate subject name matches target host name
-$ curl -so /dev/null -w '%{http_code}\n' https://ikimiz.web.app/i/9U4VUVRV
-404
-```
-
-**Every invite link the app has ever shared lands on a browser security
-warning.** `ikimiz.beyondkaira.com` still points at your VPS (2(e)(i) below),
-whose certificate covers the apex only — so the invitee's first contact with this
-product is a red "This Connection Is Not Private" screen, at the exact moment
-they are deciding whether to trust what their partner just sent them. Nothing
-about the app was wrong; the link had nowhere to land.
-
-Two things changed in code to make that possible:
-
-* invites are now built on **`ikimiz.web.app`** — Firebase Hosting's own domain
-  for the *same site*, with TLS Google issues and renews. It needs **no DNS
-  record from anybody**. The custom domain is still parsed, so nothing already
-  sent breaks and moving to it later is a one-line change;
-* the site builder gained **`--invite-only`**, which publishes the invite page
-  and the Apple `app-site-association` file and **no legal documents at all** —
-  so the open legal blank in 2(e)(ii) no longer holds your invite links hostage.
-  It is not a loophole in that gate: a build that publishes no policy cannot
-  publish an unfinished one.
-
-### How it was deployed, and how to redeploy it
-
-The deploy used the local `firebase` CLI, which is logged in as you — **not** CI,
-because `FIREBASE_SERVICE_ACCOUNT` is still unset (checked again this session):
-
-```sh
-python3 tool/ci/build_site.py --out web/public --invite-only
-firebase deploy --only hosting:ikimiz --project hayatiapp-prod
-```
-
-To move it into CI instead — worth doing, so the site is not dependent on one
-laptop's login:
-
-```sh
-gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json
-gh workflow run deploy-site.yml -f channel=live -f invite_only=true
-```
-
-⚠️ **The link opens the WEB PAGE, not the app** — by deliberate choice, not
-oversight. See **ADR-040**: the Associated Domains entitlement was removed so a
-build could ship today without waiting on item 2(d). The page does its job — it
-shows the code with a copy button and tells the invitee to enter it under "Have a
-code?" — which is one tap less direct, and enormously better than a certificate
-error. Tick 2(d) and the next build restores the direct hand-off.
-
----
-
 ## 2(e). The website — the invite half is LIVE; the pretty domain and the legal pages need you
 
-**Read 2(e0) above first: the invite surface is deployed and serving.** This item is
-now only about the two things that are still *not* served — the **custom domain** and
-the **legal pages** — neither of which blocks invites, TestFlight, or Beta App Review
-any more.
-
-**Session 055 proved the full generator** (all six legal documents in three
-languages, AASA as `application/json`, `/i/<code>` rewriting to the invite page) on a
-preview channel that has since expired. **Session 056 published the invite-only
-subset to the live channel**, which is why `https://ikimiz.web.app/i/<code>` answers
-today while `/privacy` and `/terms` return 404 — deliberately, and with nothing
-linking to them.
+The invite surface is deployed and serving on **`https://ikimiz.web.app`** —
+`/i/<code>` → 200, AASA → 200 `application/json`. Nothing below blocks invites,
+TestFlight, or Beta App Review.
 
 Two things stand between that and the full site on your own domain.
 
@@ -476,11 +318,15 @@ beyondkaira.com         ->  161.97.172.146      TLS cert covers the apex only)
 There is an explicit `A` record for `ikimiz` pointing at your server, not a wildcard.
 Firebase Hosting needs it pointed at Firebase instead:
 
-Firebase console → `hayatiapp-prod` → **Hosting** → the **`ikimiz`** site (it exists
-now) → **Add custom domain** → `ikimiz.beyondkaira.com`. Firebase gives you a `TXT`
-record to prove ownership and then the `A` records to replace `161.97.172.146` with.
-TLS is issued automatically. **Nothing else on this page depends on it** — TestFlight
-and Beta App Review do not need the website.
+Firebase console → `hayatiapp-prod` → **Hosting** → the **`ikimiz`** site → **Add
+custom domain** → `ikimiz.beyondkaira.com`. Firebase gives you a `TXT` record to
+prove ownership and then the `A` records to replace `161.97.172.146` with. TLS is
+issued automatically. **Nothing else on this page depends on it** — TestFlight and
+Beta App Review do not need the website.
+
+Until then, invite links are emitted on `ikimiz.web.app` (Google-issued TLS, no DNS
+record from anybody). The custom domain is still **parsed** by the app, so nothing
+already sent breaks and moving over later is a one-line change.
 
 ### (ii) One legal blank is still open, and it is the one only you can fill
 
@@ -490,35 +336,38 @@ write. The third — the controller's **legal identity as it should appear in a 
 policy** — needs your actual full legal name, which no session should guess. Send it
 and all three land in all six documents in one diff.
 
-Until then the builder **refuses** to publish, which is the point: a policy Apple's
-listing points at must not say "to be completed by the founder". **That gate was
-itself broken and is now fixed** — it matched two English phrases and was blind to
-both Turkish and both Arabic documents, so a Turkish privacy policy saying exactly
-that, to your primary market, would have passed as clean.
+Until then the builder **refuses** to publish the legal documents, which is the
+point: a policy Apple's listing points at must not say "to be completed by the
+founder". The invite-only publish is not a loophole in that gate — it publishes
+**no policy at all**, so it cannot publish an unfinished one.
 
-### (iii) Optional — let CI deploy it
+### (iii) Optional — let CI deploy the site
+
+Today the site is deployed with the local `firebase` CLI, which is logged in as
+you. `FIREBASE_SERVICE_ACCOUNT` is **unset**, so CI cannot. Worth fixing so the
+site is not dependent on one laptop's login:
 
 ```sh
 gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json   # Firebase Hosting Admin, hayatiapp-prod
-gh workflow run deploy-site.yml -f channel=live                 # once the blank above is filled
+gh workflow run deploy-site.yml -f channel=live -f invite_only=true
 ```
 
-Not required: Session 055 deployed the preview with the Firebase CLI login already on
-the dev box. The secret only matters if you want the deploy to run from CI.
+Drop `invite_only` once (ii) is filled and the full site — six legal documents in
+three languages — publishes.
 
 ---
 
 # 5. SECURITY — rotate the leaked Slack webhook (~10 min, open since S005)
 
-**Verified still open at the Session 051 open** (`gh secret list` returns five
-secrets, all release-signing: `ASC_API_KEY_P8_BASE64`, `ASC_ISSUER_ID`,
-`ASC_KEY_ID`, `MATCH_GIT_URL`, `MATCH_PASSWORD`): **`SLACK_WEBHOOK_URL` does not
-exist.** The local `chore/slack-notifications` branch still exists too, so the
-webhook to revoke is still identifiable.
+**Verified still open** (`gh secret list` returns five secrets, all
+release-signing: `ASC_API_KEY_P8_BASE64`, `ASC_ISSUER_ID`, `ASC_KEY_ID`,
+`MATCH_GIT_URL`, `MATCH_PASSWORD`): **`SLACK_WEBHOOK_URL` does not exist.** The
+local `chore/slack-notifications` branch still exists too, so the webhook to
+revoke is still identifiable.
 
-The local branch `chore/slack-notifications` (commit `13f1e6d`) has a **live Slack
-webhook URL in plaintext** inside a workflow file. It never reached GitHub (push
-protection blocked it), but a credential in a git commit is a leaked credential.
+That branch (commit `13f1e6d`) has a **live Slack webhook URL in plaintext**
+inside a workflow file. It never reached GitHub (push protection blocked it), but
+a credential in a git commit is a leaked credential.
 
 The CI→Slack wiring is built, tested and merged, and stays **silent** until you do
 these four steps — it never spams, never warns, and never reddens a build for a
@@ -556,35 +405,24 @@ Everything below is built and emulator-proven. Your release ritual, from `main`,
 on Linux — no Mac, no Xcode, no manual upload:
 
 ```sh
-git tag v0.1.0 && git push --tags
+git tag v0.1.0 && git push --tags     # or: gh workflow run release.yml --ref main
 ```
 
 Build numbers are automatic (`100 + the CI run number`); the *version* (`0.1.0`)
 comes from `app/pubspec.yaml` and must match the tag, and CI stops you loudly if
 they disagree.
 
+⚠️ **After any release, read the `assign the new build to the Friends group` step's
+log, or run `-f status_only=true`. Do not infer delivery from a green release.**
+That step is `continue-on-error` on purpose — Apple's processing queue is a third
+party's schedule and should not redden a release — but non-blocking must not mean
+unread. It failed silently on its first two attempts (S056); it worked for the
+first time on build 113.
+
 ⚠️ **Keep your `MATCH_PASSWORD` safe.** It decrypts the certificates repo
 (`aytekXR/hayati-match-certs`). Lose it and the stored signing identity is
 unreadable — recoverable (a session can re-bootstrap) but annoying, and Apple
 caps distribution certificates at 3.
-
-**If your partner is not yet on the TestFlight build:** App Store Connect →
-**Users and Access** → invite her Apple ID → add her to the internal group
-(internal groups get builds instantly, no Beta App Review).
-
-**The `Friends` external group — see item 2(c) above, which now supersedes what
-used to be written here.** This page used to say the Test Information page was
-"your copy and your contact details, not a session's". Session 055 measured that
-and it was half wrong in the expensive direction: the description and feedback
-email were **already filled in**, and the four remaining fields are not copy at
-all — they are your name, email and phone. A session can write them, from
-secrets. Item 2(c) is the four-line version. Internal testers are unaffected:
-they get every build immediately, with no review.
-
-⚠️ **Sequencing that matters for these five people.** Give them a build from
-`main` at or after commit `fa990e6` — *not* the build that was in TestFlight
-before Session 052. The earlier one carries the default Flutter icon and
-`currentLegalVersion = 1`.
 
 Please eyeball each of these on a TestFlight build:
 
@@ -593,30 +431,32 @@ Please eyeball each of these on a TestFlight build:
    (the reinstall-bypass defence; if it opens straight in, that is a real hole —
    tell a session immediately).
 2. **Face ID self-revoke** — turn it on, lock, unlock with Face ID. Then change or
-   add a face in iOS Settings and reopen Hayati → it must have switched Face ID
+   add a face in iOS Settings and reopen the app → it must have switched Face ID
    **off** by itself and demand the PIN.
 3. **Discreet icon** — flip it in Settings. iOS shows its own "you changed the
    icon" alert (Apple's, expected, unsuppressible). Confirm the icon changes and
    the **name under it does not**.
 4. **App-switcher snapshot** — open the coach or a revealed answer, swipe to the
-   app switcher → the Hayati card must show a **blank panel**, never your content.
+   app switcher → the card must show a **blank panel**, never your content.
 5. **Cold-start stopwatch** — time a cold launch of the **prod** build (airplane
    mode + normal). CI deliberately does not assert the <2s number; your phone is
    where the honest number comes from.
-6. **Issue #15** — if phone-auth sign-in crashes natively, capture the log
+6. **Invite round-trip** — send an invite from one phone, open the link on the
+   other. It should land on `https://ikimiz.web.app/i/<code>` with a copy button
+   (not the app — that is 2(d)), then "Have a code?" should pair you.
+7. **Issue #15** — if phone-auth sign-in crashes natively, capture the log
    (Xcode → Window → Devices → Open Console). That log is the whole blocker on the
    issue.
-7. **Issue #48** — a transient Face ID lockout (too many failed attempts)
+8. **Issue #48** — a transient Face ID lockout (too many failed attempts)
    currently appears to revoke the biometric accelerator permanently. The issue
    defers to your observation of what actually happens on the device.
-8. Also: Apple first-authorization full name reaching `displayName`; deep-link
+9. Also: Apple first-authorization full name reaching `displayName`; deep-link
    cold+warm OS→app delivery; the real-device pairing test.
 
 **Still riding this item:** **App Attest** (App Check enforcement stays OFF in both
 consoles until on-device attestation is verified), **APNs** (the notification
 logic is done and waiting on the device half — APNs registration + `users.fcmTokens`
-capture), **dSYM upload** for Crashlytics, and **Universal links** (needs the
-domain decision below; the custom scheme ships today).
+capture), **dSYM upload** for Crashlytics, and **Universal links** (2(d)).
 
 ---
 
@@ -625,9 +465,6 @@ domain decision below; the custom scheme ships today).
 None of these block TestFlight or on-device testing. All of them block a real
 launch, and each is a purchase or a decision only you can make.
 
-- [ ] **Domain purchase + AASA hosting** — universal links. The invite is still
-      code-first *partly because* links cannot be tappable without this. Also
-      supplies the URLs item 8(c) needs.
 - [ ] **Analytics wiring decision** — `app/lib/core/analytics/` is empty. **Gate 2
       and Gate 3 are unfalsifiable without it**: activation and monetization
       cannot be measured, so the gates cannot be passed or failed honestly.
@@ -648,15 +485,14 @@ more, all flagged "native register review pending" per commit. TR: you two. AR:
 your Gulf-dialect reviewer. Mandatory before any public launch
 (`content/README.md`, W9). All editable in place, or send corrections to a session.
 
-> **⚠️ One concrete thing to watch for in the ARABIC copy, found by measurement
-> this session.** Arabic punctuation and Western punctuation are **not
-> interchangeable** in a right-to-left layout. `؟` (the Arabic question mark,
-> U+061F) is a *strong* character — it always sits where it should. A Western
-> `.` or `?` is *neutral*, and next to Latin text it can jump to the wrong end
-> of the line. All seven Arabic solo questions correctly end with `؟`; some of
-> the AI-drafted **coach** copy ends Arabic sentences with a Western `.`
-> instead. The app now compensates automatically, so nothing is broken — but
-> **if you are editing Arabic copy, prefer `؟` and `،` over `?` and `,`**. It is
+> **⚠️ One concrete thing to watch for in the ARABIC copy.** Arabic punctuation and
+> Western punctuation are **not interchangeable** in a right-to-left layout. `؟`
+> (the Arabic question mark, U+061F) is a *strong* character — it always sits where
+> it should. A Western `.` or `?` is *neutral*, and next to Latin text it can jump
+> to the wrong end of the line. All seven Arabic solo questions correctly end with
+> `؟`; some of the AI-drafted **coach** copy ends Arabic sentences with a Western
+> `.` instead. The app compensates automatically, so nothing is broken — but **if
+> you are editing Arabic copy, prefer `؟` and `،` over `?` and `,`**. It is
 > invisible in the text file and only shows up on screen.
 
 - **Solo questions** (7 × TR/AR/EN) — `content/packs/solo_{tr,ar,en}.json`; run
@@ -715,6 +551,7 @@ Anthropic as the coach's AI provider.
   A material change bumps the version and re-asks everyone's consent.
 - **(b) Three blanks only you can fill** (bracketed in every doc): the controller's
   legal identity (your name or a company), a contact address, and the governing law.
+  **This is the same blank as 2(e)(ii)** — filling it once unblocks both.
 - **(c) Three recorded lawyer questions** (in `docs/legal/README.md` + ADR-023):
   **A** — is relationship-content processing special-category under KVKK Art 6 /
   PDPL (we implemented conservative YES)? **B** — may the one consent be required to
@@ -742,8 +579,8 @@ Anthropic as the coach's AI provider.
 - **(c) Privacy-policy + support-page URLs do not exist** — the store listing ships
   EMPTY URL fields behind a loud CI warning (never a fake URL). Apple requires both
   at submission; the in-app requirement is already met by the in-app documents.
-  Needs the **domain choice + hosting** above; the policy TEXT already exists (item
-  9). When hosted, a session drops the lint's `--allow-empty-urls` flag.
+  Needs 2(e)(i)+(ii); the policy TEXT already exists (item 9). When hosted, a
+  session drops the lint's `--allow-empty-urls` flag.
 - **(d) Age rating:** verify at first submission — whether Apple's questionnaire
   treats the AI coach as a maturity factor is only provable in App Store Connect. If
   it forces a higher tier, the choice (constrain vs accept) is yours.
@@ -797,10 +634,9 @@ these.
 
 | Issue | What |
 |---|---|
-| **#140** | Nothing in CI compares what is merged to what is DEPLOYED. Firestore rules sat un-deployed for 18 days behind six green milestones — the cause of your "Something went wrong". Both projects are current now; the missing gate is not built. |
+| **#140** | Nothing in CI compares what is merged to what is DEPLOYED. Firestore rules sat un-deployed for 18 days behind six green milestones — the cause of your "Something went wrong". Both projects are current now; the missing gate is not built. Until it exists, treat "it is on `main`" and "it is live" as separate facts. |
 | **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
 | **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app now applies on screen. Latent: no current wording is affected. |
-| **#146** | Two external beta groups exist (`Friends`, which every release is assigned to, and your pre-existing `arkadaslar`). Anyone in `arkadaslar` and not in `Friends` receives nothing, with every check green. A session can list who is where; re-inviting them emails them, so that part is yours. |
 | **#130** | ADR-026 claims the seasonal vocabulary is guarded in five readers; the app's copy has no parity test. |
 | **#129** | The release lane's `Gemfile.lock` comment is false, the lane installs unfrozen, and no release run has touched the committed lock. |
 | **#121** | Confirm a likely-dead App Store Connect key step in the release lane. **Needs your go-ahead only** — proving it means dispatching the lane, which uploads a real binary to your TestFlight. |
