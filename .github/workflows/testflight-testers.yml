@@ -41,7 +41,7 @@ on:
       # The tool links, RE-READS to confirm every member landed, and only then
       # deletes; it refuses on an unknown or internal source.
       merge_group:
-        description: 'DELETES this group after moving its testers into `group` (e.g. arkadaslar). Blank = do nothing'
+        description: 'DELETES this group after moving its testers into `group`. Blank = do nothing'
         required: false
         default: ''
       # ADR-038. NOTE what is NOT here: a text box for the contact details.

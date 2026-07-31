@@ -193,6 +193,18 @@ the cries-wolf shape ADR-034 rejected. The release lane's assignment step remain
 - **It does not touch the `arkadaslar` group.** A second external group exists alongside `Friends`,
   predating ADR-037. Consolidating them means deciding which real people belong where, and possibly
   emailing them again. That is a founder call, filed rather than guessed.
+
+  > **CORRECTED 2026-07-31 (S057): the founder made that call — `arkadaslar` no longer exists.**
+  > Directive: *"merge those groups and only keep Friends."* `--merge-group` was built for it
+  > (link → **re-read** → delete, refusing to delete unless every member is confirmed on the other
+  > side) and the merge is done: `arkadaslar` had **one** tester, `seymabutun9@gmail.com`, who was
+  > already in `Friends`, so nobody was moved and nobody was emailed. **`founders` (internal) and
+  > `Friends` (external) are now the only two groups.**
+  >
+  > The reasoning above was sound and its premise was never checked. "Consolidating them means
+  > deciding which real people belong where" assumed a population; the population was a single
+  > person who was already in both. Issue #146 was filed on the same unchecked premise and closed
+  > the same way — see addendum 70.
 - **It does not deploy anything to `hayatiapp-prod`.**
 
 ## What the design review changed, recorded because the changes are the value
