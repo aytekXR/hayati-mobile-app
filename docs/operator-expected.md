@@ -32,12 +32,30 @@ a **real purchase**, behind item 0(a).
 > working app, it takes about a minute, and everything else on that path is
 > finished and measured.
 
+## Readiness snapshot — three different questions, three different answers
+
+A single "% done" hides the thing you actually need to know, which is *done for
+what*. These are measured, and each one names its own remaining blockers.
+
+| Question | Where it stands | What is left |
+|---|---|---|
+| **Is the MVP built?** | **100%** — M1→M6.3 including M5.3 all merged (`implementation-plan.md`). App suite 1625 tests / 87.4% coverage (gate 68); Functions 97.2% (gate 80). Both backends run current code and current rules. | Nothing. M6.5 (Android) is a Gate-3-gated follow-on, deliberately not MVP (ADR-006). |
+| **Can your five friends install it?** | **~95%** — build 113 is VALID in TestFlight, attached to `Friends`, all five testers in place, export compliance answered, Test Information copy complete. | **Item 2(c): four contact fields.** ~1 minute of your time, then 24–48 h of Apple's. Nothing else. |
+| **Could this go on the public App Store?** | **~55%** — and this is the honest number, not the discouraging one. The build is ready; the *business and legal surface around it* is not. | Items **0(a)** (purchases take money and do not unlock Premium — the single most serious open item on this page), **0(b)** (the sandbox purchase has never been run, so the paid loop is unproven end to end), **9** (legal bundle: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)** (store URLs, age rating, App Privacy), and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
+
+**The one-sentence version:** the software is finished, the beta is one form
+field away, and public launch is gated on money, law and language — none of
+which is an engineering problem, and most of which needs you rather than a
+session.
+
 ---
 
 # 🔴 2(c). Four secrets — the only thing left between your friends and the app
 
-Measured against Apple at **2026-07-31 11:20 UTC**, immediately after the
-build-113 release:
+Measured against Apple immediately after the build-113 release, and
+**re-confirmed unchanged at 2026-07-31 11:24 UTC** at the session close
+(`gh secret list --env release` still returns only the three signing secrets —
+nobody has set the four below yet):
 
 ```
 app: ikimiz (com.beyondkaira.hayati)  id=6794737016

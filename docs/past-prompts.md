@@ -2072,3 +2072,13 @@ Two deliberate structural choices:
 * **The one thing a session cannot close:** a surname and a phone number. `gh api user` returns `name=Aytek E`, and the git history carries a personal email that *suggests* a surname — which is precisely why it was not used. Apple's Beta App Review contact is a real person Apple may actually call; a plausible guess is worse than an empty field, because an empty field is honestly reported by the tool and a wrong one is not.
 
 **Final state at the close:** build **113** VALID in TestFlight, attached to `founders` + `Friends`, carrying every fix from ADR-039/ADR-040; the five testers in place; export compliance answered; Test Information copy complete; **the four contact fields the only gap, and the only item on the founder's critical path.**
+
+### Session 057 close addendum — the re-measurement, and why the readiness number was split into three
+
+At the close the founder asked for status, a readiness percentage, and the next-session goal. Re-derived rather than carried forward, and **nothing had moved**: `gh secret list --env release` still returns only `ASC_API_KEY_P8` / `ASC_ISSUER_ID` / `ASC_KEY_ID`, and a fresh read-only dispatch still reports build 113 `VALID` / `external=READY_FOR_BETA_SUBMISSION` / `groups: founders, Friends` with the same four contact gaps. The operator page needed **no item change** — the honest update was a dated *re-confirmation*, which is a different thing from a refresh and worth writing as such.
+
+**The percentage was deliberately refused as a single number** and given as three, because "how done are we" has three different answers here and the average of them is information-destroying: **MVP built ≈ 100%** (M1→M6.3 incl. M5.3, both suites green, both backends current); **installable by the five external testers ≈ 95%** (one founder form field); **shippable to the public App Store ≈ 55%** (the paid loop is unproven end to end and #115 means a real purchase would take money without unlocking Premium; the legal bundle has three blanks and a KVKK filing; TR/AR copy and the crisis lexicon are unreviewed; analytics is absent, so Gates 2 and 3 cannot be read at all). A single blended figure would have implied the product is ~85% shippable, which is false in the direction that costs money.
+
+`session-rules.md` §3 already asked for a *"plan-progress/readiness snapshot"* on that page and it had never actually been carried there — the page had drifted into pure checklist. Added as a three-row table, each row naming its own blockers by item number.
+
+**Session closed.** Next objective unchanged in `resume-prompt.md`: **#140**, deferred a fifth time, now with five sessions of deferral history recorded as evidence for it rather than against it (addendum 68).
