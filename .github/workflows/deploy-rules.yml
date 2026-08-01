@@ -117,6 +117,12 @@ jobs:
       # find out afterwards that you overwrote something you had not seen.
       - name: what is live right now
         env:
+          # Yes, the ADMIN service account under a variable named VIEWER. That is
+          # the tool's env-var name for "a service-account JSON to read with", and
+          # this lane already holds the admin one — minting a second credential
+          # just to read here would be ceremony. The tool requests the
+          # `firebase.readonly` SCOPE regardless of the account's roles, so the
+          # read-back genuinely cannot write, which is the property that matters.
           FIREBASE_RULES_VIEWER_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           set +e
@@ -147,5 +153,11 @@ jobs:
       # pre-check it votes — any non-zero fails the run.
       - name: prove what is live NOW is what was deployed
         env:
+          # Yes, the ADMIN service account under a variable named VIEWER. That is
+          # the tool's env-var name for "a service-account JSON to read with", and
+          # this lane already holds the admin one — minting a second credential
+          # just to read here would be ceremony. The tool requests the
+          # `firebase.readonly` SCOPE regardless of the account's roles, so the
+          # read-back genuinely cannot write, which is the property that matters.
           FIREBASE_RULES_VIEWER_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: python3 tool/ci/rules_drift.py --project "${{ steps.target.outputs.id }}"
