@@ -69,6 +69,95 @@ session.
 
 ---
 
+# 🧪 Beta readiness — audited 2026-08-02, and the answer is YES with three caveats
+
+Eight independent sweeps went over the whole path a real tester walks — launch,
+sign-in, pairing, the first ten minutes, the backend their phone actually calls,
+the Apple-facing surface — and every finding was then handed to a separate
+reviewer told to **refute** it. This is the short version. It is a *view* over
+the items below, not a new list: nothing here is renumbered.
+
+**Verdict: build 113 is good to give to the six friends the moment Apple
+approves it.** Nothing found would embarrass you on day one. The three caveats
+below are worth knowing before you send the message, and none of them blocks.
+
+### 1. Tell them not to tap Subscribe — item **0(a)**
+
+The one genuinely serious thing, and it is already the top item on this page.
+The RevenueCat webhook is not publicly invocable, so a purchase **takes the
+money and never unlocks Premium**. Re-measured 2026-08-02: still `403` with
+Google's HTML error page, against a control call that returns `200` JSON, so the
+request never reaches our code at all.
+
+**For the beta this costs you nothing** — the free tier is the whole product for
+six friends, and the coach (the only Premium feature) is behind the paywall, so
+they cannot reach it either. Just say "don't buy anything yet" when you send the
+invite. Fix it with the one command in 0(a) before anyone outside this six.
+
+### 2. Your App Store privacy URL does not resolve — related to **2(e)(i)** and **8(c)**
+
+`fastlane/metadata/*/privacy_url.txt` declares
+`https://ikimiz.beyondkaira.com/privacy`. Measured today:
+
+```
+https://ikimiz.beyondkaira.com/privacy   TLS failure (cert does not cover the name)
+https://ikimiz.web.app/privacy           404
+https://ikimiz.web.app/i/<code>          200   <- the invite surface is fine
+```
+
+So the URL in the listing is not merely a 404, it does not complete a TLS
+handshake. The in-app legal documents are bundled and reachable, which is what
+**consent** actually depends on, so the app itself is fine.
+
+**Whether Beta App Review fetches this URL is NOT something anyone here can
+establish** — Apple does not document it, and the readiness API reports nothing
+missing. It is stated as an unknown rather than guessed at, because build 113 is
+in that queue right now: if a rejection arrives citing the privacy policy, this
+is the cause, and 2(c) carries the re-submit procedure. **It will certainly
+block App Store submission** later.
+
+The chain behind it: the legal-name blank (2(e)(ii)) → the legal pages cannot be
+published → the site was deployed invite-only → `/privacy` 404s → and the
+listing points at a domain that was never connected (2(e)(i)).
+
+Filling 2(e)(ii) unblocks the whole chain. Nothing to do this week.
+
+### 3. After they pair, the couple questions are the Turkish SOLO pack
+
+Not a bug — a known placeholder, recorded in the code
+(`rollover-service.ts:34`, *"Placeholder couple bank until W9 authors the real
+couple packs"*). `content/packs/` holds `solo_tr`, `solo_ar`, `solo_en` and no
+couple packs, so a paired couple falls back to `solo_tr`.
+
+For six Turkish-speaking testers the *language* is right. What they will notice
+is that the questions are **the same ones they already answered during solo
+week**. If the beta is meant to test the couple ritual rather than the
+plumbing, authoring one real couple pack (W9, `content/README.md`) is the
+highest-value content work available — and it needs you, not a session.
+
+### What a session fixed on 2026-08-02, so you do not have to
+
+* **The post-sign-in error screen was a dead end.** If the profile read settled
+  into an error, you got a "Try again" button and nothing else — and a settled
+  permission error cannot be cleared by trying again, which is exactly the
+  failure behind your "Something went wrong" report. It now offers **sign out**
+  as well. That screen is the one place in the app outside the settings gear, so
+  it was the one place that genuinely had no door.
+* **The solo screen could spin forever in silence.** The day's answer is read
+  through a Firestore document listener, which on an unreachable backend emits
+  *nothing at all* — not an error — so the spinner never resolved. After eight
+  seconds it now says so and offers a retry. (You could always escape via the
+  settings gear; there was simply no indication anything was wrong.)
+
+### Still unknown — worth one look on your device
+
+Nobody can settle these from a laptop: whether the hourly rollover job is
+actually enabled in Cloud Scheduler (no `gcloud` here, item recorded), and how
+long a real cold start takes on your iPhone. Both are on the item **4**
+on-device checklist.
+
+---
+
 # ⏳ 2(c). TestFlight external — submitted, in Apple's hands, nothing owed by you
 
 **Done 2026-08-01.** This item blocked the page for five sessions and is closed.

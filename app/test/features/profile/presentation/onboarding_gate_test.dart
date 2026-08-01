@@ -606,6 +606,61 @@ void main() {
 
       expect(find.byType(ProfileCaptureScreen), findsOneWidget);
     });
+
+    // ADR-039 Decision 2 is titled "Every blocking screen carries an exit", and
+    // the loading branch of this very file says so in a comment that names the
+    // consent gate, the invite share screen and the solo error view as already
+    // compliant. The SETTLED-ERROR branch twelve lines below it was never
+    // swept — and it is the branch that needs the door MOST. A spinner may
+    // resolve on its own; a settled `permission-denied` cannot be fixed by
+    // pressing Retry, ever, and that is precisely what issue #140 shipped to
+    // the founder ("Invite Your Partner shows Something went wrong").
+    //
+    // Asserting the CALL and not merely the label: a button reading "Sign out"
+    // that is wired to nothing would satisfy a presence-only assertion while
+    // stranding the user exactly as before.
+    testWidgets(
+      'a settled error offers the DOOR, not only retry (ADR-039 D2)',
+      (tester) async {
+        final profiles = FakeProfileRepository(initialProfiles: {});
+        final auth = FakeAuthRepository(initialUser: user);
+        final invites = FakeInviteRepository();
+        final previews = FakeInvitePreviewRepository();
+        final deepLinks = FakeDeepLinkSource();
+        addTearDown(profiles.dispose);
+        addTearDown(auth.dispose);
+        addTearDown(invites.dispose);
+        addTearDown(previews.dispose);
+        addTearDown(deepLinks.dispose);
+        await tester.pumpWidget(
+          localizedApp(
+            const OnboardingGate(user: user),
+            overrides: [
+              profileRepositoryProvider.overrideWith((ref) => profiles),
+              authRepositoryProvider.overrideWith((ref) => auth),
+              inviteRepositoryProvider.overrideWith((ref) => invites),
+              invitePreviewRepositoryProvider.overrideWith((ref) => previews),
+              deepLinkSourceProvider.overrideWith((ref) => deepLinks),
+              localFlagStoreProvider.overrideWithValue(nameCaptured()),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        profiles.emitError(
+          user.uid,
+          const ProfileNetworkException(message: 'x'),
+        );
+        await tester.pumpAndSettle();
+
+        final en = l10nFor(const Locale('en'));
+        expect(find.text(en.tryAgain), findsOneWidget);
+        expect(find.text(en.signOut), findsOneWidget);
+
+        await tester.tap(find.text(en.signOut));
+        await tester.pumpAndSettle();
+        expect(auth.signOutCalls, 1);
+      },
+    );
   });
 
   group('locale matrix', () {

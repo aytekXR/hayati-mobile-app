@@ -79,8 +79,18 @@ class OnboardingGate extends ConsumerWidget {
     //
     // Sign-out is offered ALONGSIDE retry deliberately. Retry alone assumes the
     // fault is transient; a user whose session is somehow unusable needs the
-    // door as well, and every other blocking surface in this app (the consent
-    // gate, the invite share screen, the solo error view) already carries one.
+    // door as well.
+    //
+    // Every other blocking surface carries a door too, but by TWO different
+    // mechanisms, and conflating them is a trap — an earlier revision of this
+    // comment listed "the solo error view" beside the consent gate and the
+    // invite share screen as though all three were local buttons, and a later
+    // reader nearly added a redundant one there because of it. The homes get
+    // theirs from `SettingsGearOverlay`, which wraps EVERY state of both of
+    // them (ADR-018 D7) over a settings screen whose sign-out row renders
+    // unconditionally. THIS screen is deliberately outside that overlay — the
+    // gear is on the two homes only, "never on capture, preview, coach, or the
+    // paywall" — so the gate is the one surface that must carry its own.
     if (profile.isLoading) {
       return SlowLoadEscape(
         actions: [
@@ -102,6 +112,13 @@ class OnboardingGate extends ConsumerWidget {
       return _GateErrorView(
         error: error,
         onRetry: () => ref.invalidate(profileStreamProvider(user.uid)),
+        // The door, for the same reason the loading branch above carries one —
+        // and with more force here. `isLoading` may resolve on its own; a
+        // SETTLED error will not, so Retry alone is an affordance that cannot
+        // work. A `permission-denied` on the profile read is not hypothetical:
+        // it is what issue #140 shipped to the founder.
+        onSignOut: () =>
+            unawaited(ref.read(authControllerProvider.notifier).signOut()),
       );
     }
     final value = profile.value;
@@ -156,10 +173,15 @@ class OnboardingGate extends ConsumerWidget {
 }
 
 class _GateErrorView extends StatelessWidget {
-  const _GateErrorView({required this.error, required this.onRetry});
+  const _GateErrorView({
+    required this.error,
+    required this.onRetry,
+    required this.onSignOut,
+  });
 
   final Object error;
   final VoidCallback onRetry;
+  final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) {
@@ -189,6 +211,8 @@ class _GateErrorView extends StatelessWidget {
                 ),
                 const SizedBox(height: SpacingTokens.x6),
                 FilledButton(onPressed: onRetry, child: Text(l10n.tryAgain)),
+                const SizedBox(height: SpacingTokens.x4),
+                TextButton(onPressed: onSignOut, child: Text(l10n.signOut)),
               ],
             ),
           ),

@@ -11,8 +11,18 @@ import 'package:hayati_app/features/daily_question/domain/solo_answers_repositor
 /// to leave its loading state, and the restart-persistence test seeds
 /// [initialAnswers] to model a reinstall finding the Firestore doc.
 class FakeSoloAnswersRepository implements SoloAnswersRepository {
-  FakeSoloAnswersRepository({Map<String, SoloAnswer>? initialAnswers})
-    : _answers = {...?initialAnswers};
+  FakeSoloAnswersRepository({
+    Map<String, SoloAnswer>? initialAnswers,
+    this.neverEmits = false,
+  }) : _answers = {...?initialAnswers};
+
+  /// Models the real failure mode ADR-039 is about, which no other fake setting
+  /// can express: a Firestore DOCUMENT listener on a doc that is not in the
+  /// local cache raises NO event whatsoever until the server answers — not an
+  /// empty snapshot, not an error. An unreachable backend therefore leaves the
+  /// subscription hanging rather than failing, which is why "it errors" tests
+  /// cannot cover it. Mirrors [FakeProfileRepository.neverEmits].
+  final bool neverEmits;
 
   /// Keyed `'$uid/$dayKey'`.
   final Map<String, SoloAnswer> _answers;
@@ -62,6 +72,12 @@ class FakeSoloAnswersRepository implements SoloAnswersRepository {
   @override
   Stream<SoloAnswer?> watchAnswer(String uid, String dayKey) async* {
     final key = keyFor(uid, dayKey);
+    if (neverEmits) {
+      // Never yields, never errors, never completes — the subscription simply
+      // hangs, as it does against an unreachable Firestore with a cold cache.
+      await Completer<void>().future;
+      return;
+    }
     yield _answers[key];
     // await-for (not yield*) so an emitted error TERMINATES this stream,
     // exactly like the real repository's generator.
