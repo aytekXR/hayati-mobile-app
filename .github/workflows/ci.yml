@@ -161,6 +161,16 @@ jobs:
       # the build, and clean text must not need the escape flag.
       - name: site generator self-tests
         run: python3 tool/ci/build_site_test.py
+      # ADR-041 (issue #140): the behavioural half of the merged-vs-deployed
+      # check. The check ITSELF needs a credential and therefore runs in the
+      # `rules-drift` job below; these tests are hermetic — no network, no
+      # Firebase, no credential — so they belong here with the other pre-`pub
+      # get` self-tests, and they are the only part of that gate which runs on
+      # a PR. They carry the mutation check in both directions: a comparator
+      # that returned "no drift" unconditionally would pass a smoke test while
+      # guarding nothing, which is *literally* the defect #140 was filed about.
+      - name: rules drift self-tests
+        run: python3 tool/ci/rules_drift_test.py
       - name: pub get
         working-directory: app
         run: flutter pub get
@@ -199,6 +209,14 @@ jobs:
     # integration-emulator leg): rules regressions must be pre-merge
     # signals (resume-prompt Session 007). Coverage hard-fails <80% via vitest
     # thresholds (test-suite.md §3: target 85).
+    #
+    # WHAT THIS JOB DOES NOT GUARD (ADR-041, issue #140). The emulator loads the
+    # WORKING-TREE firestore.rules, so this proves the rules ON THIS REF are
+    # correct — never that they are the rules the runtime is serving. Both
+    # projects ran the M2.1 ruleset for 18 days while six milestones of rules sat
+    # merged and undeployed, and every one of those PRs was honestly green here.
+    # The deployed half is the `rules-drift` job below; neither subsumes the
+    # other, and this comment exists so the next reader does not assume it does.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -508,6 +526,82 @@ jobs:
                echo "::endgroup::"
              done'
 
+  # ADR-041 (issue #140) — is the ruleset the projects are SERVING the ruleset on
+  # this ref? Two jobs, because the answer must never be able to look like "yes"
+  # when nobody asked.
+  #
+  # WHY A PREFLIGHT JOB AND NOT A STEP-LEVEL `if:`. A job-level `if:` cannot read
+  # `secrets`, and a job whose every STEP skipped reports GREEN — a green check
+  # that measured nothing, which is precisely #140's defect wearing a new hat. So
+  # the credential probe is its own job and publishes a boolean; `rules-drift`
+  # gates on it and is therefore either MEASURED (green or red) or visibly
+  # SKIPPED. There is deliberately no third outcome. A skipped job is an honest
+  # gap that shows up in the checks list on every run; a green one is a claim.
+  rules-drift-preflight:
+    name: rules-drift-preflight
+    # Post-merge and manual only — never on a PR. Drift is a property of `main`
+    # vs the projects, not of a contributor's diff: a PR touching Dart would go
+    # red for last week's undeployed rules, which the author neither caused nor
+    # can fix (prod deploys are dispatch-only by design, ADR-041 D5). That is the
+    # cry-wolf shape ADR-024/ADR-034 refuse, arrived at from a different road.
+    #
+    # `main` ONLY, including for dispatches. "Drift" is defined as merged-vs-
+    # deployed; a dispatch from a feature branch would compare that branch's
+    # rules to production and report drift that is not drift — a false red is
+    # the one outcome this job can afford least, since its whole value is that
+    # its red means something.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_credential: ${{ steps.probe.outputs.has_credential }}
+    steps:
+      - id: probe
+        env:
+          SA: ${{ secrets.FIREBASE_RULES_VIEWER_SA }}
+        run: |
+          if [ -n "$SA" ]; then
+            echo "has_credential=true" >> "$GITHUB_OUTPUT"
+            echo "FIREBASE_RULES_VIEWER_SA present — the drift check will run."
+          else
+            echo "has_credential=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FIREBASE_RULES_VIEWER_SA is not set, so rules-drift will be"
+            echo "::warning::SKIPPED — not passed. Nothing is comparing the ruleset that"
+            echo "::warning::hayatiapp-prod/-dev are SERVING to the one on main. See"
+            echo "::warning::docs/operator-expected.md item 2(e)(iv)."
+          fi
+
+  rules-drift:
+    name: rules-drift
+    needs: [rules-drift-preflight]
+    if: needs.rules-drift-preflight.outputs.has_credential == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # `python3 -m pip`, never bare `pip`, and setup-python before either: on the
+      # release lane those were DIFFERENT INTERPRETERS, the install printed
+      # success, and the import did not exist (S056, ADR-038 D4's postmortem).
+      # Asserting the import here costs a second and turns "the script never
+      # started" into a named failure instead of a confusing one downstream.
+      - name: install and PROVE the signing dependency
+        run: |
+          python3 -m pip install --quiet 'pyjwt[crypto]==2.10.1'
+          python3 -c "import jwt; print('pyjwt', jwt.__version__, 'ok')"
+      - name: is what is DEPLOYED what is MERGED?
+        env:
+          FIREBASE_RULES_VIEWER_SA: ${{ secrets.FIREBASE_RULES_VIEWER_SA }}
+        # Exit 1 = drift (it looked, they differ). Exit 2 = could not measure
+        # (fail closed). Both red, and the tool says which — collapsing them is
+        # what made functions-rules green while guarding nothing.
+        run: |
+          python3 tool/ci/rules_drift.py \
+            --project hayatiapp-prod \
+            --project hayatiapp-dev
+
   slack-notify:
     name: slack-notify
     # ADR-024. The terminal fan-in: ONE message per run, never one per job.
@@ -528,7 +622,11 @@ jobs:
     # It is NOT `|| true` in disguise: a failure still renders red in the Actions
     # UI and in `gh run view --log-failed`; only the cascade to the run's
     # conclusion is blocked.
-    needs: [quality, functions-rules, ios-build-smoke, integration-emulator]
+    # rules-drift is in the fan-in deliberately (ADR-041 D6). It is the one job
+    # whose red arrives AFTER the merge with no other reader — ADR-024's founding
+    # case — and the notifier is generic over `needs`, so it costs no script
+    # change and renders a skipped drift check as ⏭ rather than as a pass.
+    needs: [quality, functions-rules, ios-build-smoke, integration-emulator, rules-drift]
     if: always()
     continue-on-error: true
     runs-on: ubuntu-latest

@@ -1,0 +1,163 @@
+# deploy-rules — publish firestore.rules to hayatiapp-dev / hayatiapp-prod.
+#
+# WHY THIS EXISTS AT ALL (issue #140, ADR-041). Until now NOTHING in this repo
+# deployed rules. They were written, emulator-tested and merged, and reaching
+# production depended on a human remembering to run a CLI command — which, for
+# eighteen days across six milestones, nobody did. `ci.yml`'s `functions-rules`
+# job was honestly green the whole time, because the emulator loads the
+# working-tree file.
+#
+# WHY DISPATCH-ONLY, and not on push to main. firestore.rules is the app's
+# authorization boundary: it is the single artifact where a bad deploy exposes
+# or destroys couples' data, and it takes effect globally in seconds with no
+# staged rollout and no per-user flag. `main` merging is not consent to change
+# production's security rules — the same reasoning that keeps `deploy-site.yml`
+# and `testflight-testers.yml` off the push path, only with more at stake.
+#
+# The cost of that choice is honest and named: between a rules merge and a
+# dispatch, production is running something other than `main`. That window is
+# exactly what `ci.yml`'s `rules-drift` job makes impossible to forget — it goes
+# red on main and stays red until this workflow has run.
+#
+# WHY PROD NEEDS TYPING AND DEV DOES NOT. `project: prod` alone would be one
+# mis-click away from rewriting live authorization rules, so prod additionally
+# requires typing the project id into a free-text box with no default — the
+# confirmation shape testflight-testers.yml already uses for group deletion.
+# Dev is a session's to exercise freely; that asymmetry is the point.
+#
+# OPERATOR PREREQUISITE (which a session cannot do): a repository secret
+# FIREBASE_SERVICE_ACCOUNT holding service-account JSON with the Firebase Rules
+# Admin role on the target project. No such secret exists today, so this
+# workflow fails closed at the secrets gate rather than pretending to deploy —
+# see docs/operator-expected.md item 2(e)(iii).
+name: deploy-rules
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Which project to deploy firestore.rules to'
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prod]
+      confirm_prod:
+        description: 'PROD ONLY: type the project id exactly — hayatiapp-prod. Ignored for dev.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy-rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      # Resolve the alias ONCE, here, so no later step re-derives it. Two steps
+      # that each map dev|prod to a project id are two places to disagree, and
+      # the one that matters is the one that runs `firebase deploy`.
+      - name: resolve target
+        id: target
+        run: |
+          if [ "${{ inputs.project }}" = "prod" ]; then
+            echo "id=hayatiapp-prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "id=hayatiapp-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Typing the id IS the confirmation. Checked before the secrets gate so a
+      # mistyped prod dispatch fails on the cheap, obvious reason rather than on
+      # a missing credential that would send the reader down the wrong path.
+      - name: prod requires an explicit confirmation
+        if: ${{ inputs.project == 'prod' }}
+        env:
+          CONFIRM: ${{ inputs.confirm_prod }}
+        run: |
+          if [ "$CONFIRM" != "hayatiapp-prod" ]; then
+            echo "::error::Deploying rules to PRODUCTION requires typing the project id"
+            echo "::error::exactly (hayatiapp-prod) in the confirm_prod box. Got: '$CONFIRM'"
+            exit 1
+          fi
+          echo "prod deploy confirmed."
+
+      # Fail closed and say WHY, rather than letting `firebase deploy` emit an
+      # opaque auth error. Same shape as deploy-site.yml's gate and release.yml's
+      # signing gate (ADR-021 D4).
+      - name: secrets gate
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set, so CI cannot deploy rules."
+            echo "::error::See docs/operator-expected.md item 2(e)(iii): create a service"
+            echo "::error::account with the Firebase Rules Admin role on the target project"
+            echo "::error::and add its JSON as a repository secret."
+            exit 1
+          fi
+          echo "FIREBASE_SERVICE_ACCOUNT present."
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # python3 -m pip, never bare pip — S056: on macos-15 they were different
+      # interpreters, the install reported success and the import did not exist.
+      - name: install and PROVE the signing dependency
+        run: |
+          python3 -m pip install --quiet 'pyjwt[crypto]==2.10.1'
+          python3 -c "import jwt; print('pyjwt', jwt.__version__, 'ok')"
+
+      # Say what is about to change BEFORE changing it. Exit 1 here means "there
+      # is drift", which is the normal reason to be running this workflow, so it
+      # must not stop the deploy; exit 2 means the tool could not measure, and
+      # that DOES stop it — deploying while blind to the current state is how you
+      # find out afterwards that you overwrote something you had not seen.
+      - name: what is live right now
+        env:
+          # Yes, the ADMIN service account under a variable named VIEWER. That is
+          # the tool's env-var name for "a service-account JSON to read with", and
+          # this lane already holds the admin one — minting a second credential
+          # just to read here would be ceremony. The tool requests the
+          # `firebase.readonly` SCOPE regardless of the account's roles, so the
+          # read-back genuinely cannot write, which is the property that matters.
+          FIREBASE_RULES_VIEWER_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set +e
+          python3 tool/ci/rules_drift.py --project "${{ steps.target.outputs.id }}"
+          code=$?
+          set -e
+          if [ "$code" = "2" ]; then
+            echo "::error::Could not read the live ruleset, so this deploy would be blind."
+            exit 1
+          fi
+          echo "pre-deploy drift status: $code (0 = already in sync, 1 = will change)"
+
+      - name: deploy
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > /tmp/sa.json
+          npm install -g firebase-tools@15.22.4
+          firebase deploy --only firestore:rules \
+            --project "${{ steps.target.outputs.id }}" \
+            --message "deploy-rules ${{ github.sha }}"
+
+      # Deploy, THEN measure. A deploy that reports success is a vendor's claim
+      # about its own work; the guarantee is reading back what is actually
+      # released (S056: the AASA looked correct by reasoning and was only proven
+      # by fetching it). This is the deploy's own postcondition, so unlike the
+      # pre-check it votes — any non-zero fails the run.
+      - name: prove what is live NOW is what was deployed
+        env:
+          # Yes, the ADMIN service account under a variable named VIEWER. That is
+          # the tool's env-var name for "a service-account JSON to read with", and
+          # this lane already holds the admin one — minting a second credential
+          # just to read here would be ceremony. The tool requests the
+          # `firebase.readonly` SCOPE regardless of the account's roles, so the
+          # read-back genuinely cannot write, which is the property that matters.
+          FIREBASE_RULES_VIEWER_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: python3 tool/ci/rules_drift.py --project "${{ steps.target.outputs.id }}"

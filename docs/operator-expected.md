@@ -373,7 +373,7 @@ point: a policy Apple's listing points at must not say "to be completed by the
 founder". The invite-only publish is not a loophole in that gate — it publishes
 **no policy at all**, so it cannot publish an unfinished one.
 
-### (iii) Optional — let CI deploy the site
+### (iii) Optional — let CI deploy the site **and the firestore rules**
 
 Today the site is deployed with the local `firebase` CLI, which is logged in as
 you. `FIREBASE_SERVICE_ACCOUNT` is **unset**, so CI cannot. Worth fixing so the
@@ -386,6 +386,51 @@ gh workflow run deploy-site.yml -f channel=live -f invite_only=true
 
 Drop `invite_only` once (ii) is filled and the full site — six legal documents in
 three languages — publishes.
+
+**New at Session 058:** the same secret also powers `deploy-rules.yml`, the
+dispatch-only lane that publishes `firestore.rules` (ADR-041, issue #140). For
+that half the service account additionally needs **Firebase Rules Admin** on
+whichever project you want CI able to deploy to. Grant it on `hayatiapp-dev`
+freely; grant it on `hayatiapp-prod` only if you want CI to be *able* to change
+production's authorization rules — the lane still requires a manual dispatch and
+requires typing `hayatiapp-prod` into a confirmation box, and **no session will
+fire it at prod without asking you first.**
+
+### (iv) Worth doing — one read-only secret closes the gap that shipped the "Something went wrong" bug
+
+**This is the only genuinely new ask on this page.** It is read-only, it costs
+one command, and it closes a real hole rather than a cosmetic one.
+
+For eighteen days both projects served the rules from **2026-07-09** while six
+milestones of newer rules sat merged in the repo and never deployed. That is
+what made "Invite Your Partner" show *Something went wrong* on your build — not
+the invite code, but the phone being denied permission to read its own answers.
+Every CI check was green throughout, because the only thing testing the rules
+was an emulator loading the file from the repo, never the one Firebase was
+actually enforcing.
+
+Session 058 built the check that catches it (`rules-drift` in `ci.yml`). **It
+cannot run without a credential, and rather than pretend to pass it currently
+shows as SKIPPED on every run.** To arm it:
+
+1. Firebase console → ⚙ → **Users and permissions** → **Service accounts** tab →
+   Google Cloud console → **Create service account**, name it
+   `ci-rules-viewer`.
+2. Grant it the role **Firebase Rules Viewer** — on **both** `hayatiapp-prod`
+   and `hayatiapp-dev`. It is read-only: this account cannot change anything,
+   which is deliberate, so the job that runs on every merge can never itself
+   cause the drift it is looking for.
+3. Create a **JSON key** for it and download the file.
+4. ```sh
+   gh secret set FIREBASE_RULES_VIEWER_SA < ci-rules-viewer.json
+   ```
+5. Delete the downloaded file. Confirm with `gh secret list` — you should see
+   `FIREBASE_RULES_VIEWER_SA`; the run after that shows `rules-drift` as a real
+   green check instead of a skipped one.
+
+Until then nothing compares what is deployed to what is merged, and the failure
+mode is silent by construction — you would find out the way you found out last
+time, from the app misbehaving.
 
 ---
 
