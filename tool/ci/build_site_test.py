@@ -54,6 +54,32 @@ def _write_legal(root: pathlib.Path, body: str) -> pathlib.Path:
 
 CLEAN = "# Title\n\nA sentence.\n\n## Section\n\n- one\n- two\n"
 
+SITE_BODY = "# Page\n\nSome copy.\n"
+
+
+def _write_site(root: pathlib.Path, body: str = SITE_BODY) -> pathlib.Path:
+    d = root / "site"
+    d.mkdir(parents=True, exist_ok=True)
+    for stem in ("landing", "support"):
+        for loc in ("en", "tr", "ar"):
+            (d / f"{stem}.{loc}.md").write_text(body, encoding="utf-8")
+    return d
+
+
+def _build(out, legal, allow_placeholders, **kw):
+    """Every test builds through here, and the reason is hermeticity.
+
+    `build()` defaults `site_dir` to the REPO's real `docs/site`, which is
+    correct in production and wrong in a test: the suite would then read the
+    live landing copy and could pass or fail for reasons that have nothing to do
+    with the thing under test — and would break the moment a founder edited a
+    sentence. Tests that want to exercise the real copy pass `site_dir`
+    explicitly and say so.
+    """
+    out = pathlib.Path(out)
+    kw.setdefault("site_dir", _write_site(out.parent))
+    return bs.build(out, legal, allow_placeholders, **kw)
+
 
 # --------------------------------------------------------------------------
 # The Markdown subset.
@@ -120,9 +146,9 @@ def test_placeholder_gate_fails_the_build() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
         legal = _write_legal(root, CLEAN + "\nRun by [ENTITY — to be completed by the founder].\n")
-        rc = bs.build(root / "out", legal, allow_placeholders=False)
+        rc = _build(root / "out", legal, allow_placeholders=False)
         check("a placeholder FAILS the build", rc, 1)
-        rc = bs.build(root / "out2", legal, allow_placeholders=True)
+        rc = _build(root / "out2", legal, allow_placeholders=True)
         check("--allow-placeholders builds anyway", rc, 0)
 
 
@@ -132,7 +158,7 @@ def test_clean_text_passes_without_the_flag() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
         legal = _write_legal(root, CLEAN)
-        check("clean legal text needs no flag", bs.build(root / "out", legal, False), 0)
+        check("clean legal text needs no flag", _build(root / "out", legal, False), 0)
 
 
 def test_placeholder_gate_is_language_independent() -> None:
@@ -164,7 +190,7 @@ def test_placeholder_gate_is_language_independent() -> None:
         root = pathlib.Path(tmp)
         legal = _write_legal(root, CLEAN + "\n" + real_blanks["tr-law"] + "\n")
         check("a Turkish-only blank fails the build",
-              bs.build(root / "out", legal, allow_placeholders=False), 1)
+              _build(root / "out", legal, allow_placeholders=False), 1)
 
 
 def test_placeholder_gate_does_not_cry_wolf() -> None:
@@ -184,7 +210,7 @@ def test_placeholder_gate_does_not_cry_wolf() -> None:
         root = pathlib.Path(tmp)
         legal = _write_legal(root, CLEAN + "\nSee clause [4] — it matters.\n")
         check("prose with brackets AND a dash still builds clean",
-              bs.build(root / "out", legal, allow_placeholders=False), 0)
+              _build(root / "out", legal, allow_placeholders=False), 0)
 
 
 def test_one_blank_is_counted_once() -> None:
@@ -216,7 +242,7 @@ def test_missing_source_is_an_error_not_an_empty_page() -> None:
         legal.mkdir()
         (legal / "privacy-policy.en.md").write_text(CLEAN, encoding="utf-8")
         try:
-            bs.build(root / "out", legal, False)
+            _build(root / "out", legal, False)
         except bs.BuildError as exc:
             check("a missing locale raises", "missing legal source" in str(exc), True)
             return
@@ -232,7 +258,7 @@ def test_routes_and_rtl() -> None:
         root = pathlib.Path(tmp)
         legal = _write_legal(root, CLEAN)
         out = root / "out"
-        bs.build(out, legal, False)
+        _build(out, legal, False)
         for rel in ("index.html", "404.html", "invite.html",
                     "privacy/index.html", "privacy/tr/index.html", "privacy/ar/index.html",
                     "terms/index.html", "terms/tr/index.html", "terms/ar/index.html",
@@ -249,7 +275,7 @@ def test_aasa_is_valid_and_points_at_the_real_app() -> None:
         root = pathlib.Path(tmp)
         legal = _write_legal(root, CLEAN)
         out = root / "out"
-        bs.build(out, legal, False)
+        _build(out, legal, False)
         aasa = json.loads((out / ".well-known/apple-app-site-association").read_text())
         details = aasa["applinks"]["details"]
         check("one app entry", len(details), 1)
@@ -277,7 +303,7 @@ def test_invite_only_serves_the_link_and_no_legal_text() -> None:
         # for, and a fixture with clean text would prove nothing.
         legal = _write_legal(root, "# T\n\n[FOUNDER LEGAL ENTITY — to be completed by the founder]\n")
         out = root / "out"
-        code = bs.build(out, legal, False, invite_only=True)
+        code = _build(out, legal, False, invite_only=True)
 
         check("invite-only build succeeds despite the blanks", code, 0)
         check("invite page is served", (out / "invite.html").exists(), True)
@@ -312,7 +338,7 @@ def test_full_build_still_links_the_legal_pages() -> None:
         root = pathlib.Path(tmp)
         legal = _write_legal(root, CLEAN)
         out = root / "out"
-        check("clean full build succeeds", bs.build(out, legal, False), 0)
+        check("clean full build succeeds", _build(out, legal, False), 0)
         index = (out / "index.html").read_text(encoding="utf-8")
         check('index links /privacy', 'href="/privacy"' in index, True)
         check('index links /terms', 'href="/terms"' in index, True)
@@ -330,7 +356,7 @@ def test_invite_page_never_offers_a_dead_app_store_button() -> None:
         root = pathlib.Path(tmp)
         legal = _write_legal(root, CLEAN)
         out = root / "out"
-        bs.build(out, legal, False, invite_only=True)
+        _build(out, legal, False, invite_only=True)
         invite = (out / "invite.html").read_text(encoding="utf-8")
 
         placeholder_is_still_set = not bs.APP_STORE_ID.strip("0")
@@ -345,6 +371,180 @@ def test_invite_page_never_offers_a_dead_app_store_button() -> None:
         # Either way the code, and a way to lift it, are always present.
         check("the code element is present", 'id="code"' in invite, True)
         check("a copy affordance is present", 'id="copy"' in invite, True)
+
+
+# --------------------------------------------------------------------------
+# The landing and support pages (S059). The App Store listing declares the SITE
+# ROOT as its support URL, and until these existed that URL served a two-line
+# stub.
+# --------------------------------------------------------------------------
+
+def test_site_pages_exist_in_every_locale() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN)
+        out = root / "out"
+        _build(out, legal, False)
+        for rel in ("index.html", "tr/index.html", "ar/index.html",
+                    "support/index.html", "support/tr/index.html",
+                    "support/ar/index.html"):
+            check(f"site route exists: {rel}", (out / rel).exists(), True)
+        ar = (out / "support/ar/index.html").read_text(encoding="utf-8")
+        check("arabic support page is dir=rtl", 'dir="rtl"' in ar, True)
+        tr = (out / "tr/index.html").read_text(encoding="utf-8")
+        check("turkish landing is dir=ltr", 'dir="ltr"' in tr, True)
+
+
+def test_landing_and_support_ship_under_invite_only() -> None:
+    """THE decoupling decision, asserted rather than described.
+
+    The legal pages are blocked behind the founder's unfilled legal name. The
+    support page is not, contains no legal text, and is what the App Store
+    listing points at — so a user needing help must not have to wait on a blank
+    in a privacy policy. If someone later "simplifies" the build by moving these
+    into the `not invite_only` branch, this goes red.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, "# T\n\n[FOUNDER LEGAL ENTITY — to be completed by the founder]\n")
+        out = root / "out"
+        code = _build(out, legal, False, invite_only=True)
+        check("invite-only build still succeeds", code, 0)
+        for rel in ("index.html", "tr/index.html", "ar/index.html",
+                    "support/index.html", "support/tr/index.html",
+                    "support/ar/index.html"):
+            check(f"served under --invite-only: {rel}", (out / rel).exists(), True)
+        # ...and the legal pages still are NOT, which is what keeps the gate real.
+        check("privacy still withheld", (out / "privacy/index.html").exists(), False)
+        support = (out / "support/index.html").read_text(encoding="utf-8")
+        check("support page does not link the withheld legal pages",
+              'href="/privacy"' in support, False)
+
+
+def test_language_switcher_never_emits_a_protocol_relative_url() -> None:
+    """`//tr` is not a path — browsers read it as a protocol-relative URL and
+    leave the site. The landing family's routes are `/`, `/tr`, `/ar`, so the
+    naive f-string that works for `/privacy/tr` produces exactly that bug."""
+    # Viewed FROM Turkish, so English renders as a link rather than <strong> —
+    # the current locale is never a link, which is why asserting from "en" would
+    # have looked for an href that correctly does not exist.
+    nav = bs.lang_nav("", "tr")
+    check("no protocol-relative href", "//" in nav, False)
+    check("english landing is the bare root", "href='/'" in nav, True)
+    check("arabic landing is /ar", "href='/ar'" in nav, True)
+    check("the current locale is not a link", "<strong>Türkçe</strong>" in nav, True)
+    # The family that already worked must keep working.
+    legal_nav = bs.lang_nav("privacy", "en")
+    check("privacy nav unchanged", "href='/privacy/tr'" in legal_nav, True)
+    check("privacy nav has no protocol-relative href", "//" in legal_nav, False)
+
+
+def test_site_copy_is_placeholder_gated_too() -> None:
+    """A landing page reading "[COMPANY — TBD]" is exactly as bad as a policy
+    that does. Unlike the legal loop this gate is NOT skipped by --invite-only,
+    because these pages ship in that mode."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN)
+        blanks = _write_site(root, "# Page\n\n[COMPANY NAME — to be decided]\n")
+        check("a blank in SITE copy fails the build",
+              bs.build(root / "out", legal, False, site_dir=blanks), 1)
+        check("and fails it under --invite-only too, where these pages DO ship",
+              bs.build(root / "out2", legal, False, invite_only=True, site_dir=blanks), 1)
+        check("clean site copy passes",
+              bs.build(root / "out3", legal, False, site_dir=_write_site(root)), 0)
+
+
+def test_missing_site_source_is_an_error_not_an_empty_page() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN)
+        empty = root / "nosite"
+        empty.mkdir()
+        try:
+            bs.build(root / "out", legal, False, site_dir=empty)
+        except bs.BuildError as exc:
+            check("names the missing file", "landing.en.md" in str(exc), True)
+        else:
+            check("a missing site source raises", False, True)
+
+
+def test_the_real_site_copy_builds_and_says_nothing_untrue() -> None:
+    """The one test that deliberately reads the REAL docs/site copy.
+
+    Hermetic tests prove the machinery; this proves the SHIPPED words. Every
+    line below is a claim this repo has already paid for once: the invite code
+    is eight characters (invite-code.ts INVITE_CODE_LENGTH), the app is not on
+    the App Store, there is no Android build, and push notifications are not
+    implemented app-side — so the site must not promise any of them.
+    """
+    site = pathlib.Path(__file__).resolve().parents[2] / "docs" / "site"
+    if not site.exists():  # pragma: no cover - only before the copy lands
+        check("docs/site exists", False, True)
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN)
+        out = root / "out"
+        check("the real copy builds", bs.build(out, legal, False, site_dir=site), 0)
+        blob = "\n".join(
+            p.read_text(encoding="utf-8")
+            for p in out.rglob("*.html")
+        ).lower()
+        check("never claims an App Store listing", "apps.apple.com" in blob, False)
+        check("never mentions Google Play", "play.google.com" in blob, False)
+        check("never says six-character", "six-character" in blob, False)
+        check("never says six characters", "six characters" in blob, False)
+        english = (out / "support/index.html").read_text(encoding="utf-8")
+        check("states the real code length", "eight-character" in english, True)
+        check("states the real expiry", "48 hours" in english, True)
+        check("gives the contact route", "aytek@beyondkaira.com" in english, True)
+
+
+def test_the_root_page_does_not_print_the_brand_twice() -> None:
+    """The chrome prints the page title beside the brand, and the landing page's
+    title IS the brand — so passing it through rendered the header
+    "ikimizikimiz" and the tab "ikimiz · ikimiz". The old stub index shipped
+    exactly that. A page whose subject is the site itself has no subtitle."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        legal = _write_legal(root, CLEAN)
+        out = root / "out"
+        _build(out, legal, False)
+        index = (out / "index.html").read_text(encoding="utf-8")
+        check("tab title is not doubled", "ikimiz · ikimiz" in index, False)
+        check("tab title is the brand", "<title>ikimiz</title>" in index, True)
+        check("header carries no duplicate tag", 'class="tag"' in index, False)
+        # The control: a page that DOES have a subtitle must still show it, or
+        # this "fix" would have silently stripped every legal page's heading.
+        privacy = (out / "privacy/index.html").read_text(encoding="utf-8")
+        check("a real subtitle survives", 'class="tag">Privacy Policy<' in privacy, True)
+        check("and its tab title is still qualified",
+              "<title>Privacy Policy · ikimiz</title>" in privacy, True)
+
+
+def test_turkish_site_copy_uses_turkish_orthography() -> None:
+    """Turkish without its diacritics is not Turkish.
+
+    This exists because the first draft of this copy was written ASCII-only —
+    "hosgoru gunu", "alti karakter" — by an author who GUESSED the generator
+    might not handle UTF-8. It does: `docs/legal/privacy-policy.tr.md` has
+    carried 53 Turkish diacritics through this same renderer since S054. For a
+    Turkish-first product whose beta testers are all Turkish, shipping that to a
+    public page is a quality defect, and a guess is not a reason.
+    """
+    site = pathlib.Path(__file__).resolve().parents[2] / "docs" / "site"
+    if not site.exists():  # pragma: no cover
+        check("docs/site exists", False, True)
+        return
+    text = "".join(
+        (site / f"{stem}.tr.md").read_text(encoding="utf-8")
+        for stem in ("landing", "support")
+        if (site / f"{stem}.tr.md").exists()
+    )
+    check("turkish copy is present", len(text) > 200, True)
+    diacritics = sum(text.count(c) for c in "şŞıİğĞçÇöÖüÜ")
+    check("turkish copy carries its diacritics (>=20)", diacritics >= 20, True)
 
 
 def test_invite_only_refuses_the_placeholder_flag() -> None:
@@ -377,6 +577,14 @@ def main() -> int:
         test_full_build_still_links_the_legal_pages,
         test_invite_page_never_offers_a_dead_app_store_button,
         test_invite_only_refuses_the_placeholder_flag,
+        test_site_pages_exist_in_every_locale,
+        test_landing_and_support_ship_under_invite_only,
+        test_language_switcher_never_emits_a_protocol_relative_url,
+        test_site_copy_is_placeholder_gated_too,
+        test_missing_site_source_is_an_error_not_an_empty_page,
+        test_the_real_site_copy_builds_and_says_nothing_untrue,
+        test_the_root_page_does_not_print_the_brand_twice,
+        test_turkish_site_copy_uses_turkish_orthography,
     ):
         print(f"\n{fn.__name__}")
         fn()
