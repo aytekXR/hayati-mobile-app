@@ -594,6 +594,34 @@ def test_merge_group() -> None:
     check("dry run says WOULD", any("WOULD" in line for line in lines), True)
 
 
+def test_tester_line() -> None:
+    """Apple's tester state is printed VERBATIM, for the ADR-038 D5 reason.
+
+    Nobody here has measured what `betaTesters` actually returns — the fields
+    below are what the docs imply, and addendum 63 says only the vendor can
+    settle a vendor API shape. So this must not switch-case on a closed enum:
+    whatever Apple sends has to reach the founder's eyes unaltered, including a
+    field added tomorrow. The test pins that property, not a field list."""
+    print("tester_line")
+    line = tf.tester_line({"email": "a@b.co", "inviteType": "EMAIL",
+                           "state": "INSTALLED"})
+    check("email leads", line.startswith("a@b.co"), True)
+    check("state is present verbatim", "state='INSTALLED'" in line, True)
+    check("inviteType is present verbatim", "inviteType='EMAIL'" in line, True)
+
+    # A field this code has never heard of must still be printed.
+    line = tf.tester_line({"email": "a@b.co", "somethingApplAddedLater": "NEW"})
+    check("an unknown field survives", "somethingApplAddedLater='NEW'" in line, True)
+
+    # Attributes are sorted, so two runs are diffable against each other.
+    line = tf.tester_line({"email": "a@b.co", "zeta": 1, "alpha": 2})
+    check("fields sorted for a stable diff", line.index("alpha") < line.index("zeta"), True)
+
+    # No attributes at all must not crash or invent a state.
+    check("no email reads as unknown, not blank",
+          tf.tester_line({}).startswith("(no email)"), True)
+
+
 def main() -> int:
     test_parse_emails()
     test_token()
@@ -606,6 +634,7 @@ def main() -> int:
     test_dry_run_against_a_missing_group_still_exits_non_zero()
     test_group_membership_is_looked_up_the_readable_way()
     test_merge_group()
+    test_tester_line()
     if _failures:
         print(f"\n{len(_failures)} check(s) FAILED: {', '.join(_failures)}")
         return 1
