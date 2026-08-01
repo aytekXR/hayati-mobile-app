@@ -18,7 +18,7 @@
 > re-accumulated ~350 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 050.
 
-_Last refreshed: 2026-08-01, **Session 057**._
+_Last refreshed: 2026-08-01 (Session 057 close). Re-derived from Apple and GitHub at the close, not carried forward._
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
 current code and current rules, the invite site is live, and **build 113 is
@@ -81,6 +81,10 @@ public and its logs are permanent, so that is enforced by a sentinel test rather
 than promised (ADR-038).
 
 ### No, your friends have NOT been emailed yet — and that is correct
+
+**Re-checked 2026-08-01 14:47 UTC: unchanged, and on schedule.** Submitted 12:20
+UTC, so ~2.5 h in against Apple's typical 24–48 h. Nothing is stuck; there is
+simply nothing to see yet.
 
 Measured 2026-08-01, right after submission:
 

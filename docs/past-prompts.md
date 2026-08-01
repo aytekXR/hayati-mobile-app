@@ -2138,3 +2138,21 @@ Built it, and Apple answered:
 
 **An unbudgeted consequence of the four new secrets, worth knowing before it confuses someone.** GitHub redacts secret values *anywhere* in a log, not just where they were used. The founder's email, first and last name are now secrets — so their tester row prints as `***`, **and so does another tester's surname, because she shares it.** Nothing is broken; the logs are simply less readable than they look, and a future session reading `***` should not read it as an API failure. Recorded in operator 2(c).
 
+
+### Session 057 — CLOSED. Final state, re-derived at the close rather than carried forward
+
+| | |
+|---|---|
+| **Merged** | [#156](https://github.com/aytekXR/hayati-mobile-app/pull/156) operator prune · [#157](https://github.com/aytekXR/hayati-mobile-app/pull/157) readiness snapshot · [#158](https://github.com/aytekXR/hayati-mobile-app/pull/158) `--merge-group` · [#159](https://github.com/aytekXR/hayati-mobile-app/pull/159) merge executed · [#160](https://github.com/aytekXR/hayati-mobile-app/pull/160) submitted · [#161](https://github.com/aytekXR/hayati-mobile-app/pull/161) tester state in `--status` · [#162](https://github.com/aytekXR/hayati-mobile-app/pull/162) NOT_INVITED is correct |
+| **CI** | green on every PR and every post-merge `main` run, including `integration-emulator` and `ios-build-smoke` where the path filter ran them |
+| **Apple** | build **113** `VALID` / `external=WAITING_FOR_BETA_REVIEW` / `internal=IN_BETA_TESTING` / `groups: founders, Friends` |
+| **Groups** | `founders` (internal) + `Friends` (external, **6** testers). `arkadaslar` merged and deleted |
+| **Testers** | five friends `NOT_INVITED` (correct — Apple has not approved yet), founder `INSTALLED` |
+| **Issues** | #146 closed. 13 open, unchanged otherwise |
+| **Readiness** | MVP built **100%** · testers can install **~99%** (Apple's clock) · public App Store **~55%** |
+
+**The session in one line:** the objective was #140 and the session was a founder directive from first message to last, correctly — and it ended with the project's **first ever build in Apple's external review queue**, a blocker that had been the top 🔴 for five consecutive sessions.
+
+**Three capabilities were built, none of them planned:** `--merge-group` (link → re-read → delete), tester state in `--status`, and the four-secret contact write finally exercised end to end. Each existed because a founder question could not be answered with what was there — which is a better filter for what to build than a queue.
+
+**#140 deferred a fifth time.** Addendum 68 stands, and is now sharper: with TestFlight in Apple's hands rather than the founder's, **S058 is the first session in five with no live directive for #140 to lose to.**
