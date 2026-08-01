@@ -46,7 +46,7 @@
 
 ### Acceptance criteria
 
-1. **A failing test FIRST.** `seasonal_window_parity_test.dart` reads `question-pack.schema.json`, extracts the enum, and asserts **set-equality** with `knownSeasonalWindows`. Follow `app/test/core/design_system/brandkit_token_parity_test.dart`'s shape — read the artefact, not a copy.
+1. **A failing test FIRST.** `seasonal_window_parity_test.dart` reads `question-pack.schema.json`, extracts the enum, and compares it with `knownSeasonalWindows`. Follow `app/test/core/design_system/brandkit_token_parity_test.dart`'s shape — read the artefact, not a copy. ⚠️ **Compare ORDERED lists, not sets — measured S058, and an earlier draft of this file said "set-equality", which would have silently weakened the two guards that already exist.** `functions/test/unit/schema-agreement.test.ts:169` asserts `toEqual([...tsValues])` and states the reason in its own header — *"ORDER included … a reordered enum is a diff worth seeing"* — and `validator_core.dart`'s `checkEnum` uses `_sameList`, also ordered. Both use `.sort()` **only** for field-NAME sets, where order genuinely carries nothing. Match the established convention or argue explicitly against it.
 2. **Widen it — but RE-DERIVE the "all three" premise first; S058 measured it and it is not what the previous three resume-prompts said.** Facts, measured 2026-08-01, not inherited:
    * The schema has **FOUR** enums, not three: `locale` `['tr','ar','en']`, `register` `['playful','respectful','msa_gulf','neutral']`, `category` `['fun','deep','memories','future','gratitude']`, `seasonalWindow` `['ramadan','eid_fitr','eid_adha','new_year']`.
    * `knownLocales`, `knownRegisters` and `knownCategories` all live in **`content/validator/validator_core.dart`** (lines 20, 21, 27) — the validator, which **is** parity-tested against the schema.
@@ -59,7 +59,7 @@
 5. Correct **ADR-026 D3**'s wording in the same commit, strikethrough-plus-dated-note style. It currently makes a claim that is false, which is worse than making none.
 6. Close **#130**.
 
-**Design-review before the code, and this is the question:** is **set-equality** right, or should the app's list be permitted to be a strict **subset**? A reader that knows fewer seasons fails **closed** (it rejects a pack it could have shown); one that knows more fails **open** (it accepts a value nothing else validates). **Those are not symmetric — encode the answer deliberately and write down which asymmetry you chose.** Note that the schema is the source of truth for *authoring*, while the Dart list is what a shipped binary can parse, and a shipped binary is older than the schema by construction.
+**Design-review before the code, and this is the question:** is **exact (ordered) equality** right, or should the app's list be permitted to be a strict **subset**? A reader that knows fewer seasons fails **closed** (it rejects a pack it could have shown); one that knows more fails **open** (it accepts a value nothing else validates). **Those are not symmetric — encode the answer deliberately and write down which asymmetry you chose.** Note that the schema is the source of truth for *authoring*, while the Dart list is what a shipped binary can parse, and a shipped binary is older than the schema by construction.
 
 ### Then, in priority order
 
