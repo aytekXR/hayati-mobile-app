@@ -58,18 +58,32 @@ void main() {
       expect(pack.questions.last.seasonalWindow, 'new_year');
     });
 
-    test('accepts every value of the closed seasonal vocabulary', () {
-      for (final window in knownSeasonalWindows) {
-        final json = validPack();
-        ((json['questions'] as List).single
-                as Map<String, dynamic>)['seasonalWindow'] =
-            window;
-        expect(
-          questionPackFromJson(json).questions.single.seasonalWindow,
-          window,
-        );
-      }
-    });
+    // NOT a parity guard, and it must not be mistaken for one — that mistake is
+    // issue #130. Iterating `knownSeasonalWindows` proves the DTO accepts every
+    // value the app already knows; it cannot detect that the app's list has
+    // drifted from the schema, because the schema is never read here. A fixture
+    // derived from its own subject proves only self-consistency.
+    //
+    // The actual parity net is `schema_enum_parity_test.dart`, which reads
+    // `content/schema/question-pack.schema.json`. This case is kept because the
+    // property it DOES check is real and distinct — the parse path accepts each
+    // known value — and its name now says which of the two it is.
+    test(
+      'the DTO parse path accepts each KNOWN seasonal value (self-consistency '
+      'only — schema parity lives in schema_enum_parity_test.dart)',
+      () {
+        for (final window in knownSeasonalWindows) {
+          final json = validPack();
+          ((json['questions'] as List).single
+                  as Map<String, dynamic>)['seasonalWindow'] =
+              window;
+          expect(
+            questionPackFromJson(json).questions.single.seasonalWindow,
+            window,
+          );
+        }
+      },
+    );
 
     test('rejects a seasonalWindow outside the closed vocabulary (ADR-026 D3 '
         '— a tag nothing recognises is a question never selected)', () {
