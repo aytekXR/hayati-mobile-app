@@ -397,7 +397,8 @@ def main(argv: list[str] | None = None, api_factory=None) -> int:
                   "on this ref. Deploy it with the deploy-rules workflow "
                   "(dispatch-only), then re-run this check.")
         return EXIT_DRIFT
-    print(f"no drift: {', '.join(args.project)} serve the ruleset on this ref")
+    print(f"no drift: {len(args.project)} project(s) serve the ruleset on this ref "
+          f"({', '.join(args.project)})")
     return EXIT_OK
 
 
