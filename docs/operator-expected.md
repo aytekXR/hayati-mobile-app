@@ -18,19 +18,27 @@
 > re-accumulated ~350 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 050.
 
-_Last refreshed: 2026-07-31, **Session 057**._
+_Last refreshed: 2026-08-01, **Session 057**._
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
-current code and current rules, the invite site is live, and **build 113 — cut
-today from `main`, carrying every fix you reported — is in TestFlight, VALID, and
-attached to `Friends` where your five testers already are.** External delivery is
-now blocked on exactly one thing: **four contact fields Apple has never had**
-(item 2(c), four `gh secret set` lines). The product's one unproven link is still
-a **real purchase**, behind item 0(a).
+current code and current rules, the invite site is live, and **build 113 is
+IN APPLE'S BETA APP REVIEW** — submitted 2026-08-01, `externalBuildState =
+WAITING_FOR_BETA_REVIEW`, attached to `Friends`, which now holds **six** testers
+including your own Apple ID. **Nothing on the TestFlight path is waiting on you
+any more.** The product's one unproven link is still a **real purchase**, behind
+item 0(a).
 
-> **⚠️ Read 2(c) first.** It is the ONLY thing between your five friends and a
-> working app, it takes about a minute, and everything else on that path is
-> finished and measured.
+> **✅ The thing that blocked this page for five sessions is done.** The four
+> Beta App Review contact fields are written — your name, an email and a phone
+> number, held as `release`-environment secrets so no value ever reaches a log
+> **or this file**. Apple typically takes **24–48 h** on a first
+> submission. When it passes, all six testers get the install notification
+> automatically — you do not need to do anything to make that happen.
+>
+> **What to do while you wait:** item **4** — install build 113 from the
+> `founders` internal group (it is already there, no review needed) and work the
+> on-device checklist. Those are the checks only your iPhone can settle, and they
+> are the best use of the next two days.
 
 ## Readiness snapshot — three different questions, three different answers
 
@@ -40,104 +48,81 @@ what*. These are measured, and each one names its own remaining blockers.
 | Question | Where it stands | What is left |
 |---|---|---|
 | **Is the MVP built?** | **100%** — M1→M6.3 including M5.3 all merged (`implementation-plan.md`). App suite 1625 tests / 87.4% coverage (gate 68); Functions 97.2% (gate 80). Both backends run current code and current rules. | Nothing. M6.5 (Android) is a Gate-3-gated follow-on, deliberately not MVP (ADR-006). |
-| **Can your five friends install it?** | **~95%** — build 113 is VALID in TestFlight, attached to `Friends`, all five testers in place, export compliance answered, Test Information copy complete. | **Item 2(c): four contact fields.** ~1 minute of your time, then 24–48 h of Apple's. Nothing else. |
+| **Can your six friends install it?** | **~99%** — build 113 is `WAITING_FOR_BETA_REVIEW`, attached to `Friends`, six testers in place, Test Information complete, export compliance answered. | **Apple's 24–48 h, and nothing of yours.** The only branch left is a rejection, and item 2(c) says what to do if that happens. |
 | **Could this go on the public App Store?** | **~55%** — and this is the honest number, not the discouraging one. The build is ready; the *business and legal surface around it* is not. | Items **0(a)** (purchases take money and do not unlock Premium — the single most serious open item on this page), **0(b)** (the sandbox purchase has never been run, so the paid loop is unproven end to end), **9** (legal bundle: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)** (store URLs, age rating, App Privacy), and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
-**The one-sentence version:** the software is finished, the beta is one form
-field away, and public launch is gated on money, law and language — none of
+**The one-sentence version:** the software is finished, the beta is in Apple's
+queue, and public launch is gated on money, law and language — none of
 which is an engineering problem, and most of which needs you rather than a
 session.
 
 ---
 
-# 🔴 2(c). Four secrets — the only thing left between your friends and the app
+# ⏳ 2(c). TestFlight external — submitted, in Apple's hands, nothing owed by you
 
-Measured against Apple immediately after the build-113 release, and
-**re-confirmed unchanged at 2026-07-31 11:24 UTC** at the session close
-(`gh secret list --env release` still returns only the three signing secrets —
-nobody has set the four below yet):
+**Done 2026-08-01.** This item blocked the page for five sessions and is closed.
+Kept (against the open-items-only rule) because it is the item you have been
+waiting on, because `tool/ci/testflight_testers.py` and `deploy-site.yml` cite it
+by number, and because the rejection branch below is still live. **Delete at the
+next close if Apple has passed it.**
+
+Measured against Apple immediately after submission:
 
 ```
-app: ikimiz (com.beyondkaira.hayati)  id=6794737016
-
-builds (newest first):
-  build 113  processing=VALID  uploaded=2026-07-31   external=READY_FOR_BETA_SUBMISSION
-                                                     internal=IN_BETA_TESTING
-                                                     groups: founders, Friends
-'Friends' has 5 tester(s):
-  ahmetsahinerr66@icloud.com   erencemozturk@icloud.com
-  kazimutkucitoglu@gmail.com   m.yahyaonder@gmail.com
-  seymabutun9@gmail.com
-
-beta app review readiness (external testers need this):
-  MISSING - Test Information: review contact email is empty
-  MISSING - Test Information: review contact first name is empty
-  MISSING - Test Information: review contact last name is empty
-  MISSING - Test Information: review contact phone is empty
+build 113  processing=VALID  external=WAITING_FOR_BETA_REVIEW  internal=IN_BETA_TESTING
+           groups: founders, Friends
+'Friends' now has 6 tester(s)
+review contact: set contactEmail, contactFirstName, contactLastName, contactPhone
 ```
 
-**That is the whole gap.** The beta description and the feedback email are
-already filled in. The four that are empty are not copy — they are your name,
-your email and a phone number Apple could reach. They are not published to
-testers.
+The four contact values live as `release`-environment secrets. The tool prints
+field **names** and `set`/`unchanged`/`missing`, never a value — this repo is
+public and its logs are permanent, so that is enforced by a sentinel test rather
+than promised (ADR-038).
 
-### Step 1 — set four secrets (yours, ~1 minute)
+### What happens without you
 
-```sh
-gh secret set ASC_REVIEW_CONTACT_FIRST_NAME --env release --body 'Aytek'
-gh secret set ASC_REVIEW_CONTACT_LAST_NAME  --env release --body 'YOUR SURNAME'
-gh secret set ASC_REVIEW_CONTACT_EMAIL      --env release --body 'aytek@beyondkaira.com'
-gh secret set ASC_REVIEW_CONTACT_PHONE      --env release --body '+90XXXXXXXXXX'
-```
-
-The `release` environment, to match `ASC_KEY_ID`/`ASC_ISSUER_ID`.
-
-⚠️ **All four or none.** Apple accepts three of four and still shows the page as
-incomplete, so the tool refuses a partial write and names what is missing.
-
-⚠️ **They must not go in a workflow input.** This repository is **public** and
-`workflow_dispatch` inputs are recorded in run metadata anyone can read — a box
-asking for your mobile number would publish it permanently. That is why the
-values come from secrets and the workflow only has a yes/no flag (ADR-038).
-
-### Step 2 — write the page and start the review (one dispatch)
-
-```sh
-# Look first. Writes nothing, invites nobody.
-gh workflow run testflight-testers.yml -f dry_run=true -f set_review_contact=true
-
-# Then, for real: fill the page and send the newest VALID build to Beta App Review.
-gh workflow run testflight-testers.yml \
-  -f dry_run=false \
-  -f set_review_contact=true \
-  -f assign_latest_build=true \
-  -f submit_for_review=true
-```
-
-Both act on **the newest VALID build**, whatever its number is by the time you
-run them — deliberately, so this recipe cannot rot the way the build-110 version
-of it did. `assign_latest_build` is idempotent and `submit_for_review` **refuses**
-if anything is still missing, rather than earning you a rejection.
-
-Apple's Beta App Review is typically **24–48 h** for a first submission. After it
-passes, all five testers get the install notification automatically.
-
-### What you can check at any time, without changing anything
+Apple's Beta App Review is typically **24–48 h** for a first submission. On
+approval the state becomes `READY_FOR_BETA_TESTING` and **all six testers are
+notified automatically**. Check at any time, changing nothing:
 
 ```sh
 gh workflow run testflight-testers.yml -f status_only=true
 ```
 
-It prints, per build, `externalBuildState` — Apple's **reviewer** — next to the
-`processingState` that is only Apple's **encoder**, plus which groups the build is
-attached to. `READY_FOR_BETA_TESTING` is the state that means your friends can
-install. **A build can read `VALID` forever and reach nobody.**
+`READY_FOR_BETA_TESTING` is the state that means they can install.
+`WAITING_FOR_BETA_REVIEW` means Apple has it and has not looked yet.
 
-> **You and your partner can install right now, without any of the above.**
-> `internal=IN_BETA_TESTING` means the internal **`founders`** group already has
-> build 113 — open TestFlight on your iPhone and it is there. Internal testers
-> never wait for Beta App Review. If your partner is not seeing it: App Store
-> Connect → **Users and Access** → invite her Apple ID → add her to `founders`.
+### If Apple REJECTS it
+
+You will get an email with a reason. Nothing here self-heals, so:
+
+1. Read the reason. Most first-submission rejections are metadata or a missing
+   demo account, not code.
+2. If it needs a **code** change: a session fixes it, then `gh workflow run
+   release.yml --ref main` cuts a new build, which auto-assigns to `Friends`
+   (ADR-037 — proven working since build 113).
+3. Re-submit the newest build:
+   ```sh
+   gh workflow run testflight-testers.yml \
+     -f dry_run=false -f assign_latest_build=true -f submit_for_review=true
+   ```
+   `submit_for_review` refuses rather than earning a second rejection if anything
+   is incomplete, and is a no-op if the build is already through.
+
+⚠️ **One thing to know about the six testers.** Your own Apple ID is now an
+**external** tester as well as an internal one. That is deliberate — it is the
+only way to see exactly what your friends see — but it means you will receive the
+same build notification twice.
+
+⚠️ **Tester emails travel through a `workflow_dispatch` input, which is
+world-readable on a public repo — and older revisions of THIS file listed all
+five in plain text.** Neither is new exposure as of today, and both are in git
+history now, so this is recorded rather than fixable. It is noted because it
+should be a decision rather than a default. **This file no longer prints tester
+addresses, and the four contact values never took that path at all** — they are
+secrets precisely for this reason (ADR-038 D1). If you want the emails out of
+the public record, that is a history rewrite and a founder call.
 
 ---
 

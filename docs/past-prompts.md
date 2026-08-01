@@ -2094,3 +2094,28 @@ Executed: `arkadaslar` had **one** tester, already in `Friends`, so **0 to move,
 **The finding worth carrying is about ADR-038, not about the tool.** Its "what this deliberately does not do" section declined to consolidate the groups, reasoning that *"consolidating them means deciding which real people belong where, and possibly emailing them again — a founder call."* Every word of that is sound **and its premise was never checked.** It assumed a population. The population was one person who was already in both groups, so there was no decision to make and no email to send. Issue #146 was filed on the identical unchecked premise and closed the identical way (addendum 70). **The same wrong assumption produced a deferral in an ADR *and* an issue in a tracker, and neither instrument noticed, because both were reasoning about a shape rather than counting the rows.** A dated correction is now on ADR-038.
 
 **A mutation check that mutates the wrong line is a test of nothing.** The first attempt to verify the delete guard anchored on `if missing:` — which matched `_token()`'s credential guard, not the delete guard. It reddened two unrelated token tests, left `merge_group` fully green, and would have been read as "the mutation did something, the suite is sensitive" by anyone not looking at *which* assertions moved. The second attempt asserted the anchor was unique before editing, and then killed exactly the two intended checks. **Assert the uniqueness of a mutation site before trusting what its failure tells you** — the diagnostic can be the defect (S056, in a new instrument).
+
+### Session 057 addendum — SUBMITTED. The five-session blocker closed, and the page that celebrated it nearly published the founder's phone number
+
+The founder supplied the contact facts and a six-person tester list. Everything remaining was executed and **measured against Apple, not inferred**:
+
+```
+review contact: set contactEmail, contactFirstName, contactLastName, contactPhone
+assigned build 113 to 'Friends'
+build 113: submitted for Beta App Review
+
+build 113  external=WAITING_FOR_BETA_REVIEW  internal=IN_BETA_TESTING  groups: founders, Friends
+'Friends' now has 6 tester(s)
+```
+
+**`WAITING_FOR_BETA_REVIEW` is the first time this project has ever reached Apple's external reviewer.** Item 2(c) had been the top 🔴 for five sessions.
+
+**Five of the six "new" testers were already in the group.** The list read as six people to add; exactly one — the founder's own Apple ID — was new, and it came back `linked-existing`, meaning they were already a `betaTester` on the app (via `founders`) and only needed the group link. **Addendum 70 in miniature, one message later: a list looks like a population until you diff it against the one you have.** Only the genuinely-new address was sent, which also minimised what went through the public dispatch input.
+
+**The dry run failed with exit 1, correctly, and that is worth writing down.** `set_review_contact=true` + `submit_for_review=true` under `dry_run=true` will *always* fail: the contact is not actually written, so `review_readiness()` still reports four gaps and `submit_for_review()` refuses. The output is a faithful rehearsal — `WOULD SET contactEmail, contactFirstName, contactLastName, contactPhone` proved all four secrets resolved *before* anything outward-facing happened — but the red is structural, not a defect. Worth knowing before someone reads it as one.
+
+**And the near-miss.** The celebratory rewrite of item 2(c) put the founder's full name, Apple ID and a truncated phone number into the header of `operator-expected.md` — **a committed file in a PUBLIC repository.** ADR-038 D1 goes to real trouble to keep those values out of *logs*, and the page documenting that protection was about to defeat it in a more permanent medium. Caught before commit; the values are gone and the page now says only that they exist.
+
+The sweep that caught it found something older: **previous revisions of this same file listed all five tester emails in plain text**, and the `testers` dispatch input is world-readable on a public repo. Neither is new, both are in git history, and neither is a session's call to rewrite — recorded in 2(c) as a founder decision rather than quietly left out. **The rule that generalises: a doc explaining a privacy control is the most likely place to violate it, because the example wants to be concrete.**
+
+**Remaining on the TestFlight path: nothing of the founder's.** Apple's 24–48 h, then six install notifications.
