@@ -219,6 +219,28 @@ def add_tester(token: str, group_id: str, email: str) -> str:
     return "invited-new"
 
 
+def tester_line(attributes: dict) -> str:
+    """One tester, with everything Apple says about them, printed VERBATIM.
+
+    ADR-038 D5's rule applied one resource down. Nothing in this repo has ever
+    measured what `betaTesters` returns — whether the state field is called
+    `state`, `betaTesterState`, or lives on a `betaTesterMetrics` relationship
+    entirely — and addendum 63 is explicit that only the vendor can settle a
+    vendor API shape. So this formats whatever arrived instead of selecting the
+    fields someone guessed: a field Apple adds tomorrow still reaches the
+    founder's eyes, and a field that is missing is visibly missing rather than
+    silently defaulted.
+
+    The email leads because that is what the founder matches against a person;
+    the rest is sorted so two runs diff cleanly against each other.
+    """
+    email = attributes.get("email") or "(no email)"
+    rest = ", ".join(
+        f"{key}={attributes[key]!r}" for key in sorted(attributes) if key != "email"
+    )
+    return f"{email}  {rest}" if rest else email
+
+
 def merge_group(
     token: str,
     app_id: str,
@@ -695,12 +717,23 @@ def print_status(token: str, app: dict, group_name: str) -> None:
     """Read-only. Writes nothing, invites nobody."""
     app_id = app["id"]
     print("\nbeta groups:")
-    query = urllib.parse.urlencode({"filter[app]": app_id, "limit": 200})
-    for group in _call(token, "GET", f"/v1/betaGroups?{query}").get("data", []):
+    for group in list_groups(token, app_id):
         attributes = group["attributes"]
         kind = "internal" if attributes.get("isInternalGroup") else "external"
         marker = " <-- target" if attributes["name"] == group_name else ""
         print(f"  {attributes['name']!r} ({kind}){marker}")
+        # Issue #146's actual request, finally in the read-only path: membership
+        # used to print ONLY on the add/assign path, so the one command the
+        # founder was told to run for a safe look could not answer "who is in
+        # this group, and did anything reach them?".
+        #
+        # A failure here must not empty the listing, for the same reason the
+        # build/group inversion below degrades instead of dying.
+        try:
+            for tester in group_members(token, group["id"]):
+                print(f"      {tester_line(tester.get('attributes') or {})}")
+        except AscError as failure:
+            print(f"      (membership unavailable: {failure})")
 
     # One inverted lookup for the whole listing (see group_names_by_build), and
     # a FAILURE HERE MUST NOT EMPTY THE LISTING: a read-only status command that
