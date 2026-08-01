@@ -8,6 +8,7 @@ import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../../core/widgets/content_text.dart';
+import '../../../core/widgets/slow_load_escape.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
 import '../../pairing/presentation/invite_share_screen.dart';
@@ -83,8 +84,34 @@ class SoloHomeScreen extends ConsumerWidget {
 
     final dayKey = soloDayKey(now);
     final answer = ref.watch(soloAnswerProvider(uid, dayKey));
+    // `soloAnswerProvider` is a Firestore DOCUMENT listener over
+    // `users/{uid}/soloAnswers/{dayKey}` (FirestoreSoloAnswersRepository.
+    // watchAnswer → `.snapshots()`) — the shape ADR-039 was written about: on a
+    // device that cannot reach the backend with nothing cached it raises NO
+    // event at all, not an empty snapshot and not an error, so `isLoading`
+    // stays true indefinitely.
+    //
+    // This screen is NOT a dead end even so, and the distinction matters:
+    // `SettingsGearOverlay` wraps every state of both homes deliberately
+    // (ADR-018 D7), and settings renders its sign-out row unconditionally, so
+    // the door exists. What did NOT exist was any indication that anything was
+    // wrong — an indefinite silent spinner, on the screen every solo user
+    // occupies until their partner installs. So this is ADR-039's threshold
+    // pattern for its stated reason ("correct for the first second and a trap
+    // thereafter"), with RETRY ONLY: the escape differs by surface, and
+    // sign-out here would duplicate the gear two inches above it.
+    //
+    // The pack load above is a `rootBundle` asset read and stays a plain
+    // spinner on purpose: it cannot hang on a network it never touches.
     if (answer.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return SlowLoadEscape(
+        actions: [
+          FilledButton(
+            onPressed: () => ref.invalidate(soloAnswerProvider(uid, dayKey)),
+            child: Text(AppLocalizations.of(context).tryAgain),
+          ),
+        ],
+      );
     }
     final answerError = answer.error;
     if (answerError != null) {

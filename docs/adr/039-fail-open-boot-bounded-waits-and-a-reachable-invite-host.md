@@ -76,6 +76,40 @@ It now offers retry **and sign-out**. Retry alone assumes the fault is
 transient; a user whose session is somehow unusable needs the door too, and
 every other blocking surface in this app already has one.
 
+> ### Correction, 2026-08-02 (beta-readiness audit)
+>
+> **That last clause was false in exactly one place — the settled-error branch
+> of the very screen this decision is about.** `OnboardingGate`'s `isLoading`
+> branch got `SlowLoadEscape` with retry *and* sign-out. Twelve lines below it,
+> `_GateErrorView` — the `profile.error != null` branch — shipped with **retry
+> only**, and the gate is deliberately outside `SettingsGearOverlay` (ADR-018 D7
+> puts the gear on the two homes ONLY, "never on capture, preview, coach, or the
+> paywall"), so there was no other door. Fixed here; pinned by
+> `onboarding_gate_test.dart` "a settled error offers the DOOR, not only retry",
+> which asserts the **call**, not the label.
+>
+> **The error branch needed it more than the loading branch did.** A spinner may
+> resolve on its own. A settled `permission-denied` cannot be cleared by pressing
+> Retry, ever — and that is not hypothetical: it is precisely what issue #140
+> shipped to the founder. The fix targeted the *reported* symptom (the hang) and
+> never swept the *sibling branch of the same file*.
+>
+> **The near-miss is worth recording too, because it nearly became a wrong fix.**
+> The audit flagged the solo home's error view as a second violation, and it is
+> not one: `SettingsGearOverlay` wraps **every** state of both homes and settings
+> renders its sign-out row unconditionally, so the door is there. The claim was
+> checked before it became code. What the solo screen *did* have is a different
+> and narrower defect — `soloAnswerProvider` is another Firestore document
+> listener, so its bare spinner could run **indefinitely and silently**, on the
+> screen every solo user occupies until their partner installs. It now uses the
+> same threshold pattern with **retry only**, because sign-out there would
+> duplicate the gear two inches above it.
+>
+> **The generalisable lesson:** a comment asserting that an invariant holds
+> elsewhere is not evidence that it does — this ADR's own sentence was the reason
+> nobody looked. Sweep the surfaces, and sweep every *branch* of each surface,
+> not just the one the bug report named.
+
 ## Decision 3 — The interactive sign-in is bounded, and a late success is not lost
 
 `AuthSigningIn` was only ever left by the sign-in future completing, and that

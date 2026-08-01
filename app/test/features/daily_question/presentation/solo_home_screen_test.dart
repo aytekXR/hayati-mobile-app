@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/l10n/bidi_isolate.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
+import 'package:hayati_app/core/widgets/slow_load_escape.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
 import 'package:hayati_app/features/daily_question/domain/question.dart';
@@ -79,10 +80,13 @@ void main() {
     onSaveAnswer,
     Future<QuestionPack> Function(ContentLanguage language)? onLoadPack,
     FakeLocalFlagStore? flags,
+    bool neverEmitsAnswer = false,
   }) async {
     final packs = FakeSoloQuestionPackRepository()..onLoadPack = onLoadPack;
-    final answers = FakeSoloAnswersRepository(initialAnswers: initialAnswers)
-      ..onSaveAnswer = onSaveAnswer;
+    final answers = FakeSoloAnswersRepository(
+      initialAnswers: initialAnswers,
+      neverEmits: neverEmitsAnswer,
+    )..onSaveAnswer = onSaveAnswer;
     final profiles = FakeProfileRepository(
       initialProfiles: {user.uid: profile},
     );
@@ -457,6 +461,38 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('EN solo question 1'), findsOneWidget);
+    });
+
+    // A stalled solo answer read is not a DEAD END — SettingsGearOverlay wraps
+    // every state of this screen (ADR-018 D7) and settings renders its sign-out
+    // row unconditionally, so the door exists. What did not exist was any
+    // indication that anything was wrong: `soloAnswerProvider` is a Firestore
+    // document listener, which on an unreachable backend with a cold cache
+    // raises no event at all, so the spinner ran forever in silence — on the
+    // screen every solo user occupies until their partner installs.
+    //
+    // The first assertion is the one that would catch a regression to a bare
+    // spinner; the second is the control that proves the escape is not simply
+    // always on, which would make the first vacuous.
+    testWidgets('a stalled answer read stops being a silent spinner '
+        '(ADR-039 threshold)', (tester) async {
+      await pumpSolo(
+        tester,
+        profile: profileWith(createdAt: DateTime(2026, 7, 10, 9)),
+        neverEmitsAnswer: true,
+      );
+      await tester.pump();
+
+      // Control: before the threshold it is still just a spinner — no copy, no
+      // buttons, no penalty for an ordinary slow moment.
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text(en.tryAgain), findsNothing);
+
+      await tester.pump(kSlowLoadThreshold + const Duration(seconds: 1));
+      await tester.pump();
+
+      expect(find.text(en.tryAgain), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
     testWidgets('a pack load failure shows the generic copy WITH the nudge, '
