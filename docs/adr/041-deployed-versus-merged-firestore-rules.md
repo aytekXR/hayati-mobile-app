@@ -190,9 +190,38 @@ boolean, and `rules-drift` gates on it. The outcomes are exhaustive:
 | present, unreadable | **red** (exit 2) | measured that it could not measure |
 | **absent** | **skipped** | an honest gap, on every run, forever |
 
-**A skipped job is an honest gap; a green one is a claim.** The preflight also
-emits a `::warning::` naming exactly what is unguarded, and the no-credential
-path in the tool is a *specified, tested* exit code rather than an accident.
+**A skipped job is an honest gap; a green one is a claim.** The no-credential
+path in the tool is likewise a *specified, tested* exit code rather than an
+accident.
+
+### D6.1 — A recorded exception: this one DOES emit `::warning::` on a green run
+
+`docs/architecture.md` §9 states the opposite rule for the Slack notifier: an
+absent `SLACK_WEBHOOK_URL` is a `::notice::` and exit 0, **"never a `::warning::`
+on a green build, which would re-open exactly the annotation noise issue #39 was
+just closed to remove."** `rules-drift-preflight` breaks that rule deliberately,
+and under project-rules #9 a compromise recorded is a compromise permitted —
+silently contradicting it would not be.
+
+**Why the cases differ.** An absent Slack webhook means a *notification* was not
+sent; nothing about the build's correctness changes, and the reader loses a
+convenience. An absent `FIREBASE_RULES_VIEWER_SA` means **a gate is not running**
+— nothing is checking that production enforces the rules `main` describes, which
+is a live correctness gap that has already produced one user-visible bug. The
+run is green and that green is, in a bounded way, worth less than it looks. That
+is precisely what an annotation is for.
+
+**Why the skipped job is not sufficient on its own.** ADR-024's own comment
+observes that *"this repo skips constantly by design"* — `integration-emulator`
+skips on every docs-only push. A skipped job therefore **blends in**, and the
+claim that it is self-evidently loud was too generous when this ADR first made
+it. The annotation is what distinguishes "skipped because this push did not need
+it" from "skipped because nobody can run it".
+
+**The cost is bounded and self-clearing:** the warning appears only on `main`,
+only while the credential is absent, and disappears the moment the founder sets
+the secret (#165). If it is still firing many sessions from now, that is
+information rather than noise — it means the gap is still open.
 
 `rules-drift` joins `slack-notify`'s fan-in: its red arrives after the merge with
 no other reader, which is ADR-024's founding case. The notifier is generic over
