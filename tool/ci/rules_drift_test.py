@@ -194,6 +194,12 @@ def test_unexpected_ruleset_filename_is_drift() -> None:
                          _api_ok(filename="something-else.rules"))
     check("a renamed file in the live ruleset is drift", code, 1)
     check_in("says which filename", "something-else.rules", out)
+    # The bytes are identical here, so the report must NOT claim a content
+    # difference and then print an empty diff — a report that misdescribes its
+    # own finding sends the next reader hunting for something that is not there.
+    check_not_in("does not claim the CONTENT differs when it does not",
+                 "the live ruleset is NOT the ruleset on this ref", out)
+    check_in("names the real reason instead", "the drift is in its shape", out)
 
 
 def test_multi_file_live_ruleset_is_drift() -> None:

@@ -328,15 +328,25 @@ def check_project(project: str, local: str, expected_filename: str, api) -> tupl
         lines.append("  MATCHES the ruleset on this ref")
         return True, lines
 
-    lines.append("  DRIFT: the live ruleset is NOT the ruleset on this ref")
-    diff = list(difflib.unified_diff(
-        local.splitlines(), remote.splitlines(),
-        fromfile=f"{expected_filename} (this ref)", tofile=f"{project} (live)",
-        lineterm="", n=1))
-    shown = diff[:40]
-    lines.extend("  " + d for d in shown)
-    if len(diff) > len(shown):
-        lines.append(f"  … {len(diff) - len(shown)} more diff lines suppressed")
+    # Only claim the CONTENT differs when it does. A ruleset whose bytes match
+    # but whose file is renamed is still drift (the complaint above says why),
+    # and printing "the live ruleset is NOT the ruleset on this ref" over an
+    # empty diff would send the reader hunting for a difference that is not
+    # there — a report that misdescribes its own finding is the next reader's
+    # wasted hour.
+    if remote != local:
+        lines.append("  DRIFT: the live ruleset is NOT the ruleset on this ref")
+        diff = list(difflib.unified_diff(
+            local.splitlines(), remote.splitlines(),
+            fromfile=f"{expected_filename} (this ref)", tofile=f"{project} (live)",
+            lineterm="", n=1))
+        shown = diff[:40]
+        lines.extend("  " + d for d in shown)
+        if len(diff) > len(shown):
+            lines.append(f"  … {len(diff) - len(shown)} more diff lines suppressed")
+    else:
+        lines.append("  the live ruleset's CONTENT matches this ref; "
+                     "the drift is in its shape, above")
     return False, lines
 
 
