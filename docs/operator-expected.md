@@ -18,7 +18,18 @@
 > re-accumulated ~350 lines of ✅ DONE blocks, superseded corrections and session
 > narrative since the last prune at Session 050.
 
-_Last refreshed: 2026-08-01 (Session 057 close). Re-derived from Apple and GitHub at the close, not carried forward._
+_Last refreshed: 2026-08-01 (Session 058 close). Re-derived from Apple, GitHub **and Firebase** at the close, not carried forward._
+
+> **Re-measured this session, nothing moved:** build **113** is still
+> `externalBuildState = WAITING_FOR_BETA_REVIEW` — Apple has neither approved nor
+> rejected it. The five friends still read `NOT_INVITED`, **which remains
+> correct**: Apple does not email an external tester until the group has an
+> approved build. There is nothing to do and nothing to fix. Readiness reports
+> nothing missing.
+>
+> **One new item on this page: 2(e)(iv).** It is read-only, it takes about five
+> minutes, and it arms the check that would have caught the bug behind your
+> "Something went wrong" report eighteen days before you saw it.
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
 current code and current rules, the invite site is live, and **build 113 is
