@@ -80,18 +80,43 @@ field **names** and `set`/`unchanged`/`missing`, never a value — this repo is
 public and its logs are permanent, so that is enforced by a sentinel test rather
 than promised (ADR-038).
 
+### No, your friends have NOT been emailed yet — and that is correct
+
+Measured 2026-08-01, right after submission:
+
+```
+'Friends' (external)
+  <five friends>   inviteType='EMAIL'  state='NOT_INVITED'
+  <your Apple ID>  inviteType='EMAIL'  state='INSTALLED'
+```
+
+**`NOT_INVITED` is the expected state and not a fault.** Apple does not email an
+external tester while the group's build is still in review — adding someone to
+the group and inviting them are two separate events, and Apple holds the second
+one until there is an approved build to invite them *to*. Nothing is stuck.
+
+Your own entry reads `INSTALLED` because you already have the build through the
+internal `founders` group.
+
 ### What happens without you
 
 Apple's Beta App Review is typically **24–48 h** for a first submission. On
-approval the state becomes `READY_FOR_BETA_TESTING` and **all six testers are
-notified automatically**. Check at any time, changing nothing:
+approval the build's state becomes `READY_FOR_BETA_TESTING`, Apple sends the
+invitations, and each tester moves `NOT_INVITED` → `INVITED` → `ACCEPTED` →
+`INSTALLED`. **All of that is automatic.** Check at any time, changing nothing:
 
 ```sh
 gh workflow run testflight-testers.yml -f status_only=true
 ```
 
-`READY_FOR_BETA_TESTING` is the state that means they can install.
-`WAITING_FOR_BETA_REVIEW` means Apple has it and has not looked yet.
+Since S057 that command prints **each tester and their state**, so "did it reach
+them?" is now answerable without changing anything. Two states to watch:
+`READY_FOR_BETA_TESTING` on the build, and `INVITED` or better on the people.
+
+> **⚠️ Your CI logs now mask more than you expect.** The four contact values are
+> secrets, so GitHub redacts them *anywhere* they appear — including in unrelated
+> output. One friend shares your surname, so her last name prints as `***` too.
+> Nothing is wrong; the log is just less readable than it looks.
 
 ### If Apple REJECTS it
 

@@ -2119,3 +2119,22 @@ build 113  external=WAITING_FOR_BETA_REVIEW  internal=IN_BETA_TESTING  groups: f
 The sweep that caught it found something older: **previous revisions of this same file listed all five tester emails in plain text**, and the `testers` dispatch input is world-readable on a public repo. Neither is new, both are in git history, and neither is a session's call to rewrite — recorded in 2(c) as a founder decision rather than quietly left out. **The rule that generalises: a doc explaining a privacy control is the most likely place to violate it, because the example wants to be concrete.**
 
 **Remaining on the TestFlight path: nothing of the founder's.** Apple's 24–48 h, then six install notifications.
+
+### Session 057 addendum — "did they get an email?" was unanswerable, and the answer is NO (correctly)
+
+The founder asked whether the six testers had been emailed. **The tool could not answer**, which is the finding. `--status` printed group *names* only; membership printed exclusively on the add/assign path. So the one command the founder is told to run for a safe look was the one command that could not see people — **#146's actual request, still open after #146 was closed.** Closing an issue on a measurement is not the same as building what it asked for, and it is easy to conflate the two when the measurement is reassuring.
+
+Built it, and Apple answered:
+
+```
+'Friends' (external)
+  <five friends>   inviteType='EMAIL'  state='NOT_INVITED'
+  <founder>        inviteType='EMAIL'  state='INSTALLED'
+```
+
+**`NOT_INVITED`, and that is correct.** Apple does not email an external tester while the group's build is in review: *adding to a group* and *inviting* are two separate events, and Apple holds the second until there is an approved build to invite them to. This had been asserted to the founder twice from reasoning; it is now measured.
+
+**The design that made this cheap: print the attributes VERBATIM.** Nothing here had measured what `betaTesters` returns — the state field could have been `state`, `betaTesterState`, or a `betaTesterMetrics` relationship. Rather than guess and select, `tester_line()` formats whatever arrived, sorted, with the email first. Apple turned out to send `appDevices`, `firstName`, `inviteType`, `lastName`, `state`. **A selector built on a guess would have printed nothing useful and looked like it worked** (addendum 63 again — and the test pins the *property* that an unknown field survives, not the field list, because a field list is the thing that goes stale).
+
+**An unbudgeted consequence of the four new secrets, worth knowing before it confuses someone.** GitHub redacts secret values *anywhere* in a log, not just where they were used. The founder's email, first and last name are now secrets — so their tester row prints as `***`, **and so does another tester's surname, because she shares it.** Nothing is broken; the logs are simply less readable than they look, and a future session reading `***` should not read it as an API failure. Recorded in operator 2(c).
+
