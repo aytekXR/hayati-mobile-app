@@ -100,9 +100,12 @@ PLACEHOLDER_PHRASES = (
 )
 
 LOCALES = {
-    "en": {"dir": "ltr", "lang": "en", "privacy": "Privacy Policy", "terms": "Terms of Service"},
-    "tr": {"dir": "ltr", "lang": "tr", "privacy": "Gizlilik Politikası", "terms": "Kullanım Koşulları"},
-    "ar": {"dir": "rtl", "lang": "ar", "privacy": "سياسة الخصوصية", "terms": "شروط الاستخدام"},
+    "en": {"dir": "ltr", "lang": "en", "privacy": "Privacy Policy",
+           "terms": "Terms of Service", "support": "Support"},
+    "tr": {"dir": "ltr", "lang": "tr", "privacy": "Gizlilik Politikası",
+           "terms": "Kullanım Koşulları", "support": "Yardım"},
+    "ar": {"dir": "rtl", "lang": "ar", "privacy": "سياسة الخصوصية",
+           "terms": "شروط الاستخدام", "support": "المساعدة"},
 }
 
 # Brandkit v1.0 tokens (docs/frontend-brandkit.md). Inlined rather than imported
@@ -230,6 +233,13 @@ def page(title: str, locale: str, body: str, langs: str = "", legal_footer: bool
     bottom of the invite page — the one page an invitee actually sees.
     """
     meta = LOCALES[locale]
+    # The LANDING page's title IS the brand, and the chrome prints the title
+    # beside the brand — so passing it through renders the header "ikimizikimiz"
+    # and the tab "ikimiz · ikimiz". The old stub index shipped exactly that.
+    # A page whose subject is the site itself has no subtitle.
+    is_root = not title or title == BRAND
+    head_title = BRAND if is_root else f"{html.escape(title)} · {BRAND}"
+    tag = "" if is_root else f'<span class="tag">{html.escape(title)}</span>'
     footer = f"{BRAND}"
     if legal_footer:
         footer += (
@@ -241,12 +251,12 @@ def page(title: str, locale: str, body: str, langs: str = "", legal_footer: bool
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{html.escape(title)} · {BRAND}</title>
+<title>{head_title}</title>
 <meta name="robots" content="index,follow">
 <style>{CSS}</style>
 </head>
 <body><div class="wrap">
-<header><a class="brand" href="/">{BRAND}</a><span class="tag">{html.escape(title)}</span></header>
+<header><a class="brand" href="/">{BRAND}</a>{tag}</header>
 {body}
 {langs}
 <footer>{footer}</footer>
@@ -255,10 +265,21 @@ def page(title: str, locale: str, body: str, langs: str = "", legal_footer: bool
 
 
 def lang_nav(kind: str, current: str) -> str:
+    """The language switcher for one page family.
+
+    `kind=""` is the LANDING family, whose routes are `/`, `/tr`, `/ar` rather
+    than `/<kind>` and `/<kind>/<loc>`. Special-cased here rather than at every
+    call site because the naive f-string emits `//tr` for it, which resolves to
+    a protocol-relative URL in some browsers — a language switcher that
+    occasionally leaves the site is worse than one that does not exist.
+    """
     names = {"en": "English", "tr": "Türkçe", "ar": "العربية"}
     parts = []
     for loc in ("en", "tr", "ar"):
-        href = f"/{kind}" if loc == "en" else f"/{kind}/{loc}"
+        if loc == "en":
+            href = f"/{kind}" if kind else "/"
+        else:
+            href = f"/{kind}/{loc}" if kind else f"/{loc}"
         label = html.escape(names[loc])
         parts.append(f"<a href='{href}'>{label}</a>" if loc != current else f"<strong>{label}</strong>")
     return "<nav class='langs'>" + " ".join(parts) + "</nav>"
@@ -292,9 +313,11 @@ def build(
     legal_dir: pathlib.Path,
     allow_placeholders: bool,
     invite_only: bool = False,
+    site_dir: pathlib.Path | None = None,
 ) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     found: list[str] = []
+    site_dir = site_dir if site_dir is not None else pathlib.Path("docs/site")
 
     if not invite_only:
         for kind, stem in (("privacy", "privacy-policy"), ("terms", "terms")):
@@ -370,16 +393,39 @@ def build(
     # In invite-only mode /privacy and /terms are not written, so the index must
     # not link to them — a 404 behind a link the site itself offers is exactly
     # the broken-looking detail an invitee reads as "do not trust this".
-    legal_links = (
-        ""
-        if invite_only
-        else '\n<p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>'
-    )
-    index = f"""<h1>{BRAND}</h1>
-<p>One question a day, for two.</p>{legal_links}"""
-    (out_dir / "index.html").write_text(
-        page("ikimiz", "en", index, legal_footer=not invite_only), encoding="utf-8"
-    )
+    # The landing and support pages, from docs/site/*.md.
+    #
+    # THEY ARE BUILT IN EVERY MODE, INCLUDING --invite-only, and that is the
+    # whole point of putting them here rather than beside the legal loop above.
+    # The App Store listing declares the SITE ROOT as its support URL, and until
+    # this existed that URL served a two-line stub. The legal pages are blocked
+    # behind the founder's unfilled legal name; the support page is not, has no
+    # legal text in it, and there is no reason for a user needing help to wait
+    # on a blank in a privacy policy. The two problems are independent and are
+    # now decoupled.
+    #
+    # The placeholder gate still applies to this copy — a landing page reading
+    # "[COMPANY — TBD]" is exactly as bad as a policy that does — but unlike the
+    # legal loop it is NOT skipped by --invite-only, because these pages ship in
+    # that mode.
+    for kind, stem in (("", "landing"), ("support", "support")):
+        for loc in ("en", "tr", "ar"):
+            src = site_dir / f"{stem}.{loc}.md"
+            if not src.exists():
+                raise BuildError(f"missing site source: {src}")
+            md = src.read_text(encoding="utf-8")
+            hits = check_placeholders(src.name, md)
+            if hits:
+                found.append(f"{src.name}: {hits}")
+            title = BRAND if kind == "" else LOCALES[loc]["support"]
+            doc = page(title, loc, markdown_to_html(md), lang_nav(kind, loc),
+                       legal_footer=not invite_only)
+            if kind == "":
+                target = out_dir if loc == "en" else out_dir / loc
+            else:
+                target = out_dir / kind if loc == "en" else out_dir / kind / loc
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "index.html").write_text(doc, encoding="utf-8")
 
     (out_dir / "404.html").write_text(
         page(
@@ -420,6 +466,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Build the ikimiz.beyondkaira.com static site.")
     ap.add_argument("--out", default="web/public")
     ap.add_argument("--legal-dir", default="docs/legal")
+    ap.add_argument("--site-dir", default="docs/site")
     ap.add_argument("--allow-placeholders", action="store_true")
     ap.add_argument(
         "--invite-only",
@@ -443,6 +490,7 @@ def main(argv: list[str] | None = None) -> int:
             pathlib.Path(a.legal_dir),
             a.allow_placeholders,
             invite_only=a.invite_only,
+            site_dir=pathlib.Path(a.site_dir),
         )
     except BuildError as exc:
         print(f"::error::{exc}")

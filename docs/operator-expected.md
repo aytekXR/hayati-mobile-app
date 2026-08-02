@@ -135,6 +135,21 @@ week**. If the beta is meant to test the couple ritual rather than the
 plumbing, authoring one real couple pack (W9, `content/README.md`) is the
 highest-value content work available — and it needs you, not a session.
 
+### 4. Two words differ between your App Store listing and your app — your call
+
+Found while writing the website, and it is a brand decision rather than a bug,
+so nothing was changed in either place:
+
+| Thing | Your App Store description says | Your app says |
+|---|---|---|
+| the streak unit | **nar tanesi** / pomegranate seed | **tohum** / seed (`app_tr.arb:85`) |
+| the weekly grace day | **hoşgörü günü** | **Merhamet günü** (`app_tr.arb:87`) |
+
+A Turkish user reads one word in the listing and sees another in the app. The
+new website follows the **app**, on the reasoning that the site describes what
+someone is about to see — but if you prefer the listing's words, the app is the
+side to change, and a session can do it in one diff. **Tell us which.**
+
 ### What a session fixed on 2026-08-02, so you do not have to
 
 * **The post-sign-in error screen was a dead end.** If the profile read settled
@@ -148,6 +163,17 @@ highest-value content work available — and it needs you, not a session.
   *nothing at all* — not an error — so the spinner never resolved. After eight
   seconds it now says so and offers a retry. (You could always escape via the
   settings gear; there was simply no indication anything was wrong.)
+* **The website now has real pages.** `/` was a two-line stub — and that stub
+  was the **support URL your App Store listing declares**. There is now a proper
+  landing page and a proper support page, in Turkish, Arabic and English, at
+  `/`, `/tr`, `/ar` and `/support`, `/support/tr`, `/support/ar`. The support
+  page answers the questions a confused tester actually has: how to pair (install
+  first, then enter the **eight-character** code — tapping the link opens the
+  browser by design), what to do when a code is refused, how to get your data
+  out, how to delete your account and what your partner sees, the PIN and Face ID
+  lock, and how to reach you. **They publish even while the legal pages cannot** —
+  they contain no legal text, so they never needed to wait on your legal name.
+  The Arabic copy has **not** had native review; it is short for that reason.
 
 ### Still unknown — worth one look on your device
 
