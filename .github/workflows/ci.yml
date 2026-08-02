@@ -176,7 +176,11 @@ jobs:
         run: flutter pub get
       - name: format
         # Explicit dirs (never '.') so we don't descend into build/ or ios/ Pods.
-        run: dart format --set-exit-if-changed app/lib app/test tool content
+        # `app/screenshots` is listed because an explicit allow-list silently
+        # drops anything added outside it: the App Store screenshot generator is
+        # Dart that `flutter analyze` DOES read (it analyses the whole package)
+        # and that this gate would have skipped forever.
+        run: dart format --set-exit-if-changed app/lib app/screenshots app/test tool content
       - name: analyze
         working-directory: app
         run: flutter analyze
