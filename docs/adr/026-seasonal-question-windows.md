@@ -149,7 +149,7 @@ over a calendar library). Throwing instead would turn a cosmetic capability
 loss into a total outage of the product's core loop, dressed up as N
 per-couple skips.
 
-### D3 — The window vocabulary becomes a CLOSED enum, gated in FIVE places
+### D3 — The window vocabulary becomes a CLOSED enum, gated in FIVE places ~~and kept in sync in four~~ *(see the correction below — the fifth reader had no parity net until 2026-08-02)*
 
 | id | calendar | window (inclusive) |
 |---|---|---|
@@ -174,6 +174,50 @@ in fact a three-way sync, not a two-way one):
    narrowing `Question.seasonalWindow`, mirroring `QUESTION_CATEGORIES`);
 5. the Dart pack DTO (defense-in-depth at the app's consumption edge, the
    existing pattern for every other enum in this schema).
+
+> #### Correction, 2026-08-02 (issue #130)
+>
+> **Reader 5 rejected an unknown value, as claimed — but nothing kept it in
+> SYNC, so "gated in five places" overstated what was built.** Readers 2–4 are
+> parity-checked against the schema (`validateSchemaAgreement` on the Dart side,
+> `schema-agreement.test.ts` on the TS side). The app's `knownSeasonalWindows`
+> was not, and **the test that looked like the fifth guard was
+> self-referential**: `question_pack_dto_test.dart`'s "accepts every value of
+> the closed seasonal vocabulary" iterated `knownSeasonalWindows` itself. A
+> fixture derived from its own subject cannot detect drift, because the schema
+> is never read.
+>
+> The failure it permitted: add a season to the schema, the validator and both
+> TS readers, forget the Dart list — **CI fully green, and the app throws
+> `FormatException` at pack-load on a real device.**
+>
+> Closed by `app/test/features/daily_question/schema_enum_parity_test.dart`,
+> which reads the schema file and compares **ordered** lists (matching the two
+> guards that already existed, both of which compare order deliberately — "a
+> reordered enum is a diff worth seeing").
+>
+> **Widening it found more than the issue listed**, and the extra findings are
+> the reason this correction is longer than a number change:
+>
+> * the schema has **FOUR** enums, not three. `locale` was in nobody's account
+>   of this — its app mirror is `ContentLanguage`, which lives in
+>   `features/profile/`, a different feature from the DTO that consumes it,
+>   which is exactly why a sweep over `daily_question/` missed it;
+> * two of the "guards" were **cardinality assertions wearing a vocabulary's
+>   clothing** — `expect(QuestionCategory.values, hasLength(5))` and the same
+>   for `ContentLanguage` both pass after *renaming* a value;
+> * the comparison is **exact, not subset**, and the asymmetry that sounds like
+>   it should favour a subset does not: every app mirror THROWS on an
+>   unrecognised value, so an app knowing fewer values than the schema is not
+>   failing closed — it is a device-side `FormatException` waiting for the first
+>   pack that uses the new one;
+> * the new test also asserts the schema declares **no fifth enum**, so a new
+>   vocabulary cannot arrive mirrored by nothing behind green tests.
+>
+> Mutation-checked in both directions plus a must-stay-green row: a season added
+> to the schema only → red; removed from the Dart list only → red; the category
+> enum reordered → red; a fifth enum added → red; **added to both sides in one
+> diff → green**, which is what proves the guard is not simply always failing.
 
 Why closed rather than free-string: with a free string, an author who
 writes `"Ramadan"`, `"eid"`, or `"ramadan_2027"` gets a question that is
