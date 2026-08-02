@@ -348,23 +348,109 @@ def test_submit_for_review() -> None:
     check_raises("refuses when Test Information is incomplete",
                  lambda: tf.submit_for_review("t", "app", build), "refusing to submit")
 
+    # ---- THE 2026-08-02 DEFECT -------------------------------------------
+    # Apple's conflict phrases span two OPPOSITE outcomes, and the version that
+    # read them as one reported a REFUSAL as `already submitted — no-op` with
+    # exit 0: build 114 was never submitted, build 113 was still in review, and
+    # the operator was told the opposite. The sentence cannot settle which build
+    # holds the queue. The RE-READ can, so these assert the re-read.
+    conflict = tf.AscError(
+        "POST /v1/betaAppReviewSubmissions -> HTTP 409: "
+        "{'detail':'Another build is in review'}"
+    )
 
-def test_looks_already_submitted() -> None:
+    def sequenced(*states):
+        """buildBetaDetail answers `states` in order, the last one repeating.
+
+        The pre-flight read and the post-failure re-read must be able to DIFFER,
+        which the flat script fake cannot express — it matches by path and would
+        hand both reads the same state, making the race and the refusal
+        indistinguishable in exactly the way the code under test must not be.
+        """
+        remaining = list(states)
+        seen = []
+
+        def call(_token, method, path, body=None):
+            seen.append((method, path, body))
+            if "betaAppReviewDetail" in path:
+                return {"data": {"id": "d", "attributes": ready}}
+            if "betaAppLocalizations" in path:
+                return {"data": [{"attributes": {"locale": "en-US",
+                                                 "description": "d",
+                                                 "feedbackEmail": "f@x.co"}}]}
+            if "buildBetaDetail" in path:
+                state = remaining.pop(0) if len(remaining) > 1 else remaining[0]
+                return {"data": {"attributes": {"externalBuildState": state}}}
+            if method == "POST":
+                raise conflict
+            return {}
+
+        tf._call = call
+        return seen
+
+    # A DIFFERENT build holds the queue: the re-read shows this one never moved,
+    # so this is a refusal and must be loud. Each needle checked separately —
+    # the operator acts on all four, and the fake is stable under repetition.
+    for label, needle in (
+        ("a refusal is NOT reported as a no-op", "was NOT submitted"),
+        ("names the state it is STILL in", "still READY_FOR_BETA_SUBMISSION"),
+        ("says why, so the operator knows to wait", "serialize per APP"),
+        ("quotes Apple rather than paraphrasing", "Another build is in review"),
+    ):
+        sequenced("READY_FOR_BETA_SUBMISSION", "READY_FOR_BETA_SUBMISSION")
+        check_raises(label, lambda: tf.submit_for_review("t", "app", build), needle)
+
+    # THIS build got submitted by an overlapping dispatch between our state read
+    # and our POST — the race the backstop exists for, and still a real no-op.
+    seen = sequenced("PROCESSING", "WAITING_FOR_BETA_REVIEW")
+    line = tf.submit_for_review("t", "app", build)
+    check("the RACE is still a no-op", "no-op" in line, True)
+    check("the race no-op names the state Apple moved it to",
+          "WAITING_FOR_BETA_REVIEW" in line, True)
+    check("the race no-op does NOT claim we submitted it",
+          "submitted for Beta App Review" in line, False)
+    check("the re-read actually happened",
+          len([p for m, p, _ in seen if m == "GET" and "buildBetaDetail" in p]), 2)
+
+    # The re-read must not become a new way to swallow a real failure: an error
+    # that is not the queue talking propagates untouched, with no second GET.
+    seen = _fake_call(script("PROCESSING", (
+        "POST", "betaAppReviewSubmissions",
+        tf.AscError("POST /v1/x -> HTTP 401: Authentication credentials are missing"),
+    )))
+    check_raises("a real failure still raises",
+                 lambda: tf.submit_for_review("t", "app", build), "HTTP 401")
+    check("and is not re-read first",
+          len([p for m, p, _ in seen if m == "GET" and "buildBetaDetail" in p]), 1)
+
+
+def test_looks_like_submission_conflict() -> None:
     """The BACKSTOP for a duplicate submission. The primary guard is the state
     read; this only covers the race. It requires BOTH an error family AND a
     phrase precisely because this repo has NOT measured which status Apple
-    returns — the design review found 409 and 422 both claimed in the wild."""
-    print("looks_already_submitted")
-    check("422 + phrase", tf.looks_already_submitted(
+    returns — the design review found 409 and 422 both claimed in the wild.
+
+    It recognises the QUEUE and deliberately does NOT say which build is holding
+    it: both outcomes live in one phrase list, and `submit_for_review` settles
+    them by re-reading the state. Splitting them here by sentence is what the
+    2026-08-02 measurement falsified."""
+    print("looks_like_submission_conflict")
+    check("422 + phrase", tf.looks_like_submission_conflict(
         "POST /v1/x -> HTTP 422: {'detail':'Another build is in review'}"), True)
-    check("409 + phrase", tf.looks_already_submitted(
+    check("409 + phrase", tf.looks_like_submission_conflict(
         "POST /v1/x -> HTTP 409: already submitted"), True)
+    # Both outcomes match, on purpose. The predicate's job is "re-read", not
+    # "decide" — asserted so a future split here has to argue with a test.
+    check("'another build' and 'already submitted' are ONE family",
+          [tf.looks_like_submission_conflict("POST /v1/x -> HTTP 409: " + phrase)
+           for phrase in ("Another build is in review", "already been submitted")],
+          [True, True])
     # The two halves that must NOT be enough on their own.
-    check("422 without the phrase is a REAL error", tf.looks_already_submitted(
+    check("422 without the phrase is a REAL error", tf.looks_like_submission_conflict(
         "POST /v1/x -> HTTP 422: {'detail':'Invalid build id'}"), False)
-    check("the phrase without the family is a REAL error", tf.looks_already_submitted(
+    check("the phrase without the family is a REAL error", tf.looks_like_submission_conflict(
         "POST /v1/x -> HTTP 500: already submitted"), False)
-    check("401 is never swallowed", tf.looks_already_submitted(
+    check("401 is never swallowed", tf.looks_like_submission_conflict(
         "POST /v1/x -> HTTP 401: Authentication credentials are missing"), False)
 
 
@@ -629,7 +715,7 @@ def main() -> int:
     test_read_review_contact()
     test_set_review_contact_never_leaks()
     test_submit_for_review()
-    test_looks_already_submitted()
+    test_looks_like_submission_conflict()
     test_missing_contact_does_not_block_assignment()
     test_dry_run_against_a_missing_group_still_exits_non_zero()
     test_group_membership_is_looked_up_the_readable_way()

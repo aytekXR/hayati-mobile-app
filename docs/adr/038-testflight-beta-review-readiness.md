@@ -113,6 +113,39 @@ log had already claimed to fix.
   `IN_EXPORT_COMPLIANCE_REVIEW` make a submission certain to fail, for a reason that is one
   question in App Store Connect. The tool refuses and says which.
 
+> **⚠️ Correction — 2026-08-02 (Session 060): D3 removed the guess from the STATUS CODE and left it
+> in the SENTENCE.**
+>
+> The bullet above is right that the status code was unmeasured, and it fixed that. What survived is
+> the assumption underneath: that every phrase in the backstop's list means the same thing. It does
+> not. `"already been submitted"` says *this* build is through the gate — a no-op. `"another build
+> is in review"` says *a different* build is, and **this one was not submitted** — a refusal. One
+> list, one return statement, two opposite outcomes.
+>
+> Measured on the live app: with build 113 `WAITING_FOR_BETA_REVIEW`, dispatching
+> `--submit-for-review` for build 114 printed `build 114: Apple says it is already submitted —
+> no-op` and **exited 0**. A follow-up `--status` showed build 114 still
+> `READY_FOR_BETA_SUBMISSION`. Nothing had been submitted, and the lane said otherwise. Only an
+> unprompted re-read caught it.
+>
+> **The second, larger fact this measured:** Beta App Review submissions **serialize per APP, not
+> per build**. The premise that made `betaAppReviewSubmissions` look per-build-independent — it
+> carries a `build` relationship, so each build has its own submission resource — is a fact about
+> the *resource shape*, not about the *queue*. A newer build cannot be submitted while another is in
+> review.
+>
+> Fixed by making the phrase list stop deciding. A match now means only "the queue is talking";
+> `submit_for_review` then **RE-READS `externalBuildState`** and lets the API settle which build is
+> holding it: back through the gate → the race no-op the backstop was written for; still not → an
+> `AscError` that names the state, quotes Apple, and says to wait. Eleven checks, six of which the
+> pre-fix code fails.
+>
+> **The transferable rule, and it is the same shape as addendum 65 and the merge-group lane's
+> link-then-RE-READ:** when a vendor error has to be classified, classify it by re-reading the
+> STATE, not by parsing the PROSE. The state is the vendor's answer; the sentence is the vendor's
+> phrasing, and phrasing is not an API. A predicate that cannot distinguish two outcomes must not be
+> the thing that picks between them.
+
 ### D4 — The release lane passes `--set-review-contact`, and still does not submit
 
 `release.yml`'s existing assignment step gains `--set-review-contact`. A release is an intentional
