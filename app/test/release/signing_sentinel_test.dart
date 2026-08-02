@@ -2,7 +2,14 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// SOURCE-SENTINEL over the iOS project's **signing** settings (ADR-029 D3).
+/// SOURCE-SENTINEL over the iOS project's **release-critical** pbxproj settings
+/// — signing first (ADR-029 D3), and since S060 the device family too.
+///
+/// The two share a mechanism and a motivation, which is why they share a file
+/// rather than duplicating the hand parser at the bottom: both are settings no
+/// per-PR check reads, both are one Xcode click from changing, and both fail
+/// far from the edit — signing at release time, the device family in front of
+/// an Apple reviewer.
 ///
 /// WHY this shape: nothing in the per-PR merge gate can see a signing
 /// regression. `flutter analyze` and `flutter test` never read the pbxproj;
@@ -166,6 +173,67 @@ void main() {
         c.settings['CODE_SIGN_STYLE'],
         isNot('Manual'),
         reason: 'app-target config ${c.name} (${c.id}) flipped to Manual',
+      );
+    }
+  });
+
+  test('the PROJECT-level configs pin TARGETED_DEVICE_FAMILY = 1 (iPhone only)', () {
+    // WHY THIS IS SCOPED TO THE PROJECT AND NOT THE APP TARGET — measured
+    // before it was written, and it inverts every other test in this file.
+    // `TARGETED_DEVICE_FAMILY` does not appear on the app-target configs at
+    // all; the target INHERITS it from the three project-level blocks. So the
+    // obvious shape here — `for (final c in appTargets())`, the shape the four
+    // tests above take — would iterate a set in which the key is absent from
+    // every member, and pass while the project said "1,2", "2", or anything
+    // else. Same vacuous-green class the parser census at the top guards
+    // against, one scope down.
+    //
+    // WHY "1". Flutter scaffolds "1,2" (universal) and nothing here ever chose
+    // otherwise, while `docs/mvp.md` lists iPad under v2. Shipping universal
+    // costs twice: App Store Connect then REQUIRES 13" iPad screenshots for
+    // the listing, and Apple REVIEWS the app on an iPad — a surface with no
+    // golden, no widget test and no design pass in this repo. That is a
+    // rejection risk carried for a platform the roadmap does not yet claim.
+    final projectConfigs = configs.where((c) => c.bundleId == null).toList();
+    expect(
+      projectConfigs.length,
+      3,
+      reason:
+          'expected the three project-level XCBuildConfiguration blocks (the '
+          'ones with no PRODUCT_BUNDLE_IDENTIFIER); found '
+          '${projectConfigs.length}. If this is 0 the assertions below are '
+          'VACUOUS and this test is guarding nothing — fix the scoping, never '
+          'the expectation',
+    );
+    for (final c in projectConfigs) {
+      expect(
+        c.settings['TARGETED_DEVICE_FAMILY'],
+        '1',
+        reason:
+            'project config ${c.name} (${c.id}) must pin '
+            'TARGETED_DEVICE_FAMILY = "1"; found '
+            '${c.settings['TARGETED_DEVICE_FAMILY'] ?? '(absent)'} — "1,2" is '
+            "Flutter's scaffold default and puts the app in front of an Apple "
+            'reviewer on an untested iPad layout',
+      );
+    }
+  });
+
+  test('NO config anywhere re-admits the iPad family', () {
+    // The pin above is on the project; a per-target override would beat it
+    // silently. Asserting file-wide is correct HERE (unlike the team/style
+    // pins, which are deliberately app-target-scoped because a stray value on
+    // RunnerTests is harmless): a device family on ANY block that includes 2
+    // changes what Apple builds and reviews.
+    for (final c in configs) {
+      final family = c.settings['TARGETED_DEVICE_FAMILY'];
+      expect(
+        family == null || !family.contains('2'),
+        isTrue,
+        reason:
+            'config ${c.name} (${c.id}, bundle ${c.bundleId ?? 'project-level'}) '
+            'carries TARGETED_DEVICE_FAMILY = $family — family 2 is iPad, and '
+            'an override here beats the project-level pin without changing it',
       );
     }
   });
