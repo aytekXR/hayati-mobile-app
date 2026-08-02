@@ -4,6 +4,10 @@
   "@continueWithGoogle": {
     "description": "Primary sign-in button on the auth screen"
   },
+  "signInTagline": "One question a day, for two.",
+  "@signInTagline": {
+    "description": "The primary tagline under the seed mark on the sign-in hero (redesign QW-5). Deliberately a SEPARATE key from ritualPreviewHeadline1, which carries the identical sentence on the pre-sign-in preview: the two surfaces are read by different people at different moments (a returning user vs. a first-time visitor), and one should be re-wordable without silently rewording the other. The three values are the reviewed ritual-preview copy, verbatim — no new copy is introduced here."
+  },
   "signInFailedTitle": "Sign-in failed",
   "@signInFailedTitle": {
     "description": "Title above the sign-in error detail"
@@ -177,9 +181,9 @@
   "@phoneNumberLabel": {
     "description": "Label for the phone-number field on the phone sign-in screen"
   },
-  "phoneNumberHint": "+90 555 123 45 67",
+  "phoneNumberHint": "+44 7700 900123",
   "@phoneNumberHint": {
-    "description": "Placeholder example (E.164) for the phone-number field; kept identical across locales"
+    "description": "Placeholder example (E.164) for the phone-number field. NOT identical across locales, and the note that used to say it was is what caused the bug: all three bundles carried the Turkish sample '+90 555 123 45 67', so a Gulf user was shown a number from a country they do not dial (redesign QW-8). Each bundle now samples its own primary market — tr: Turkey, ar: Saudi Arabia (this product's Arabic is the msa_gulf register, ADR-026), en: the UK, using Ofcom's reserved drama range so the example can never be someone's real line. A future device-region variant would need the PLATFORM locale, not this one: supportedLocales are language-only, so the resolved locale's countryCode is always null — and reading the platform locale here would make every golden depend on the host's system region."
   },
   "sendCode": "Send code",
   "@sendCode": {

@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
+import '../../../core/design_system/typography_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../../core/widgets/content_text.dart';
+import '../../../core/widgets/seed_week_row.dart';
 import '../../../core/widgets/slow_load_escape.dart';
 import '../../auth/domain/auth_state.dart';
 import '../../auth/presentation/state/auth_controller.dart';
@@ -224,12 +226,26 @@ class _QuestionViewState extends ConsumerState<_QuestionView> {
                   style: theme.textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: SpacingTokens.x2),
+                // The caption's own sentence, drawn (QW-9). Position in the
+                // seven-day cycle, never a claim about which days were
+                // answered — see [SeedWeekRow].
+                SeedWeekRow(day: widget.day),
                 const SizedBox(height: SpacingTokens.x3),
                 // CONTENT: the solo pack follows `contentLanguage`, which the
                 // user picks independently of the interface language.
+                //
+                // The Question style (QW-3), not `headlineMedium`: this is the
+                // same hero text the paired home and the partner preview
+                // already render at 28/300, and it was the only one of the
+                // three still sharing H1 with screen titles — so the product's
+                // hero sentence changed voice depending on whether you had a
+                // partner yet.
                 ContentText(
                   widget.question.text,
-                  style: theme.textTheme.headlineMedium,
+                  style: TypographyTokens.questionStyleFor(
+                    Localizations.localeOf(context).languageCode,
+                  ).copyWith(color: theme.colorScheme.onSurface),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: SpacingTokens.x6),

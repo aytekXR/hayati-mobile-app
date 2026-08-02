@@ -1,6 +1,7 @@
 {
   "@@locale": "tr",
   "continueWithGoogle": "Google ile devam et",
+  "signInTagline": "Günde bir soru, ikiniz için.",
   "signInFailedTitle": "Giriş başarısız",
   "errorNetworkRetry": "Bağlantını kontrol edip tekrar dene.",
   "errorGeneric": "Bir şeyler ters gitti. Lütfen tekrar dene.",

@@ -41,30 +41,45 @@ class PhoneSignInScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l10n.continueWithPhone)),
+      // Centred when it fits, scrollable when it does not — the sibling of the
+      // same fix on `sign_in_screen.dart`, and this screen has the sharper
+      // version of the problem: an error line above the field can add three
+      // wrapped lines, and the software keyboard takes half the viewport the
+      // moment the field is focused. An unbounded Column under a keyboard at
+      // 130% type overflows rather than scrolls, which puts "Send code" off
+      // screen with no way to reach it.
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: SpacingTokens.screenGutter,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: SpacingTokens.screenGutter,
+                    vertical: SpacingTokens.x6,
+                  ),
+                  child: switch (state) {
+                    PhoneEntry() => const _PhoneNumberEntry(),
+                    // A failure with no retained session (send failure or an expired
+                    // verification session) restarts from phone entry.
+                    PhoneSignInFailure(:final failure, :final session)
+                        when session == null =>
+                      _PhoneNumberEntry(error: failure),
+                    PhoneSending() ||
+                    PhoneConfirming() => const CircularProgressIndicator(),
+                    PhoneCodeSent(:final resending) => _SmsCodeEntry(
+                      resending: resending,
+                    ),
+                    // A failure with a retained session (wrong code, transient) keeps
+                    // the code screen for an inline retry.
+                    PhoneSignInFailure(:final failure) => _SmsCodeEntry(
+                      error: failure,
+                    ),
+                  },
+                ),
+              ),
             ),
-            child: switch (state) {
-              PhoneEntry() => const _PhoneNumberEntry(),
-              // A failure with no retained session (send failure or an expired
-              // verification session) restarts from phone entry.
-              PhoneSignInFailure(:final failure, :final session)
-                  when session == null =>
-                _PhoneNumberEntry(error: failure),
-              PhoneSending() ||
-              PhoneConfirming() => const CircularProgressIndicator(),
-              PhoneCodeSent(:final resending) => _SmsCodeEntry(
-                resending: resending,
-              ),
-              // A failure with a retained session (wrong code, transient) keeps
-              // the code screen for an inline retry.
-              PhoneSignInFailure(:final failure) => _SmsCodeEntry(
-                error: failure,
-              ),
-            },
           ),
         ),
       ),

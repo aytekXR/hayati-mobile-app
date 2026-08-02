@@ -192,5 +192,78 @@ void main() {
       expect(theme.bottomSheetTheme.backgroundColor, isNull);
       expect(theme.popupMenuTheme.color, isNull);
     });
+
+    // ── The press overlay, and the second Material default floor ────────────
+    //
+    // SAME DEFECT CLASS AS THE FILE ABOVE, one layer down: a value that LOOKS
+    // configured and silently is not. The CTA press overlay was first written
+    // as `FilledButton.styleFrom(overlayColor: WidgetStateColor.resolveWith(…))`,
+    // which is a NO-OP — and worse than the default, because it removes the
+    // press overlay entirely while reading like it strengthened it:
+    //
+    //   · `WidgetStateColor.resolveWith(f)` takes its own colour channels from
+    //     `f({})` (widget_state.dart:308). With a `Colors.transparent` fallback
+    //     arm, the object's own alpha is 0.
+    //   · `styleFrom` switches on that alpha (filled_button.dart:276):
+    //     `(_, Color(a: 0.0))` is the "explicit transparent = suppress the
+    //     overlay" arm, so the resolver gets wrapped in
+    //     `WidgetStatePropertyAll`.
+    //   · `WidgetStatePropertyAll.resolve` returns its value verbatim
+    //     (widget_state.dart:1086) and `InkWell` consumes it as a plain Colour
+    //     without re-resolving (ink_well.dart:1364).
+    //
+    // Net: every state resolved to alpha 0.0 — measured, not inferred. Nothing
+    // in the golden matrix could ever catch it, because a press state is
+    // transient and never captured, which is this file's whole reason to exist.
+    //
+    // The assertion is on the RESOLVED value per state, not on the property's
+    // type or presence: "an overlayColor is set" was true the entire time it
+    // did nothing.
+    group('CTA press feedback', () {
+      final overlay = theme.filledButtonTheme.style?.overlayColor;
+
+      test(
+        'pressed DEEPENS toward Pomegranate Deep — and is not transparent',
+        () {
+          final pressed = overlay?.resolve(<WidgetState>{WidgetState.pressed});
+          expect(pressed, isNotNull);
+          expect(
+            pressed!.a,
+            greaterThan(0.0),
+            reason:
+                'a transparent press overlay paints nothing — the styleFrom '
+                'no-op described above',
+          );
+          // Night over Pomegranate darkens; the token and the alpha are the
+          // brand decision, so pin both.
+          expect(pressed.r, ColorTokens.night.r);
+          expect(pressed.g, ColorTokens.night.g);
+          expect(pressed.b, ColorTokens.night.b);
+          expect(pressed.a, closeTo(0.22, 0.001));
+        },
+      );
+
+      test(
+        'hover/focus LIFT with Moonlight — the opposite direction, kept',
+        () {
+          for (final state in <WidgetState>[
+            WidgetState.hovered,
+            WidgetState.focused,
+          ]) {
+            final c = overlay?.resolve(<WidgetState>{state});
+            expect(c, isNotNull, reason: '$state overlay');
+            expect(c!.a, closeTo(0.08, 0.001), reason: '$state alpha');
+            expect(c.r, ColorTokens.moonlight.r, reason: '$state hue');
+          }
+        },
+      );
+
+      test('the resting state adds nothing, and says so with null', () {
+        // `null` (defer to the widget's own default), NOT
+        // `Colors.transparent` — a transparent resting value is precisely what
+        // triggered the `styleFrom` suppression arm in the first place.
+        expect(overlay?.resolve(<WidgetState>{}), isNull);
+      });
+    });
   });
 }

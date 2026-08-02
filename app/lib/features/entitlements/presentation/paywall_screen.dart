@@ -376,64 +376,108 @@ class _PackageCard extends StatelessWidget {
       _ => null,
     };
     final trialLabel = _trialLabel(l10n, package.trial);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: RadiusTokens.cardRadius,
-      child: Container(
-        padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
+    // Which package is chosen was carried ENTIRELY by the border's colour, so
+    // it reached a screen reader not at all: VoiceOver read two identical price
+    // cards and the user had no way to know which one the Subscribe button was
+    // about to charge them for.
+    //
+    // `MergeSemantics`, not a hand-built `label:`. A `Semantics` wrapper does
+    // NOT suppress its descendants, so flagging the container and leaving the
+    // price/period/trial `Text`s as separate nodes announces the card twice —
+    // once as a selected button with no content, once as loose text. Merging
+    // lets the children supply the words, which also keeps the store-formatted
+    // price inside the bidi isolation this file already applies (`isolateWithin`
+    // below, and `ContentText`'s pristine `semanticsLabel`) instead of
+    // concatenating a price and a localized period into a new string with a new
+    // bidi hazard. One node, every locale, no new strings.
+    //
+    // `enabled` matters as much as `selected`: `onTap` is nulled while a
+    // purchase is in flight, and a card that has silently stopped responding
+    // should say so rather than just not react.
+    return MergeSemantics(
+      child: Semantics(
+        selected: selected,
+        inMutuallyExclusiveGroup: true,
+        button: true,
+        enabled: onTap != null,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: RadiusTokens.cardRadius,
-          border: Border.all(
-            color: selected ? theme.colorScheme.primary : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (primary) ...[
-              _BestValueBadge(label: l10n.paywallBestValue),
-              const SizedBox(height: SpacingTokens.x2),
-            ],
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
+          child: Container(
+            padding: const EdgeInsets.all(SpacingTokens.cardPadding),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: RadiusTokens.cardRadius,
+              // The resting card takes the shipped INPUT pattern (theme
+              // `enabledBorder` → `focusedBorder`): a Veil hairline at rest, a 2dp
+              // Pomegranate rule when chosen. It replaces a TRANSPARENT 2dp
+              // border, i.e. no edge at all.
+              //
+              // Be honest about what this does and does not buy. It does NOT make
+              // width a second perceivable channel — Veil #453A5C on Night Raised
+              // #2E2344 is **1.4:1**, the same computation that condemned the
+              // off-state switch, so a sighted user still reads the state almost
+              // entirely from the Pomegranate hue. What it buys is consistency
+              // with how every other selectable surface in the app draws its
+              // resting edge, and a card that has an edge at all.
+              //
+              // The load-bearing fix for the colour-alone problem is the
+              // `Semantics` above. Making the SIGHTED cue redundant properly needs
+              // the chip treatment (§9.4: selected = Pomegranate Deep fill +
+              // Moonlight label — "no checkmarks, the fill is the signal"), which
+              // moves the whole six-cell golden matrix and wants its own review.
+              border: Border.all(
+                color: selected ? theme.colorScheme.primary : ColorTokens.veil,
+                width: selected ? 2 : 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // The STORE formats this string, in a locale we do not choose.
-                ContentText(
-                  package.priceString,
-                  style: theme.textTheme.titleLarge,
+                if (primary) ...[
+                  _BestValueBadge(label: l10n.paywallBestValue),
+                  const SizedBox(height: SpacingTokens.x2),
+                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    // The STORE formats this string, in a locale we do not choose.
+                    ContentText(
+                      package.priceString,
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    if (periodLabel != null) ...[
+                      const SizedBox(width: SpacingTokens.x1),
+                      Text(periodLabel, style: theme.textTheme.bodySmall),
+                    ],
+                  ],
                 ),
-                if (periodLabel != null) ...[
-                  const SizedBox(width: SpacingTokens.x1),
-                  Text(periodLabel, style: theme.textTheme.bodySmall),
+                if (package.pricePerMonthString != null) ...[
+                  const SizedBox(height: SpacingTokens.x1),
+                  Text(
+                    // Isolated as an argument: the price lands inside `≈ {price}/شهر`.
+                    l10n.paywallApproxPerMonth(
+                      isolateWithin(
+                        package.pricePerMonthString!,
+                        Directionality.of(context),
+                      ),
+                    ),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+                if (trialLabel != null) ...[
+                  const SizedBox(height: SpacingTokens.x2),
+                  Text(
+                    trialLabel,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.tertiary,
+                    ),
+                  ),
                 ],
               ],
             ),
-            if (package.pricePerMonthString != null) ...[
-              const SizedBox(height: SpacingTokens.x1),
-              Text(
-                // Isolated as an argument: the price lands inside `≈ {price}/شهر`.
-                l10n.paywallApproxPerMonth(
-                  isolateWithin(
-                    package.pricePerMonthString!,
-                    Directionality.of(context),
-                  ),
-                ),
-                style: theme.textTheme.bodySmall,
-              ),
-            ],
-            if (trialLabel != null) ...[
-              const SizedBox(height: SpacingTokens.x2),
-              Text(
-                trialLabel,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.tertiary,
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

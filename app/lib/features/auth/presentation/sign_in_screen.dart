@@ -5,6 +5,7 @@ import '../../../core/config/app_config_provider.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../../core/storage/local_flag_store.dart';
+import '../../../core/widgets/seed_mark.dart';
 import '../../pairing/presentation/partner_preview_screen.dart';
 import '../../pairing/presentation/state/pending_invite.dart';
 import '../../profile/presentation/onboarding_gate.dart';
@@ -57,16 +58,38 @@ class SignInScreen extends ConsumerWidget {
     }
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: SpacingTokens.screenGutter,
+        // Centred when it fits, scrollable when it does not.
+        //
+        // This screen is a `Column` with no scroll view, and it just grew a
+        // mark and a tagline. At 130% dynamic type on a short device the auth
+        // shell — hero, three provider buttons, the Class G legal footer and
+        // its two links — is the funnel's tallest surface, and the failure mode
+        // of an unbounded Column is not a scrollbar, it is a yellow-and-black
+        // overflow stripe with the legal footer CLIPPED. That footer is a
+        // consent surface (ADR-023): it may not be the thing that falls off.
+        //
+        // The `minHeight: constraints.maxHeight` + `Center` pair is what keeps
+        // it pixel-identical when there IS room — the goldens for the six
+        // settled cells do not move because of this widget, only because of the
+        // hero above.
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: SpacingTokens.screenGutter,
+                    vertical: SpacingTokens.x6,
+                  ),
+                  child: switch (authState) {
+                    AuthSignedOut() => const _SignedOutView(),
+                    AuthError(:final failure) => _ErrorView(failure: failure),
+                    _ => const CircularProgressIndicator(),
+                  },
+                ),
+              ),
             ),
-            child: switch (authState) {
-              AuthSignedOut() => const _SignedOutView(),
-              AuthError(:final failure) => _ErrorView(failure: failure),
-              _ => const CircularProgressIndicator(),
-            },
           ),
         ),
       ),
@@ -80,12 +103,36 @@ class _SignedOutView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // The hero (redesign QW-5). This screen used to be the app name and
+        // nothing else — a returning user's whole first impression, selling
+        // nothing. It now carries the mark, the name and the promise, in that
+        // order.
+        //
+        // The mark is decorative on purpose: the name sits directly beneath it
+        // as text, so labelling the glyph too would make a screen reader say
+        // the product's name twice before reaching the tagline.
+        const SeedMark(),
+        const SizedBox(height: SpacingTokens.x4),
         // Hero wordmark on the display role (sand — pomegranate-on-night fails
         // the >=4.5 contrast rule, so the brand text stays sand).
-        Text(config.appName, style: Theme.of(context).textTheme.displaySmall),
+        Text(config.appName, style: theme.textTheme.displaySmall),
+        const SizedBox(height: SpacingTokens.x2),
+        // The primary tagline — the same sentence the pre-sign-in preview
+        // opens with, which is the point: whichever door you came through, the
+        // product introduces itself the same way. Mist (7.9:1 on Night) keeps
+        // it secondary to the name rather than competing with it.
+        Text(
+          l10n.signInTagline,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: SpacingTokens.x8),
         const ProviderActions(),
       ],
