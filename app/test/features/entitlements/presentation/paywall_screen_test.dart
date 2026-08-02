@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsFlag, SemanticsNode;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
@@ -186,6 +187,55 @@ void main() {
         );
       }
     });
+
+    testWidgets(
+      'which package is selected is ANNOUNCED, not just coloured — and the '
+      'flag moves with the tap',
+      (tester) async {
+        final env = arrange();
+        await pumpPaywall(tester, env.overrides);
+        await tester.pumpAndSettle();
+
+        // The card's selection state used to live entirely in a border colour,
+        // so a screen reader met two identical price cards. This asserts the
+        // MECHANISM (a merged, selectable node in a mutually-exclusive group),
+        // not the pixels — a border colour can be "right" while announcing
+        // nothing, which is exactly the bug this replaced.
+        SemanticsNode nodeFor(String price) => tester.getSemantics(
+          find.ancestor(
+            of: find.text(price),
+            matching: find.byType(MergeSemantics),
+          ),
+        );
+
+        // Annual is the default selection (index 0); monthly is not.
+        expect(nodeFor('₺899,99').hasFlag(SemanticsFlag.isSelected), isTrue);
+        expect(nodeFor('₺899,99').hasFlag(SemanticsFlag.isButton), isTrue);
+        expect(
+          nodeFor('₺899,99').hasFlag(SemanticsFlag.isInMutuallyExclusiveGroup),
+          isTrue,
+        );
+        expect(nodeFor('₺899,99').hasFlag(SemanticsFlag.isEnabled), isTrue);
+        expect(nodeFor('₺89,99').hasFlag(SemanticsFlag.isSelected), isFalse);
+
+        // Merged: the price, the period and the trial arrive as ONE node's
+        // label. Asserted by containment rather than as a pinned string —
+        // the price is store-formatted and the period is localized, so an
+        // exact concatenation would pin the fixture, not the merge.
+        final annualLabel = nodeFor('₺899,99').label;
+        expect(annualLabel, contains('₺899,99'));
+        expect(annualLabel, contains(en.paywallPerYear));
+        expect(annualLabel, contains(en.paywallTrialDays(7)));
+
+        await tester.tap(find.text('₺89,99'));
+        await tester.pumpAndSettle();
+
+        // …and it MOVES. A flag that is merely present would pass the first
+        // half of this test while pinning nothing about selection at all.
+        expect(nodeFor('₺89,99').hasFlag(SemanticsFlag.isSelected), isTrue);
+        expect(nodeFor('₺899,99').hasFlag(SemanticsFlag.isSelected), isFalse);
+      },
+    );
 
     testWidgets(
       'carries the Terms + Privacy links row (Apple 3.1.2, ADR-023)',
