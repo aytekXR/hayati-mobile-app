@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart' show SemanticsFlag, SemanticsNode;
+import 'package:flutter/semantics.dart' show SemanticsNode;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
@@ -209,14 +210,14 @@ void main() {
         );
 
         // Annual is the default selection (index 0); monthly is not.
-        expect(nodeFor('₺899,99').hasFlag(SemanticsFlag.isSelected), isTrue);
-        expect(nodeFor('₺899,99').hasFlag(SemanticsFlag.isButton), isTrue);
+        expect(nodeFor('₺899,99').flagsCollection.isSelected, Tristate.isTrue);
+        expect(nodeFor('₺899,99').flagsCollection.isButton, isTrue);
         expect(
-          nodeFor('₺899,99').hasFlag(SemanticsFlag.isInMutuallyExclusiveGroup),
+          nodeFor('₺899,99').flagsCollection.isInMutuallyExclusiveGroup,
           isTrue,
         );
-        expect(nodeFor('₺899,99').hasFlag(SemanticsFlag.isEnabled), isTrue);
-        expect(nodeFor('₺89,99').hasFlag(SemanticsFlag.isSelected), isFalse);
+        expect(nodeFor('₺899,99').flagsCollection.isEnabled, Tristate.isTrue);
+        expect(nodeFor('₺89,99').flagsCollection.isSelected, Tristate.isFalse);
 
         // Merged: the price, the period and the trial arrive as ONE node's
         // label. Asserted by containment rather than as a pinned string —
@@ -232,8 +233,8 @@ void main() {
 
         // …and it MOVES. A flag that is merely present would pass the first
         // half of this test while pinning nothing about selection at all.
-        expect(nodeFor('₺89,99').hasFlag(SemanticsFlag.isSelected), isTrue);
-        expect(nodeFor('₺899,99').hasFlag(SemanticsFlag.isSelected), isFalse);
+        expect(nodeFor('₺89,99').flagsCollection.isSelected, Tristate.isTrue);
+        expect(nodeFor('₺899,99').flagsCollection.isSelected, Tristate.isFalse);
       },
     );
 
