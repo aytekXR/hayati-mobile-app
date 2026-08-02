@@ -394,7 +394,7 @@ def test_submit_for_review() -> None:
     for label, needle in (
         ("a refusal is NOT reported as a no-op", "was NOT submitted"),
         ("names the state it is STILL in", "still READY_FOR_BETA_SUBMISSION"),
-        ("says why, so the operator knows to wait", "serialize per APP"),
+        ("says why, so the operator knows to wait", "per VERSION TRAIN"),
         ("quotes Apple rather than paraphrasing", "Another build is in review"),
     ):
         sequenced("READY_FOR_BETA_SUBMISSION", "READY_FOR_BETA_SUBMISSION")

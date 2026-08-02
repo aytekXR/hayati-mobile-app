@@ -128,11 +128,22 @@ log had already claimed to fix.
 > `READY_FOR_BETA_SUBMISSION`. Nothing had been submitted, and the lane said otherwise. Only an
 > unprompted re-read caught it.
 >
-> **The second, larger fact this measured:** Beta App Review submissions **serialize per APP, not
-> per build**. The premise that made `betaAppReviewSubmissions` look per-build-independent — it
-> carries a `build` relationship, so each build has its own submission resource — is a fact about
-> the *resource shape*, not about the *queue*. A newer build cannot be submitted while another is in
-> review.
+> **The second, larger fact this measured:** Beta App Review submissions **do not queue per build**.
+> The premise that made `betaAppReviewSubmissions` look per-build-independent — it carries a `build`
+> relationship, so each build has its own submission resource — is a fact about the *resource
+> shape*, not about the *queue*. A newer build cannot be submitted while another is in review.
+>
+> > **Sharpened the same day, by the fix's own live re-run.** The first draft of this correction
+> > said "per APP", which was an inference from one observation. Re-dispatching the lane on the
+> > merged fix produced the refusal it was built to produce — and Apple's verbatim body named the
+> > unit: `HTTP 422 — "Another build in the same train is already in beta review. Please submit it
+> > again once it gets completed."` It serializes per **VERSION TRAIN**
+> > (`CFBundleShortVersionString`), not per app: 113 and 114 are both `0.1.0`. A build in a *later*
+> > train is a case this repo has still not measured, and the tool no longer claims otherwise.
+> >
+> > Worth naming, because it is the same error one level up: the correction fixed a guess about the
+> > *sentence* and then made a fresh guess about the *scope*, from a single data point. What settled
+> > it was running the fixed lane for real and reading what the vendor actually said.
 >
 > Fixed by making the phrase list stop deciding. A match now means only "the queue is talking";
 > `submit_for_review` then **RE-READS `externalBuildState`** and lets the API settle which build is

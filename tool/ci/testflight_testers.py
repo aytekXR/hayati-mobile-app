@@ -645,9 +645,10 @@ def submit_for_review(
         raise AscError(
             f"build {version} was NOT submitted — it is still {after}. Apple "
             f"refused: {failure}\n"
-            "Beta App Review submissions serialize per APP, not per build "
-            "(measured 2026-08-02): another build is still in review. Wait for "
-            "that one to be approved or rejected, then re-run this lane."
+            "Beta App Review serializes per VERSION TRAIN, not per build "
+            "(measured 2026-08-02 — Apple's own words: 'Another build in the "
+            "same train is already in beta review'). Wait for that build to be "
+            "approved or rejected, then re-run this lane."
         )
     return f"build {version}: submitted for Beta App Review"
 
