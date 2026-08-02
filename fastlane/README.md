@@ -72,6 +72,44 @@ empty-URL ratchet (see below). `tool/store_metadata_lint_test.dart` mutation-che
 every rule class. Both run in the ubuntu `quality`/`preflight` jobs, before
 `pub get`, like the content validator.
 
+### Screenshots — rendered from the app, on Linux, at Apple's exact size
+
+`deliver(skip_screenshots: true)` still holds: nothing here uploads them. But
+they are no longer a manual job on somebody's phone.
+
+```sh
+tool/ci/appstore_screenshots.sh          # → app/build/appstore/screenshots/{tr,en}/
+```
+
+Twelve PNGs at **1290×2796** — six screens × the two listing locales — which is
+the whole iPhone requirement: App Store Connect takes the 6.9" set and scales
+every smaller device down from it, and the app is iPhone-only since #179, so
+there is no 13" iPad set to produce.
+
+**No Mac, no simulator, no device.** `flutter test` rasterises widgets on the
+host, so `app/screenshots/appstore_screenshots_test.dart` renders real pixels of
+real screens from the same fakes and the same shipped question packs the goldens
+use — the surface size comes from `APPSTORE_SCREENSHOT_SURFACE`, which
+`golden_harness.dart` reads and which is UNSET everywhere else, so the 390×844
+goldens stay byte-identical. The store listing and the tested product cannot
+drift apart, because they are renders of one widget tree.
+
+Three things this lane learned the hard way, all pinned in code:
+
+- **`matchesGoldenFile` cannot produce a store asset.** With the view at
+  1290×2796 @3 it writes a **430×932** file — it captures at the logical size
+  and ignores `devicePixelRatio`. Right for a diff, useless for Apple. Hence
+  `writeSurfacePng`, which captures the boundary at an explicit DPR.
+- **`flutter_test_config.dart` is found by walking up from the TEST file.** A
+  generator outside `test/` never sees the suite's font loader, and the failure
+  is silent in the worst way: right size, right colours, right layout, green
+  run — and every glyph an empty box. `screenshots/flutter_test_config.dart`
+  delegates to the suite's rather than copying its font list.
+- **The generator's exit code proves nothing about the pixels.** It is a widget
+  test; it goes green whenever it does not throw, including if the surface
+  override were ignored entirely. The script re-reads every PNG's IHDR and fails
+  on a wrong size or an empty output directory.
+
 ### Native review: PENDING
 
 **Every store string in both locales is AI-drafted and awaits native review by
