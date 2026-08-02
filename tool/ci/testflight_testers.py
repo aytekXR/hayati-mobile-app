@@ -548,7 +548,16 @@ BLOCKED_BEFORE_REVIEW_STATES = {
 # this repo has NOT measured which status Apple returns for a duplicate (the
 # design review found 409 and 422 both claimed in the wild), so a rule keyed on
 # either one alone would swallow an unrelated failure or miss the real one.
-_ALREADY_SUBMITTED_MARKERS = (
+#
+# WHAT A MATCH HERE DOES *NOT* SETTLE — and used to. These phrases span TWO
+# opposite outcomes: "THIS build is already submitted" (a genuine no-op) and
+# "ANOTHER build is in review" (a refusal — nothing was submitted). MEASURED
+# 2026-08-02: with build 113 `WAITING_FOR_BETA_REVIEW`, submitting build 114 was
+# refused by Apple, matched here, and reported as `already submitted — no-op`
+# with exit 0. Build 114 stayed `READY_FOR_BETA_SUBMISSION` and the operator was
+# told it had been submitted. So a match now means only "the queue is talking —
+# RE-READ the state before deciding", which `submit_for_review` does.
+_SUBMISSION_CONFLICT_MARKERS = (
     "already been submitted",
     "already submitted",
     "another build is in review",
@@ -557,11 +566,17 @@ _ALREADY_SUBMITTED_MARKERS = (
 )
 
 
-def looks_already_submitted(message: str) -> bool:
+def looks_like_submission_conflict(message: str) -> bool:
+    """Does this read like Apple's submission QUEUE rather than a real failure?
+
+    Says nothing about WHICH build is holding that queue. Deciding that from the
+    sentence is the defect this predicate was split away from; the caller settles
+    it by re-reading `externalBuildState`.
+    """
     lowered = message.lower()
     if "http 409" not in lowered and "http 422" not in lowered:
         return False
-    return any(marker in lowered for marker in _ALREADY_SUBMITTED_MARKERS)
+    return any(marker in lowered for marker in _SUBMISSION_CONFLICT_MARKERS)
 
 
 def submit_for_review(
@@ -609,9 +624,31 @@ def submit_for_review(
             },
         )
     except AscError as failure:
-        if looks_already_submitted(str(failure)):
-            return f"build {version}: Apple says it is already submitted — no-op"
-        raise
+        if not looks_like_submission_conflict(str(failure)):
+            raise
+        # The queue is talking, but not about WHICH build. We only reached the
+        # POST because this build was NOT in ALREADY_SUBMITTED_STATES, so either
+        # an overlapping dispatch submitted it since that read (the race this
+        # backstop exists for — a real no-op), or a DIFFERENT build is holding
+        # the queue (a refusal that submitted nothing). RE-READ rather than parse
+        # the sentence: the phrase list covers both outcomes and cannot tell them
+        # apart, and the version that guessed reported a refusal as a no-op.
+        after = (
+            build_beta_detail(token, build["id"]).get("externalBuildState")
+            or "UNKNOWN"
+        )
+        if after in ALREADY_SUBMITTED_STATES:
+            return (
+                f"build {version}: already {after} — an overlapping dispatch got "
+                "there first, no-op"
+            )
+        raise AscError(
+            f"build {version} was NOT submitted — it is still {after}. Apple "
+            f"refused: {failure}\n"
+            "Beta App Review submissions serialize per APP, not per build "
+            "(measured 2026-08-02): another build is still in review. Wait for "
+            "that one to be approved or rejected, then re-run this lane."
+        )
     return f"build {version}: submitted for Beta App Review"
 
 
