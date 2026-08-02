@@ -133,37 +133,60 @@ ThemeData _buildHayatiTheme(String languageCode) {
       titleTextStyle: textTheme.titleLarge,
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: ColorTokens.pomegranate,
-        // Moonlight on pomegranate 4.7:1 (ui-ux §9.4 "all CTAs") — closes the
-        // recorded AA failure (sand was 3.94:1, brandkit §10 gap 1).
-        foregroundColor: ColorTokens.moonlight,
-        // Disabled: Night Raised fill, Mist label (ui-ux §9.4) — never
-        // Material's onSurface-at-opacity grey.
-        disabledBackgroundColor: ColorTokens.nightRaised,
-        disabledForegroundColor: ColorTokens.mist,
-        // >=44dp touch target (frontend-brandkit §8); 48 keeps a comfortable
-        // margin. Stadium (full) radius per the chip/button token.
-        minimumSize: const Size.fromHeight(48),
-        shape: RadiusTokens.stadium,
-        // body-size w600.
-        textStyle: textTheme.labelLarge,
-        // Press DEEPENS the fill; it does not lighten it. M3's default overlay
-        // is `onPrimary` at low opacity, so pressing a Pomegranate CTA washed
-        // Moonlight over it and the button got *brighter* under the finger —
-        // the opposite of the physical read (pressure = pushing in = darker),
-        // and a fight with the Pomegranate Deep the brand already owns for
-        // "pressed". Hover/focus keep a light lift, where lifting is the
-        // correct metaphor.
-        overlayColor: WidgetStateColor.resolveWith(
-          (states) => states.contains(WidgetState.pressed)
-              ? ColorTokens.night.withValues(alpha: 0.22)
-              : states.contains(WidgetState.hovered) ||
-                    states.contains(WidgetState.focused)
-              ? ColorTokens.moonlight.withValues(alpha: 0.08)
-              : Colors.transparent,
-        ),
-      ),
+      style:
+          FilledButton.styleFrom(
+            backgroundColor: ColorTokens.pomegranate,
+            // Moonlight on pomegranate 4.7:1 (ui-ux §9.4 "all CTAs") — closes the
+            // recorded AA failure (sand was 3.94:1, brandkit §10 gap 1).
+            foregroundColor: ColorTokens.moonlight,
+            // Disabled: Night Raised fill, Mist label (ui-ux §9.4) — never
+            // Material's onSurface-at-opacity grey.
+            disabledBackgroundColor: ColorTokens.nightRaised,
+            disabledForegroundColor: ColorTokens.mist,
+            // >=44dp touch target (frontend-brandkit §8); 48 keeps a comfortable
+            // margin. Stadium (full) radius per the chip/button token.
+            minimumSize: const Size.fromHeight(48),
+            shape: RadiusTokens.stadium,
+            // body-size w600.
+            textStyle: textTheme.labelLarge,
+            // NB: the press overlay is attached with `.copyWith` below, NOT here.
+            // Read the note there before moving it — `styleFrom` silently discards
+            // this one.
+          ).copyWith(
+            // Press DEEPENS the fill; it does not lighten it. M3's default overlay
+            // is `onPrimary` at low opacity, so pressing a Pomegranate CTA washes
+            // Moonlight over it and the button gets *brighter* under the finger —
+            // the opposite of the physical read (pressure = pushing in = darker),
+            // and a fight with the Pomegranate Deep the brand already owns for
+            // "pressed". Hover/focus keep a light lift, where lifting is right.
+            //
+            // ⚠️ WHY `.copyWith` AND NOT `styleFrom(overlayColor:)`. It was written
+            // that way first and it was a SILENT NO-OP — worse than the default,
+            // because it removed the press overlay altogether while reading like it
+            // strengthened it. The chain, verified in the SDK and then measured:
+            //   · `WidgetStateColor.resolveWith(f)` takes its OWN colour channels
+            //     from `f({})` (widget_state.dart:308) — the empty state set, which
+            //     here is `Colors.transparent`, so the object's alpha is 0.
+            //   · `FilledButton.styleFrom` switches on that alpha
+            //     (filled_button.dart:276): `(_, Color(a: 0.0))` is the documented
+            //     "explicit transparent = suppress the overlay" arm, so it wraps the
+            //     resolver in `WidgetStatePropertyAll`.
+            //   · `WidgetStatePropertyAll.resolve` returns its value VERBATIM
+            //     (widget_state.dart:1086) and `InkWell` uses that as a plain Colour
+            //     without re-resolving (ink_well.dart:1364) — so every state gets
+            //     the transparent channels, and nothing is ever painted.
+            // Measured before the fix: pressed and hovered both resolved to
+            // alpha 0.0. `motion_tokens_test.dart` now pins this so the no-op
+            // cannot come back quietly.
+            overlayColor: WidgetStateProperty.resolveWith<Color?>(
+              (states) => states.contains(WidgetState.pressed)
+                  ? ColorTokens.night.withValues(alpha: 0.22)
+                  : states.contains(WidgetState.hovered) ||
+                        states.contains(WidgetState.focused)
+                  ? ColorTokens.moonlight.withValues(alpha: 0.08)
+                  : null,
+            ),
+          ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
