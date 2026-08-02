@@ -1,6 +1,7 @@
 {
   "@@locale": "ar",
   "continueWithGoogle": "المتابعة عبر Google",
+  "signInTagline": "سؤال واحد كل يوم، لكما.",
   "signInFailedTitle": "فشل تسجيل الدخول",
   "errorNetworkRetry": "تحقق من اتصالك وحاول مرة أخرى.",
   "errorGeneric": "حدث خطأ ما. يُرجى المحاولة مرة أخرى.",
@@ -40,7 +41,7 @@
   "continueWithApple": "المتابعة عبر Apple",
   "continueWithPhone": "المتابعة عبر الهاتف",
   "phoneNumberLabel": "رقم هاتفك",
-  "phoneNumberHint": "+90 555 123 45 67",
+  "phoneNumberHint": "+966 55 123 4567",
   "sendCode": "إرسال الرمز",
   "smsCodeLabel": "رمز التحقق",
   "verifyCode": "تحقّق",

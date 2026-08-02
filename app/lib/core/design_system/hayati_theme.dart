@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'color_tokens.dart';
 import 'elevation_tokens.dart';
 import 'radius_tokens.dart';
+import 'soft_unfold_page_transitions.dart';
 import 'spacing_tokens.dart';
 import 'typography_tokens.dart';
 
@@ -36,9 +37,27 @@ ThemeData hayatiTheme({required String languageCode}) =>
 ThemeData _buildHayatiTheme(String languageCode) {
   // Colour brand text with sand (sand-on-night 13.6:1 — well past the >=4.5
   // brandkit rule); displayColor covers the display/headline hero styles.
-  final textTheme = TypographyTokens.textThemeFor(
+  final baseTextTheme = TypographyTokens.textThemeFor(
     languageCode,
   ).apply(bodyColor: ColorTokens.sand, displayColor: ColorTokens.sand);
+
+  // …except the CAPTION role, which is the secondary tier and must read as one.
+  //
+  // `onSurfaceVariant` was set to Mist for exactly this, and the comment on it
+  // says the leak is killed — but `.apply(bodyColor:)` paints EVERY body style
+  // Sand, `bodySmall` included, and a widget that asks for
+  // `textTheme.bodySmall` never consults the scheme. So gap #67 was closed for
+  // the components M3 colours from the scheme (ListTile subtitles, supporting
+  // text) and left open for all 38 hand-styled captions in `lib/` — "Day 3 of
+  // 7", "Saved for today.", every helper line — which kept rendering at full
+  // body strength. Two tiers that look identical are one tier.
+  //
+  // Mist on Night is 7.9:1 (7.0:1 on Night Raised), so this buys hierarchy
+  // without spending contrast. An explicit `.copyWith(color:)` at a call site
+  // still wins, which is how the error captions keep their Alert tone.
+  final textTheme = baseTextTheme.copyWith(
+    bodySmall: baseTextTheme.bodySmall?.copyWith(color: ColorTokens.mist),
+  );
 
   // Manual dark scheme with the EXACT brand hexes — ColorScheme.fromSeed
   // detunes the palette, so the scheme is assembled by hand.
@@ -129,6 +148,21 @@ ThemeData _buildHayatiTheme(String languageCode) {
         shape: RadiusTokens.stadium,
         // body-size w600.
         textStyle: textTheme.labelLarge,
+        // Press DEEPENS the fill; it does not lighten it. M3's default overlay
+        // is `onPrimary` at low opacity, so pressing a Pomegranate CTA washed
+        // Moonlight over it and the button got *brighter* under the finger —
+        // the opposite of the physical read (pressure = pushing in = darker),
+        // and a fight with the Pomegranate Deep the brand already owns for
+        // "pressed". Hover/focus keep a light lift, where lifting is the
+        // correct metaphor.
+        overlayColor: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.pressed)
+              ? ColorTokens.night.withValues(alpha: 0.22)
+              : states.contains(WidgetState.hovered) ||
+                    states.contains(WidgetState.focused)
+              ? ColorTokens.moonlight.withValues(alpha: 0.08)
+              : Colors.transparent,
+        ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -209,6 +243,37 @@ ThemeData _buildHayatiTheme(String languageCode) {
     // is not Material grey. M3 `Divider` also reads outlineVariant; both point
     // at the same token so the explicit theme is documentation, not override.
     dividerTheme: const DividerThemeData(color: ColorTokens.veil, thickness: 1),
+    // Switches, and this one is a defect rather than a refinement.
+    //
+    // With no `switchTheme`, M3 resolves the OFF state from the scheme: thumb
+    // and track outline take `outline` (Veil), the track takes
+    // `surfaceContainerHighest` (Night Raised). Veil on Night Raised is
+    // **1.40:1** — computed from the two token hexes, not estimated. That is
+    // below the 3:1 floor for a non-text control by more than a factor of two,
+    // and the three switches it governs are the PIN lock, biometrics and the
+    // discreet app icon: on a product whose threat model is a partner reading
+    // over your shoulder, "is this actually on?" is not a question the user may
+    // be left to guess at. Mist reads 7.0:1 against the same track.
+    //
+    // ON stays the brand pair: Moonlight thumb on a Pomegranate track (4.7:1),
+    // the same on-accent contract every CTA uses.
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? ColorTokens.moonlight
+            : ColorTokens.mist,
+      ),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? ColorTokens.pomegranate
+            : ColorTokens.nightRaised,
+      ),
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? ColorTokens.pomegranate
+            : ColorTokens.mist,
+      ),
+    ),
     // Tile glyphs/chevrons in Clay — the kept secondary-icon role (ui-ux
     // §9.4). Without this, M3 ListTile icons would follow onSurfaceVariant
     // into Mist, conflating the icon role with secondary TEXT. Subtitles are
@@ -265,5 +330,12 @@ ThemeData _buildHayatiTheme(String languageCode) {
       ),
       textStyle: textTheme.bodySmall,
     ),
+    // Soft Unfold on route pushes (redesign QW-10): until now the app used
+    // Material's stock transition, so every screen arrived in a motion
+    // vocabulary the brand does not speak. The builder is 240ms/easeOut/12dp
+    // off the SAME [MotionTokens] the in-page unfold reads — and it keeps
+    // Cupertino on iOS/macOS, because that builder is the only supplier of
+    // edge-swipe-back. Read the class doc; the exception is deliberate.
+    pageTransitionsTheme: softUnfoldPageTransitionsTheme,
   );
 }

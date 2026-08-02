@@ -376,64 +376,81 @@ class _PackageCard extends StatelessWidget {
       _ => null,
     };
     final trialLabel = _trialLabel(l10n, package.trial);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: RadiusTokens.cardRadius,
-      child: Container(
-        padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: RadiusTokens.cardRadius,
-          border: Border.all(
-            color: selected ? theme.colorScheme.primary : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (primary) ...[
-              _BestValueBadge(label: l10n.paywallBestValue),
-              const SizedBox(height: SpacingTokens.x2),
-            ],
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                // The STORE formats this string, in a locale we do not choose.
-                ContentText(
-                  package.priceString,
-                  style: theme.textTheme.titleLarge,
-                ),
-                if (periodLabel != null) ...[
-                  const SizedBox(width: SpacingTokens.x1),
-                  Text(periodLabel, style: theme.textTheme.bodySmall),
-                ],
-              ],
+    return Semantics(
+      // Which package is chosen was carried ENTIRELY by the border's colour, so
+      // it reached a screen reader not at all: VoiceOver read two identical
+      // price cards and the user had no way to know which one the Subscribe
+      // button was about to charge them for. `selected` is the standard flag
+      // for exactly this, and it costs nothing visual.
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: RadiusTokens.cardRadius,
+        child: Container(
+          padding: const EdgeInsets.all(SpacingTokens.cardPadding),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: RadiusTokens.cardRadius,
+            // …and colour is no longer the only sighted channel either. The
+            // unselected card used to have a TRANSPARENT 2dp border — no edge
+            // at all — so the difference between chosen and not-chosen was
+            // "pomegranate line" vs "nothing", which is the textbook
+            // colour-alone signal (WCAG 1.4.1) and disappears entirely for a
+            // red-green viewer against this plum surface. Now both states draw
+            // an edge and the WIDTH carries the state as well as the hue: a
+            // Veil hairline at rest, a 2dp Pomegranate rule when chosen.
+            border: Border.all(
+              color: selected ? theme.colorScheme.primary : ColorTokens.veil,
+              width: selected ? 2 : 1,
             ),
-            if (package.pricePerMonthString != null) ...[
-              const SizedBox(height: SpacingTokens.x1),
-              Text(
-                // Isolated as an argument: the price lands inside `≈ {price}/شهر`.
-                l10n.paywallApproxPerMonth(
-                  isolateWithin(
-                    package.pricePerMonthString!,
-                    Directionality.of(context),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (primary) ...[
+                _BestValueBadge(label: l10n.paywallBestValue),
+                const SizedBox(height: SpacingTokens.x2),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  // The STORE formats this string, in a locale we do not choose.
+                  ContentText(
+                    package.priceString,
+                    style: theme.textTheme.titleLarge,
+                  ),
+                  if (periodLabel != null) ...[
+                    const SizedBox(width: SpacingTokens.x1),
+                    Text(periodLabel, style: theme.textTheme.bodySmall),
+                  ],
+                ],
+              ),
+              if (package.pricePerMonthString != null) ...[
+                const SizedBox(height: SpacingTokens.x1),
+                Text(
+                  // Isolated as an argument: the price lands inside `≈ {price}/شهر`.
+                  l10n.paywallApproxPerMonth(
+                    isolateWithin(
+                      package.pricePerMonthString!,
+                      Directionality.of(context),
+                    ),
+                  ),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+              if (trialLabel != null) ...[
+                const SizedBox(height: SpacingTokens.x2),
+                Text(
+                  trialLabel,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.tertiary,
                   ),
                 ),
-                style: theme.textTheme.bodySmall,
-              ),
+              ],
             ],
-            if (trialLabel != null) ...[
-              const SizedBox(height: SpacingTokens.x2),
-              Text(
-                trialLabel,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.tertiary,
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
