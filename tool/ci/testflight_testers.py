@@ -751,6 +751,116 @@ def review_readiness(token: str, app_id: str) -> list[str]:
     return gaps
 
 
+# The App Store version states in which `deliver` can write metadata and
+# screenshots. A HINT, printed beside the verbatim state — never a gate: Apple
+# has added states to this vocabulary before (the same reason
+# ALREADY_SUBMITTED_STATES is read as data), and a tool that refused to show a
+# version because it did not recognise the word would hide the very thing the
+# operator opened it to see.
+EDITABLE_STORE_STATES = frozenset(
+    {
+        "PREPARE_FOR_SUBMISSION",
+        "DEVELOPER_REJECTED",
+        "REJECTED",
+        "METADATA_REJECTED",
+        "INVALID_BINARY",
+    }
+)
+
+
+def app_store_versions(token: str, app_id: str) -> list[dict]:
+    """The APP STORE versions — not the TestFlight builds.
+
+    Different resource, different queue, different lifecycle: a build can be
+    `BETA_APPROVED` and live to six testers while the app has no App Store
+    version at all. `deliver` writes to THIS, so "can we upload screenshots?"
+    is a question only this endpoint answers.
+    """
+    query = urllib.parse.urlencode({"limit": 20})
+    return _call(token, "GET", f"/v1/apps/{app_id}/appStoreVersions?{query}").get(
+        "data", []
+    )
+
+
+def version_localizations(token: str, version_id: str) -> list[dict]:
+    query = urllib.parse.urlencode({"limit": 50})
+    return _call(
+        token,
+        "GET",
+        f"/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations?{query}",
+    ).get("data", [])
+
+
+def screenshot_sets(token: str, localization_id: str) -> list[dict]:
+    query = urllib.parse.urlencode({"limit": 50})
+    return _call(
+        token,
+        "GET",
+        f"/v1/appStoreVersionLocalizations/{localization_id}/appScreenshotSets?{query}",
+    ).get("data", [])
+
+
+def screenshot_count(token: str, set_id: str) -> int:
+    query = urllib.parse.urlencode({"limit": 50})
+    return len(
+        _call(
+            token, "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?{query}"
+        ).get("data", [])
+    )
+
+
+def print_store_status(token: str, app: dict) -> None:
+    """Read-only. The App Store listing's side of the house.
+
+    Answers, before anything outward-facing is attempted: is there a version
+    `deliver` can write to, which locales exist on it, and what screenshots are
+    already there. Degrades per level rather than dying — a listing that shows
+    the versions but not their locales is more useful than a traceback.
+    """
+    print("\napp store versions (newest first):")
+    versions = app_store_versions(token, app["id"])
+    if not versions:
+        print("  (none — this app has never had an App Store version)")
+        print("  `deliver` needs one in PREPARE_FOR_SUBMISSION to write to.")
+        return
+
+    for version in versions:
+        attributes = version["attributes"]
+        state = attributes.get("appStoreState") or "UNKNOWN"
+        editable = " <-- editable" if state in EDITABLE_STORE_STATES else ""
+        print(
+            f"  {attributes.get('versionString')}  state={state}  "
+            f"platform={attributes.get('platform')}{editable}"
+        )
+        try:
+            localizations = version_localizations(token, version["id"])
+        except AscError as failure:
+            print(f"      (locales unavailable: {failure})")
+            continue
+        if not localizations:
+            print("      locales: (none)")
+        for localization in localizations:
+            locale = (localization.get("attributes") or {}).get("locale")
+            try:
+                sets = screenshot_sets(token, localization["id"])
+            except AscError as failure:
+                print(f"      {locale}: (screenshot sets unavailable: {failure})")
+                continue
+            if not sets:
+                print(f"      {locale}: no screenshots")
+                continue
+            counted = []
+            for shot_set in sets:
+                display = (shot_set.get("attributes") or {}).get(
+                    "screenshotDisplayType"
+                )
+                try:
+                    counted.append(f"{display}={screenshot_count(token, shot_set['id'])}")
+                except AscError:
+                    counted.append(f"{display}=?")
+            print(f"      {locale}: {', '.join(counted)}")
+
+
 def print_status(token: str, app: dict, group_name: str) -> None:
     """Read-only. Writes nothing, invites nobody."""
     app_id = app["id"]
@@ -872,6 +982,15 @@ def main() -> int:
         help="Read-only: print groups, builds and Beta App Review readiness, then exit.",
     )
     parser.add_argument(
+        "--store-status",
+        action="store_true",
+        help=(
+            "Read-only: the APP STORE listing's versions, locales and existing "
+            "screenshots. Different resource from --status, which reads "
+            "TestFlight. Answers whether `deliver` has a version to write to."
+        ),
+    )
+    parser.add_argument(
         "--assign-build-number",
         help=(
             "Attach THIS build number to the group once Apple finishes "
@@ -931,6 +1050,13 @@ def main() -> int:
     app = find_app(token, args.bundle_id)
     print(f"app: {app['attributes']['name']} ({args.bundle_id}) id={app['id']}")
 
+    # Both read-only, and both return BEFORE any write path. `--store-status`
+    # is checked first only so that passing both prints the listing side too
+    # rather than silently dropping it.
+    if args.store_status:
+        print_store_status(token, app)
+        if not args.status:
+            return 0
     if args.status:
         print_status(token, app, args.group)
         return 0

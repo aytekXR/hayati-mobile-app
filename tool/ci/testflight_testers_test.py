@@ -14,7 +14,9 @@ Run: python3 tool/ci/testflight_testers_test.py
 from __future__ import annotations
 
 import base64
+import contextlib
 import importlib.util
+import io
 import os
 import pathlib
 import sys
@@ -424,6 +426,99 @@ def test_submit_for_review() -> None:
           len([p for m, p, _ in seen if m == "GET" and "buildBetaDetail" in p]), 1)
 
 
+def test_print_store_status() -> None:
+    """The APP STORE side of the house, which is NOT the TestFlight side.
+
+    A build can be `BETA_APPROVED` and live to six testers while the app has no
+    App Store version at all — `deliver` writes to the version, so this is the
+    only reader that can answer "is there something to upload screenshots to?".
+    It must never fail closed on the sub-reads: a listing that shows the
+    versions but not their locales is more useful than a traceback."""
+    print("print_store_status")
+    app = {"id": "app-1", "attributes": {"name": "ikimiz"}}
+
+    def run(script) -> tuple[str, list]:
+        seen = _fake_call(script)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            tf.print_store_status("t", app)
+        return out.getvalue(), seen
+
+    # EVERY fragment below ends in `?` on purpose. These four endpoints NEST —
+    # `/v1/appStoreVersions/v-1/appStoreVersionLocalizations?…` contains the
+    # literal `appStoreVersions`, and `_fake_call` returns the FIRST substring
+    # match — so the bare names make the versions entry swallow the locale call
+    # and hand it a version list. Caught here by two assertions going red, which
+    # is the only reason this is a comment and not a live bug: the fake would
+    # otherwise have agreed with the wrong assumption. `?` only ever appears
+    # where the query string starts, i.e. on the LAST path segment.
+
+    # NO version at all — the state this app was actually in, and the one a
+    # naive reader would render as an empty section that looks like success.
+    text, seen = run([("GET", "appStoreVersions?", {"data": []})])
+    check("no version says so", "never had an App Store version" in text, True)
+    check("no version names what deliver needs",
+          "PREPARE_FOR_SUBMISSION" in text, True)
+    check("no version asks Apple nothing further",
+          [p for _, p, _ in seen if "Localizations" in p], [])
+
+    def version(state):
+        return [
+            ("GET", "appStoreVersions?", {"data": [{
+                "id": "v-1",
+                "attributes": {"versionString": "1.0", "appStoreState": state,
+                               "platform": "IOS"},
+            }]}),
+            ("GET", "appStoreVersionLocalizations?", {"data": [
+                {"id": "loc-1", "attributes": {"locale": "tr"}},
+            ]}),
+            ("GET", "appScreenshotSets?", {"data": [
+                {"id": "set-1",
+                 "attributes": {"screenshotDisplayType": "APP_IPHONE_67"}},
+            ]}),
+            ("GET", "appScreenshots?", {"data": [{"id": "s-1"}, {"id": "s-2"}]}),
+        ]
+
+    text, _ = run(version("PREPARE_FOR_SUBMISSION"))
+    check("an editable version is marked", "<-- editable" in text, True)
+    check("the state is printed verbatim",
+          "state=PREPARE_FOR_SUBMISSION" in text, True)
+    check("the locale is listed", "tr:" in text, True)
+    check("existing screenshots are COUNTED, not just named",
+          "APP_IPHONE_67=2" in text, True)
+
+    # A state Apple adds tomorrow: printed verbatim, NOT marked editable, and
+    # never suppressed. The hint is a hint; hiding the row would hide the one
+    # thing the operator opened this for.
+    text, _ = run(version("SOME_STATE_APPLE_ADDED_LATER"))
+    check("an unknown state still appears",
+          "state=SOME_STATE_APPLE_ADDED_LATER" in text, True)
+    check("an unknown state is not called editable", "<-- editable" in text, False)
+
+    # A live version mid-review is shown and correctly NOT editable — the
+    # difference between "there is a version" and "you can write to it".
+    text, _ = run(version("WAITING_FOR_REVIEW"))
+    check("a non-editable state is shown but unmarked",
+          ("WAITING_FOR_REVIEW" in text, "<-- editable" in text), (True, False))
+
+    # DEGRADATION, both levels. A sub-read that dies must cost its own line and
+    # nothing else — the version list is the part the operator came for.
+    text, _ = run([
+        version("PREPARE_FOR_SUBMISSION")[0],
+        ("GET", "appStoreVersionLocalizations?",
+         tf.AscError("GET /v1/x -> HTTP 403: forbidden")),
+    ])
+    check("a locale failure keeps the version row",
+          ("1.0" in text, "locales unavailable" in text), (True, True))
+
+    text, _ = run([
+        *version("PREPARE_FOR_SUBMISSION")[:2],
+        ("GET", "appScreenshotSets?", tf.AscError("GET /v1/x -> HTTP 403: nope")),
+    ])
+    check("a screenshot-set failure keeps the locale row",
+          ("tr:" in text, "screenshot sets unavailable" in text), (True, True))
+
+
 def test_looks_like_submission_conflict() -> None:
     """The BACKSTOP for a duplicate submission. The primary guard is the state
     read; this only covers the race. It requires BOTH an error family AND a
@@ -715,6 +810,7 @@ def main() -> int:
     test_read_review_contact()
     test_set_review_contact_never_leaks()
     test_submit_for_review()
+    test_print_store_status()
     test_looks_like_submission_conflict()
     test_missing_contact_does_not_block_assignment()
     test_dry_run_against_a_missing_group_still_exits_non_zero()
