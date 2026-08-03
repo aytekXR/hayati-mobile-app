@@ -800,13 +800,92 @@ def screenshot_sets(token: str, localization_id: str) -> list[dict]:
     ).get("data", [])
 
 
-def screenshot_count(token: str, set_id: str) -> int:
+def list_screenshots(token: str, set_id: str) -> list[dict]:
     query = urllib.parse.urlencode({"limit": 50})
-    return len(
-        _call(
-            token, "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?{query}"
-        ).get("data", [])
-    )
+    return _call(
+        token, "GET", f"/v1/appScreenshotSets/{set_id}/appScreenshots?{query}"
+    ).get("data", [])
+
+
+def screenshot_count(token: str, set_id: str) -> int:
+    return len(list_screenshots(token, set_id))
+
+
+def dedupe_screenshots(
+    token: str, app_id: str, locales: set[str], dry_run: bool = False
+) -> list[str]:
+    """Delete duplicate uploads and pin the display order by file name.
+
+    WHY THIS IS NEEDED, measured twice on 2026-08-03. `deliver` uploads the set,
+    verifies it, does not find it (Apple processes screenshots asynchronously),
+    and uploads the WHOLE SET a second time — the log says "Successfully
+    uploaded all screenshots" twice and 6 files produce 10 uploads, because
+    Apple caps a display type at 10 and silently drops the rest. Re-running with
+    `overwrite_screenshots: true` reproduces it exactly: delete 10, upload 6,
+    upload 6 again, land on 10.
+
+    So the listing ends up with the right images plus four duplicates and a
+    scrambled order. Neither is something `deliver` can be configured out of,
+    and neither is something to leave for a human to notice in App Store
+    Connect.
+
+    Keyed on `fileName`, which the generator guarantees is unique per intended
+    screenshot (`01-reveal.png` … `06-lock.png`) — never on position, which is
+    exactly what the double upload scrambles. The FIRST occurrence survives.
+
+    Ordering is re-asserted afterwards rather than assumed: `deliver` sorts at
+    the end of its own run, but that sort ran over the duplicated set, so the
+    survivors' order is whatever the deletions left behind.
+    """
+    lines: list[str] = []
+    for version in app_store_versions(token, app_id):
+        for localization in version_localizations(token, version["id"]):
+            locale = (localization.get("attributes") or {}).get("locale")
+            if locale not in locales:
+                continue
+            for shot_set in screenshot_sets(token, localization["id"]):
+                display = (shot_set.get("attributes") or {}).get(
+                    "screenshotDisplayType"
+                )
+                shots = list_screenshots(token, shot_set["id"])
+                seen: dict[str, str] = {}
+                doomed: list[dict] = []
+                for shot in shots:
+                    name = (shot.get("attributes") or {}).get("fileName") or shot["id"]
+                    if name in seen:
+                        doomed.append(shot)
+                    else:
+                        seen[name] = shot["id"]
+
+                verb = "would delete" if dry_run else "deleted"
+                if doomed:
+                    for shot in doomed:
+                        name = (shot.get("attributes") or {}).get("fileName")
+                        if not dry_run:
+                            _call(token, "DELETE", f"/v1/appScreenshots/{shot['id']}")
+                        lines.append(f"  {locale}/{display}: {verb} duplicate {name}")
+                else:
+                    lines.append(f"  {locale}/{display}: no duplicates")
+
+                ordered = [seen[name] for name in sorted(seen)]
+                if not dry_run and ordered:
+                    _call(
+                        token,
+                        "PATCH",
+                        f"/v1/appScreenshotSets/{shot_set['id']}/relationships/appScreenshots",
+                        {
+                            "data": [
+                                {"type": "appScreenshots", "id": shot_id}
+                                for shot_id in ordered
+                            ]
+                        },
+                    )
+                lines.append(
+                    f"  {locale}/{display}: "
+                    f"{'would order' if dry_run else 'ordered'} "
+                    f"{len(ordered)} by file name"
+                )
+    return lines
 
 
 def print_store_status(token: str, app: dict) -> None:
@@ -991,6 +1070,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--dedupe-screenshots",
+        help=(
+            "Comma-separated locales whose App Store screenshots should be "
+            "de-duplicated by file name and re-ordered. DESTRUCTIVE: it deletes "
+            "screenshots. Honours --dry-run. Needed because `deliver` uploads "
+            "the set twice (measured 2026-08-03)."
+        ),
+    )
+    parser.add_argument(
         "--assign-build-number",
         help=(
             "Attach THIS build number to the group once Apple finishes "
@@ -1060,6 +1148,19 @@ def main() -> int:
     if args.status:
         print_status(token, app, args.group)
         return 0
+
+    # Before the group work and before any submission: this repairs a listing
+    # that a previous upload left wrong, and it must not be hostage to an
+    # unrelated group problem further down.
+    if args.dedupe_screenshots:
+        wanted = {
+            locale.strip()
+            for locale in args.dedupe_screenshots.split(",")
+            if locale.strip()
+        }
+        print(f"\nde-duplicating screenshots for: {', '.join(sorted(wanted))}")
+        for line in dedupe_screenshots(token, app["id"], wanted, dry_run=args.dry_run):
+            print(line)
 
     # Before the group work, so a contact write is not hostage to a group
     # problem — and idempotent, so an earlier partial run costs nothing.

@@ -519,6 +519,77 @@ def test_print_store_status() -> None:
           ("tr:" in text, "screenshot sets unavailable" in text), (True, True))
 
 
+def test_dedupe_screenshots() -> None:
+    """The repair for a defect `deliver` cannot be configured out of.
+
+    Measured twice: deliver uploads the set, fails to verify it (Apple processes
+    screenshots asynchronously), and uploads the WHOLE SET again — six files,
+    ten uploads, because Apple caps a display type at ten and drops the rest."""
+    print("dedupe_screenshots")
+
+    def shot(shot_id, name):
+        return {"id": shot_id, "attributes": {"fileName": name}}
+
+    # The exact shape the live listing was left in: 01-04 twice, 05-06 once.
+    duplicated = [
+        shot("a1", "01-reveal.png"), shot("a2", "02-waiting.png"),
+        shot("a3", "03-ritual.png"), shot("a4", "04-solo.png"),
+        shot("a5", "05-coach.png"), shot("a6", "06-lock.png"),
+        shot("b1", "01-reveal.png"), shot("b2", "02-waiting.png"),
+        shot("b3", "03-ritual.png"), shot("b4", "04-solo.png"),
+    ]
+
+    def script(shots):
+        return [
+            ("GET", "appStoreVersions?", {"data": [{"id": "v-1", "attributes": {}}]}),
+            ("GET", "appStoreVersionLocalizations?", {"data": [
+                {"id": "loc-en", "attributes": {"locale": "en-US"}},
+                {"id": "loc-tr", "attributes": {"locale": "tr"}},
+            ]}),
+            ("GET", "appScreenshotSets?", {"data": [
+                {"id": "set-1",
+                 "attributes": {"screenshotDisplayType": "APP_IPHONE_67"}},
+            ]}),
+            ("GET", "appScreenshots?", {"data": shots}),
+        ]
+
+    seen = _fake_call(script(duplicated))
+    lines = tf.dedupe_screenshots("t", "app-1", {"en-US"})
+    deleted = [p for m, p, _ in seen if m == "DELETE"]
+    check("deletes exactly the four duplicates", len(deleted), 4)
+    check("deletes the SECOND occurrence, never the first",
+          sorted(p.rsplit("/", 1)[-1] for p in deleted), ["b1", "b2", "b3", "b4"])
+
+    patched = [b for m, p, b in seen if m == "PATCH"]
+    check("re-asserts the order", len(patched), 1)
+    check("orders by FILE NAME, not by upload position",
+          [d["id"] for d in patched[0]["data"]], ["a1", "a2", "a3", "a4", "a5", "a6"])
+    check("says what it did", any("deleted duplicate" in ln for ln in lines), True)
+
+    # SCOPED to the requested locales. `tr` shares the same fake set, so a
+    # dedupe that ignored the filter would delete twice as much.
+    seen = _fake_call(script(duplicated))
+    tf.dedupe_screenshots("t", "app-1", {"en-US"})
+    check("touches only the requested locale",
+          len([p for m, p, _ in seen if m == "DELETE"]), 4)
+
+    # A clean set is a no-op that SAYS so — never a silent pass that reads the
+    # same as a repair.
+    seen = _fake_call(script(duplicated[:6]))
+    lines = tf.dedupe_screenshots("t", "app-1", {"en-US"})
+    check("a clean set deletes nothing", [m for m, _, _ in seen if m == "DELETE"], [])
+    check("and says it found none",
+          any("no duplicates" in ln for ln in lines), True)
+
+    # Dry run: reports, touches nothing. Both the DELETEs and the ordering
+    # PATCH — an ordering write is still a write.
+    seen = _fake_call(script(duplicated))
+    lines = tf.dedupe_screenshots("t", "app-1", {"en-US"}, dry_run=True)
+    check("dry run deletes nothing",
+          [m for m, _, _ in seen if m in ("DELETE", "PATCH")], [])
+    check("dry run says WOULD", any("would delete" in ln for ln in lines), True)
+
+
 def test_looks_like_submission_conflict() -> None:
     """The BACKSTOP for a duplicate submission. The primary guard is the state
     read; this only covers the race. It requires BOTH an error family AND a
@@ -811,6 +882,7 @@ def main() -> int:
     test_set_review_contact_never_leaks()
     test_submit_for_review()
     test_print_store_status()
+    test_dedupe_screenshots()
     test_looks_like_submission_conflict()
     test_missing_contact_does_not_block_assignment()
     test_dry_run_against_a_missing_group_still_exits_non_zero()
