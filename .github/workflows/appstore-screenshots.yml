@@ -119,3 +119,48 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
         run: bundle exec fastlane ios store_screenshots
+
+      # REPAIRS what the step above reliably breaks. Measured twice on
+      # 2026-08-03: `deliver` uploads the set, verifies it, does not find it
+      # (Apple processes screenshots asynchronously) and uploads the WHOLE SET
+      # again — six files, ten uploads, because Apple caps a display type at ten
+      # and drops the rest. The listing is left with four duplicates and an
+      # order nobody chose. `overwrite_screenshots: true` reproduces it exactly
+      # rather than avoiding it, so this is not a setting we failed to find.
+      #
+      # Part of the same run on purpose: a lane that leaves a known-wrong
+      # listing behind and relies on someone noticing is worse than no lane.
+      - uses: actions/setup-python@v5
+        if: ${{ inputs.upload }}
+        with:
+          python-version: '3.12'
+      - name: install deps
+        if: ${{ inputs.upload }}
+        run: pip install 'pyjwt[crypto]==2.10.1'
+      - name: de-duplicate + order the uploaded screenshots
+        if: ${{ inputs.upload }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          LOCALES: ${{ inputs.locales }}
+        run: |
+          python3 tool/ci/testflight_testers.py \
+            --bundle-id com.beyondkaira.hayati \
+            --group Friends \
+            --dedupe-screenshots "$LOCALES"
+
+      # Never report green without having looked. The dedupe above says what it
+      # did; this says what Apple now HOLDS, which is the only claim worth
+      # making about an outward-facing write.
+      - name: re-read the listing
+        if: ${{ inputs.upload }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: |
+          python3 tool/ci/testflight_testers.py \
+            --bundle-id com.beyondkaira.hayati \
+            --group Friends \
+            --store-status
