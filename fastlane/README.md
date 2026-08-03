@@ -12,6 +12,7 @@ release ritual — no Mac needed. There is no Android block yet (M6.5, ADR-006).
 | `build_debug` | iOS | Unsigned debug build (`flutter build ios --no-codesign --debug`) — mirrors the `ci.yml` iOS build smoke. Runnable with zero secrets. |
 | `beta` | iOS | fastlane **`match`** installs the stored Apple Distribution certificate + App Store profile, `update_code_signing_settings` pins **Manual**, then prod-flavor `flutter build ipa --release` archives against an explicit `ExportOptions.plist` → `pilot` (TestFlight). Fails closed via `ensure_release_credentials!`. |
 | `store_metadata` | iOS | `deliver(skip_binary_upload: true)` — pushes `fastlane/metadata` per locale, no binary. Fails closed via `ensure_asc_credentials!`. |
+| `store_screenshots` | iOS | `deliver(skip_metadata: true, skip_screenshots: false)` — pushes `fastlane/screenshots` only. Separate from `store_metadata` on purpose: the copy is awaiting native review, the images are not. |
 
 **The two credential checks are deliberately different (ADR-032 D5).**
 `ensure_asc_credentials!` requires the App Store Connect key alone
@@ -74,8 +75,8 @@ every rule class. Both run in the ubuntu `quality`/`preflight` jobs, before
 
 ### Screenshots — rendered from the app, on Linux, at Apple's exact size
 
-`deliver(skip_screenshots: true)` still holds: nothing here uploads them. But
-they are no longer a manual job on somebody's phone.
+No longer a manual job on somebody's phone, and no longer un-uploadable:
+`store_metadata` keeps `skip_screenshots: true`, and a second lane owns them.
 
 ```sh
 tool/ci/appstore_screenshots.sh          # → app/build/appstore/screenshots/{tr,en}/
@@ -94,7 +95,29 @@ use — the surface size comes from `APPSTORE_SCREENSHOT_SURFACE`, which
 goldens stay byte-identical. The store listing and the tested product cannot
 drift apart, because they are renders of one widget tree.
 
-Three things this lane learned the hard way, all pinned in code:
+**Uploading them** is the `appstore-screenshots` workflow — dispatch only, never
+a step in `release.yml`, and `upload: false` by default so the cheap half
+(render + verify + artifact) is what you get without thinking. It runs the
+`store_screenshots` lane, which is deliberately **separate from
+`store_metadata`**: every store string here is AI-drafted and awaiting native
+review, so a lane that pushed both would make uploading an image an implicit
+publish of unreviewed Turkish copy.
+
+Measured 2026-08-03 via `--store-status` before any of this was built:
+
+```
+1.0  state=PREPARE_FOR_SUBMISSION  platform=IOS   <-- editable
+    en-US: no screenshots
+```
+
+So there **is** a version to write to — and **only `en-US` exists on it**. The
+`tr` version localization has never been created, which means
+`fastlane/metadata/tr/` has never landed either. Turkish screenshots have
+nowhere to go until that locale exists, by one of two routes, both the founder's
+call: add Turkish in App Store Connect by hand, or run `store_metadata` and
+accept that it publishes the un-reviewed Turkish copy at the same time.
+
+Three things the render lane learned the hard way, all pinned in code:
 
 - **`matchesGoldenFile` cannot produce a store asset.** With the view at
   1290×2796 @3 it writes a **430×932** file — it captures at the logical size

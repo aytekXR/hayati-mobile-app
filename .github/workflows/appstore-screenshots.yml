@@ -1,0 +1,110 @@
+# appstore-screenshots — render the store screenshots and upload them to the
+# App Store listing.
+#
+# DISPATCH ONLY, and never a step inside release.yml. Uploading writes to the
+# founder's public-facing App Store listing; that is not something a tag or a
+# merge should be able to do as a side effect — the same rule that keeps
+# testflight-testers.yml off `push` because adding a tester emails a real
+# person.
+#
+# The default is `upload: false`: the cheap, safe thing (render + verify + keep
+# the artifact) is what you get by not thinking, and the outward-facing half
+# takes a deliberate tick.
+#
+# NO MAC. `flutter test` rasterises widgets on the host and `deliver` with
+# `skip_binary_upload` needs no Xcode, so the whole lane runs on ubuntu.
+name: appstore-screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Upload to App Store Connect (outward-facing — it writes to your listing)'
+        type: boolean
+        default: false
+      locales:
+        description: 'Which locale folders to send. `tr` needs its version localization to exist first'
+        required: true
+        default: 'en-US'
+
+concurrency:
+  group: appstore-screenshots
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.44.5"
+
+jobs:
+  screenshots:
+    name: render + upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: flutter pub get
+        working-directory: app
+        run: flutter pub get
+
+      # Renders AND verifies every PNG's IHDR — the generator is a widget test
+      # and goes green whenever it does not throw, so its exit code says nothing
+      # about the pixels. --stage lays them out where deliver looks.
+      - name: render screenshots
+        run: tool/ci/appstore_screenshots.sh --stage
+
+      # Always produced, upload or not: a dispatch that only renders is a
+      # perfectly good way to look at what WOULD be sent before ticking the box.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appstore-screenshots
+          path: fastlane/screenshots/
+          if-no-files-found: error
+
+      # Drop every locale the dispatch did not ask for. `deliver` uploads what
+      # it FINDS on disk, so a locale left in the folder is uploaded whatever
+      # the input said — the input has to change the disk, not just the intent.
+      - name: keep only the requested locales
+        if: ${{ inputs.upload }}
+        env:
+          LOCALES: ${{ inputs.locales }}
+        run: |
+          set -euo pipefail
+          kept=0
+          for dir in fastlane/screenshots/*/; do
+            name="$(basename "$dir")"
+            if printf '%s' "$LOCALES" | tr ', ' '\n\n' | grep -qx "$name"; then
+              echo "keeping $name"
+              kept=$((kept + 1))
+            else
+              echo "dropping $name (not in '$LOCALES')"
+              rm -rf "$dir"
+            fi
+          done
+          # Fail closed. An empty screenshots folder makes `deliver` a silent
+          # no-op that exits 0, which would read as "uploaded" in the run list.
+          if [ "$kept" -eq 0 ]; then
+            echo "::error::no locale folder matched '$LOCALES' — nothing to upload"
+            exit 1
+          fi
+
+      - uses: ruby/setup-ruby@v1
+        if: ${{ inputs.upload }}
+        with:
+          bundler-cache: true
+
+      - name: fastlane store_screenshots
+        if: ${{ inputs.upload }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: bundle exec fastlane ios store_screenshots

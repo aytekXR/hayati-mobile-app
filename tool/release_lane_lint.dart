@@ -62,6 +62,13 @@ const String pinnedStoreName = 'ikimiz';
 const Map<String, String> _laneCredentialHelper = {
   'beta': 'ensure_release_credentials!',
   'store_metadata': 'ensure_asc_credentials!',
+  // Same reasoning one lane over: uploading a PNG signs nothing either. Listed
+  // rather than left out, because this map is an ALLOW-LIST — a lane absent
+  // from it is not "checked loosely", it is not checked at all, and the defect
+  // this lint exists to catch (a no-signing lane routed through the match-aware
+  // helper, aborting inside a continue-on-error step that reported success)
+  // would be free to recur in any lane added later.
+  'store_screenshots': 'ensure_asc_credentials!',
 };
 
 void main(List<String> args) {

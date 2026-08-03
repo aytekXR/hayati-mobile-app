@@ -174,6 +174,39 @@ platform :ios do
       force: true,
     )
   end
+
+  desc "Upload App Store screenshots from fastlane/screenshots — App Store Connect API key"
+  lane :store_screenshots do
+    ensure_asc_credentials!
+
+    app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_API_KEY_P8_BASE64"),
+      is_key_content_base64: true
+    )
+
+    # A SEPARATE lane from store_metadata, not a flag on it. Screenshots and
+    # copy have different readiness: `fastlane/README.md` records that every
+    # store string is AI-drafted and awaiting native review by the founder
+    # couple, so a lane that pushed both would make uploading an image an
+    # implicit publish of unreviewed Turkish copy. `skip_metadata: true` keeps
+    # that decision where it belongs — with the founder, on the other lane.
+    deliver(
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: false,
+      # Replace rather than append: the generator produces the whole set every
+      # run, so without this a second dispatch stacks a duplicate six on top of
+      # the first and Apple caps a display type at ten.
+      overwrite_screenshots: true,
+      # precheck inspects METADATA. This lane deliberately sends none, so the
+      # only thing it could do here is fail the run on copy this lane did not
+      # touch and is not claiming to have reviewed.
+      run_precheck_before_submit: false,
+      force: true,
+    )
+  end
 end
 
 # platform :android — intentionally absent until M6.5 (ADR-006).
