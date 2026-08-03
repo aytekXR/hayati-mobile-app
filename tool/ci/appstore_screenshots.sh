@@ -63,3 +63,20 @@ PY
 
 echo
 echo "upload from: app/build/appstore/screenshots/{tr,en}/"
+
+# --stage copies the set where `deliver` looks, applying the ONE mapping that
+# differs between the two worlds: the app's locale is `en`, App Store Connect's
+# is `en-US` (and `fastlane/metadata/en-US/` already spells it that way). Kept
+# here rather than in the workflow so the mapping is reviewed as code, and it
+# is opt-in so a plain render never writes outside build/.
+if [ "${1:-}" = "--stage" ]; then
+  staged="../fastlane/screenshots"
+  rm -rf "$staged"
+  mkdir -p "$staged/en-US" "$staged/tr"
+  cp build/appstore/screenshots/en/*.png "$staged/en-US/"
+  cp build/appstore/screenshots/tr/*.png "$staged/tr/"
+  echo
+  echo "staged for deliver:"
+  # shellcheck disable=SC2012  # ls is fine here: our own filenames, no spaces.
+  ls "$staged"/*/ | sed 's/^/  /'
+fi

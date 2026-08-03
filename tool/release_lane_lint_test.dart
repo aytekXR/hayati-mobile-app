@@ -118,6 +118,15 @@ platform :ios do
     ensure_asc_credentials!
     deliver(skip_binary_upload: true, force: true)
   end
+
+  # Present because `_laneCredentialHelper` is an ALLOW-LIST and RULE 2 treats
+  # a mapped lane with no block as a violation — so a lane added to the map
+  # without being added here turns every should-pass fixture red at once,
+  # which is how this arrived. (Ruby comments: this string is a Fastfile.)
+  lane :store_screenshots do
+    ensure_asc_credentials!
+    deliver(skip_binary_upload: true, skip_metadata: true, force: true)
+  end
 end
 ''';
 
