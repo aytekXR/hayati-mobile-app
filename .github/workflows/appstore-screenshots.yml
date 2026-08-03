@@ -96,10 +96,21 @@ jobs:
             exit 1
           fi
 
+      # MIRRORS release.yml's proven block, deliberately, down to the pinned
+      # version and the separate `bundle install`. The first draft used
+      # `bundler-cache: true` with no `ruby-version` and died on
+      # "input ruby-version needs to be specified if no .ruby-version or
+      # .tool-versions file exists" — this repo has neither, so the action has
+      # nothing to infer from. Copying the block that already works beats
+      # re-deriving one, and if a `.ruby-version` ever lands both lanes should
+      # change together.
       - uses: ruby/setup-ruby@v1
         if: ${{ inputs.upload }}
         with:
-          bundler-cache: true
+          ruby-version: '3.3'
+      - name: bundle install
+        if: ${{ inputs.upload }}
+        run: bundle install
 
       - name: fastlane store_screenshots
         if: ${{ inputs.upload }}
