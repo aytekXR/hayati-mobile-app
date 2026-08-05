@@ -55,7 +55,7 @@ decision from you before a session can finish them.
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~97%** — M1→M6.3 all merged. But **M3.4's notification half has never delivered a single push**: the server composes them correctly and the phone was never taught to receive them. The plan ticked it ✅ on the strength of the half that could be tested. | **4(a)**, then a session's build work. |
+| **Is the MVP built?** | **~97%** — M1→M6.3 all merged. **M3.4's notification half has still never delivered a single push.** Session 062 built the missing piece underneath it — the app can now record which phone to notify, and only the server can write it — but **the phone still has no way to receive a push**, because that needs the portal tick below. The plan's ✅ on M3.4 has been struck through and dated. | **4(a)**, then one session's build work. |
 | **Can people install it?** | **100%** — done. Build 113 is approved and live. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Ship **114+** so they stop testing three-week-old code. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
@@ -201,11 +201,21 @@ the three you asked for.
 
 **What already exists while you do it.** The server composes the "your partner
 answered" push correctly today and hands it to the send seam — that half has been
-built and tested since M3.4. What has never existed is anything to send it *to*:
-no device has ever registered a push token, because nothing in the app or the
-server could write one. Session 062 is building that half. The last mile after
-that is the Firebase messaging plugin and the entitlement — step 4 above, waiting
-on you.
+built and tested since M3.4. What never existed is anything to send it *to*: no
+device had ever registered a push token, because nothing in the app or the server
+could write one.
+
+**Session 062 built that.** The app can now record which phone belongs to which
+account, and — this is the part that needed care — **only the server can write it.**
+A phone's push token is effectively an address for that phone, so if the app itself
+could edit that list, a modified app could put someone else's phone on it and start
+receiving their notifications. It is now locked in the security rules in both
+directions, and the lock is tested by trying to break it.
+
+**Two things are still missing, and neither is engineering.** The plugin and the
+entitlement (step 4 above) wait on your portal tick. The daily-question and
+16:00 pushes you asked for are the next session's work and are not blocked by
+anything.
 
 ---
 
