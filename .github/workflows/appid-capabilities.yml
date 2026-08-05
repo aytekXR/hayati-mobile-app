@@ -1,0 +1,103 @@
+# appid-capabilities — read which capabilities are ticked on the App ID.
+#
+# WHY THIS EXISTS. Three questions have sat in docs/operator-expected.md for
+# months with the same non-answer — "a session cannot read the portal, so nobody
+# knows": item 4(a) (Push Notifications, which gates the whole notification
+# feature), item 2(d) (Associated Domains, whose absence cost a release — see
+# ADR-040), and the App Attest question under 2(d) (prod App Check attestation
+# cannot succeed without it, ADR-039).
+#
+# None of the three was ever unanswerable. The portal's capability list is
+# readable over the App Store Connect API with the SAME credential the release
+# lane and testflight-testers.yml already hold, so "ask the founder to look" was
+# a missing tool, not a missing permission. One dispatch answers all three.
+#
+# WHY A WORKFLOW AND NOT A DEV-BOX COMMAND: identical to testflight-testers.yml
+# — the ASC key lives only in GitHub secrets (architecture.md §9, zero
+# credentials in this repo), and ASC_KEY_ID / ASC_ISSUER_ID are `release`
+# ENVIRONMENT secrets while ASC_API_KEY_P8_BASE64 is a REPOSITORY secret, so
+# only a job declaring the environment sees both (the REL-2 lesson).
+#
+# READ-ONLY BY CONSTRUCTION. The tool has no code path that can tick a
+# capability. Enabling one changes how a real binary signs; that is a founder
+# decision, and a lane that could do it would also be a lane that could do it by
+# accident. Manual dispatch only — nothing here should run as a merge side
+# effect.
+#
+# THE JOB REDDENS ON BOTH FINDINGS, AND THEY ARE DIFFERENT FINDINGS:
+#   exit 1  measured, a required capability is NOT ticked  -> the founder must act
+#   exit 2  COULD NOT MEASURE (no credential, or a 403 because this key's role
+#           does not cover Certificates/Identifiers)       -> nobody looked
+# Exit 2 must never be quietly green: a check that cannot run and reports success
+# is the failure mode ADR-041 and the rules-drift preflight were built against.
+name: appid-capabilities
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: 'App ID to read'
+        required: true
+        default: 'com.beyondkaira.hayati'
+      require:
+        description: 'Comma-separated capabilities that must be ticked (blank = plain read-out)'
+        required: false
+        default: 'PUSH_NOTIFICATIONS,ASSOCIATED_DOMAINS,APP_ATTEST'
+
+concurrency:
+  group: appid-capabilities
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  read:
+    name: read App ID capabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # `python3 -m pip`, never bare `pip`, and setup-python before either — the
+      # lesson recorded in ci.yml's rules-drift job.
+      - name: install deps
+        run: python3 -m pip install --quiet 'pyjwt[crypto]==2.10.1'
+      - name: read capabilities
+        # Inputs reach the shell as ENV, never interpolated into the script body:
+        # `${{ }}` expands before bash sees the line, so an input containing shell
+        # metacharacters would otherwise execute (testflight-testers.yml's rule).
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+          REQUIRE: ${{ inputs.require }}
+        run: |
+          args=(--bundle-id "$BUNDLE_ID")
+          # Split on commas without word-splitting on whitespace inside a value.
+          if [ -n "$REQUIRE" ]; then
+            IFS=',' read -r -a wanted <<< "$REQUIRE"
+            for capability in "${wanted[@]}"; do
+              # trim surrounding spaces so `A, B` behaves like `A,B`
+              capability="${capability#"${capability%%[![:space:]]*}"}"
+              capability="${capability%"${capability##*[![:space:]]}"}"
+              if [ -n "$capability" ]; then args+=(--require "$capability"); fi
+            done
+          fi
+          set +e
+          python3 tool/ci/appid_capabilities.py "${args[@]}"
+          status=$?
+          set -e
+          # Never read this through a pipe — `$?` after a pipe is the PIPE's
+          # status, the single most-cited lesson in docs/session-lessons.md.
+          case "$status" in
+            0) echo "::notice::every requested capability is ticked on $BUNDLE_ID" ;;
+            1) echo "::error::a required capability is NOT ticked on $BUNDLE_ID — see the read-out above; this is a founder action (operator-expected 4(a) / 2(d))" ;;
+            2) echo "::error::COULD NOT MEASURE the App ID capabilities — nobody looked, so nothing above is evidence about the portal" ;;
+            *) echo "::error::appid_capabilities.py exited $status, which is outside its documented taxonomy" ;;
+          esac
+          exit "$status"

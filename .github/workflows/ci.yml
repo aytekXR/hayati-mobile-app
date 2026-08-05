@@ -144,6 +144,17 @@ jobs:
         run: |
           pip install --quiet 'pyjwt[crypto]==2.10.1'
           python3 tool/ci/testflight_testers_test.py
+      # tool/ci/appid_capabilities.py shares that credential path (it imports
+      # testflight_testers._token rather than growing a second copy), so it rides
+      # the same pyjwt install. Its self-tests are hermetic — no network, no
+      # Apple, no secret — and they pin the ONE property that makes the tool worth
+      # having: a 403 from an API key that lacks the Certificates/Identifiers role
+      # must be exit 2 "could not measure", never exit 1 "the capability is
+      # absent". Collapsing those two would hand the founder a measured-sounding
+      # lie about a blocker. Mutation-checked: forcing _cannot_measure to return
+      # EXIT_ABSENT reddens ten named assertions.
+      - name: app id capability probe self-tests
+        run: python3 tool/ci/appid_capabilities_test.py
       # ADR-034: the behavioural half of the advisory-delta gate. The gate itself
       # runs in functions-rules (it needs npm); these tests are hermetic — no npm,
       # no network, no emulator — so they belong here with the other pre-`pub get`
