@@ -15,9 +15,24 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-05**, at your direction, by a doc-only session. Every
-line below was re-measured against Apple, GitHub, Google and your live site that
-day — not carried forward._
+_Last refreshed: **2026-08-06** (Session 062). The 2026-08-05 refresh re-measured
+every line against Apple, GitHub, Google and your live site; S062 added the one
+thing that refresh could only ask you to report._
+
+> ### 📍 One portal page now closes three open items, and we can see it from here
+>
+> **Measured 2026-08-06, straight out of Apple's portal:** `com.beyondkaira.hayati`
+> has **`APPLE_ID_AUTH`** and **`IN_APP_PURCHASE`** ticked, and is missing
+> **`PUSH_NOTIFICATIONS`** (item **4(a)**), **`ASSOCIATED_DOMAINS`** (item
+> **2(d)**) and **`APP_ATTEST`**.
+>
+> All three are checkboxes on **one page**: Certificates, Identifiers & Profiles →
+> Identifiers → `com.beyondkaira.hayati`. One visit, three ticks, Save.
+>
+> This used to be three separate bullets that each said *"a session cannot read
+> the portal, so nobody knows."* That was a missing tool, not a missing
+> permission — S062 built it, and from now on nobody has to ask you whether you
+> did it.
 
 > **What changed since the last refresh (2026-08-01):**
 >
@@ -104,6 +119,32 @@ works for both.
 
 **2. Tick Push Notifications on the App ID (~1 min).** Apple Developer portal →
 **Identifiers** → `com.beyondkaira.hayati` → tick **Push Notifications** → Save.
+
+> ### 📍 Measured 2026-08-06 — it is **not ticked**, and that is now a fact rather than a guess
+>
+> The probe ran green against Apple's portal
+> ([run 31054773143](https://github.com/aytekXR/hayati-mobile-app/actions/runs/31054773143))
+> and reported **exit 1 — capability absent**. Not exit 2, so this is a real
+> read-out and not a permissions failure: the API key *can* see the App ID, and
+> what it saw was this.
+>
+> ```
+> capabilities ticked on com.beyondkaira.hayati (the portal's own list):
+>   - APPLE_ID_AUTH
+>   - IN_APP_PURCHASE
+>
+> requested and ABSENT:
+>   MISSING PUSH_NOTIFICATIONS     <- this item
+>   MISSING ASSOCIATED_DOMAINS     <- item 2(d)
+>   MISSING APP_ATTEST
+> ```
+>
+> **All three are one visit and one tick each**, on the same portal page. You are
+> already going there for Push Notifications; ticking the other two while you are
+> in there costs nothing and closes item 2(d) at the same time.
+>
+> This also retires the last of the *"a session cannot read the portal, so nobody
+> knows"* bullets. Whatever you do — or do not do — the next dispatch will say so.
 
 **Why the second one matters more than it looks.** The app has to declare a push
 entitlement, and that entitlement must also exist in the **provisioning
@@ -301,6 +342,11 @@ forgotten.
 Apple Developer portal → Certificates, Identifiers & Profiles → **Identifiers** →
 `com.beyondkaira.hayati` → tick **Associated Domains** → Save.
 *(Same page as **4(a)**'s Push Notifications tick — do both in one visit.)*
+
+> **Measured 2026-08-06: `ASSOCIATED_DOMAINS` is absent.** Confirmed by the same
+> read-out as 4(a) — see the box there for the portal's full capability list.
+> This item had been carried for months as *"nobody can see the portal"*; that is
+> no longer true in either direction.
 
 **Not blocking** (ADR-040). It *was*: the entitlement must exist in the
 **provisioning profile** as well as in `Runner.entitlements`, and `match` fetches
