@@ -1,113 +1,228 @@
-# Resume Prompt
+# Resume Prompt — Session 062
 
-> This file contains ONE and only ONE objective. Every session executes ONLY this file. (See `project-rules.md` #1, `session-rules.md`.)
+> **This file contains ONE objective. That objective is the session; nothing else is.**
+> (`project-rules.md` #1, `session-rules.md` §1.)
 >
-> **Standing de-gating note (ADR-007):** engineering milestones M1→M6 proceed without content-ops preconditions. Gates 1–3 are decision instruments for marketing/spend/launch posture, not build blockers. TikTok/content-ops work is out of session scope unless the founder re-activates it. First release target: the founder couple's own devices (personal-use-first).
+> Before starting, read the two companions — they carry what used to be crammed into
+> this file's header:
+> * **`session-context.md`** — toolchain, machine, review discipline, binding
+>   invariants, and the never-without-asking list.
+> * **`session-lessons.md`** — the institutional lessons, numbered to **80**. Cited below
+>   by number.
 >
-> **Standing sequencing note (ADR-006):** iOS-first — milestones validate and ship on iOS first; Android work is re-sequenced into M6.5 (whose *timing* is a founder decision informed by Gate 3 — it is not the automatic next slice).
->
-> **Standing tooling note (CodeGraph, founder directive 2026-07-09):** orient with CodeGraph at session start and use it for symbol/call-path/impact navigation throughout — `codegraph_explore` MCP tool (CLI fallback `codegraph explore|node|callers`); sub-agents and workflow agents use the same tools via ToolSearch. Before the session ends, `codegraph sync` after the merge (session-rules §1 step 4 / §3 step 6). The index is machine-local (`.codegraph/`, gitignored). **S026 addendum: `.claude/skills/` is gitignored the same way** — a fresh machine runs `uipro init -a claude` once if it wants the corpus, and **only the `ui-ux-pro-max` skill may be invoked in this repo** (ADR-025 D9).
->
-> **Standing session-hygiene note (Sessions 013 + 014 incidents):** before writing ANYTHING, check for another live Claude session on this repo — `tmux ls` + `ps aux | grep claude` + `readlink /proc/<pid>/cwd` and recent non-self mtimes in the tree. **Identify your OWN claude PID first** (walk `$$` up the ppid chain) or you will report yourself as the intruder — **but do not hand-roll that walk from `/proc/<pid>/stat` field 4: `comm` contains spaces, and S056's version printed 20,000 characters of garbage before it was killed. Use `ps -eo pid,ppid,args` and read the tree.** **The other claudes on this box work OTHER repos (`evrak`, `repo`(parent), `ams-pulse`, `unhooked`, `ai-videos`, `yanki-mvp`, `bilet`)** — confirm by walking cwd before treating one as a conflict, **and a leftover background `bash` from your OWN pre-`/clear` session will show up as a child of your own claude PID** (S051 saw one sleeping 15 hours; **S053 killed another that had been spinning for 25; S056 killed TWO `until [ "$(gh …)" ]` poll loops that had been hammering `gh` for ~2 days**). *S058 note: the two orphaned `functions/node_modules/.bin/firebase-functions` node processes S056 saw were still running, aged 5 and 6 days, bound to no port; killed at session start. Check for them.* **S038/S053 addendum: a CONCURRENT session on ANOTHER machine/tree can merge to `main` mid-session AND consume your session number.** `ps`/`tmux` only cover THIS box, so **re-derive the session number and the queue from `git log` + `gh issue list`, never from this file's prose.** **Checkpoint-commit implementation output IMMEDIATELY** — S056 opened on **38 files and ~1,400 insertions** of finished, tested work sitting uncommitted, which is one `git checkout .` away from total loss. **S037 addendum: REVIEW workflows can mutate the tree** — after every review workflow returns, `git status` must be EMPTY before you commit anything.
->
-> **Standing review-ordering note (Sessions 015–053, TWENTY-EIGHT consecutive pre-code passes):** write the ADR (or the slice design), commit it, then adversarially design-review it BEFORE writing code — that is where the defects are. Use 4–5 lenses × 2 independent verifiers (a refuting skeptic + a governing-docs adjudicator), **and run the review TWICE: once on the design, once on the built diff.** Aggregate so a finding surfaces when EITHER verifier says real. **Check `agents_error`/`agents_empty_result` before trusting a verdict distribution — an empty verdict is *unverified*, and the tooling renders it as the opposite** (S041; S053 read two empty transcripts before believing them). **Rebase onto latest `main` before sending a diff to the review workflows** and re-check at merge time (founder directive, S042). **S053 addendum: cap your verify fan-out with a `log()` of what you DROPPED.** *S056 note: that session ran no review workflows — it inherited a finished slice and its job was to verify, commit and ship it. Verification-of-inherited-work is a different task from review-of-your-own-design; say which one you are doing.* **S058 note: the harness that session ran under FORBADE sub-agents and workflows outright, so the adversarial pass was run inline by the session itself (design lenses: refuting skeptic, governing-docs adjudicator, completeness critic) and the mutation harness did the work a verifier panel usually does. That is a legitimate substitute ONLY because the findings were mechanical rather than judgemental — say which instrument you used, and do not claim a panel you did not run.**
->
-> **S058 addendum — (75) A FAKE THAT IS WRONG ABOUT THE SHAPE TESTS NOTHING, AND ITS PAIRED ASSERTION WILL STILL PASS.** The two-project drift test's fake returned `projects/p/rulesets/rs-1` for *every* project, exactly as a careless reading of the API would. The tool therefore never saw the drifting project's ruleset and the branch was **unreachable** — yet the companion assertion *"bad project reported as drift"* passed, because `check_in("bad-project", out)` matched the section **header**. Two instruments came out of it. **Assert against a SCOPED SLICE of the output, not the whole buffer** (`_section(out, project)`), so a claim about one subject cannot be satisfied by another subject's text. And **a mutation harness that reports WHICH checks moved catches vacuous assertions that a pass/fail harness cannot** — this was found because the harness demanded the exact *set*, and got a superset. Note the family resemblance to addendum 74: the diagnostic failing in the reassuring direction, one layer out.
->
-> **S058 addendum — (76) A HERMETIC TEST CAN STOP BEING HERMETIC UNDER MUTATION — AND PASS FOR THE WRONG REASON.** Mutating `resolve_credential` to return `""` instead of raising did not redden the no-credential test. The tool built a real `RulesApi`, called the **live Google endpoint**, got 401, mapped it to `MeasurementError`, and exited **2** — the asserted value. So a test advertised as "no network" made a network call, and its exit-code assertion was satisfied by an accident three layers away from the property it names. **Assert the MECHANISM, not only the outcome:** "never CONSTRUCTS an API client without a credential" cannot be satisfied by luck, where "exits 2" can. Whenever an assertion is a single scalar that many paths produce, ask which path actually produced it.
->
-> **S058 addendum — (77) THE GREEN-WITHOUT-MEASURING HOLE HAS A YAML-SHAPED VERSION, AND IT NEARLY SHIPPED INSIDE THE FIX FOR ITSELF.** A job-level `if:` **cannot read `secrets`**, so the natural way to build a credentialed check is one job with `if:` on each step — and **a job whose every step skipped reports GREEN.** Built that way, the #140 gate would have been a green check that measured nothing: #140's own defect, delivered by the PR closing #140. The structural cure is a **preflight JOB** publishing a boolean, so the gated job is either MEASURED (green or red) or **visibly SKIPPED**, with no third outcome. **A skipped job is an honest gap that shows on every run; a green one is a claim.** Generalise: whenever a gate can be unable to run, enumerate what the CI *UI* will show, not what your code returns.
->
-> **S058 addendum — (78) NAME WHICH HALF IS PROVEN BY WHICH INSTRUMENT — THE ADR IS WHERE THAT SLIPS.** ADR-041's first draft said the deploy path was *"exercised end to end"*. What was exercised was the `firebase deploy` **command**, from the local CLI. `deploy-rules.yml` has never run and cannot until a secret exists. Left standing, that sentence claims a lane works when nobody has seen it start — **S056 addendum 69 verbatim, inside the ADR that cites addendum 69.** The same re-read caught *"verified for all four read methods this tool calls"* (the discovery doc lists four; the tool calls three). Both were found by re-reading the finished ADR **against the code**, which is the standing rule and paid twice in one session. **Write "X was proven by Y" and let the asymmetry show; a sentence that averages a proven half and an unproven half is false about both.**
->
-> **Earlier addenda that keep paying (condensed):** **a stale fact inside an INSTRUCTION gets EXECUTED — re-derive every identifier in every runnable block you leave behind** (S056/64); **an empty result from a tool is UNVERIFIED, not negative — `gh run view --job --log` returns nothing, use `gh api repos/…/actions/jobs/<id>/logs`** (S056/65); **verifying what you did NOT change is part of changing something** (S056/66); **glob semantics are a vendor implementation detail — deploy, then `curl`** (S056/67); **name the deferral and why it keeps winning** (S056/68); **`continue-on-error` is not the bug, an UNREAD failure is — and "the script raises" ≠ "the script never started"; prefer `python3 -m pip`** (S056/69); **a risk inferred from STRUCTURE is a hypothesis until it has a POPULATION** (S057/70); **do not renumber a list other files cite by number** (S057/71); **closing an issue on a reassuring measurement ≠ building what it asked for — re-read the BODY and re-file the other half** (S057/72); **after writing anything about a secret, grep your own diff for the secret** (S057/73); **assert a mutation site is UNIQUE before believing what its failure tells you** (S057/74); **the verifier panel is an INPUT to judgement, not a substitute for measuring** (S051); **a probe whose control passes is a broken probe** (S051, S053); **your own ADR is a claim surface you will falsify with your own code — re-read the WHOLE ADR after every code change, hunting the PARAPHRASE and the NEGATION** (S051 ×4, S053 ×3, **S058 ×2**); **N EXPERT SWEEPS CAN ALL MISS THE SAME THING — budget a completeness critic into every fan-out** (S050, S053); **a remainder deferred into prose is a remainder that gets lost**; **a premise that was replaced rather than measured is likely wrong again** (S049); **a test whose fixture is derived from its subject proves nothing** (S047/S050, **and S058's self-referential-enum case is exactly #130**); **MUTATION-CHECK every guard AND the test, in both directions** (S042, S053, S058); **verify with the command CI runs, not the convenient one** (S044, S053, S056, S058); **`$?` after a pipe reads the PIPE's status — use `${PIPESTATUS[0]}`** (S047, S051, S053); **query the PLATFORM, not the docs** (S045, S053, S056, **S058 — the OAuth scope question was settled by fetching the API's own discovery document**); **read the ARTEFACT, not just the source** (S047, S051); **run the session, do not assert its conclusion** (S045); **a GATE WRITTEN IN ONE LANGUAGE GUARDS ONE LANGUAGE** (S055); **a TEST THAT IS NOT REGISTERED IS A GREEN RUN THAT PROVES NOTHING** (S055, S056); **only the VENDOR can refute a vendor API shape** (S055); **"no unblocked engineering" is a claim to RE-DERIVE every session**.
->
-> **Standing toolchain note:** the functions/rules emulator suites need Java 21+ on PATH (`~/.local/share/java/jdk-21.0.11+10-jre/bin`) and global `firebase-tools@15.22.4`. Build `functions/` first (`npm run build`); the functions emulator never compiles TS. Full suite **FROM THE REPO ROOT** (echo the exit code — and beware that `; echo $?` after a pipe reads the *pipe's* status): `firebase emulators:exec --only auth,firestore,functions --project demo-hayati 'cd functions && npm run test:ci'`. **The emulator suite binds fixed ports and is NOT safe to run concurrently — including with your own review agents** (check `ss -ltn` for 8080/9099/5001; forbid emulator runs in workflow-agent prompts). **Also forbid workflow agents from running `flutter`/`dart` at all, and from any package-manager command that WRITES** (`npm install|ci|audit fix|update|dedupe`). **`gcloud` is NOT installed on this box and there is no ADC** (re-confirmed S058) — Scheduler/Eventarc state cannot be verified from here; say so rather than asserting it. **The `firebase` CLI IS logged in as the founder** (`aaytekinerdogan@gmail.com`) with access to `hayatiapp-prod`/`hayatiapp-dev`; S056 used it to deploy live Hosting and **S058 used it to deploy dev firestore rules and to read both projects' live rulesets**. That is a LOCAL path; **`FIREBASE_SERVICE_ACCOUNT` is still unset** (re-checked S058) and **`FIREBASE_RULES_VIEWER_SA` does not exist yet** (#165), so CI can deploy nothing and `rules-drift` runs SKIPPED. *To re-measure what is live from this box: `python3 tool/ci/rules_drift.py --from-firebase-cli --project hayatiapp-prod --project hayatiapp-dev` — exit 0 in sync, 1 drift, 2 could not measure.* **Run `flutter gen-l10n` in `app/` before trusting any test or analyze run that touches localized text**. Flutter at `~/flutter/bin` (`dart` is `~/flutter/bin/dart`, not on PATH). **Run `dart format` before every commit** — CI runs `dart format --set-exit-if-changed app/lib app/test tool content` **from the repo root**. Coverage gates: **app 68** (measured 87.42% at the S056 close), **functions 80 hard / 85 target** (measured 97.22% at the S053 close). Content: packs authored under `content/packs/` ONLY — `dart content/validator/validate.dart --sync`. App-side: `.g.dart` committed — `dart run build_runner build --delete-conflicting-outputs` in `app/` after adding providers. Theme gotcha: global `FilledButton` has infinite min-width — override `minimumSize` inside Rows. **`hayatiTheme` is MEMOIZED (ADR-039 D7)** — it returns the same `ThemeData` instance per language code. Goldens are Linux-canonical: **360 tracked PNGs across 24 directories** (re-measure with `git ls-files 'app/test/**/*.png' | wc -l`).
->
-> **Standing binding-invariants note:** **M6.1 (ADR-018 rev 4)** the four lock invariants; **M6.2 (ADR-019)** the seven cascade invariants, deletion notice sends NO push, export `formatVersion` 2; **ADR-023** consent/legal is BINDING — `users.consent` server-owned, the three-way legal-version source-sentinel means a legal-text revision bumps ALL THREE in one diff, `docs/legal/` byte-synced to `app/assets/legal/` under a drift test, withdrawal is PROSPECTIVE by DV doctrine; **ADR-024** `tool/ci/slack_notify.sh` is the single notifier with NO vote on the build and **ALL policy in the script** (D1); **ADR-025** the slice-0 firewall stays live and **D8's golden declaration is discipline, not a CI gate**; **ADR-026** the `seasonalWindow` vocabulary is CLOSED and gated in FIVE readers — adding a season is a five-file change, **but only FOUR of the five are parity-guarded: that is #130, the objective below**; **ADR-032** release signing is fastlane `match` + MANUAL, the build NAME comes from pubspec while the build NUMBER is CI-synthesized (`100 + GITHUB_RUN_NUMBER`), and `fastlane/metadata/*/name.txt` is PINNED to **İkimiz** — enforced per-PR by `tool/release_lane_lint.dart`; **ADR-033** bidi isolation is applied at the **string boundary** and **at render only** — nothing persisted, exported or shared may carry `U+2068`/`U+2069`; **ADR-034** advisories are gated on what a change **INTRODUCES**, no baseline file, no cron, no Slack routing, base-ref selection lives in the TOOL not the YAML, fail-closed (exit 2); **ADR-039** the boot is FAIL-OPEN and always ends in a frame, every blocking wait on the launch→paired path is BOUNDED, the invite-link host set `kInviteLinkHosts` is CLOSED, `--invite-only` publishes no legal document at all; **ADR-040** the `associated-domains` entitlement is deliberately ABSENT, the AASA is already served and correct, and the app still PARSES all three hosts; **ADR-041 (new, S058)** merged-vs-deployed for firestore rules — **no committed marker file** (only the platform may answer), exit codes are a **taxonomy** (0/1/**2 = could not measure**, never 0 without comparing), the comparison is **byte-exact with no normalization**, a second `cloud.firestore/{db}` release fails **CLOSED**, the check runs **post-merge on `main` only and on EVERY push**, prod rules deploys are **dispatch-only and require typing the project id**, and the watcher's credential is **read-only by construction** so it can never cause the drift it reports. **D6.1 is a RECORDED EXCEPTION to §9's "never a `::warning::` on a green build" rule** — an absent webhook costs a notification, an absent rules credential means a gate is not running; do not "tidy" it back to a `::notice::` without re-reading that decision.
+> Re-derive the session number from `git log`; a session on another machine can consume it.
 
-## Objective — Session 059: **#130 — ADR-026 D3 claims the seasonal vocabulary is guarded in FIVE readers. Four are. The fifth test is self-referential, and what it permits is a `FormatException` at pack-load on a real device.**
+**Objective: make the app send push notifications. It never has — not once, to anyone.**
 
-> ### FIRST: re-derive Apple's verdict, then ignore TestFlight for the rest of the session.
->
-> At the S058 close **build 113 was still `externalBuildState = WAITING_FOR_BETA_REVIEW`** — re-measured, Apple had neither approved nor rejected it. Re-derive before anything else:
-> `gh workflow run testflight-testers.yml -f status_only=true -f group=Friends`, then read the job log with **`gh api repos/:owner/:repo/actions/jobs/<id>/logs`** (`gh run view --job --log` returns nothing — addendum 65).
-> * `READY_FOR_BETA_TESTING` + testers `INVITED`/`ACCEPTED`/`INSTALLED` → **approved.** Delete operator item 2(c) and tell the founder.
-> * still `WAITING_FOR_BETA_REVIEW` → nothing to do. Do not re-submit; `submit_for_review` is a no-op there by design.
-> * **REJECTED** → that outranks the objective below. Operator 2(c) carries the procedure.
->
-> ⚠️ **`NOT_INVITED` on a tester is NOT a fault** — measured S057, re-measured S058. Apple does not email an external tester until the group has an approved build. Do not "fix" it.
->
-> **#140 is CLOSED (S058, ADR-041)** and its two residuals are **#165** (operator-blocked: one read-only secret arms `rules-drift`) and **#166** (the Functions half, unblocked and measurement-first). **Do not re-open #140's framing.** If `rules-drift` shows SKIPPED in the checks list, that is the designed behaviour, not a regression.
+---
 
-`content/schema/question-pack.schema.json` is the source of truth for the seasonal vocabulary. `validator_core.dart` and the two TS readers are parity-tested against it. **`app/lib/features/daily_question/domain/question.dart` is NOT** — and the test that looks like the fifth guard, `question_pack_dto_test.dart:62`, **iterates `knownSeasonalWindows`, the very list under test.** A test whose fixture is derived from its subject proves nothing (S047/S050).
+## 1. Where things actually stand *(measured 2026-08-05 — re-measure, do not inherit)*
 
-**The failure it permits:** add a season to the schema, the validator and both TS readers; forget the Dart file. CI goes **fully green**, and the app throws `FormatException` at pack-load **on a real device**.
+| | State |
+|---|---|
+| **Build 113** | **Apple approved it.** `external=IN_BETA_TESTING`. `Friends` holds 8: founder `INSTALLED`, 1 emailed tester `INSTALLED`, **2 anonymous `PUBLIC_LINK` installs**, 4 `INVITED`. |
+| **Build 114** | Uploaded 2026-08-02, **`READY_FOR_BETA_SUBMISSION` — never submitted.** Everyone is testing 113. |
+| **Rules drift** | exit **0**, prod + dev both match `main`. |
+| **Secrets** | exactly 5, all release-signing. No `FIREBASE_RULES_VIEWER_SA`, `FIREBASE_SERVICE_ACCOUNT`, or `SLACK_WEBHOOK_URL`. |
+| **#115 webhook** | still **HTML 403** — broken. |
+| **Site** | `/` `/support` `/i/<code>` **200**; `/privacy` **404** (deliberate). `ikimiz.beyondkaira.com` still fails TLS. |
+| **Screenshots** | **en-US: 6 live on the App Store listing** since 2026-08-03. `tr` never uploaded. |
+
+**Housekeeping done on 2026-08-05, so S062 does not repeat it:** `resume-prompt.md`
+(this file) rebuilt, `operator-expected.md` pruned to open items, `past-prompts.md`
+given a reconstructed entry for S059–S061 (which merged eleven PRs without ever
+running the close sequence — this file had gone stale enough to name a closed issue
+as its objective).
+
+---
+
+## 2. THE OBJECTIVE — push notifications
+
+The founder, verbatim on 2026-08-05:
+
+> app does not sent notificaiton. It needs to be send new questions at 08.00 TSI with a
+> question. And when your partner answers your question you need to be notified. If you
+> did not reply the question as of 16.00 you need to be notified so that your partner
+> dont get angry.
+
+### Why nothing arrives
+
+M3.4 built three push kinds, an injectable `MessagingPort`, quiet-hours policy,
+discreet-mode policy, recipient resolution and 35 tests — and `implementation-plan.md`
+ticks it **✅**. Four independent measurements say the delivery path does not exist:
+
+| Layer | State |
+|---|---|
+| `app/pubspec.yaml` | **no `firebase_messaging`** — the plugin was never added |
+| `app/ios/Runner/Runner.entitlements` | **no `aps-environment`** |
+| `app/ios/Runner/Info.plist` | **no `UIBackgroundModes` / `remote-notification`** |
+| a **writer** of `users.fcmTokens` | **none** — not in `functions/src`, `app/lib`, or `firestore.rules` |
+
+So `fcmTokensOf()` returns `[]` for every user, every send is a counted
+`skippedNoToken`, and **no notification has ever been delivered.** That is
+lesson **79**, and it is why this was invisible for three weeks.
+
+### The three asks against what exists
+
+| Ask | Today | Gap |
+|---|---|---|
+| **new question at 08:00** | `questionRollover` writes each couple's day doc at **couple-local midnight** (hourly UTC sweep, `0 * * * *`). **There is no daily-question push kind at all** — `PushKind` is `partnerAnswered \| reveal \| streakAtRisk` | a new kind + a local-hour-8 pass |
+| **partner answered** | **BUILT.** `answerReveal` composes `partnerAnswered` and hands it to the port | delivery only |
+| **unanswered by 16:00** | `runStreakAtRisk` fires at **hour 20**, only when **`streak.count > 0`** | the hour, and the streak gate |
+
+**"08:00 TSİ" should be read as 08:00 couple-local**, which *is* TSİ for the founder
+couple and matches how every other time decision in this system works (stored couple
+timezone, never a fixed offset). Say so in the ADR rather than leaving it implied.
+
+**Quiet hours are 22:00–08:00, right-open** (`isQuietLocalHour`: `hour >= 22 || hour < 8`).
+Both 08:00 and 16:00 are already legal, with 08:00 exactly on the boundary — the daily
+push is the first thing allowed each day. Elegant, and **fragile**: an off-by-one either
+way silently suppresses the whole feature.
+
+**The 16:00 nudge is not the 20:00 one with a different number.** Today's push protects a
+*streak*; the founder's protects a *relationship* ("so that your partner dont get angry"),
+which must fire for a couple with **no streak at all**. Different eligibility, different
+feature. Say which one you built.
+
+### Two decisions the ADR must make explicitly
+
+**(a) `aps-environment` cannot just be added.** It must exist in the **provisioning
+profile** too, and `match` runs `readonly: true` in CI (`fastlane/Fastfile:82`) so it
+cannot add a capability — a build claiming an entitlement its profile lacks **fails at
+codesign**. This is exactly the failure ADR-040 was written about, one capability over.
+**Push Notifications must be ticked on the App ID first (operator item 4(a)).** Build the
+app half behind the plugin and land the entitlement only once the founder confirms, or in
+a separate labelled commit that is not merged until then. **Do not discover this by
+breaking the release lane.**
+
+**(b) `users.fcmTokens` is NOT frozen, and nobody decided that.** Every other server-owned
+field on `users` is frozen in **both** directions (`firestore.rules:37-59`: `coupleId`,
+`coupleEnded`, `notificationPrivacy`, `consent` — forbidden at create *and* compared on
+update, because "the update freeze is worthless if a client can mint the field on a fresh
+self-doc"). `fcmTokens` is in neither list, and there is no `hasOnly`, so **a client can
+write it today** — while `firestore_profile_repository.dart:87` calls it server-owned in a
+comment. Pick one and say why:
+
+* **a `registerPushToken` callable** + add `fcmTokens` to both freeze clauses — house
+  style, matches `recordConsent` / `updateNotificationPrivacy`, lets the server bound and
+  de-duplicate the array, and closes a rules asymmetry that is currently only a comment;
+* **direct client write**, documented as deliberate — self-only via `isSelf(uid)`, so junk
+  costs the user their own pushes and nothing else.
+
+Either way the mutation test is the same: **prove the other path is denied**, and prove the
+freeze spans **create** as well as update (that clause exists because a review found the
+create-path mint gap in M6.2).
+
+### Slice it — this is more than one session
+
+Whole feature = plugin + permission UX + token capture/refresh/removal + a new push kind +
+two new sweep passes + rules + ADR + operator items + a build. **Take the first coherent
+slice; record in `past-prompts.md` what you left and why.** Recommended cut:
+
+1. **Check operator item 4(a) in the first ten minutes.** The APNs key and the portal tick
+   are founder-blocked and everything else is downstream. If they are not done, say so out
+   loud rather than quietly building around it.
+2. **The device half** — `firebase_messaging`; the permission request at the right moment
+   (ADR-039's fail-open boot is binding: a permission prompt must never become a blocking
+   wait); token capture on login + `onTokenRefresh`; **token removal on sign-out and in the
+   ADR-019 delete cascade.** A token that outlives a sign-out sends the next user's pushes
+   to the previous user's phone — a privacy defect, not a cleanup task. It belongs in the
+   design review.
+3. **The daily-question push kind** — TR/AR/EN across the registers plus the discreet
+   variant, and a local-hour-8 pass over the **same** timezone buckets. ADR-012 D3's hard
+   constraint is ONE couples read per sweep; a third pass must not add a second.
+4. **The 16:00 nudge** — re-point or duplicate the at-risk pass, with the eligibility
+   question above answered on purpose.
+
+Everything cut becomes an issue, filed before the session ends, with the reason.
 
 ### Acceptance criteria
 
-1. **A failing test FIRST.** `seasonal_window_parity_test.dart` reads `question-pack.schema.json`, extracts the enum, and compares it with `knownSeasonalWindows`. Follow `app/test/core/design_system/brandkit_token_parity_test.dart`'s shape — read the artefact, not a copy. ⚠️ **Compare ORDERED lists, not sets — measured S058, and an earlier draft of this file said "set-equality", which would have silently weakened the two guards that already exist.** `functions/test/unit/schema-agreement.test.ts:169` asserts `toEqual([...tsValues])` and states the reason in its own header — *"ORDER included … a reordered enum is a diff worth seeing"* — and `validator_core.dart`'s `checkEnum` uses `_sameList`, also ordered. Both use `.sort()` **only** for field-NAME sets, where order genuinely carries nothing. Match the established convention or argue explicitly against it.
-2. **Widen it — but RE-DERIVE the "all three" premise first; S058 measured it and it is not what the previous three resume-prompts said.** Facts, measured 2026-08-01, not inherited:
-   * The schema has **FOUR** enums, not three: `locale` `['tr','ar','en']`, `register` `['playful','respectful','msa_gulf','neutral']`, `category` `['fun','deep','memories','future','gratitude']`, `seasonalWindow` `['ramadan','eid_fitr','eid_adha','new_year']`.
-   * `knownLocales`, `knownRegisters` and `knownCategories` all live in **`content/validator/validator_core.dart`** (lines 20, 21, 27) — the validator, which **is** parity-tested against the schema.
-   * The **app** mirrors `category`/`register` as Dart **enums** (`QuestionCategory`, `QuestionRegister`), a different shape from a string list — so "identical comment-instead-of-guard shape" is **an inherited claim that S058 could not confirm**. Check what the app-side enums are actually guarded by before designing a test that assumes they are not.
-   * `knownSeasonalWindows` (`app/lib/features/daily_question/domain/question.dart:32`) is the one string list on the app side, and `question.dart:25-31` gives a *deliberate, documented reason* for that: the app never READS the value, so an enum would buy a wire↔Dart name mapping for a field with no consumer. **That reasoning is sound and should survive the fix** — the gap is the missing parity net, not the choice of a list.
-   * The guard itself is at `app/lib/features/daily_question/data/question_pack_dto.dart:84`; the *list* is what has no parity test.
-   Any enum deliberately not mirrored gets its reason **in the test**, not in prose elsewhere.
-3. **MUTATION-CHECK both directions, and assert the anchor is UNIQUE before each edit** (addendum 74): add a season to the schema only → red; remove one from the Dart list only → red; a matched pair → green. **Report WHICH assertions moved, not just that the suite failed** (addendum 75) — a mutation that reddens the wrong test is a test of nothing.
-4. Re-run the neighbouring DTO tests; the self-referential loop at `question_pack_dto_test.dart:62` should be **fixed or deleted**, not left beside the new guard where a future reader will trust it.
-5. Correct **ADR-026 D3**'s wording in the same commit, strikethrough-plus-dated-note style. It currently makes a claim that is false, which is worse than making none.
-6. Close **#130**.
+1. **An ADR, written and committed BEFORE the code**, then adversarially design-reviewed
+   (`session-context.md` §5). This is a new architectural surface — device push, token
+   lifecycle, a fourth push kind, a fourth sweep pass, a rules decision. It **amends
+   ADR-012**; say so in both headers.
+2. **Tests first** (`session-rules.md` §2 — Functions logic and rules may not skip TDD).
+   The `MessagingPort` seam already exists and is where composition and eligibility get
+   proven without FCM.
+3. **Mutation-check the hour boundaries in both directions** — 8 must not be quiet, 22 must
+   be, 16 must not. Move each and watch the **named** assertion redden; report *which*
+   assertions moved (lesson **75**).
+4. **Correct `implementation-plan.md`'s M3.4 line in the same commit** — strikethrough +
+   dated note, as ADR-026 D3 was corrected. Lesson **79**.
+5. **Do not claim delivery you have not seen.** If the APNs key is not in place, the honest
+   close is *"composed, routed and provably handed to the port; never delivered to a device,
+   because <named blocker>"* — lessons **69** and **78**.
+6. **#136 stops being latent the moment a push lands** (Arabic push bodies interpolate a
+   partner name with no bidi isolation). If this slice ships delivery, pull #136 into it.
 
-**Design-review before the code, and this is the question:** is **exact (ordered) equality** right, or should the app's list be permitted to be a strict **subset**? A reader that knows fewer seasons fails **closed** (it rejects a pack it could have shown); one that knows more fails **open** (it accepts a value nothing else validates). **Those are not symmetric — encode the answer deliberately and write down which asymmetry you chose.** Note that the schema is the source of truth for *authoring*, while the Dart list is what a shipped binary can parse, and a shipped binary is older than the schema by construction.
+---
 
-### Then, in priority order
+## 3. Then, in priority order
 
-**#166 — the Functions half of #140** (filed S058). Deployed function code exposes no source-identity read comparable to the Rules API, so the issue is deliberately **measurement-first**: acceptance criterion 1 is to establish whether the question is answerable at all with a credential CI could hold, and criterion 3 explicitly permits closing it with the evidence that it is not. **An honest recorded gap beats a check that mostly restates something else.** Unblocked for the measurement; arming anything needs #165's secret.
+**1 — The app icon. DECIDED, unblocked, do it first; it is the fastest visible win.**
+The founder was shown the candidates and chose **`brandkit/branding-assets/icons/hayati-appicon-ios-1024.png`**,
+the pre-redesign mark. Execute that; do not re-open the choice.
+⚠️ **The literal git-previous is the default blue Flutter logo** — `git log --follow` on the
+1024 icon returns exactly two commits and that is the other one. The chosen file has never
+been in that path's history, so **`git revert` is the wrong instrument** (lesson **80**).
+There is **no `flutter_launcher_icons`**: the 15 iOS PNGs and 5 Android `mipmap-*/ic_launcher.png`
+are hand-produced — generate them deliberately and **verify every size actually changed**
+(lesson **66**). **Leave `AppIconDiscreet` alone** — `redesign/icons/README.md` §5 is explicit,
+and it is load-bearing for the on-device check at operator 4(3).
 
-**#137** — `intl`'s first-strong ranges miss Arabic Extended-A **and misclassify it as LTR**, so the bidi seam silently no-ops for it in LTR chrome. Not reachable in Turkish or Gulf Arabic. Filed because it fails **quietly**; carries a `// DEBT:` comment. Fixing it means diverging from `intl`, which needs its own guard — read the issue's three options before choosing.
+**2 — Ship a build.** Build 113 predates #169 (the post-sign-in dead-end fix — *the founder's
+own "Something went wrong"*), #170 (the support page the store listing points at), #173 (UI
+polish) and #179 (iPhone-only). Those are merged, built into 114, and have reached nobody.
+The icon and any push entitlement need a new build anyway.
+```sh
+gh workflow run release.yml --ref main
+gh workflow run testflight-testers.yml -f dry_run=false -f assign_latest_build=true -f submit_for_review=true
+```
+⚠️ **Ask the founder before dispatching `release.yml`.** ⚠️ **Never infer delivery from a green
+release** — read the assignment step's log or re-run `-f status_only=true` (it failed silently twice).
 
-**#129 / #121** — delete `release.yml`'s false `Gemfile.lock` comment (uncontroversial), and decide on `--frozen`. **No doc ever claimed the release lane installs frozen**, so this is the S044 lesson applied to the producer. The `--frozen` half should land on a run someone is watching, which pairs it with #121 — whose stated blocker (operator 2(d)) is **dead**: ADR-040 removed the entitlement and S056 dispatched the lane successfully without it. **Re-derive #121 rather than inheriting that blocker.**
+**3 — Screenshots (`tr` only).** **TestFlight has no screenshot field** — measured and recorded
+in PR #181; screenshots belong to the App Store listing. en-US is **done and live**; tell the
+founder, because they asked again only because nobody told them. `tr` was dropped from the
+2026-08-03 upload and needs its App Store **version localization** to exist first. Read the
+listing with `tool/ci/testflight_testers.py --store-status`; if `tr` exists, dispatch
+`appstore-screenshots.yml` with `-f upload=true -f locales=en-US,tr`. If it does not, that is a
+founder action, already on the operator page.
 
-**#136** — the Functions-side twin of #133: Arabic push bodies interpolate a partner name with no isolation. **Latent, not live.** Its blocker is honest: *nobody has established whether iOS/Android notification chrome honours `U+2068`/`U+2069` at all*, and ADR-033's evidence is Flutter-engine-side and does not transfer. Ride it along with the on-device checks.
+**4 — The rest of the queue.** Re-derive from `gh issue list`; do not inherit this line.
+**#176** (Rubik Light declared but not bundled — the cheapest real bug here) · **#175** (10 of
+14 raised cards render flat) · **#174** (no `liveRegion` — the reveal is never announced) ·
+**#166** (Functions half of #140, measurement-first — it may honestly close as unanswerable) ·
+**#137** (`intl` misses Arabic Extended-A) · **#129/#121** (release-lane lockfile comment +
+`--frozen`; #121's stated blocker is dead — re-derive it).
 
-**Universal links (ADR-040 restoration)** — not an issue yet, deliberately. The moment the founder reports whether **Associated Domains** appears in the portal capability list for `com.beyondkaira.hayati` (operator 2(d)), re-adding the entitlement is a two-line change plus a release. The AASA is already live and verified. File it as an issue if the founder answers and nobody acts.
+---
 
-**FIRST — the preemptions. Query the platform, not the docs; re-derive from issues AND PRs.**
+## 4. Blocked — re-check every line
 
-1. **Apple's verdict on build 113** — the box at the top. Read-only, and the whole answer.
-2. **The rules drift status** — `python3 tool/ci/rules_drift.py --from-firebase-cli --project hayatiapp-prod --project hayatiapp-dev`. **Exit 0 at the S058 close**, both projects on `sha256:0d59af3a…` (prod ruleset `3702186d`, dev `fbae0b36`; dev re-released 2026-08-01T20:54:58Z when S058 exercised the deploy path). If it returns **1**, that outranks most of the queue — production is enforcing rules `main` does not describe. If it returns **2**, the CLI login has expired: `firebase login`.
-3. **`FIREBASE_RULES_VIEWER_SA`** — `gh secret list`. **Absent at the S058 close**, so `rules-drift` runs SKIPPED by design (#165, operator 2(e)(iv)). If it is now present, **verify the job actually ran** with `gh api repos/…/actions/jobs/<id>/logs` and confirm it is green rather than assuming.
-4. **The release lane** — build **113** shipped at the S057 close and ADR-037's auto-assignment worked. **Never infer delivery from a green release**: read the assignment step's log or run `-f status_only=true`.
-5. **The website** — `curl -so /dev/null -w '%{http_code}\n' https://ikimiz.web.app/i/9U4VUVRV`. **200 at the S056 close**, invite surface only (`/privacy` and `/terms` deliberately 404). `ikimiz.beyondkaira.com` still A-records to the founder's VPS and still fails TLS — operator 2(e)(i), cosmetic rather than blocking.
-6. **#115** — `curl -i -X POST https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app -H 'Content-Type: application/json' -d '{}'`. **JSON = fixed. HTML = still broken** (HTML at the S055 close; not re-probed since). If fixed: ask for a RevenueCat event replay, and **#41 becomes urgent**.
-7. **Prod runtime** — `firebase functions:list --project hayatiapp-prod`. **11 × `nodejs22`** at S055. **Scheduler `ENABLED @ 0 * * * *` and Eventarc `RETRY_POLICY_RETRY` still could NOT be verified — no `gcloud`, no ADC.** Record the gap; do not assert it.
-8. **`RC_WEBHOOK_TOKEN` on dev** — absent at S055 (404, prod exit-0 as control), so dev runs **ten** of eleven functions. Operator item **0(c)**.
-9. **Dependabot alerts** — still **disabled** at S055. Operator item **2(b)**. Both open advisories are recorded in ADR-034 as measurably unreachable; **do not let an alert badge stampede a session into the `firebase-admin@10.3.0` downgrade ADR-034 refuses.**
-10. **Open issues and PRs** — re-derive both from scratch. Do not inherit any list, including this one. **And re-derive the session NUMBER from `git log`.**
-11. **Gate 3 / Android green-light** → M6.5.
-
-### The blocked table as it stood at the S058 close — re-check every line; do not copy it forward
-
-| Issue | Blocked on | Why a session cannot take it alone |
+| What | Blocked on | Why a session cannot take it alone |
 |---|---|---|
-| **operator 2(c)** | **APPLE** | Build 113 submitted 2026-08-01, still `WAITING_FOR_BETA_REVIEW` at the S058 close. Nothing owed by the founder or by a session |
-| **operator 2(e)(iv) / #165** | founder | A service account + a `gh secret set`. **New at S058** — until it exists, `rules-drift` is SKIPPED and nothing compares deployed to merged |
-| **operator 2(d)** | founder | Associated Domains on the App ID. **Not blocking (ADR-040)** — 🟡. Buys tap-to-open-the-app instead of tap-to-open-the-page |
-| **operator 2(e)(i)** | founder | The `ikimiz` A record points at the founder's VPS. **Not blocking** — invites serve from `ikimiz.web.app` |
-| **operator 2(e)(ii)** | founder | The controller's **legal name** is a fact no session should guess into a privacy policy. Blocks `/privacy`, `/terms` and the App Store listing |
-| **operator 2(e)(iii)** | founder | `FIREBASE_SERVICE_ACCOUNT`. Blocks CI site deploys AND `deploy-rules.yml` |
-| **#115** | founder | Making a production endpoint world-reachable is a security-posture change on a live system |
-| **#41** | founder | Live billing identity. Whether sandbox purchases already exist decides *clean change* vs *migration* |
-| **#48**, **#15**, **#136** | the device | On-device observation nobody has made yet |
+| **operator 4(a)** — APNs key + Push Notifications tick | founder | **Gates the objective.** Without the key FCM cannot reach Apple; without the tick a push build cannot sign |
+| **`tr` App Store version localization** | founder | Screenshots cannot upload into a locale that does not exist |
+| **operator 2(e)(iv) / #165** | founder | One read-only service account + `gh secret set`. Until then `rules-drift` is SKIPPED **by design** — not a regression |
+| **operator 2(d)** | founder | Associated Domains. Not blocking (ADR-040). *Ask in the same portal visit as 4(a)* |
+| **operator 2(e)(i)** | founder | `ikimiz` A-record points at the founder's VPS. Not blocking — invites serve from `ikimiz.web.app` |
+| **operator 2(e)(ii)** | founder | The controller's legal name. Blocks `/privacy`, `/terms`, the App Store listing |
+| **operator 2(e)(iii)** | founder | `FIREBASE_SERVICE_ACCOUNT`. Blocks CI site deploys and `deploy-rules.yml` |
+| **#115** | founder | Making a prod endpoint world-reachable is a security decision on a live system |
+| **#41** | founder | Live billing identity — decides *clean change* vs *migration* |
+| **#48**, **#15**, **#136** | the device | On-device observation nobody has made — **and four testers now have it installed** |
 | **#13** | M6.5 | Android, Gate-3 gated (ADR-006) |
 | **#63**, **#71** | founder | Brandkit revisions |
-| **#121** | **re-derive** | Its stated blocker (2(d)) is dead. Pair with #129 |
 
-**Do NOT** grant public invoker on prod, migrate RC subscriber ids, **deploy anything to `hayatiapp-prod` — Functions OR rules — without asking the founder first** (ADR-041 D5 makes the prod rules lane dispatch-only *and* requires typing the project id; that is a guard, not permission), re-bootstrap `match` certificates, run `npm audit fix --force`, downgrade `firebase-admin`, enable Dependabot on the founder's behalf, guess the founder's legal name into a legal document, add a real person as a TestFlight tester without the founder's list, or dispatch the release lane without asking. *Dev is a session's to exercise — S058 deployed dev rules and that is fine. One authorization is not standing consent for prod.*
+---
 
-**What is DONE (do not re-do):** the whole MVP **M1–M6.3 including M5.3**, consent/legal at **legal version 2**, CI→Slack, the UI/UX arc + redesign waves, **#74**, **#29**, **#88**, **#47**, the bundle-id rename, the first dev deploy, release-lane signing, the `match` lane (#103, #117), **Node 22 on dev and prod**, **#76**, **firebase-admin v14**, **#70**, **ADR-032** + `tool/release_lane_lint.dart` + **#99**/**#67**, **#120**, **#100**, **#133** (ADR-033), the S052 TestFlight lanes (**#139**, #142/#143), **#131** (**ADR-034**), the **ikimiz rename** (**ADR-035/036/037**), **ADR-038**, **ADR-039**, **ADR-040**, the live invite website, **#146**, and — new at S058 — **#140 / ADR-041**: `tool/ci/rules_drift.py`, `deploy-rules.yml`, the `rules-drift-preflight` + `rules-drift` job pair, and 19 mutation-checked hermetic self-tests.
+## 5. Close sequence — `session-rules.md` §3/§4
 
-**Open and UNBLOCKED at the S058 close — this is the queue:** **#130** (the objective above), **#166**, **#137**, **#129**/**#121**. All are Linux-only and need nothing from the founder. (**#165** is open but operator-blocked.) Re-derive them anyway — do not inherit this line.
+Append to `past-prompts.md` → regenerate this file (one objective) → refresh
+`operator-expected.md` → commit + push → verify CI → **watch the post-merge `main` run**
+(`integration-emulator` is main-only) → `codegraph sync`.
 
-On completion, follow `session-rules.md` §3/§4: append to `past-prompts.md`, regenerate this file, refresh `docs/operator-expected.md`, commit, push, verify CI, watch the post-merge main run, then `codegraph sync`.
+**S059, S060 and S061 skipped this three times running, and this file went stale enough to
+name a closed issue as its objective. Do not make it four.**

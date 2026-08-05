@@ -2195,3 +2195,85 @@ Built it, and Apple answered:
 - Two orphaned `firebase-functions` node processes (aged 5 and 6 days, from earlier sessions, bound to no port) killed at session start.
 
 **Next objective written to resume-prompt.md:** Session 059 — **#130**: make ADR-026 D3's "five readers" claim true by construction. The fifth guard is self-referential (`question_pack_dto_test.dart:62` iterates the very list under test), and what it permits is a `FormatException` at pack-load on a real device behind a fully green CI. Widen to every enum in the schema; decide set-equality vs strict-subset deliberately.
+
+---
+
+> # ⚠️ RECONSTRUCTED — Sessions 059, 060 and 061 left no entry
+>
+> The three entries below were **written on 2026-08-05 by a doc-only session, from
+> `git log`, the merged PR bodies and the GitHub API.** They are NOT those
+> sessions' own accounts. Each of the three merged its work and stopped without
+> running the `session-rules.md` §3 close, so `past-prompts.md` was never appended
+> to and `resume-prompt.md` was never regenerated — which left the resume prompt
+> naming **#130** as the objective for three days after **PR #171 closed it**.
+>
+> Treat everything below as second-hand: the *what* is measured from the repo, the
+> *why* is inferred from the PR bodies, and nothing here reports what those
+> sessions decided but did not write down. **The lesson belongs to the close
+> sequence, not to the work** — all three shipped real, reviewed, green work.
+
+## Session 059 — 2026-08-01/02 — **#130 closed: the fifth guard was self-referential, and it was four enums, not three** *(reconstructed)*
+
+**Objective (from resume-prompt.md):** #130 — make ADR-026 D3's "five readers" claim true by construction.
+
+**Outcome:** done. **#130 closed** by PR #171.
+
+**What the PR body records:** all five readers *do* reject an unknown seasonal value; what did not exist was the parity net keeping them in sync, and **the test that looked like the fifth guard iterated `knownSeasonalWindows` itself** — a fixture derived from its own subject, which cannot detect drift because the schema is never read. The permitted failure was named exactly as the prompt predicted: add a season everywhere but the Dart list → **CI fully green, `FormatException` at pack-load on a real device.** The prompt's own re-derivation instruction paid off — the schema has **four** enums, not three previous handoffs had claimed.
+
+**Also merged in the same window:**
+- **#168** — corrected this file's predecessor before starting: the S059 handoff had said "set-equality" where both existing parity guards compare **ORDER**. A prompt-level defect caught by reading the guards rather than the prose.
+- **#169** — an eight-lens beta-readiness audit ahead of build 113 reaching real testers, each finding handed to a separate **refuting** verifier. Verdict: ready, no hard blockers. Two real fixes landed: `_GateErrorView` had **no exit** (a genuine ADR-039 D2 violation — the gate sits outside `SettingsGearOverlay` by ADR-018 D7, so "Try again" on a settled permission error was a dead end, and that is exactly the founder's *"Something went wrong"* report), and the solo screen could **spin forever in silence** because a Firestore listener on an unreachable backend emits nothing at all — not an error.
+- **#170** — real landing and support pages (`/`, `/tr`, `/ar`, `/support`, `/support/tr`, `/support/ar`). `/` had been a two-line stub, and that stub was **the App Store support URL the listing declares**. Generated-not-committed, on ADR-036's rule.
+
+## Session 060 — 2026-08-02 — **a 5-lens design audit found the repo ahead of its own redesign roadmap** *(reconstructed)*
+
+**Outcome:** PR #173 — the S060 UI/UX polish pass: the caption tier, an invisible switch, and four quick wins.
+
+**What the PR body records:** five lenses (design-system · core-loop · activation · secondary-surfaces · motion-a11y), each finding put to an independent **refuting** verifier — **32 confirmed of 45 audited, 13 refuted.** It also found the repo **well ahead of `redesign/design-roadmap.md`** (QW-1, QW-6, QW-7, M-3, M-5, M-6 already shipped), so the remaining gaps were narrower and sharper than the roadmap implied.
+
+**Three issues filed and never triaged into a handoff** — they are unblocked and still open as of 2026-08-05: **#176** (Rubik Light is declared but not bundled, so the Question style silently renders at Regular), **#175** (10 of 14 raised cards render flat — the decoration is copy-pasted per screen instead of coming off the theme), **#174** (no `liveRegion` anywhere in `lib/`, so the reveal is never announced).
+
+**Release:** run `30759795246` cut **build 114** at 17:51Z. *It was never submitted for external review — see the S062 note below.*
+
+## Session 061 — 2026-08-02/03 — **"send the screenshots to TestFlight" — and TestFlight has no screenshot field** *(reconstructed)*
+
+**Outcome:** seven PRs (#177–#183) across two hours: a TestFlight submit-refusal fix, iPhone-only, and an entire App Store screenshot lane built from nothing.
+
+**#177 / #178 — a REFUSAL reported as success.** Dispatching `--submit-for-review` for build 114 while build 113 was still `WAITING_FOR_BETA_REVIEW` printed *"already submitted — no-op"* and exited **0**, and the build never moved. #177 fixed the read-back; #178 then corrected #177 from #177's **own live proof run** — Apple's response body carried the fact #177 had *inferred*, and the message became "same train", not "same app". A fix whose own verification run refuted half of it, caught because the run was read rather than trusted.
+
+**#179 — iPhone-only.** `TARGETED_DEVICE_FAMILY` was `"1,2"` in all three project-level configs. **Nothing in this repo ever chose that** — it is Flutter's scaffold default, carried into every build including the one sitting in Beta App Review, while `docs/mvp.md` puts iPad in **v2**.
+
+**#180–#183 — the screenshot lane.** The ask was *"send these to TestFlight"*; the session measured first and recorded the answer in #181's opening line: **TestFlight has no screenshot field** — its Test Information carries a beta description, a feedback email, URLs and the review contact. Screenshots belong to the **App Store listing**: different resource, different lifecycle, different queue. Built: `tool/ci/appstore_screenshots.sh` (renders from the app's own widgets, on Linux, at Apple's exact size, and verifies every PNG's IHDR because the generator is a widget test that goes green whenever it does not throw), `appstore-screenshots.yml` (dispatch-only, `upload: false` by default, drops non-requested locales **from disk** because `deliver` uploads what it finds), then two fixes from live dispatches: #182 (the ruby step had no `.ruby-version` to infer from) and **#183** — measured twice to rule out a race: **six files on disk produced ten "Uploaded" lines**, `deliver` verifies, does not find its own upload because Apple processes asynchronously, and uploads the whole set again; Apple caps a display type at ten and drops the rest. `overwrite_screenshots: true` reproduces it exactly rather than avoiding it. The lane now **repairs what it breaks, in the same run**, then re-reads the listing rather than reporting green on its own say-so.
+
+**Final state, read from run `30775567158`:** `en-US: APP_IPHONE_67=6`, de-duplicated and ordered. **`tr` was dropped** — it needs its App Store version localization to exist first.
+
+## Session 062 (prep) — 2026-08-05 — **a founder-directed, doc-only refresh: the handoff had gone three sessions stale, and the notification feature had never run** *(this entry is first-hand)*
+
+**Not a coding session.** The founder gave four instructions and asked for them to be carried into the next session's prompt, plus a prune of `operator-expected.md` and a refresh of the handoff documents. No source file was touched.
+
+**The four asks, recorded verbatim in `resume-prompt.md`:** (1) the app sends no notifications — it should send the new question at 08:00 TSİ, notify when the partner answers, and nudge at 16:00 if you have not replied; (2) the app icon reads as phallic, revert it; (3) send the screenshots to TestFlight; (4) prune `operator-expected.md` to open items and update the handoff docs.
+
+**Measured before writing anything (the whole point of the session):**
+- **Apple APPROVED build 113.** `external=IN_BETA_TESTING`, invitations sent. `Friends` now holds **eight**: the founder `INSTALLED`, one emailed tester `INSTALLED`, four `INVITED`, and **two anonymous `PUBLIC_LINK` installs** — strangers have the build. The `NOT_INVITED` state that three handoffs explained as correct is gone.
+- **Build 114 has sat `READY_FOR_BETA_SUBMISSION` since 2026-08-02.** Everyone is testing 113, which predates #169's fix for the founder's own *"Something went wrong"*.
+- **The notification path has never delivered a single push, and `implementation-plan.md` records M3.4 as ✅.** Four independent measurements: no `firebase_messaging` in `pubspec.yaml`; no `aps-environment` in `Runner.entitlements`; no `remote-notification` in `Info.plist`; and **no writer of `users.fcmTokens` anywhere** in `functions/src`, `app/lib` or `firestore.rules`. Every send is a counted `skippedNoToken`. → **addendum 79.**
+- Of the founder's three notification behaviours: **partner-answered is fully built** and undeliverable; **there is no daily-question push kind at all** (`PushKind` is `partnerAnswered | reveal | streakAtRisk`); and the unanswered nudge exists at **local hour 20, gated on `streak.count > 0`** — a different feature from the one asked for, which protects the relationship rather than the streak.
+- **The icon's literal git-previous is the default Flutter logo** — `git log --follow` on the 1024 PNG returns exactly two commits. The mark the founder probably means is a third file that path's history never mentions. Three already-QA'd alternatives without the paired-lobe silhouette sit unused in `redesign/icons/`. → **addendum 80.**
+- **Ask 3 is 90% done and nobody told the founder:** en-US holds six correct screenshots on the listing since 2026-08-03; `tr` is the open half.
+- Re-measured and unchanged: `rules_drift` **exit 0** on both projects (a first attempt hit a transient `HTTP 503` = exit 2, "could not measure" — and reading that exit code through a `| tail` reported `0`, addendum on `${PIPESTATUS[0]}` collecting its fifth citation); `gh secret list` returns exactly five release-signing secrets; #115 still answers Google's HTML **403**; the site serves `/`, `/support` and `/i/<code>` at 200 with `/privacy` deliberately 404; `ikimiz.beyondkaira.com` still fails TLS.
+
+**Written:** `docs/resume-prompt.md` regenerated for **S062** (objective: the notification path, sliced, with the founder-blocked half named first); `docs/operator-expected.md` re-pruned to open items only — **item 2(c) retired** (Apple approved), **item 4(a) added** (the APNs key + the Push Notifications capability, filed under item **4** because five other documents already pin APNs to that number — addendum 71), an icon-decision box and a `tr`-localization question added at the top, and the closed #140/#130 rows removed; this entry.
+
+**A hazard recorded rather than discovered later:** push needs `aps-environment` in the **provisioning profile**, `match` runs `readonly` in CI, and a build claiming an entitlement its profile lacks **fails at codesign** — the exact failure ADR-040 was written about, one capability over. The resume prompt tells S062 not to find this out by breaking the release lane.
+
+**Decided during the session, not deferred:** the founder was shown the three candidate referents for "the previous icon" — including that the literal one is the Flutter logo — and chose the **pre-redesign brand mark** (`brandkit/branding-assets/icons/hayati-appicon-ios-1024.png`). Recorded in both `resume-prompt.md` and `operator-expected.md`; the icon is no longer a blocked item. Noted at the same time, and overruled by the founder's answer rather than by silence: the chosen mark is the *same two-seed family* as the one being replaced, and the three silhouette-free alternatives in `redesign/icons/` were offered and declined.
+
+**The handoff was then restructured, at the founder's follow-up instruction ("so that we start clean again").** `resume-prompt.md` had become an accretion: six wall-of-text standing notes and **80 addenda** in the header, with the actual objective buried below them. Split into three documents with different lifecycles:
+
+* **`docs/session-context.md`** (new) — standing operating context: toolchain and commands, the machine, CodeGraph, review discipline, the binding-invariants table, the never-without-asking list, and the standing measurement commands. Changes when the environment or an ADR changes, not every session.
+* **`docs/session-lessons.md`** (new) — the numbered lessons, **append-only and never renumbered** (that is lesson 71 applied to itself). Opens with "the recurring shape": the five failure patterns nearly every entry turns out to be an instance of.
+* **`docs/resume-prompt.md`** — now one objective and nothing else: **push notifications**, with the measured state, the two decisions the ADR must make, the recommended slice, six acceptance criteria, a short priority queue and the blocked table. **31,661 characters → 14,109**, and the objective is now the second line rather than page two. The figure worth keeping: **the old standing-note header alone was 14,058 characters — the same size as the entire replacement document.** Line counts *rose* (113 → 227) and are the wrong measure; the old file was six paragraphs of ~3,000 characters each on single lines.
+
+`session-rules.md` §1 and §3 were amended to read the two new files and to keep standing content from creeping back into the prompt's header.
+
+**Not done, and named:** no GitHub issues were filed for the notification work, the icon, or the `tr` locale — the founder asked for documents, and filing is S062's to do with the ADR in hand.
