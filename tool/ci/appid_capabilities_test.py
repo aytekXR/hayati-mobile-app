@@ -90,14 +90,18 @@ def check_not_in(label: str, needle: str, haystack: str) -> None:
 BUNDLE_PK = "ABCDE12345"
 
 
-def fake_transport(pages: dict[str, object]):
+def fake_transport(pages: dict[str, object], seen: list[str] | None = None):
     """A transport over a canned {path_prefix: response} map.
 
     Matching is by prefix so a test does not have to reproduce Apple's exact
     query-string ordering, which is an implementation detail of urlencode.
+    `seen` collects every path requested, so a test can assert the MECHANISM
+    (which URL was actually built) and not only the outcome.
     """
 
     def call(method: str, path: str) -> dict:
+        if seen is not None:
+            seen.append(path)
         for prefix, response in pages.items():
             if path.startswith(prefix):
                 if isinstance(response, Exception):
@@ -340,6 +344,68 @@ def test_missing_credentials_is_cannot_measure() -> None:
     report = ac.probe_or_explain(None, "com.beyondkaira.hayati", ["PUSH_NOTIFICATIONS"])
     check("no transport/credential -> exit 2", report.exit_code, ac.EXIT_CANNOT_MEASURE)
     check("no credential is not absence", report.absent, [])
+
+
+# --------------------------------------------------------------------------
+# the request Apple actually accepts
+
+
+def test_capabilities_request_carries_no_query_parameters() -> None:
+    """Apple REFUSES `limit` on this relationship, and only Apple could have
+    told us that.
+
+    The first live dispatch of this tool returned:
+
+        GET /v1/bundleIds/Q344R7M7MY/bundleIdCapabilities?limit=200 -> HTTP 400
+        "code" : "PARAMETER_ERROR.ILLEGAL"
+        "detail" : "The parameter 'limit' can not be used with this request :
+                    This relationship does not support this parameter."
+
+    The prefix-matching fakes were blind to it: every canned response matched
+    with or without the query string, so the outcome assertions all passed while
+    the real request was rejected. That is the shape of a test satisfied three
+    layers from the property it names — so this one asserts the MECHANISM, the
+    exact path built, which no amount of luck can satisfy.
+
+    (The tool behaved correctly under the failure: it reported exit 2, COULD NOT
+    MEASURE, rather than inventing an absence. The bug was the request, not the
+    taxonomy.)
+    """
+    seen: list[str] = []
+    call = fake_transport(
+        {
+            "/v1/bundleIds?": bundle_page(),
+            f"/v1/bundleIds/{BUNDLE_PK}/bundleIdCapabilities": caps_page(["PUSH_NOTIFICATIONS"]),
+        },
+        seen=seen,
+    )
+    ac.probe(call, "com.beyondkaira.hayati", ["PUSH_NOTIFICATIONS"])
+    caps_requests = [p for p in seen if "bundleIdCapabilities" in p]
+    check("exactly one capabilities request", len(caps_requests), 1)
+    check(
+        "and it carries NO query string at all",
+        caps_requests[0],
+        f"/v1/bundleIds/{BUNDLE_PK}/bundleIdCapabilities",
+    )
+
+
+def test_the_bundle_id_lookup_still_filters_server_side() -> None:
+    """The /v1/bundleIds COLLECTION does accept filter+limit — only the
+    capabilities RELATIONSHIP refuses them. Pinned so the fix for one is not
+    over-applied to the other, which would make the lookup fetch every App ID in
+    the team and match client-side."""
+    seen: list[str] = []
+    call = fake_transport(
+        {
+            "/v1/bundleIds?": bundle_page(),
+            f"/v1/bundleIds/{BUNDLE_PK}/bundleIdCapabilities": caps_page(["PUSH_NOTIFICATIONS"]),
+        },
+        seen=seen,
+    )
+    ac.probe(call, "com.beyondkaira.hayati", ["PUSH_NOTIFICATIONS"])
+    lookup = [p for p in seen if p.startswith("/v1/bundleIds?")][0]
+    check_in("the lookup filters by identifier", "filter%5Bidentifier%5D", lookup)
+    check_in("the lookup carries the identifier value", "com.beyondkaira.hayati", lookup)
 
 
 # --------------------------------------------------------------------------
