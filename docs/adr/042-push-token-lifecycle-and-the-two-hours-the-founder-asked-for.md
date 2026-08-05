@@ -1,6 +1,6 @@
 # ADR-042: The FCM token lifecycle, and the two clock hours the founder asked for
 
-- **Status:** Accepted
+- **Status:** Accepted (rev 2 — folds the pre-code adversarial design review. 36 findings raised across 5 lenses; **2 confirmed** and fixed in place, 7 re-adjudicated 3-lens after the first round's verifiers ran against a worktree that did not contain this file. See the review record at the end.)
 - **Date:** 2026-08-06 (Session 062)
 - **Deciders:** founder (the three notification behaviours, verbatim, 2026-08-05); session agent (the measurement that found none of them can fire, and the slice order)
 - **Amends:** **ADR-012 Decision 3** — its push-kind vocabulary (three kinds becomes four), its token-storage deferral (*"nothing writes it yet"* is discharged), its sweep-pass inventory (two passes becomes four), and its at-risk eligibility rule (`streak.count > 0` at hour 20 becomes unconditional at hour 16). ADR-012's hard cost constraint — **one couples read per sweep** — is **not** amended and is preserved by construction.
@@ -107,9 +107,29 @@ is defensible on its face: `isSelf(uid)` already scopes it, so junk costs the
 user their own pushes and nothing else. Three things decide against it, and only
 the third is decisive.
 
-1. *Bounding.* The array is unbounded today. Server-side it gets the repo's
-   existing array discipline — filter empties, `Set`-dedupe, cap — which
-   `entitlement-core.ts:472` already applies to `MAX_TRANSFER_IDS`. A client
+1. *Bounding.* The array is unbounded today. Server-side it gets filter-empties
+   and `Set`-dedupe, which is what `entitlements/entitlement-core.ts:472`
+   (`dedupe`) does and all it does. **It does not get `MAX_TRANSFER_IDS`'
+   discipline, and an earlier draft of this ADR said it did.** That cap lives at
+   `:511`, it is a *pre-read reject* gate returning
+   `{kind:'hold', reason:'oversized'}`, and rejecting an oversized *input* is a
+   different act from evicting from a *stored* array. Cited here because the
+   correction is the interesting part: the precedent this ADR reached for does
+   not exist.
+
+   So the cap is decided here rather than inherited: **5 tokens, and a sixth
+   registration drops element 0.** Insertion order is the only order a plain
+   `string[]` has — there is no timestamp to sort by, so "evict the oldest" is
+   not expressible and "evict the first-inserted" is. Reject-when-full was the
+   alternative and is worse: it fails the multi-device user, who is the person
+   the cap exists to serve rather than to punish. Five is generous against real
+   device counts (phone, tablet, a replaced phone whose token has not yet aged
+   out) and still bounds an attacker to a fixed cost.
+
+   **The cap is a bound, not a correctness mechanism.** If a user's sixth device
+   evicts their first, that first device stops receiving pushes and nothing tells
+   it so. That is acceptable only because re-registration is cheap and happens on
+   every launch; it would not be acceptable if registration were rare. A client
    cannot be trusted to cap its own array, and rules cannot express "dedupe".
 2. *The asymmetry is already a defect.* Every other server-owned field on `users`
    is frozen at create **and** update, because "the update freeze is worthless if
@@ -146,6 +166,25 @@ the credential the release lane already holds. Its exit codes are ADR-041's
 taxonomy — `0` ticked, `1` absent, **`2` could not measure** — because an API key
 whose role does not cover Certificates/Identifiers answers 403, and reporting
 that as "absent" would invent a blocker.
+
+**Measured 2026-08-06, and the answer is `1`.** The probe's first *successful*
+live run ([31054773143]) read the portal and returned **exit 1 — absent**, not
+exit 2, so the key can see the App ID and this is a read-out rather than a
+permissions failure:
+
+```
+ticked:  APPLE_ID_AUTH, IN_APP_PURCHASE
+absent:  PUSH_NOTIFICATIONS, ASSOCIATED_DOMAINS, APP_ATTEST
+```
+
+So step 1 below is **confirmed not done**, and this ADR's slice order is not a
+precaution against a hypothetical — it is routing around a measured blocker. Had
+this slice shipped the entitlement on the assumption the tick was in place, it
+would have signed-failed in the macOS release job, which is exactly ADR-040's
+recorded history. Two prior sessions carried this as *"nobody can read the
+portal"*; that was a missing tool, not a missing permission.
+
+[31054773143]: https://github.com/aytekXR/hayati-mobile-app/actions/runs/31054773143
 
 **Ordered steps, and they are not reorderable:**
 
@@ -236,11 +275,27 @@ the auth deletion stays last and idempotent.
 **ADR-019's no-push invariant is untouched and load-bearing.** The partner
 deletion notice deliberately sends **no** push, on DV grounds: it would deliver
 *proactive real-time notification to a possibly-abusive partner at the deleting
-victim's moment of escape.* Making push real for the first time is precisely the
-moment that invariant becomes testable rather than theoretical, so the cascade
-suite gains an assertion that the injected `MessagingPort` receives **nothing**
-during a deletion. An invariant nothing can violate is an invariant nothing
-tests; now it can be violated, so now it is tested.
+victim's moment of escape.* An earlier draft of this ADR said the cascade suite would gain an assertion that
+"the injected `MessagingPort` receives nothing during a deletion." **There is no
+port to inject.** `DeletionDeps` (`data-rights/deletion-service.ts:27-45`) carries
+exactly `checkpoint`, `deleteRef` and `deleteAuthUsers`; the cascade cannot send a
+push because it has nothing to send one with. An assertion that a port it does not
+hold received nothing would have passed forever while proving nothing — the
+vacuous-test shape this repo has been caught by before.
+
+**The invariant is structural, and the test that guards it already exists.**
+`payload-policy.test.ts:44-57` string-audits the source and asserts
+`not.toContain('coupleEnded')`: no send can happen because no *kind* can be
+composed for the event. That is a stronger guarantee than a spy, and it is the
+one ADR-019 actually shipped.
+
+> **A tripwire this ADR is about to set off, named now so nobody disarms it.**
+> That same test also asserts the union is **exactly three kinds**. D3 adds
+> `dailyQuestion`, so **it will go red — on purpose.** The correct response is to
+> update the expected union to four and *keep* the `coupleEnded` assertion
+> untouched. The "exactly N" clause is a change-detector; the ADR-019 invariant is
+> the `coupleEnded` absence. A session that meets the red test and relaxes it
+> wholesale deletes a DV safety property while believing it fixed a test.
 
 ### D6 — The permission prompt is not a boot step
 
@@ -309,3 +364,48 @@ remainder deferred into prose is a remainder that gets lost):
    `U+2068`/`U+2069`. A push body is composed on the server and rendered by iOS,
    which is a seam ADR-033 does not currently answer for. It must be answered
    before the first Arabic push, not after.
+
+---
+
+## Review record — the pre-code adversarial design review (2026-08-06)
+
+Acceptance criterion 1 of this session: the ADR is written **before** the code and
+then adversarially reviewed. It was, in two rounds, and the second round exists
+because of a defect in the first.
+
+**Round 1 — 5 finder lenses, 36 findings, and a verification that could not see
+the file.** Findings were produced against this ADR correctly. But eleven of the
+verdicts refuted findings with the reasoning *"the file
+`docs/adr/042-...md` does not exist; the highest ADR number is 041."* They were
+right about their worktree and wrong about the world: the session had moved to a
+branch that did not carry the ADR, and the verifiers read that branch. **An
+`ls` that returns nothing is not a refutation.** Every one of those verdicts was
+discarded rather than counted — a "refuted" that was produced blind is worth less
+than no verdict at all, because it looks like evidence.
+
+**Round 2 — 9 contested findings × 3 independent lenses (factual accuracy,
+decision obligation, adversarial refutation), 27 verdicts, majority-of-3.** This
+covered every finding that round 1 left either split 1-1 or unadjudicated. All 27
+verifiers confirmed they could read the file.
+
+| Finding | Verdict | Outcome |
+|---|---|---|
+| `cap-without-order` | **2/3 real** | **Fixed.** The ADR cited `entitlement-core.ts:472` as applying a cap to `MAX_TRANSFER_IDS`. It does not: `:472` is `dedupe`, filter + `Set` only; the cap at `:511` is a pre-read *reject* gate. Verified by hand against the file. D1 now decides the cap (5 tokens, drop element 0) instead of inheriting a precedent that was not there. |
+| `cascade-no-push-test-missing` | **2/3 real** | **Fixed.** D5 promised an assertion on an injected `MessagingPort` that `DeletionDeps` does not have and cannot have. Rewritten to the structural guarantee that ADR-019 actually shipped, plus a named tripwire for the "exactly three kinds" assertion D3 will redden. |
+| `no-dead-token-pruning` | 0/3 | Refuted. D1 states best-effort token management as a decision; FCM-reported dead tokens cost wasted sends, not correctness or privacy. |
+| `token-steal-disables-victim` | 0/3 | Refuted as an *ADR* defect. The attack is real and the trade-off is stated in D1; App Check is a project-wide deferral (ADR-016), not something this ADR silently dropped. **Recorded here rather than dismissed** — if App Check is ever enforced, this callable is one of the reasons to. |
+| `slice-coherence-rules-freeze-no-writer` | 0/3 | Refuted. A rules freeze is proven by its DENY path; the repo's four-test pattern for server-owned fields needs no writer to exist. |
+| `provider-failure-error-handling-unspecified` | 0/3 | Refuted. D6 specifies it: a failure is a logged no-op, per ADR-039's fail-open posture. |
+| `d6-pairing-timing-race`, `consequences-sec3-no-decision`, `bidi-136-no-design` | 0/3 each | Refuted. Each names something this ADR explicitly defers with a reason, which is the documented standard rather than a violation of it. |
+
+**Both confirmed findings were the same species: a citation that asserted more
+than the cited line contained.** Neither was a flaw in a decision; both were the
+ADR claiming support from code that did not supply it. That is the failure mode
+this repo's file:line convention is supposed to prevent and instead makes easy to
+commit — the citation looks like evidence whether or not anyone opened it. The
+two lenses that caught them are the two that opened the files.
+
+**Lesson for the next review, not just this one:** a verifier that cannot read the
+artifact must say so and be discarded, never counted as a refutation. Round 1
+would otherwise have closed this ADR with eleven false "refuted" verdicts and both
+real findings buried among them.
