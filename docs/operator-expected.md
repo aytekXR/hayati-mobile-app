@@ -111,18 +111,60 @@ profile**. Our release lane fetches profiles **read-only on purpose** (so CI can
 never mint credentials), which means it cannot add the capability itself — a
 build that claims push without the capability **fails to sign**. That is exactly
 what happened with universal links and cost a release (ADR-040). So a session
-will not add the entitlement until you confirm the tick.
+will not add the entitlement until the tick is confirmed.
 
-> **While you are in the portal, please answer two more capability questions in
-> the same visit** — each is one glance at the same page:
-> * Is **Associated Domains** enabled? (item 2(d) — invite links open the app
->   instead of the browser.)
-> * Is **App Attest** in the capability list? (App Check enforcement stays off in
->   both consoles until this is known — see 2(d).)
+> ### ✅ You no longer have to *report* piece 2 — a session can now measure it
+>
+> Session 062 built `appid-capabilities.yml`, which reads the App ID's capability
+> list straight out of Apple's portal over the App Store Connect API, using the
+> same key the release lane already holds. **Just do the tick; nobody needs to
+> ask you whether you did.**
+>
+> ```sh
+> gh workflow run appid-capabilities.yml
+> ```
+>
+> The same one dispatch also answers the two questions that used to ride along
+> with this item — **Associated Domains** (item 2(d)) and **App Attest** — so
+> those bullets are gone from your list too. They had been recorded as *"a
+> session cannot read the portal, so nobody knows"* for months, and that turned
+> out to be a missing tool rather than a missing permission.
+>
+> If the workflow reports **could not measure** (exit 2), that means our API key
+> is not allowed to read Certificates & Identifiers — **not** that the capability
+> is off. That distinction is built into the tool on purpose, because reporting
+> "not ticked" when nobody actually looked would send a session off to build
+> around a blocker that may not exist.
+
+**Piece 1 — the APNs `.p8` — is still genuinely yours and cannot be measured.**
+Firebase's Cloud Messaging settings are console-only: there is no API a session
+can read them from, `gcloud` is not installed on the session machine and there is
+no application-default credential. So this one is reported, not verified — please
+say when it is uploaded to **both** projects.
+
+### The order matters, and it is not reorderable
+
+From ADR-042 D2. A build that claims the entitlement before the capability exists
+does not fail in CI — it fails in the **macOS release job**, the most expensive
+place in the system to find out, because our iOS CI check builds
+`--no-codesign` and cannot see the problem coming.
+
+1. you tick **Push Notifications** and upload the `.p8` to both projects;
+2. `gh workflow run appid-capabilities.yml` returns **exit 0** — measured, not reported;
+3. the provisioning profile regenerates and `match` picks it up;
+4. **only then** does a session add the plugin and the entitlement, in one commit.
 
 **What you get once it is done:** a question every morning at 08:00, a nudge when
 your partner answers, and a reminder in the afternoon if you have not. Those are
-the three you asked for; the server side of two of them already exists.
+the three you asked for.
+
+**What already exists while you do it.** The server composes the "your partner
+answered" push correctly today and hands it to the send seam — that half has been
+built and tested since M3.4. What has never existed is anything to send it *to*:
+no device has ever registered a push token, because nothing in the app or the
+server could write one. Session 062 is building that half. The last mile after
+that is the Firebase messaging plugin and the entitlement — step 4 above, waiting
+on you.
 
 ---
 
@@ -278,9 +320,14 @@ tapped invite lands in the app. The `apple-app-site-association` file is **alrea
 live and verified** at `https://ikimiz.web.app/.well-known/apple-app-site-association`,
 so nothing else is needed on the web side.
 
-**Say what you see either way.** A session cannot read the portal, so nobody
-knows whether this capability is already enabled — no build has ever been signed
-with the entitlement, so it has never been exercised.
+**~~Say what you see either way. A session cannot read the portal, so nobody
+knows whether this capability is already enabled~~** — **no longer true as of
+Session 062.** `gh workflow run appid-capabilities.yml` reads the App ID's
+capability list out of Apple's portal and prints it, so this question and the App
+Attest one below are both answered by one dispatch and neither needs you to
+report anything. See item **4(a)**. *(What remains true: no build has ever been
+signed with this entitlement, so the capability has never been exercised even if
+it is enabled.)*
 
 > **The third capability question, same page (ADR-039).** The prod App Check
 > provider is **App Attest**, but `Runner.entitlements` deliberately does *not*
@@ -288,9 +335,10 @@ with the entitlement, so it has never been exercised.
 > attestation cannot currently succeed. Harmless today (App Check activation
 > fails open instead of blocking the boot, and enforcement is off), but it will
 > hard-break the day enforcement is switched on. A session did not add the
-> entitlement blind, for the same signing reason as above. **Check whether App
-> Attest appears in the capability list and say what you see** — that one
-> observation settles it.
+> entitlement blind, for the same signing reason as above. ~~**Check whether App
+> Attest appears in the capability list and say what you see**~~ — **you do not
+> need to look.** `gh workflow run appid-capabilities.yml` prints the entire
+> capability list, App Attest included (item **4(a)**).
 
 ## 2(e). The website — the invite half is LIVE; the pretty domain and the legal pages need you
 
