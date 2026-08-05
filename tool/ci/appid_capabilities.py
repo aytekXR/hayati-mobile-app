@@ -195,11 +195,24 @@ def find_bundle_id(call, identifier: str) -> str:
 def list_capabilities(call, bundle_key: str) -> list[str]:
     """Every capabilityType ticked on the App ID, sorted.
 
+    NO QUERY PARAMETERS, and that is Apple's rule rather than a preference. The
+    first live dispatch of this tool sent `?limit=200` and got:
+
+        HTTP 400  PARAMETER_ERROR.ILLEGAL
+        "The parameter 'limit' can not be used with this request :
+         This relationship does not support this parameter."
+
+    Only the vendor can refute a vendor API shape. The `/v1/bundleIds`
+    COLLECTION does accept `filter[...]` and `limit`; this RELATIONSHIP does
+    not, so the fix must not be over-applied to the lookup — a lookup without
+    its filter would fetch every App ID in the team.
+
     Fails CLOSED on a paginated response: holding page one only means the
-    enabled set is PARTIAL, and a partial set can produce a false absence.
+    enabled set is PARTIAL, and a partial set can produce a false absence. That
+    guard matters MORE now that no page size can be requested, since the page
+    size is entirely Apple's to choose.
     """
-    query = urllib.parse.urlencode({"limit": 200})
-    payload = call("GET", f"/v1/bundleIds/{bundle_key}/bundleIdCapabilities?{query}")
+    payload = call("GET", f"/v1/bundleIds/{bundle_key}/bundleIdCapabilities")
     if not isinstance(payload, dict):
         raise AscError("unexpected bundleIdCapabilities response shape (not an object)")
     entries = payload.get("data")
