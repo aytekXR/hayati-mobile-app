@@ -30,7 +30,15 @@ service cloud.firestore {
       // are server-owned too, and since S023 (ADR-023) consent (the KVKK/PDPL
       // special-category consent record: version + server acceptedAt + ageAttested,
       // written ONLY by the recordConsent callable via the admin SDK) joins them —
-      // and, like coupleId, each freeze must span BOTH create AND update: the
+      // and since S062 (ADR-042 D1) fcmTokens (the FCM registration tokens the
+      // registerPushToken / unregisterPushToken callables own) joins them too. It
+      // had been called server-owned in a Dart comment
+      // (firestore_profile_repository.dart:87) and in profile_dto.dart while these
+      // rules let a client write, change and clear it — three places asserting an
+      // invariant the rules did not hold. It is not a documentation fix: a client
+      // that can write the field can name ANOTHER device's token and take delivery
+      // of that device's notifications.
+      // And, like coupleId, each freeze must span BOTH create AND update: the
       // update freeze below is worthless if a client can simply mint the field on
       // a fresh (or post-deletion re-created) self-doc. So a client may never
       // introduce ANY of these server-owned fields at create.
@@ -39,7 +47,8 @@ service cloud.firestore {
         && !('coupleId' in request.resource.data)
         && !('coupleEnded' in request.resource.data)
         && !('notificationPrivacy' in request.resource.data)
-        && !('consent' in request.resource.data);
+        && !('consent' in request.resource.data)
+        && !('fcmTokens' in request.resource.data);
       // Updates may never move createdAt, nor set/change/delete coupleId: a
       // client must not pair (or re-pair) itself by writing the field the join
       // Function owns. Since M6.2 (ADR-019) notificationPrivacy (the discreet
@@ -48,16 +57,22 @@ service cloud.firestore {
       // callable and the deleteAccount cascade write them via the admin SDK), so a
       // client may neither mint, change, nor clear either. Since S023 (ADR-023)
       // consent (the special-category consent record) is frozen the same way — its
-      // sole writer is the recordConsent callable via the admin SDK. merge:true
-      // writes that omit these fields pass (request.resource.data is the post-merge
-      // document); get(...,null) compares the field or its absence on both sides
-      // symmetrically.
+      // sole writer is the recordConsent callable via the admin SDK. Since S062
+      // (ADR-042 D1) fcmTokens is frozen the same way, with its sole writers the
+      // registerPushToken / unregisterPushToken callables — a client that could
+      // append to this array could name a token belonging to someone else's phone
+      // and start receiving that phone's notifications, so "self-only" is not a
+      // sufficient guard here the way it is for ordinary profile fields.
+      // merge:true writes that omit these fields pass (request.resource.data is
+      // the post-merge document); get(...,null) compares the field or its absence
+      // on both sides symmetrically.
       allow update: if isSelf(uid)
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.get('coupleId', null) == resource.data.get('coupleId', null)
         && request.resource.data.get('notificationPrivacy', null) == resource.data.get('notificationPrivacy', null)
         && request.resource.data.get('coupleEnded', null) == resource.data.get('coupleEnded', null)
-        && request.resource.data.get('consent', null) == resource.data.get('consent', null);
+        && request.resource.data.get('consent', null) == resource.data.get('consent', null)
+        && request.resource.data.get('fcmTokens', null) == resource.data.get('fcmTokens', null);
       // Hard delete is the M6.2 KVKK/PDPL cascade Function's job (admin SDK,
       // bypasses rules); clients never delete profile documents (ADR-019).
       allow delete: if false;

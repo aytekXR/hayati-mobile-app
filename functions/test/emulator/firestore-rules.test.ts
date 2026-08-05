@@ -407,6 +407,76 @@ describe('users/{uid}', () => {
       setDoc(doc(alice, `users/${ALICE}`), { register: 'playful' }, { merge: true }),
     );
   });
+
+  // ADR-042 Decision 1: fcmTokens is server-owned — written ONLY by the
+  // registerPushToken / unregisterPushToken callables (admin SDK). Before S062 it
+  // was in NEITHER freeze clause while three places in the Dart layer described it
+  // as server-owned, so a client could write, change and clear it.
+  //
+  // The stake here is higher than the usual server-owned field. A token addresses
+  // a PHONE, so a client that can append to this array can name a token belonging
+  // to someone else's device and take delivery of that device's notifications.
+  // "Self-only via isSelf(uid)" — the argument that made a direct client write look
+  // defensible — does not bound the damage, because the harm lands on a stranger.
+  //
+  // These four are the DENY path, and they need no writer to exist: what is being
+  // proven is that a client is refused, which is the whole content of the freeze.
+  it('create is denied when the client includes fcmTokens (server-owned)', async () => {
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(doc(alice, `users/${ALICE}`), {
+        ...profileData,
+        createdAt: serverTimestamp(),
+        fcmTokens: ['stolen-device-token'],
+      }),
+    );
+  });
+
+  it('a client may not mint fcmTokens on its own doc', async () => {
+    await seedAliceProfile();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { fcmTokens: ['stolen-device-token'] }),
+    );
+  });
+
+  it('a client may not append to a server-set fcmTokens', async () => {
+    await seed(`users/${ALICE}`, {
+      ...profileData,
+      fcmTokens: ['alice-phone'],
+      createdAt: Timestamp.now(),
+    });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), {
+        fcmTokens: ['alice-phone', 'stolen-device-token'],
+      }),
+    );
+  });
+
+  it('a client may not clear a server-set fcmTokens', async () => {
+    await seed(`users/${ALICE}`, {
+      ...profileData,
+      fcmTokens: ['alice-phone'],
+      createdAt: Timestamp.now(),
+    });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      updateDoc(doc(alice, `users/${ALICE}`), { fcmTokens: deleteField() }),
+    );
+  });
+
+  it('an ordinary own-doc edit succeeds alongside a server-set fcmTokens (positive control)', async () => {
+    await seed(`users/${ALICE}`, {
+      ...profileData,
+      fcmTokens: ['alice-phone'],
+      createdAt: Timestamp.now(),
+    });
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(
+      setDoc(doc(alice, `users/${ALICE}`), { register: 'playful' }, { merge: true }),
+    );
+  });
 });
 
 describe('users/{uid}/soloAnswers/{dayKey}', () => {
