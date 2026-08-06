@@ -333,6 +333,34 @@ remainder deferred into prose is a remainder that gets lost):
   the iOS project at all), nor whether its method swizzling works with this
   app's **scene-based** `FlutterSceneDelegate` architecture. Both are marked
   UNVERIFIED rather than assumed.
+
+  > **PARTLY RESOLVED 2026-08-06 (#191).** The plugin, the `FcmPushTokenSource`
+  > adapter and both provider overrides landed **without** `aps-environment`,
+  > which is the ADR-sanctioned "separate labelled commit" route above. That
+  > made `ios-build-smoke` compile the plugin against this project for the first
+  > time, and it answers both UNVERIFIED items **at build level**:
+  >
+  > * `firebase_messaging` **compiles and links against the pure-Dart
+  >   `FirebaseOptions`** with no `GoogleService-Info.plist` present;
+  > * it **coexists with the scene-based `FlutterImplicitEngineDelegate`**
+  >   AppDelegate.
+  >
+  > **Still UNVERIFIED, and narrowed to what it actually is: RUNTIME.** A build
+  > cannot prove that method swizzling behaves correctly on a live device, nor
+  > that the plugin initializes cleanly against a `FirebaseApp` configured from
+  > Dart. Those need a device. They are bounded by ADR-039's fail-open posture —
+  > `PushTokenSync` treats a throw or a null as a logged no-op — but "bounded" is
+  > not "observed", and the first build to reach a tester should be watched.
+  >
+  > **The build also found something no reasoning would have.**
+  > `firebase_messaging` **16.4.2 declares a constraint its own code violates**:
+  > `firebase_core_platform_interface: ^7.1.0`, while using `FirebasePlugin`,
+  > which exists only in 8.x. This repo's **dev-only** pin of that package at
+  > `^7.1.0` — present solely so one test can import
+  > `firebase_core_platform_interface/test.dart` — made 16.4.3+ unsatisfiable
+  > and steered pub onto the one broken release. `pub get`, `analyze`, all 1653
+  > tests and `format` were green; only the iOS kernel snapshot failed. See
+  > lesson **84**.
 * ~~**D3 and D4** — the fourth kind and the two sweep hours.~~ **SHIPPED in S063**
   (#190). Two corrections the implementation forced, recorded because both were
   decisions this ADR should have made and did not:

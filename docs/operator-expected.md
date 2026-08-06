@@ -207,9 +207,15 @@ you asked for.
 > angry, not to protect a counter.
 >
 > **There is no engineering left between you and a notification.** The app knows
-> which phone to notify and only the server can write that. What is missing is the
-> tick above, the key below, and the one plugin that cannot be added until the tick
-> exists — because a build that claims push without it **fails to sign**.
+> which phone to notify and only the server can write that. The Firebase
+> notification plugin is now **installed and building** (2026-08-06), so what is
+> missing is exactly two things from you — the tick above and the key below — plus
+> **one line** we add the moment the tick exists.
+>
+> That one line is an entitlement claiming push. We cannot add it early: a build
+> that claims push before the App ID allows it **fails to sign**, and it fails in
+> the release step rather than in the checks, which is the expensive place to find
+> out. That is not caution — it happened once already, on a different capability.
 
 **What already exists while you do it.** The server composes the "your partner
 answered" push correctly today and hands it to the send seam — that half has been
