@@ -38,6 +38,20 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**83 — Changing an eligibility rule changes WHO reads the message, so the message has to change with it.** *(2026-08-06)*
+ADR-042 D4 dropped the `streak.count > 0` gate so the afternoon nudge would reach
+couples with no streak — that population *was the reason for the change*. The ADR
+noted that the existing copy already had a count-free variant and concluded
+"nothing about the existing message is lost." It was right about the code and
+wrong about the product: that variant read **"Your streak together is still
+alive"**, which is **false for exactly the people the change existed to reach.**
+A gate is not only a filter on delivery; it is a **precondition the copy above it
+was written under**. When you delete one, re-read every string the newly-admitted
+population will now see and ask whether it is still *true* for them — not whether
+it still renders. The bug would have shipped as a working feature with green
+tests, because "the copy degrades gracefully" and "the copy is honest" are
+different properties and only the first one has a test shape.
+
 **82 — A mutation that silently hits the wrong line reports exactly what a covered line reports: green.** *(2026-08-06)*
 S062 mutation-checked `PushTokenSync` by string-replacing a guard, with
 `str.replace(old, new, 1)` — first occurrence only. The anchor `if (_syncedUid == null)

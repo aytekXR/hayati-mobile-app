@@ -2331,3 +2331,46 @@ And the freeze matters more than the usual server-owned field. *"Self-only via `
 * **The app icon** (priority 1 in S062's prompt) and **`tr` screenshots** (priority 3) were not started. The objective was the session, and it was more than one session's work; the prompt said to take the first coherent slice and record what was left. This is that record.
 
 **M3.4's ✅ is corrected in the same commit as the code** (criterion 4, lesson 79): strikethrough + dated note, the way ADR-026 D3 was corrected. **M3.4 stays open until a push reaches a device and somebody sees it.**
+
+## Session 063 — 2026-08-06 — **the daily question at 08:00 and the nudge at 16:00: all three founder behaviours now exist** *(first-hand, continues S062 in the same sitting)*
+
+**Objective:** #189 / ADR-042 D3+D4 — the two notification behaviours the founder asked for that S062 deferred. Chosen over #188 (the device half) because #188 is founder-blocked on a capability measured absent, and D3/D4 are pure Functions logic blocked by nothing.
+
+**Shipped: #190.**
+
+### What exists now that did not
+
+`PushKind` gains **`dailyQuestion`** (TR/AR/EN + discreet), announced by a new **hour-8** pass; the afternoon nudge moved **20:00 → 16:00** with its `streak.count > 0` gate **dropped**. All three passes ride **one** couples read — ADR-012 D3's hard constraint preserved by construction, and its §10 cost model **amended in the same diff** rather than left to drift (the day-doc read widened from "hour-20, couples with a streak" to "hour-16, unconditionally, plus one `getAll` of two answer docs").
+
+**All three behaviours the founder named on 2026-08-05 are now composed and routed.** None has reached a phone. `PUSH_NOTIFICATIONS` is still absent from the App ID, so #188 remains the whole remaining distance.
+
+### The two things the ADR did not decide, and the code forced
+
+1. **D4 needed new copy, not just a new hour.** The ADR said the count-free variant meant "nothing about the existing message is lost". True of the code, false of the product: that variant read *"Your streak together is still alive"* — **false for exactly the population D4 exists to reach.** A separate relationship nudge was written. → **lesson 83.**
+2. **The daily-question pass skips members who already answered.** Unspecified by the ADR; costs one `getAll` per eligible couple. Announcing a question to someone who already answered it is the small wrongness that makes an app feel inattentive.
+
+Both folded back into ADR-042 as recorded corrections rather than absorbed silently.
+
+### The tripwire, disarmed correctly
+
+S062's ADR predicted this exact red: `payload-policy.test.ts` asserted **both** "exactly three kinds" **and** `not.toContain('coupleEnded')`. The count moved to four; **the `coupleEnded` assertion was not touched**, and the test now states in its own comment which half is the ADR-019 DV safety invariant and which is a change detector. The prediction was worth writing down — meeting that red cold, the obvious move is to relax the whole test.
+
+Similarly, the **two zero-streak at-risk tests were inverted rather than deleted** when their rule reversed, so the case stays covered with the opposite expectation. Mutation M5 (restoring the gate) reddens exactly those three, which is what proves the drop is covered and not vacuously passing.
+
+### Mutation-checked, both directions, each anchor unique (lesson 82 applied)
+
+| Mutation | Reddened |
+|---|---|
+| quiet window `< 9` | 8 assertions — **the silent-death mutation**: hour 8 sits *on* the right-open boundary |
+| quiet window `>= 23` | "hour 22 IS quiet" + both boundary tables |
+| `DAILY_QUESTION_LOCAL_HOUR` 8→7 | 8 |
+| `AT_RISK_LOCAL_HOUR` 16→20 | 8 |
+| streak gate restored | exactly the 3 inverted tests |
+
+### A bounded refactor, stated rather than smuggled
+
+Recipient resolution, the quiet guard and the per-token error boundary moved to `sweep-push.ts`. Two passes differing only in couple selection and kind would have kept two copies of **the code that decides whether a lock screen leaks**, and only one would get the next fix.
+
+**Functions 1067 tests / 54 files, 97.45% stmts.** Typecheck caught a test-only type error vitest's esbuild transpile runs straight past — the `npm run typecheck` step earns its place.
+
+**Not done:** the app icon and `tr` screenshots, again. Both are unblocked and both keep losing to the objective; S064's prompt puts the icon first.

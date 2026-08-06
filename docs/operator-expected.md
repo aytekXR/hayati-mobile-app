@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-06** (Session 062). The 2026-08-05 refresh re-measured
+_Last refreshed: **2026-08-06** (Sessions 062–063). The 2026-08-05 refresh re-measured
 every line against Apple, GitHub, Google and your live site; S062 added the one
 thing that refresh could only ask you to report._
 
@@ -55,7 +55,7 @@ decision from you before a session can finish them.
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~97%** — M1→M6.3 all merged. **M3.4's notification half has still never delivered a single push.** Session 062 built the missing piece underneath it — the app can now record which phone to notify, and only the server can write it — but **the phone still has no way to receive a push**, because that needs the portal tick below. The plan's ✅ on M3.4 has been struck through and dated. | **4(a)**, then one session's build work. |
+| **Is the MVP built?** | **~97%** — M1→M6.3 all merged. **No notification has still ever been delivered.** Sessions 062–063 built everything above the device: the app records which phone to notify (server-writable only), and all three notifications you asked for — 08:00 question, partner-answered, 16:00 reminder — are composed and routed. **The phone still has no way to RECEIVE one**, and that is the portal tick below. The plan's ✅ on M3.4 stays struck through until a push actually arrives. | **4(a)** — one checkbox and one key. |
 | **Can people install it?** | **100%** — done. Build 113 is approved and live. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Ship **114+** so they stop testing three-week-old code. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
@@ -196,8 +196,20 @@ place in the system to find out, because our iOS CI check builds
 4. **only then** does a session add the plugin and the entitlement, in one commit.
 
 **What you get once it is done:** a question every morning at 08:00, a nudge when
-your partner answers, and a reminder in the afternoon if you have not. Those are
-the three you asked for.
+your partner answers, and a reminder at 16:00 if you have not. Those are the three
+you asked for.
+
+> ### ✅ All three are now BUILT — they are waiting on this checkbox and nothing else
+>
+> As of 2026-08-06 the server composes and routes all three: the 08:00 question, the
+> partner-answered nudge, and the 16:00 reminder. The 16:00 one deliberately fires
+> **even if you have no streak** — you asked for it so your partner does not get
+> angry, not to protect a counter.
+>
+> **There is no engineering left between you and a notification.** The app knows
+> which phone to notify and only the server can write that. What is missing is the
+> tick above, the key below, and the one plugin that cannot be added until the tick
+> exists — because a build that claims push without it **fails to sign**.
 
 **What already exists while you do it.** The server composes the "your partner
 answered" push correctly today and hands it to the send seam — that half has been
