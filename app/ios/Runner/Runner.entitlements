@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<!-- Sign in with Apple (M1.3). Entitlements are consumed only at codesign
-	     time, so CI's `flutter build ios --no-codesign` is unaffected; the
+	     time, so CI's no-codesign iOS build is unaffected; the
 	     emulator integration tests never invoke native ASAuthorization either.
 	     App Attest (com.apple.developer.devicecheck.appattest-environment) is
 	     deliberately NOT declared yet - deferred to the on-device/Mac slice
@@ -12,6 +12,44 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- PUSH NOTIFICATIONS (ADR-042 D2 step 4, S063). This is the line the whole
+	     notification feature waited on, and it could not land before 2026-08-06.
+
+	     THE ORDER MATTERS AND IT IS NOT REORDERABLE. An entitlement must also
+	     exist in the PROVISIONING PROFILE, and `match` fetches profiles READONLY
+	     (ADR-032) so CI can never mint one. A build claiming this key before the
+	     App ID carried the capability would fail at CODESIGN — and NOT in
+	     ci.yml, whose `ios-build-smoke` builds without codesigning and cannot see it
+	     coming, but in release.yml's macOS sign-upload job, the most expensive
+	     place in the system to learn it. That is ADR-040's recorded history, one
+	     capability over.
+
+	     So the capability came first, measured rather than assumed:
+	       * 2026-08-06, run 31054773143 -> exit 1, PUSH_NOTIFICATIONS ABSENT;
+	       * 2026-08-06, run 31130371860 -> enabled via the App Store Connect API
+	         (founder-authorised), and the verification read in the SAME run
+	         returned exit 0.
+	     Re-measure rather than trusting this comment:
+	         gh workflow run appid-capabilities.yml -f require=PUSH_NOTIFICATIONS
+
+	     UNDO HANDLE, if a signed build ever needs the capability removed:
+	         gh workflow run appid-capabilities.yml \
+	           -f disable_id=Q344R7M7MY_PUSH_NOTIFICATIONS -f confirm=ENABLE
+
+	     `production` because every build that consumes this file is signed for
+	     App Store distribution (release.yml -> match `appstore` -> pilot). A
+	     `development` value would be correct only for a locally-Xcode-signed
+	     debug build, which this project never produces — the dev FLAVOUR is a
+	     Dart entrypoint, not a separate signing identity.
+
+	     STILL DELIBERATELY ABSENT: UIBackgroundModes/remote-notification in
+	     Info.plist. That key is what SEC-3 is waiting for
+	     (secure_storage_pin_lock_store.dart: a locked-device background read of
+	     an `unlocked_this_device` Keychain item fails and hits the fail-open
+	     path). Token CAPTURE needs none of it; only background DELIVERY does.
+	     Decide SEC-3 before adding it. -->
+	<key>aps-environment</key>
+	<string>production</string>
 	<!-- com.apple.developer.associated-domains IS DELIBERATELY ABSENT (ADR-040).
 	     It was here, claiming applinks:ikimiz.web.app and
 	     applinks:ikimiz.beyondkaira.com (ADR-036/039), and it was REMOVED so a
