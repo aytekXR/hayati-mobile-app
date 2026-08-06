@@ -155,6 +155,16 @@ jobs:
       # EXIT_ABSENT reddens ten named assertions.
       - name: app id capability probe self-tests
         run: python3 tool/ci/appid_capabilities_test.py
+      # The WRITE half (S063). Registered here the moment it existed, because an
+      # unregistered test is a green run that proves nothing — this repo's own
+      # recorded lesson, and it would bite hardest on exactly this file: the
+      # assertions below are the locks that stand between a flag typo and a
+      # capability change on a live App ID. Hermetic (a fake transport records
+      # every request), and mutation-checked: removing the confirm literal, the
+      # closed vocabulary, the idempotence guard, the undo gate, or the failure
+      # mapping each reddens the assertion that names it.
+      - name: app id capability WRITE self-tests
+        run: python3 tool/ci/appid_capability_enable_test.py
       # ADR-034: the behavioural half of the advisory-delta gate. The gate itself
       # runs in functions-rules (it needs npm); these tests are hermetic — no npm,
       # no network, no emulator — so they belong here with the other pre-`pub get`
