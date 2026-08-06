@@ -15,6 +15,7 @@ import 'features/auth/presentation/sign_in_screen.dart';
 import 'features/auth/presentation/state/auth_controller.dart';
 import 'features/coach/presentation/state/coach_transcript.dart';
 import 'features/entitlements/presentation/state/purchases_identity_sync.dart';
+import 'features/notifications/presentation/state/push_token_sync.dart';
 import 'features/pairing/presentation/state/pending_invite.dart';
 import 'features/privacy_lock/presentation/privacy_guard.dart';
 import 'features/privacy_lock/presentation/state/privacy_lock_controller.dart';
@@ -62,6 +63,12 @@ class HayatiApp extends ConsumerWidget {
     // app root is the only always-mounted widget (ADR-014 Decision 2). Lazy by
     // design: a signed-out lifecycle never resolves the purchases seam.
     ref.listen(purchasesIdentitySyncProvider, (_, _) {});
+    // Activate the FCM token sync from the first frame (keepAlive), same mount
+    // precedent and same reason: a warm start's restored session must register
+    // its token without waiting for an auth EVENT that will never come
+    // (ADR-042 D1). Lazy by design — a signed-out lifecycle never resolves the
+    // token source, and a device with no token is a logged no-op, never a frame.
+    ref.listen(pushTokenSyncProvider, (_, _) {});
     // Tear down all coach conversation state on any transition away from a
     // signed-in user (ADR-017 Decision 3). The coach transcript family is
     // keepAlive — it survives route pops BY DESIGN — so a sign-out that only

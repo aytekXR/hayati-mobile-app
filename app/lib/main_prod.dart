@@ -43,8 +43,10 @@ import 'features/entitlements/data/firestore_entitlement_repository.dart';
 import 'features/entitlements/data/rc_purchases_repository.dart';
 import 'features/entitlements/domain/entitlement_repository_provider.dart';
 import 'features/entitlements/domain/purchases_repository_provider.dart';
+import 'features/notifications/data/fcm_push_token_source.dart';
 import 'features/notifications/data/functions_push_token_repository.dart';
 import 'features/notifications/domain/push_token_repository_provider.dart';
+import 'features/notifications/domain/push_token_source_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
 import 'features/pairing/data/functions_invite_repository.dart';
 import 'features/pairing/data/http_invite_preview_repository.dart';
@@ -198,13 +200,21 @@ Future<void> main() async {
         dataRightsRepositoryProvider.overrideWith(
           (ref) => FunctionsDataRightsRepository(),
         ),
-        // ADR-042 D1. The repository is real and calls the deployed callables;
-        // pushTokenSourceProvider is deliberately NOT overridden, so nothing
-        // captures a token yet (D2 step 4, blocked on the App ID capability
-        // measured absent 2026-08-06).
+        // ADR-042 D1/D2. Both halves are real now: the repository calls the
+        // deployed callables, and the source is FCM.
+        //
+        // It is INERT until the entitlement lands. `aps-environment` is absent
+        // from Runner.entitlements by design — the Push Notifications capability
+        // is not ticked on the App ID (measured 2026-08-06), and a build claiming
+        // the entitlement without it fails at CODESIGN in the macOS release job
+        // (ADR-040, one capability over). Without it iOS never registers with
+        // APNs, so getToken() yields nothing and PushTokenSync logs a no-op.
+        // Nothing here changes when the tick happens except that tokens start
+        // flowing.
         pushTokenRepositoryProvider.overrideWith(
           (ref) => FunctionsPushTokenRepository(),
         ),
+        pushTokenSourceProvider.overrideWith((ref) => FcmPushTokenSource()),
         // The three device-privacy seams (ADR-018 D2/D1/D6). Bound BY VALUE here
         // and nowhere else, so `flutter test` never touches the Keychain,
         // local_auth, or the hayati/device_privacy channel.
