@@ -1,0 +1,53 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+import '../domain/push_token_source.dart';
+
+/// The FCM implementation of [PushTokenSource] (ADR-042 D2 step 4).
+///
+/// This is the whole device half of the token lifecycle: one class, because
+/// everything that DECIDES anything — when to register, what to remove at
+/// sign-out, how to survive a rotation — lives above the port in `PushTokenSync`
+/// and is proven on Linux with a fake. That was the point of the seam.
+///
+/// **It is deliberately thin and deliberately untested**, the same trade
+/// `FunctionsDataRightsRepository` documents: an adapter with no branches of its
+/// own has nothing to assert about that a fake would not also satisfy. The one
+/// thing it does carry is the fail-open posture, and that IS tested — through
+/// `PushTokenSync`, which treats a throw or a null from here as a logged no-op.
+///
+/// ## What it is not doing, and why
+///
+/// **It does not request notification permission.** ADR-039 D1 makes the boot
+/// fail-open and D2 bounds every wait on the launch→paired path; a permission
+/// prompt is an indefinite wait on a human and iOS gives one shot per install.
+/// ADR-042 D6 puts the ask after pairing, on a screen that can explain itself —
+/// so it belongs to a UI surface, not to this adapter. Until that ships,
+/// [currentToken] simply returns null on iOS, which is the normal pre-permission
+/// state and exactly what the fail-open path is for.
+///
+/// **It does not assume APNs works.** Without `aps-environment` in the
+/// entitlements — absent by design until the App ID capability is ticked
+/// (measured absent 2026-08-06) — iOS never hands Firebase an APNs token, so
+/// `getToken()` returns null or throws. Both collapse to "no token yet", the
+/// same state as a user who has not granted permission. **This class is
+/// therefore correct and inert today, and becomes live the moment the
+/// entitlement lands, with no code change.**
+class FcmPushTokenSource implements PushTokenSource {
+  FcmPushTokenSource({FirebaseMessaging? messaging})
+    : _messaging = messaging ?? FirebaseMessaging.instance;
+
+  final FirebaseMessaging _messaging;
+
+  @override
+  Future<String?> currentToken() async {
+    // On iOS, getToken() throws rather than returning null when APNs has not
+    // registered — which is the ordinary state before the entitlement and before
+    // permission. PushTokenSync catches it and logs a no-op, so an absent token
+    // never reaches a user as an error; the null here is for the platforms and
+    // paths where the plugin answers politely.
+    return _messaging.getToken();
+  }
+
+  @override
+  Stream<String> tokenRefreshes() => _messaging.onTokenRefresh;
+}
