@@ -18,11 +18,26 @@
 # ENVIRONMENT secrets while ASC_API_KEY_P8_BASE64 is a REPOSITORY secret, so
 # only a job declaring the environment sees both (the REL-2 lesson).
 #
-# READ-ONLY BY CONSTRUCTION. The tool has no code path that can tick a
-# capability. Enabling one changes how a real binary signs; that is a founder
-# decision, and a lane that could do it would also be a lane that could do it by
-# accident. Manual dispatch only — nothing here should run as a merge side
-# effect.
+# READ BY DEFAULT; WRITE ONLY WHEN ASKED, TWICE. This lane was read-only by
+# construction until 2026-08-06, on the reasoning that enabling a capability
+# changes how a real binary signs — a founder decision, and a lane that could do
+# it would also be a lane that could do it by accident.
+#
+# The founder authorised the write on 2026-08-06 (they were shown the trade-off:
+# tick it in the portal by hand, or let the API do it and accept that the
+# provisioning profile is invalidated while `match` runs readonly). The accident
+# half of that reasoning is unchanged and is now ENFORCED rather than avoided:
+# the `enable` input does nothing unless `confirm` is the literal `ENABLE`, the
+# capability must be in a closed vocabulary, and the write tool is a separate
+# file with its own self-tests (tool/ci/appid_capability_enable.py).
+#
+# AFTER A SUCCESSFUL ENABLE THE RELEASE LANE IS BROKEN UNTIL THE PROFILE IS
+# REGENERATED. That is not a risk, it is the mechanism: a capability change
+# invalidates the App ID's profiles and CI fetches them readonly. The job prints
+# the documented recovery (MATCH_BOOTSTRAP=true for one release run) so the
+# person who runs this reads it at the moment it becomes their problem.
+#
+# Manual dispatch only — nothing here should run as a merge side effect.
 #
 # THE JOB REDDENS ON BOTH FINDINGS, AND THEY ARE DIFFERENT FINDINGS:
 #   exit 1  measured, a required capability is NOT ticked  -> the founder must act
@@ -43,6 +58,18 @@ on:
         description: 'Comma-separated capabilities that must be ticked (blank = plain read-out)'
         required: false
         default: 'PUSH_NOTIFICATIONS,ASSOCIATED_DOMAINS,APP_ATTEST'
+      enable:
+        description: 'WRITES TO APPLE. One capability to tick. Needs confirm=ENABLE. Invalidates provisioning profiles.'
+        required: false
+        default: ''
+      disable_id:
+        description: 'WRITES TO APPLE. Undo: the bundleIdCapability resource id to remove. Needs confirm=ENABLE.'
+        required: false
+        default: ''
+      confirm:
+        description: 'Must be exactly ENABLE for enable/disable to do anything at all'
+        required: false
+        default: ''
 
 concurrency:
   group: appid-capabilities
@@ -66,6 +93,37 @@ jobs:
       # lesson recorded in ci.yml's rules-drift job.
       - name: install deps
         run: python3 -m pip install --quiet 'pyjwt[crypto]==2.10.1'
+      # The WRITE step runs FIRST and only when asked, so the read below is a
+      # verification of the new state rather than a stale snapshot of the old one.
+      # A no-op (no `enable`/`disable_id`) skips entirely — the default dispatch
+      # is exactly the read-only lane it always was.
+      - name: enable / disable a capability (writes to Apple)
+        if: inputs.enable != '' || inputs.disable_id != ''
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+          ENABLE: ${{ inputs.enable }}
+          DISABLE_ID: ${{ inputs.disable_id }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ -n "$DISABLE_ID" ]; then
+            args=(--disable-id "$DISABLE_ID" --confirm "$CONFIRM")
+          else
+            args=(--bundle-id "$BUNDLE_ID" --enable "$ENABLE" --confirm "$CONFIRM")
+          fi
+          set +e
+          python3 tool/ci/appid_capability_enable.py "${args[@]}"
+          status=$?
+          set -e
+          case "$status" in
+            0) echo "::warning::App ID capabilities CHANGED. The provisioning profile is now invalid — regenerate it with MATCH_BOOTSTRAP=true on the next release run, or the sign step will fail." ;;
+            1) echo "::error::REFUSED — a guard said no and NOTHING was sent (missing/wrong confirm literal, or an unknown capability)" ;;
+            2) echo "::error::the write FAILED — a request was sent and did not succeed. 'I would not' and 'I could not' are different facts; this is the second one." ;;
+            *) echo "::error::appid_capability_enable.py exited $status, outside its documented taxonomy" ;;
+          esac
+          exit "$status"
       - name: read capabilities
         # Inputs reach the shell as ENV, never interpolated into the script body:
         # `${{ }}` expands before bash sees the line, so an input containing shell
