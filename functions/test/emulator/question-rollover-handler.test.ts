@@ -16,7 +16,10 @@ import { FakeMessagingPort } from '../support/fake-messaging-port';
 // 2026-07-10T17:00:00Z reads 20:00 in Istanbul — the couple-local hour the
 // piggybacked at-risk pass fires on (ADR-012 D3). SCHEDULE_TIME (02:00Z, 05:00
 // local) is off-hour, so the existing sweeps above never trip the at-risk pass.
-const AT_RISK_TIME = '2026-07-10T17:00:00Z';
+// 13:00Z is 16:00 in Europe/Istanbul — the nudge hour since ADR-042 D4 (was 20).
+const AT_RISK_TIME = '2026-07-10T13:00:00Z';
+// 05:00Z is 08:00 in Europe/Istanbul — the daily-question hour (ADR-042 D3).
+const DAILY_QUESTION_TIME = '2026-07-10T05:00:00Z';
 
 const db = adminFirestore();
 const couples = db.collection('couples');
@@ -108,7 +111,7 @@ describe('makeQuestionRolloverHandler', () => {
     await expect(handler(scheduledEvent(SCHEDULE_TIME))).rejects.toThrow('couples unlistable');
   });
 
-  it('drives both passes off one couples read: logs the assignment AND at-risk summaries, sends at-risk pushes at hour 20', async () => {
+  it('drives all three passes off ONE couples read: logs every summary, and nudges at hour 16', async () => {
     // A couple mid-streak with today's day doc still unrevealed and no answers yet
     // → both members are at-risk recipients. No answer docs are seeded, so the live
     // answerReveal trigger never fires here.
@@ -143,6 +146,72 @@ describe('makeQuestionRolloverHandler', () => {
       'question_rollover: at-risk sweep complete',
       expect.objectContaining({ checked: 1, sent: 2 }),
     );
+    // The third pass ran too and found nothing to do at 16:00 — ADR-012 D3's ONE
+    // couples read is shared by all three, so a pass that has no work still logs.
+    expect(infoSpy).toHaveBeenCalledWith(
+      'question_rollover: daily-question sweep complete',
+      expect.objectContaining({ checked: 0, sent: 0 }),
+    );
+    infoSpy.mockRestore();
+  });
+
+  // ADR-042 D3. Same shared buckets, different hour, different kind.
+  it('announces the daily question at hour 8, off the SAME single couples read', async () => {
+    await couples.doc('ist').set({
+      memberUids: ['uid-a', 'uid-b'],
+      timezone: 'Europe/Istanbul',
+      createdAt: Timestamp.now(),
+    });
+    await couples.doc('ist').collection('days').doc('20260710').set({
+      questionId: 'solo_tr_001',
+      packId: 'solo_tr',
+      packVersion: 1,
+      assignedAt: Timestamp.now(),
+    });
+    await db.collection('users').doc('uid-a').set({ contentLanguage: 'en', fcmTokens: ['tok-a'] });
+    await db.collection('users').doc('uid-b').set({ contentLanguage: 'en', fcmTokens: ['tok-b'] });
+
+    const port = new FakeMessagingPort();
+    const infoSpy = vi.spyOn(logger, 'info');
+    const handler = makeQuestionRolloverHandler({ messaging: port });
+
+    await handler(scheduledEvent(DAILY_QUESTION_TIME));
+
+    expect(port.sent.map((m) => m.token).sort()).toEqual(['tok-a', 'tok-b']);
+    expect(infoSpy).toHaveBeenCalledWith(
+      'question_rollover: daily-question sweep complete',
+      expect.objectContaining({ checked: 1, sent: 2 }),
+    );
+    // And the nudge pass, sharing the same buckets, correctly did nothing at 08:00.
+    expect(infoSpy).toHaveBeenCalledWith(
+      'question_rollover: at-risk sweep complete',
+      expect.objectContaining({ checked: 0, sent: 0 }),
+    );
+    infoSpy.mockRestore();
+  });
+
+  it('isolates a daily-question failure from BOTH the assignment run and the nudge pass', async () => {
+    await seedCouple('ist', 'Europe/Istanbul');
+    const errorSpy = vi.spyOn(logger, 'error');
+    const infoSpy = vi.spyOn(logger, 'info');
+    const handler = makeQuestionRolloverHandler({
+      dailyQuestion: async () => {
+        throw new Error('daily boom');
+      },
+    });
+
+    await expect(handler(scheduledEvent(DAILY_QUESTION_TIME))).resolves.toBeUndefined();
+    expect((await couples.doc('ist').collection('days').doc('20260710').get()).exists).toBe(true);
+    expect(errorSpy).toHaveBeenCalledWith(
+      'question_rollover: daily-question sweep failed (isolated)',
+      expect.objectContaining({ error: 'daily boom' }),
+    );
+    // The nudge pass still ran — one push pass throwing must not silence the other.
+    expect(infoSpy).toHaveBeenCalledWith(
+      'question_rollover: at-risk sweep complete',
+      expect.anything(),
+    );
+    errorSpy.mockRestore();
     infoSpy.mockRestore();
   });
 

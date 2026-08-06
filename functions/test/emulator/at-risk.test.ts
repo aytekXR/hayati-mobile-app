@@ -1,8 +1,16 @@
-// M3.4 streak-at-risk push pass against the firestore emulator (docs/resume-prompt
-// Session 014, ADR-012 Decision 3). Proven at the SERVICE level (the M3.2 pattern):
-// the hour-20 gate (once per zone per day, sub-hour zones included), the
-// eligibility rule (streak > 0 AND today's day doc unrevealed), non-answerer
-// recipient selection, and the best-effort send policy behind the injected port.
+// The unanswered-day nudge against the firestore emulator (ADR-012 D3, RE-POINTED
+// by ADR-042 D4). Proven at the SERVICE level (the M3.2 pattern): the hour gate
+// (once per zone per day, sub-hour zones included), the eligibility rule,
+// non-answerer recipient selection, and the best-effort send policy behind the
+// injected port.
+//
+// ⚠️ ADR-042 D4 changed two things this suite used to pin, on purpose:
+//   * the hour moved 20 → 16, because the founder asked for 16:00;
+//   * the `streak.count > 0` gate is GONE, because the nudge now protects a
+//     RELATIONSHIP rather than a streak and must reach couples who have neither.
+// The tests that asserted the old rules were not relaxed — they were INVERTED to
+// assert the new ones, so the zero-streak case is still covered, just with the
+// opposite expectation.
 //
 // The pass is driven off the SAME timezone bucketing the assignment pass uses
 // (bucketCouplesByTimezone) — that shared read is the ADR-012 D3 hard constraint,
@@ -31,12 +39,12 @@ const UID_B = 'uid-b';
 const TZ = 'Europe/Istanbul';
 const DAY_KEY = '20260710';
 
-// 2026-07-10T17:00:00Z: Istanbul (+03) reads 20:00 → the at-risk sweep fires;
-// New York (EDT −04) reads 13:00 at the SAME instant → it does not.
-const AT = new Date('2026-07-10T17:00:00Z');
-// Asia/Kathmandu is +05:45: 15:00Z reads 20:45 → the sub-hour zone catches its
-// hour-20 sweep on the same run its local clock crosses 20:xx.
-const KTM_AT = new Date('2026-07-10T15:00:00Z');
+// 2026-07-10T13:00:00Z: Istanbul (+03) reads 16:00 → the nudge fires;
+// New York (EDT −04) reads 09:00 at the SAME instant → it does not.
+const AT = new Date('2026-07-10T13:00:00Z');
+// Asia/Kathmandu is +05:45: 11:00Z reads 16:45 → the sub-hour zone catches its
+// hour-16 sweep on the same run its local clock crosses 16:xx.
+const KTM_AT = new Date('2026-07-10T11:00:00Z');
 // Istanbul 23:00 — inside the 22:00–08:00 quiet window (defense-in-depth check).
 const QUIET_AT = new Date('2026-07-10T20:00:00Z');
 
@@ -94,12 +102,12 @@ beforeEach(async () => {
   await clearNoTriggerFirestore();
 });
 
-describe('runStreakAtRisk — hour-20 gate (ADR-012 D3)', () => {
-  it('AT_RISK_LOCAL_HOUR is 20', () => {
-    expect(AT_RISK_LOCAL_HOUR).toBe(20);
+describe('runStreakAtRisk — hour-16 gate (ADR-042 D4)', () => {
+  it('AT_RISK_LOCAL_HOUR is 16 — the hour the founder asked for, not the streak hour', () => {
+    expect(AT_RISK_LOCAL_HOUR).toBe(16);
   });
 
-  it('fires ONLY for the bucket at couple-local hour 20; a same-instant off-20 zone and a corrupt zone are untouched', async () => {
+  it('fires ONLY for the bucket at couple-local hour 16; a same-instant off-16 zone and a corrupt zone are untouched', async () => {
     await seedCouple('ist', { timezone: 'Europe/Istanbul', streak: streakOf(3) });
     await seedDay('ist');
     await seedUser(UID_A);
@@ -128,19 +136,19 @@ describe('runStreakAtRisk — hour-20 gate (ADR-012 D3)', () => {
     expect(port.sent.map((m) => m.token).sort()).toEqual([`tok-${UID_A}`, `tok-${UID_B}`]);
   });
 
-  it('a sub-hour-offset zone (Asia/Kathmandu +05:45) fires at its 20:45 sweep, not at a 22:45 one', async () => {
+  it('a sub-hour-offset zone (Asia/Kathmandu +05:45) fires at its 16:45 sweep', async () => {
     await seedCouple('ktm', { timezone: 'Asia/Kathmandu', streak: streakOf(4) });
     await seedDay('ktm');
     await seedUser(UID_A);
     await seedUser(UID_B);
     const buckets = await bucketCouplesByTimezone(db);
 
-    // At AT (17:00Z) Kathmandu is 22:45 (hour 22) → nothing.
+    // At AT (13:00Z) Kathmandu is 18:45 (hour 18) → nothing.
     const offSummary = await runStreakAtRisk(db, AT, new FakeMessagingPort(), buckets);
     expect(offSummary.checked).toBe(0);
     expect(offSummary.sent).toBe(0);
 
-    // At KTM_AT (15:00Z) Kathmandu is 20:45 (hour 20) → fires.
+    // At KTM_AT (11:00Z) Kathmandu is 16:45 (hour 16) → fires.
     const port = new FakeMessagingPort();
     const summary = await runStreakAtRisk(db, KTM_AT, port, buckets);
     expect(summary.checked).toBe(1);
@@ -199,34 +207,74 @@ describe('runStreakAtRisk — eligibility & recipient selection', () => {
     expect(port.sent).toHaveLength(0);
   });
 
-  it('a zero-count streak has nothing to lose → nothing', async () => {
+  // ADR-042 D4 INVERTED these two. They used to assert that a couple with no
+  // streak gets nothing — "nothing to lose". That was the streak feature's rule.
+  // The founder's nudge protects the relationship, so a couple with no streak is
+  // precisely who it is for: week-one couples, and every couple that ever broke
+  // one. The tests were not deleted when the rule flipped; they were flipped, so
+  // the case stays covered with the opposite expectation.
+  it('a zero-count streak is STILL nudged — the nudge protects the relationship, not the counter', async () => {
     await seedCouple('ist', { streak: { count: 0, lastMutualDate: null, graceTokens: 1 } });
     await seedDay('ist');
     await seedUser(UID_A);
+    await seedUser(UID_B);
 
     const buckets = await bucketCouplesByTimezone(db);
     const port = new FakeMessagingPort();
     const summary = await runStreakAtRisk(db, AT, port, buckets);
 
-    expect(summary.checked).toBe(0);
-    expect(summary.sent).toBe(0);
-    expect(port.sent).toHaveLength(0);
+    expect(summary.checked).toBe(1);
+    expect(summary.sent).toBe(2);
   });
 
-  it('an absent streak field reads as zero → nothing', async () => {
+  it('an absent streak field is STILL nudged (a week-one couple has no streak field at all)', async () => {
     await seedCouple('ist'); // no streak field
     await seedDay('ist');
     await seedUser(UID_A);
+    await seedUser(UID_B);
 
     const buckets = await bucketCouplesByTimezone(db);
     const port = new FakeMessagingPort();
     const summary = await runStreakAtRisk(db, AT, port, buckets);
 
-    expect(summary.checked).toBe(0);
-    expect(summary.sent).toBe(0);
+    expect(summary.checked).toBe(1);
+    expect(summary.sent).toBe(2);
   });
 
-  it('streak > 0 but NO day doc → a SEPARATE skippedNoDay skip (rollover failed earlier), nothing sent', async () => {
+  // The copy consequence of dropping the gate: a streakless couple must not be
+  // told their streak is alive. composePush owns this; asserted here end-to-end
+  // because the wrong copy is the failure a user would actually see.
+  it('a streakless couple gets the relationship copy, never a streak claim', async () => {
+    await seedCouple('ist'); // no streak
+    await seedDay('ist');
+    await seedUser(UID_A);
+    await seedUser(UID_B);
+
+    const buckets = await bucketCouplesByTimezone(db);
+    const port = new FakeMessagingPort();
+    await runStreakAtRisk(db, AT, port, buckets);
+
+    expect(port.sent).not.toHaveLength(0);
+    for (const message of port.sent) {
+      expect(message.body.toLowerCase()).not.toContain('streak');
+      expect(message.title.toLowerCase()).not.toContain('streak');
+    }
+  });
+
+  it('a couple WITH a streak still gets the streak copy — nothing was lost', async () => {
+    await seedCouple('ist', { streak: streakOf(7) });
+    await seedDay('ist');
+    await seedUser(UID_A);
+    await seedUser(UID_B);
+
+    const buckets = await bucketCouplesByTimezone(db);
+    const port = new FakeMessagingPort();
+    await runStreakAtRisk(db, AT, port, buckets);
+
+    expect(port.sent[0].body).toContain('7');
+  });
+
+  it('NO day doc → a SEPARATE skippedNoDay skip (rollover failed earlier), nothing sent', async () => {
     await seedCouple('ist', { streak: streakOf(3) }); // no day doc seeded
     await seedUser(UID_A);
 

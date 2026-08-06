@@ -13,6 +13,7 @@ import { ScheduledEvent, onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../invites/create-invite';
 import { FcmMessagingPort } from '../notifications/fcm-adapter';
 import { AtRiskSummary, runStreakAtRisk } from '../notifications/at-risk';
+import { DailyQuestionSummary, runDailyQuestion } from '../notifications/daily-question';
 import type { MessagingPort } from '../notifications/messaging-port';
 import {
   CoupleBuckets,
@@ -30,13 +31,20 @@ export interface QuestionRolloverDeps {
   bucket?: (db: Firestore) => Promise<CoupleBuckets>;
   /** The assignment pass over the shared buckets (create-if-absent day docs). */
   run?: (db: Firestore, at: Date, buckets: CoupleBuckets) => Promise<RolloverSummary>;
-  /** The at-risk push pass over the shared buckets (hour-20, ADR-012 D3). */
+  /** The unanswered-day nudge over the shared buckets (hour-16 since ADR-042 D4). */
   atRisk?: (
     db: Firestore,
     at: Date,
     buckets: CoupleBuckets,
     messaging: MessagingPort,
   ) => Promise<AtRiskSummary>;
+  /** The daily-question announcement over the shared buckets (hour-8, ADR-042 D3). */
+  dailyQuestion?: (
+    db: Firestore,
+    at: Date,
+    buckets: CoupleBuckets,
+    messaging: MessagingPort,
+  ) => Promise<DailyQuestionSummary>;
   /** The push send seam (FCM has no emulator, so tests inject a fake — ADR-012 D3). */
   messaging?: MessagingPort;
   now?: () => Date;
@@ -51,6 +59,7 @@ export function makeQuestionRolloverHandler(
     // buckets go in the 4th. atRisk forwards the injected messaging port.
     run = (db, at, buckets) => runQuestionRollover(db, at, undefined, buckets),
     atRisk = (db, at, buckets, messaging) => runStreakAtRisk(db, at, messaging, buckets),
+    dailyQuestion = (db, at, buckets, messaging) => runDailyQuestion(db, at, messaging, buckets),
     messaging = new FcmMessagingPort(),
     now = () => new Date(),
   } = deps;
@@ -92,10 +101,29 @@ export function makeQuestionRolloverHandler(
       throw error;
     }
 
-    // At-risk push pass (ADR-012 D3, piggybacked): fully ISOLATED and best-effort —
-    // a failure here must never fail the assignment run (a missed nudge is recovered
-    // next day; an unassigned question is not). Per-couple/per-send failures are
-    // logged+counted inside; a systemic throw is swallowed with a loud log.
+    // The two push passes (ADR-012 D3, ADR-042 D3/D4), piggybacked on the SAME
+    // buckets: hour-8 announces the new question, hour-16 nudges an unanswered day.
+    // Both are fully ISOLATED and best-effort — a failure in either must never fail
+    // the assignment run (a missed push is recovered tomorrow; an unassigned
+    // question is not) and must not stop the other from running.
+    //
+    // They are mutually exclusive in practice — a bucket reads either 8 or 16, never
+    // both — so running both every sweep costs one no-op iteration over the buckets,
+    // not a second set of reads. Gating one on the other's hour would move the hour
+    // policy out of the passes that own it and into the handler.
+    try {
+      const dailySummary = await dailyQuestion(db, at, buckets, messaging);
+      logger.info('question_rollover: daily-question sweep complete', {
+        at: at.toISOString(),
+        ...dailySummary,
+      });
+    } catch (error) {
+      logger.error('question_rollover: daily-question sweep failed (isolated)', {
+        at: at.toISOString(),
+        error: errorMessage(error),
+      });
+    }
+
     try {
       const atRiskSummary = await atRisk(db, at, buckets, messaging);
       logger.info('question_rollover: at-risk sweep complete', { at: at.toISOString(), ...atRiskSummary });

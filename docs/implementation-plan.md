@@ -58,11 +58,19 @@ M3.4 ~~✅~~ **⚠️ CORRECTED 2026-08-06 (Session 062) — see the note at the
 >
 > **S062 lands the writer** (ADR-042 D1: `registerPushToken` /
 > `unregisterPushToken`, `fcmTokens` frozen in `firestore.rules` at create AND
-> update, the Flutter lifecycle behind a `PushTokenSource` port). **It still does
-> not deliver a push**, because `PUSH_NOTIFICATIONS` is **measured absent** on the
-> App ID (2026-08-06, run 31054773143) and a build claiming the entitlement would
-> fail at codesign. M3.4 stays open until a push reaches a device and somebody
-> sees it.
+> update, the Flutter lifecycle behind a `PushTokenSource` port). **S063 lands the
+> two behaviours the founder actually asked for** (ADR-042 D3/D4): a fourth
+> `PushKind` `dailyQuestion` on a new couple-local hour-8 pass, and the afternoon
+> nudge re-pointed 20:00 → **16:00** with its `streak.count > 0` gate dropped, so
+> it reaches couples who have no streak at all. All three passes still ride **one**
+> couples read per sweep.
+>
+> **It still does not deliver a push**, because `PUSH_NOTIFICATIONS` is **measured
+> absent** on the App ID (2026-08-06, run 31054773143) and a build claiming the
+> entitlement would fail at codesign. Every layer above the device is now built,
+> tested and composed; what is missing is one portal checkbox and the plugin
+> behind it (#188). **M3.4 stays open until a push reaches a device and somebody
+> sees it.**
 
 ## M4 — Paywall & entitlements (3 sessions)
 

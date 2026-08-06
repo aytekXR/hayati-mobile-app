@@ -1,6 +1,6 @@
 # ADR-012: Reveal trigger design, streak/grace semantics, and push payload policy
 
-- **Status:** Accepted
+- **Status:** Accepted — **AMENDED by [ADR-042](042-push-token-lifecycle-and-the-two-hours-the-founder-asked-for.md) (2026-08-06)**: its D1 discharges the "nothing writes it yet" token deferral below; its D3 adds a **fourth** push kind (`dailyQuestion`) and a third sweep pass at local hour 8; its D4 moves the at-risk push from hour **20** to hour **16** and drops its `streak.count > 0` gate. **The one-couples-read-per-sweep constraint below is NOT amended** and is preserved by construction. Amended passages are marked inline.
 - **Date:** 2026-07-11
 - **Deciders:** Session 014 (per `docs/resume-prompt.md` M3.4 "decide + document" mandates)
 - **Related:** [ADR-011](011-rollover-pack-source-and-scheduling.md) (day-doc shape, hourly sweep, dayKey contract — its metadata-only day-doc posture is **amended** here); [ADR-005](005-couple-scoped-data-model.md); `docs/architecture.md` §3–§4, §10; `docs/prd.md` F3 (streak + mercy day), F6 (discreet mode); `docs/test-suite.md` §1
@@ -145,6 +145,37 @@ APNs/on-device delivery remains operator-expected item 4):
   in the hour-20 bucket only. Best-effort by design (no dedup state; the
   hourly cadence makes double-sends structurally absent, not guarded).
 
+  > **AMENDED by ADR-042 D4 (2026-08-06).** The hour is **16**, not 20, and
+  > **the `streak.count > 0` gate is gone.** This stopped being a streak
+  > feature: the founder asked for *"If you did not reply the question as of
+  > 16.00 you need to be notified so that your partner dont get angry"*,
+  > which protects a **relationship** and must fire for a couple with **no
+  > streak at all** — most couples in week one, and every couple that ever
+  > broke one. Re-pointed rather than duplicated, because the 16:00
+  > population is a strict superset of the 20:00 one and a second afternoon
+  > hour would give a couple with a streak two pushes in one evening, which
+  > the no-dedup-state posture above cannot prevent.
+  >
+  > **The cost claim widened and is restated rather than left to drift.** It
+  > was *"one extra day-doc read per couple, once per day, in the hour-20
+  > bucket, **for couples with a streak**"*. It is now *"one day-doc read
+  > **plus one `getAll` of the two answer docs** per eligible couple, once
+  > per day, in the hour-16 bucket, **unconditionally**"* — eligibility can
+  > no longer be decided from the couple document already in the bucket.
+  > Single-digit reads per day at current scale; recorded because a cost
+  > claim that quietly widened is exactly the drift this ADR exists to
+  > prevent.
+
+- **Daily question** (sweep) — **ADDED by ADR-042 D3 (2026-08-06).** A
+  **fourth** `PushKind`, `dailyQuestion`, and a third pass on the run where a
+  bucket's couple-local hour is **8**: the couple's day doc for that local
+  date exists and is unrevealed, and the announcement goes to whichever
+  members have not already answered. **It iterates the SAME `CoupleBuckets`
+  the assignment and at-risk passes share, so it adds ZERO couples reads** —
+  the hard constraint in this decision is preserved by construction, not by
+  promise. Per-couple cost is the same shape as the nudge: one day-doc read
+  plus one `getAll` of two answer docs, once per day, hour-8 bucket only.
+
 **Payload policy is a pure, unit-tested function** with two axes:
 
 - **Quiet hours:** 22:00–08:00 in the couple's STORED timezone → the push is
@@ -152,6 +183,15 @@ APNs/on-device delivery remains operator-expected item 4):
   this session; the at-risk push at 20:xx local is outside the window by
   construction. Suppress-vs-delay is revisitable when a real notification
   backlog exists.
+
+  > **ADR-042 D3 note (2026-08-06).** The window is **right-open at 08:00**,
+  > so hour 8 is the FIRST legal hour of the day and the new `dailyQuestion`
+  > push is the first thing this policy allows. That is elegant and it is
+  > **fragile**: moving either boundary by one silently suppresses the whole
+  > feature while every unrelated test stays green. Both directions are
+  > mutation-checked (`daily-question.test.ts`), because a feature that fails
+  > by going quiet cannot be noticed by its absence. The nudge at 16:xx is
+  > comfortably clear of both edges.
 - **Discreet-text mode** (PRD F6, privacy posture): **no payload, in ANY
   mode, ever contains question or answer text** — lock screens are not
   couple-private. Non-discreet payloads may name the partner and the event
@@ -163,11 +203,21 @@ APNs/on-device delivery remains operator-expected item 4):
   and reads through the same resolver seam.
 
 **Token storage:** recipients resolve through `users/{uid}.fcmTokens`
-(string array). Nothing writes it yet — the app-side capture is
+(string array). ~~Nothing writes it yet~~ — the app-side capture is
 platform-channel work needing APNs and is **deferred to the on-device slice**
 (recorded loudly: operator-expected item 4 / M6). Absent or empty tokens →
 the send is skipped and counted loudly in the trigger/sweep summary; the
 Functions half is fully emulator-proven against the port.
+
+> **DISCHARGED by ADR-042 D1 (2026-08-06).** `fcmTokens` now has writers —
+> the `registerPushToken` / `unregisterPushToken` callables — and is frozen
+> against clients in `firestore.rules` at create **and** update. The
+> deferral above stood for three weeks and was the reason **no notification
+> had ever been delivered to anyone** while this ADR's Functions half was
+> fully tested and `implementation-plan.md` ticked M3.4 ✅ (lesson 79).
+> What remains deferred is only the **device** half — the plugin, the
+> entitlement, the APNs surface — which is blocked on the Push Notifications
+> capability, **measured absent** on the App ID 2026-08-06 (issue #188).
 
 ## Consequences
 

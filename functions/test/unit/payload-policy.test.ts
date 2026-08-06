@@ -10,7 +10,7 @@ import { composePush, type PushKind, type PushLanguage } from '../../src/notific
 // enforced by the type signature (composePush has no such parameter) and
 // re-asserted here as a guardrail on the API surface.
 
-const KINDS: readonly PushKind[] = ['partnerAnswered', 'reveal', 'streakAtRisk'];
+const KINDS: readonly PushKind[] = ['partnerAnswered', 'reveal', 'streakAtRisk', 'dailyQuestion'];
 const LANGUAGES: readonly PushLanguage[] = ['tr', 'ar', 'en'];
 
 // Placeholder artifacts that a template bug would leak into the copy.
@@ -38,10 +38,20 @@ describe('composePush', () => {
   });
 
   // ADR-019 D3: the coupleEnded partner-notification is field + in-app notice
-  // only — deliberately NO push. This pins that no fourth PushKind slipped in:
-  // the union is exactly the three shipped kinds (a string-audit on the source,
-  // so a new kind cannot be added without this test going red).
-  it('the PushKind union is unchanged — exactly three kinds, no coupleEnded push (ADR-019 D3)', async () => {
+  // only — deliberately NO push, because it would deliver a proactive real-time
+  // ping to a possibly-abusive partner at the deleting victim's moment of escape.
+  //
+  // THIS TEST CARRIES TWO DIFFERENT THINGS, and they are not equally negotiable.
+  //   * `not.toContain('coupleEnded')` IS the ADR-019 safety invariant. It does
+  //     not change when the vocabulary grows. Do not touch it.
+  //   * the exact-union pin is a CHANGE DETECTOR. It is supposed to redden when a
+  //     kind is added, so that a human reads the line above before proceeding.
+  //
+  // S063 added `dailyQuestion` (ADR-042 D3) and updated the detector to four,
+  // deliberately, having read the invariant. A session that meets this red and
+  // relaxes the test wholesale deletes a DV control while believing it fixed a
+  // test (ADR-042 D5 names this exact hazard).
+  it('the PushKind union is exactly the four shipped kinds, and no coupleEnded push exists (ADR-019 D3)', async () => {
     const { readFileSync } = await import('node:fs');
     const { fileURLToPath } = await import('node:url');
     const source = readFileSync(
@@ -49,11 +59,103 @@ describe('composePush', () => {
       'utf8',
     );
     expect(source).toContain(
-      "export type PushKind = 'partnerAnswered' | 'reveal' | 'streakAtRisk';",
+      "export type PushKind = 'partnerAnswered' | 'reveal' | 'streakAtRisk' | 'dailyQuestion';",
     );
+    // The invariant, not the detector.
     expect(source).not.toContain('coupleEnded');
-    expect(KINDS).toHaveLength(3);
-    expect([...KINDS].sort()).toEqual(['partnerAnswered', 'reveal', 'streakAtRisk']);
+    expect(KINDS).toHaveLength(4);
+    expect([...KINDS].sort()).toEqual([
+      'dailyQuestion',
+      'partnerAnswered',
+      'reveal',
+      'streakAtRisk',
+    ]);
+  });
+
+  // ADR-042 D3. The founder's first ask: "It needs to be send new questions at
+  // 08.00 TSI with a question." The push announces that a question EXISTS; the
+  // question itself never travels — composePush has no question parameter, so
+  // this is structural rather than a copy rule.
+  describe('dailyQuestion (ADR-042 D3)', () => {
+    it('is distinct copy in every language — not a reused streak or reveal body', () => {
+      for (const language of LANGUAGES) {
+        const daily = composePush({ kind: 'dailyQuestion', language, discreet: false });
+        const atRisk = composePush({ kind: 'streakAtRisk', language, discreet: false, streakCount: 3 });
+        const reveal = composePush({ kind: 'reveal', language, discreet: false });
+        expectClean(daily);
+        expect(daily.body).not.toBe(atRisk.body);
+        expect(daily.body).not.toBe(reveal.body);
+        expect(daily.title).not.toBe(atRisk.title);
+      }
+    });
+
+    it('never claims the partner did anything — nobody has answered yet at 08:00', () => {
+      for (const language of LANGUAGES) {
+        const daily = composePush({
+          kind: 'dailyQuestion',
+          language,
+          discreet: false,
+          // A caller passing these must not be able to leak them into this kind.
+          partnerName: 'Fahad',
+          streakCount: 12,
+        });
+        expect(daily.title.includes('Fahad')).toBe(false);
+        expect(daily.body.includes('Fahad')).toBe(false);
+        expect(daily.body.includes('12')).toBe(false);
+      }
+    });
+
+    it('is generic in discreet mode like every other kind', () => {
+      for (const language of LANGUAGES) {
+        const discreet = composePush({ kind: 'dailyQuestion', language, discreet: true });
+        const otherDiscreet = composePush({ kind: 'reveal', language, discreet: true });
+        expect(discreet).toEqual(otherDiscreet);
+      }
+    });
+  });
+
+  // ADR-042 D4. The 16:00 nudge fires for a couple with NO streak — that is the
+  // whole point of dropping the streak gate. The count-free copy therefore may
+  // not talk about a streak: "Your streak together is still alive" is FALSE for
+  // the population this change exists to reach, and telling someone their streak
+  // is alive when they have none is worse than saying nothing.
+  describe('streakAtRisk with no streak — the relationship nudge (ADR-042 D4)', () => {
+    it('never mentions a streak when there is no streak', () => {
+      const streakWords = ['streak', 'seri', 'تتابع'];
+      for (const language of LANGUAGES) {
+        const noStreak = composePush({ kind: 'streakAtRisk', language, discreet: false });
+        expectClean(noStreak);
+        for (const word of streakWords) {
+          expect(noStreak.title.toLowerCase().includes(word)).toBe(false);
+          expect(noStreak.body.toLowerCase().includes(word)).toBe(false);
+        }
+      }
+    });
+
+    it('still uses the streak copy when a streak exists — nothing is lost', () => {
+      for (const language of LANGUAGES) {
+        const withStreak = composePush({
+          kind: 'streakAtRisk',
+          language,
+          discreet: false,
+          streakCount: 5,
+        });
+        expect(withStreak.body.includes('5')).toBe(true);
+      }
+    });
+
+    it('a zero or negative count takes the no-streak copy, not a "0-day streak"', () => {
+      for (const count of [0, -3]) {
+        const payload = composePush({
+          kind: 'streakAtRisk',
+          language: 'en',
+          discreet: false,
+          streakCount: count,
+        });
+        expect(payload.body.includes(String(count))).toBe(false);
+        expect(payload.body.toLowerCase().includes('streak')).toBe(false);
+      }
+    });
   });
 
   describe('discreet mode leaks nothing event-specific', () => {

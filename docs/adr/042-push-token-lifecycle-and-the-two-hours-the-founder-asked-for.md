@@ -1,6 +1,6 @@
 # ADR-042: The FCM token lifecycle, and the two clock hours the founder asked for
 
-- **Status:** Accepted (rev 2 — folds the pre-code adversarial design review. 36 findings raised across 5 lenses; **2 confirmed** and fixed in place, 7 re-adjudicated 3-lens after the first round's verifiers ran against a worktree that did not contain this file. See the review record at the end.)
+- **Status:** Accepted — **D1, D3, D4, D5 IMPLEMENTED** (S062 shipped D1 in #187; S063 shipped D3/D4 in #190). **D2 and D6 remain deferred** on the App ID capability measured absent 2026-08-06 (issue #188). (rev 2 — folds the pre-code adversarial design review. 36 findings raised across 5 lenses; **2 confirmed** and fixed in place, 7 re-adjudicated 3-lens after the first round's verifiers ran against a worktree that did not contain this file. See the review record at the end.)
 - **Date:** 2026-08-06 (Session 062)
 - **Deciders:** founder (the three notification behaviours, verbatim, 2026-08-05); session agent (the measurement that found none of them can fire, and the slice order)
 - **Amends:** **ADR-012 Decision 3** — its push-kind vocabulary (three kinds becomes four), its token-storage deferral (*"nothing writes it yet"* is discharged), its sweep-pass inventory (two passes becomes four), and its at-risk eligibility rule (`streak.count > 0` at hour 20 becomes unconditional at hour 16). ADR-012's hard cost constraint — **one couples read per sweep** — is **not** amended and is preserved by construction.
@@ -333,8 +333,25 @@ remainder deferred into prose is a remainder that gets lost):
   the iOS project at all), nor whether its method swizzling works with this
   app's **scene-based** `FlutterSceneDelegate` architecture. Both are marked
   UNVERIFIED rather than assumed.
-* **D3 and D4** — the fourth kind and the two sweep hours. Pure Functions logic,
-  fully emulator-provable, and the next session's objective.
+* ~~**D3 and D4** — the fourth kind and the two sweep hours.~~ **SHIPPED in S063**
+  (#190). Two corrections the implementation forced, recorded because both were
+  decisions this ADR should have made and did not:
+
+  1. **D4 needed new copy, not just a new hour.** The ADR said "the streak count
+     still tunes the copy when a streak exists, so nothing about the existing
+     message is lost." True, and incomplete: the count-FREE variant that already
+     existed read *"Your streak together is still alive"*, which is **false for
+     exactly the population D4 exists to reach** — couples with no streak. A
+     separate relationship nudge was written (`unansweredNudgeNormal`), because
+     telling someone their streak is alive when they have none is worse than
+     saying nothing. Dropping a gate changed who reads the message, and the
+     message had to change with it.
+  2. **The daily-question pass skips members who already answered**, which the
+     ADR did not specify. At local 08:00 the day doc is eight hours old and in
+     the ordinary case nobody has answered — but announcing a question to
+     someone who already answered it is the small wrongness that makes an app
+     feel inattentive. Costs one `getAll` of two answer docs per eligible
+     couple; recorded in ADR-012 §10 rather than absorbed silently.
 
 **Four consequences recorded now, because each will be someone's surprise later:**
 
