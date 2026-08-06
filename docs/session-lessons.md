@@ -38,6 +38,30 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**84 — A dev-only dependency pin constrains the WHOLE resolution, and a package can declare a constraint its own code violates.** *(2026-08-06)*
+Adding `firebase_messaging` resolved cleanly, analyzed clean, and passed all 1653
+tests. The iOS build then failed with `Type 'FirebasePlugin' not found`. Two
+compounding causes, and neither is a mistake anyone made locally:
+
+* **16.4.2 is a broken release.** It declares
+  `firebase_core_platform_interface: ^7.1.0` and uses `FirebasePlugin`, which
+  exists only in **8.x**. Upstream corrected the *declaration* in 16.4.3. A
+  resolver cannot catch this: the metadata is self-consistent and wrong.
+* **A `dev_dependencies` pin is not test-only.** This repo pinned
+  `firebase_core_platform_interface: ^7.1.0` so one test could import that
+  package's `test.dart`. 7.1.0 was the newest 7.x, so the pin looked current —
+  but it constrained the entire Firebase set, made 16.4.3+ unsatisfiable, and
+  silently selected the one broken version. **A pin in `dev_dependencies`
+  restricts production resolution exactly as hard as one in `dependencies`.**
+
+**The general lesson is about which check can see what.** `flutter analyze` never
+type-checks a plugin against the platform it will compile for; only the kernel
+snapshot for that platform does. So a class of defect exists that is invisible to
+every fast, cheap, Linux-side gate and visible only to the slow platform build.
+When adding or upgrading a **plugin** (as opposed to a pure-Dart package), local
+green means nothing until the platform build has run — and if the only such check
+is `--no-codesign`, remember it still cannot see anything about *signing*.
+
 **83 — Changing an eligibility rule changes WHO reads the message, so the message has to change with it.** *(2026-08-06)*
 ADR-042 D4 dropped the `streak.count > 0` gate so the afternoon nudge would reach
 couples with no streak — that population *was the reason for the change*. The ADR

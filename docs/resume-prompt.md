@@ -23,7 +23,7 @@ The founder has asked about the icon once and about testers' builds twice.
 | | State |
 |---|---|
 | **Push, server side** | **DONE.** All three founder behaviours compose and route: `dailyQuestion` at couple-local 08:00, `partnerAnswered` on the reveal trigger, the unanswered nudge at 16:00. `fcmTokens` has writers and a rules lock. |
-| **Push, device side** | **Nothing has ever arrived.** #188, blocked on the App ID tick. |
+| **Push, device side** | **Nothing has ever arrived** — but as of #191 the plugin, the FCM adapter and the app-root activation are ON `main` and **compile on macOS**. What is missing is literally `aps-environment` in `Runner.entitlements`, which cannot land until the tick. |
 | **App ID capabilities** | Measured 2026-08-06 (run `31054773143`): `APPLE_ID_AUTH` + `IN_APP_PURCHASE` ticked; **`PUSH_NOTIFICATIONS`, `ASSOCIATED_DOMAINS`, `APP_ATTEST` ABSENT.** Re-dispatch `appid-capabilities.yml` — it is one command and it decides whether #188 is live. |
 | **Build 113** | Apple-approved, `IN_BETA_TESTING`, 8 in `Friends` (2 anonymous public-link installs). |
 | **Build 114** | Uploaded 2026-08-02, **`READY_FOR_BETA_SUBMISSION` — never submitted.** Everyone is still on 113. |
@@ -92,9 +92,26 @@ first: read with `tool/ci/testflight_testers.py --store-status`; if `tr` exists,
 dispatch `appstore-screenshots.yml -f upload=true -f locales=en-US,tr`. If not, it
 is a founder action already on the operator page.
 
-**2 — #188, the device half — ONLY if the capability probe returns exit 0.** Run it
-first; it is one command. If it still returns 1, say so and move on rather than
-building around it. Everything above the device is done and waiting.
+**2 — #188's last line — ONLY if the capability probe returns exit 0.** Run it
+first; it is one command. If it still returns **1**, say so and move on rather than
+building around it.
+
+If it returns **0**, the remaining work is genuinely one commit:
+```
+app/ios/Runner/Runner.entitlements   + aps-environment  (development / production)
+```
+…then a release. **Do not add `UIBackgroundModes: remote-notification` in the same
+breath** — that is the event SEC-3 is waiting for
+(`secure_storage_pin_lock_store.dart:25-28`: a locked-device background read of an
+`unlocked_this_device` Keychain item fails and hits the fail-open path). Decide
+SEC-3 first, separately. Token capture does not need background modes; only
+background *delivery* does.
+
+⚠️ **Runtime is still unobserved.** #191 proved the plugin BUILDS against this
+project's pure-Dart `FirebaseOptions` (there is no `GoogleService-Info.plist`) and
+coexists with the scene-based AppDelegate. It could not prove the swizzling behaves
+on a live device. `PushTokenSync` fails open around it, but **watch the first build
+that reaches a tester** rather than assuming.
 
 **3 — The rest.** Re-derive from `gh issue list`. **#176** (Rubik Light declared,
 not bundled — the cheapest real bug here) · **#175** (10 of 14 raised cards render
