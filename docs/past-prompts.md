@@ -2277,3 +2277,57 @@ Built it, and Apple answered:
 `session-rules.md` §1 and §3 were amended to read the two new files and to keep standing content from creeping back into the prompt's header.
 
 **Not done, and named:** no GitHub issues were filed for the notification work, the icon, or the `tr` locale — the founder asked for documents, and filing is S062's to do with the ADR in hand.
+
+## Session 062 — 2026-08-05/06 — **the push objective: `fcmTokens` gets a writer and a lock, and the portal tick stops being a question** *(first-hand)*
+
+**The machine shut down mid-session**, while the ADR-042 design review was still running. This entry covers the whole session, including the resumption.
+
+**Objective:** make the app send push notifications. **It still does not**, and this entry says so in the same breath as what was built — lessons 69 and 78.
+
+**Shipped: #184** (the prep-session docs, written 2026-08-05 and never committed — item 4(a) was invisible to the founder on `main` until this landed), **#185** (`tool/ci/appid_capabilities.py` + `appid-capabilities.yml` — read the App ID's capability list out of Apple's portal over the App Store Connect API), **#186** (Apple refuses `limit` on the `bundleIdCapabilities` relationship; the first live run said so), **#187** (ADR-042 + D1 in full).
+
+### The measurement that changes three operator items
+
+The probe's first live dispatch died on a `limit` parameter copied from the `/v1/bundleIds` **collection** call, where it is legal; on the capabilities **relationship** it is `PARAMETER_ERROR.ILLEGAL`. Only the vendor can refute a vendor API shape, and the prefix-matching fakes were blind to it — the fix's test asserts the **exact path**, not the outcome.
+
+The second dispatch worked ([31054773143](https://github.com/aytekXR/hayati-mobile-app/actions/runs/31054773143)) and returned **exit 1 — absent**, not exit 2. That distinction was built into the tool on purpose and earned its keep on first use:
+
+```
+ticked:  APPLE_ID_AUTH, IN_APP_PURCHASE
+absent:  PUSH_NOTIFICATIONS, ASSOCIATED_DOMAINS, APP_ATTEST
+```
+
+**`PUSH_NOTIFICATIONS` is not ticked.** So ADR-042's slice order routes around a *measured* blocker rather than a hypothetical one — and **items 4(a) piece 2, 2(d) and App Attest collapse into one portal page, three ticks.** All three had been carried for months as *"a session cannot read the portal, so nobody knows."* That was a missing tool, not a missing permission.
+
+### ADR-042, and the hole in its own review
+
+Written and committed **before** the code (acceptance criterion 1), then adversarially reviewed in two rounds — the second because the first had a defect worth more than the findings. **Eleven round-1 verdicts refuted findings on the grounds that `docs/adr/042-*.md` "does not exist; the highest ADR number is 041."** The session had moved to the `appid-capabilities` branch mid-review and the verifiers read *that* worktree. Right about their worktree, wrong about the world. Discarded rather than counted → **lesson 81**.
+
+Round 2 re-adjudicated the 9 contested findings with 3 independent lenses each (27 verdicts, majority-of-3, every verifier confirming it could read the file). **2 confirmed of 36 raised**, and both were the same species — **a citation asserting more than the cited line contained**:
+
+* `entitlement-core.ts:472` was credited with applying a cap to `MAX_TRANSFER_IDS`. Opened it: `:472` is `dedupe`, filter + `Set`, no cap. The cap at `:511` is a pre-read **reject** gate, and rejecting an oversized input is not evicting from a stored array. **The precedent the ADR reached for does not exist**, so D1 now decides the cap itself: 5 tokens, sixth drops element 0.
+* D5 promised an assertion that "the injected `MessagingPort` receives nothing" during a deletion. `DeletionDeps` carries `checkpoint`, `deleteRef`, `deleteAuthUsers` and no port — the assertion would have passed forever while proving nothing. Rewritten to ADR-019's structural guarantee, **plus a tripwire named on purpose**: D3 adds a fourth `PushKind`, so `payload-policy.test.ts`'s "exactly three kinds" **will go red**, and the correct response updates the count while keeping the `coupleEnded` assertion. A session that meets that red and relaxes it wholesale deletes a DV safety property believing it fixed a test.
+
+Seven findings refuted 3-0, each recorded with its reason rather than dropped — including `token-steal-disables-victim`, a real attack D1 already states as a trade-off, now written down as a reason to revisit the App Check deferral if it is ever revisited.
+
+### D1, and the argument that actually decides it
+
+`fcmTokens` was in **neither** freeze clause of `firestore.rules` while `firestore_profile_repository.dart:87` and `profile_dto.dart:46-48` called it server-owned. Three files asserted an invariant the rules did not hold.
+
+The decisive argument for a callable over the direct client write is **not** bounding or symmetry — those are arguable. It is that **a token addresses a device and a user does not**: when B signs in on the phone A signed out of, FCM hands B the same token, and if it is still on A's document then A receives B's notifications on a phone A no longer holds. Closing that is a cross-document write no client may ever make. Hence: **registration is authoritative, sign-out cleanup is best-effort.**
+
+And the freeze matters more than the usual server-owned field. *"Self-only via `isSelf(uid)`, so junk costs the user their own pushes"* — the argument that made a direct write look defensible — **does not hold**: a client that can append to this array can name **someone else's** device token and take delivery of that phone's notifications. The harm lands on a stranger, so self-scoping bounds nothing.
+
+### Proven
+
+28 core unit tests (6 mutations), 16 service emulator tests, 5 rules tests **mutation-checked in both directions** (drop create-forbid → exactly the create test reddens; drop update-freeze → exactly mint/append/clear redden; positive control green through both), 14 app tests (4 mutations). Functions **1039 / 53 files**, 97.34% stmts. App **1653**, analyze and format clean.
+
+**One mutation lied and was caught** — a first-occurrence string replace hit a harmless dedupe in `_syncFrom` instead of the guard in `_register` and reported all-green. → **lesson 82.**
+
+### What was NOT done, and why
+
+* **No plugin, no entitlement, no new push kind.** Runtime behaviour is unchanged, which is what "ships no plugin" has to mean. `pushTokenSourceProvider` is deliberately un-overridden and `PushTokenSync` is deliberately not activated from `app.dart` — that is ADR-042 D2 step 4, blocked on the measured tick. Filed as **#188**.
+* **D3/D4 — the fourth push kind and the two clock hours the founder actually asked for.** Pure Functions logic, fully emulator-provable, nothing blocking it. Filed as **#189** and it is the next session's objective.
+* **The app icon** (priority 1 in S062's prompt) and **`tr` screenshots** (priority 3) were not started. The objective was the session, and it was more than one session's work; the prompt said to take the first coherent slice and record what was left. This is that record.
+
+**M3.4's ✅ is corrected in the same commit as the code** (criterion 4, lesson 79): strikethrough + dated note, the way ADR-026 D3 was corrected. **M3.4 stays open until a push reaches a device and somebody sees it.**

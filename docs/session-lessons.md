@@ -38,6 +38,38 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**82 — A mutation that silently hits the wrong line reports exactly what a covered line reports: green.** *(2026-08-06)*
+S062 mutation-checked `PushTokenSync` by string-replacing a guard, with
+`str.replace(old, new, 1)` — first occurrence only. The anchor `if (_syncedUid == null)
+return;` appears **twice**: once in `_syncFrom`'s sign-out branch and once in
+`_register`. The replace hit the first, which is a harmless dedupe, and the run came
+back all-green. Read naively that says *"this guard is unprotected"*; the truth was
+*"you did not mutate that guard."* **Anchor a mutation on text unique to the line you
+mean — the surrounding comment, not the statement — and treat an all-green mutation as
+a claim to verify rather than a result to record.** A mutation is a measurement, and
+this one had no control.
+
+**81 — A verifier that cannot read the artefact must SAY SO and be discarded, never counted as a refutation.** *(2026-08-06)*
+The ADR-042 design review's first round produced 36 findings correctly and then refuted
+eleven of them with the reasoning *"the file does not exist; the highest ADR number is
+041."* They were right about their worktree — the session had moved to another branch
+mid-review — and wrong about the world. **An `ls` that returns nothing is not a
+refutation.** Had those verdicts been counted, the review would have closed with eleven
+false "refuted"s and both real findings buried among them; re-running the nine
+contested findings against a worktree that held the file confirmed two. The general
+form: **a negative result from an instrument that was pointed at the wrong thing is
+indistinguishable from a negative result, and reads as evidence.** Make "I could not
+read it" a required, separately-reported outcome — the way `appid_capabilities.py` exit
+**2** is separate from exit **1**, for exactly this reason.
+
+**Both confirmed ADR-042 findings were the same species, and it is worth naming:**
+a **citation that asserted more than the cited line contained** (`entitlement-core.ts:472`
+credited with a cap it does not apply; a `MessagingPort` assertion promised against
+deps that carry no port). Neither was a flaw in a decision. The repo's file:line
+convention is meant to prevent exactly this and in fact makes it cheap to commit,
+because a citation looks like evidence whether or not anyone opened it. **The lenses
+that caught them were the ones that opened the files.**
+
 **80 — "Revert it to the previous one" is an instruction whose object must be measured, not assumed.** *(2026-08-05)*
 The founder asked to revert the app icon to the previous one. `git log --follow` on
 `Icon-App-1024x1024@1x.png` returns exactly two commits, and the earlier is the m0.1

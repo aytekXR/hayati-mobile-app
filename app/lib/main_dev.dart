@@ -43,6 +43,8 @@ import 'features/entitlements/data/firestore_entitlement_repository.dart';
 import 'features/entitlements/data/rc_purchases_repository.dart';
 import 'features/entitlements/domain/entitlement_repository_provider.dart';
 import 'features/entitlements/domain/purchases_repository_provider.dart';
+import 'features/notifications/data/functions_push_token_repository.dart';
+import 'features/notifications/domain/push_token_repository_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
 import 'features/pairing/data/functions_invite_repository.dart';
 import 'features/pairing/data/http_invite_preview_repository.dart';
@@ -195,6 +197,13 @@ Future<void> main() async {
         ),
         dataRightsRepositoryProvider.overrideWith(
           (ref) => FunctionsDataRightsRepository(),
+        ),
+        // ADR-042 D1. The repository is real and calls the deployed callables;
+        // pushTokenSourceProvider is deliberately NOT overridden, so nothing
+        // captures a token yet (D2 step 4, blocked on the App ID capability
+        // measured absent 2026-08-06).
+        pushTokenRepositoryProvider.overrideWith(
+          (ref) => FunctionsPushTokenRepository(),
         ),
         // The three device-privacy seams (ADR-018 D2/D1/D6). Bound BY VALUE here
         // and nowhere else, so `flutter test` never touches the Keychain,

@@ -15,9 +15,24 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-05**, at your direction, by a doc-only session. Every
-line below was re-measured against Apple, GitHub, Google and your live site that
-day — not carried forward._
+_Last refreshed: **2026-08-06** (Session 062). The 2026-08-05 refresh re-measured
+every line against Apple, GitHub, Google and your live site; S062 added the one
+thing that refresh could only ask you to report._
+
+> ### 📍 One portal page now closes three open items, and we can see it from here
+>
+> **Measured 2026-08-06, straight out of Apple's portal:** `com.beyondkaira.hayati`
+> has **`APPLE_ID_AUTH`** and **`IN_APP_PURCHASE`** ticked, and is missing
+> **`PUSH_NOTIFICATIONS`** (item **4(a)**), **`ASSOCIATED_DOMAINS`** (item
+> **2(d)**) and **`APP_ATTEST`**.
+>
+> All three are checkboxes on **one page**: Certificates, Identifiers & Profiles →
+> Identifiers → `com.beyondkaira.hayati`. One visit, three ticks, Save.
+>
+> This used to be three separate bullets that each said *"a session cannot read
+> the portal, so nobody knows."* That was a missing tool, not a missing
+> permission — S062 built it, and from now on nobody has to ask you whether you
+> did it.
 
 > **What changed since the last refresh (2026-08-01):**
 >
@@ -40,7 +55,7 @@ decision from you before a session can finish them.
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~97%** — M1→M6.3 all merged. But **M3.4's notification half has never delivered a single push**: the server composes them correctly and the phone was never taught to receive them. The plan ticked it ✅ on the strength of the half that could be tested. | **4(a)**, then a session's build work. |
+| **Is the MVP built?** | **~97%** — M1→M6.3 all merged. **M3.4's notification half has still never delivered a single push.** Session 062 built the missing piece underneath it — the app can now record which phone to notify, and only the server can write it — but **the phone still has no way to receive a push**, because that needs the portal tick below. The plan's ✅ on M3.4 has been struck through and dated. | **4(a)**, then one session's build work. |
 | **Can people install it?** | **100%** — done. Build 113 is approved and live. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Ship **114+** so they stop testing three-week-old code. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
@@ -105,24 +120,102 @@ works for both.
 **2. Tick Push Notifications on the App ID (~1 min).** Apple Developer portal →
 **Identifiers** → `com.beyondkaira.hayati` → tick **Push Notifications** → Save.
 
+> ### 📍 Measured 2026-08-06 — it is **not ticked**, and that is now a fact rather than a guess
+>
+> The probe ran green against Apple's portal
+> ([run 31054773143](https://github.com/aytekXR/hayati-mobile-app/actions/runs/31054773143))
+> and reported **exit 1 — capability absent**. Not exit 2, so this is a real
+> read-out and not a permissions failure: the API key *can* see the App ID, and
+> what it saw was this.
+>
+> ```
+> capabilities ticked on com.beyondkaira.hayati (the portal's own list):
+>   - APPLE_ID_AUTH
+>   - IN_APP_PURCHASE
+>
+> requested and ABSENT:
+>   MISSING PUSH_NOTIFICATIONS     <- this item
+>   MISSING ASSOCIATED_DOMAINS     <- item 2(d)
+>   MISSING APP_ATTEST
+> ```
+>
+> **All three are one visit and one tick each**, on the same portal page. You are
+> already going there for Push Notifications; ticking the other two while you are
+> in there costs nothing and closes item 2(d) at the same time.
+>
+> This also retires the last of the *"a session cannot read the portal, so nobody
+> knows"* bullets. Whatever you do — or do not do — the next dispatch will say so.
+
 **Why the second one matters more than it looks.** The app has to declare a push
 entitlement, and that entitlement must also exist in the **provisioning
 profile**. Our release lane fetches profiles **read-only on purpose** (so CI can
 never mint credentials), which means it cannot add the capability itself — a
 build that claims push without the capability **fails to sign**. That is exactly
 what happened with universal links and cost a release (ADR-040). So a session
-will not add the entitlement until you confirm the tick.
+will not add the entitlement until the tick is confirmed.
 
-> **While you are in the portal, please answer two more capability questions in
-> the same visit** — each is one glance at the same page:
-> * Is **Associated Domains** enabled? (item 2(d) — invite links open the app
->   instead of the browser.)
-> * Is **App Attest** in the capability list? (App Check enforcement stays off in
->   both consoles until this is known — see 2(d).)
+> ### ✅ You no longer have to *report* piece 2 — a session can now measure it
+>
+> Session 062 built `appid-capabilities.yml`, which reads the App ID's capability
+> list straight out of Apple's portal over the App Store Connect API, using the
+> same key the release lane already holds. **Just do the tick; nobody needs to
+> ask you whether you did.**
+>
+> ```sh
+> gh workflow run appid-capabilities.yml
+> ```
+>
+> The same one dispatch also answers the two questions that used to ride along
+> with this item — **Associated Domains** (item 2(d)) and **App Attest** — so
+> those bullets are gone from your list too. They had been recorded as *"a
+> session cannot read the portal, so nobody knows"* for months, and that turned
+> out to be a missing tool rather than a missing permission.
+>
+> If the workflow reports **could not measure** (exit 2), that means our API key
+> is not allowed to read Certificates & Identifiers — **not** that the capability
+> is off. That distinction is built into the tool on purpose, because reporting
+> "not ticked" when nobody actually looked would send a session off to build
+> around a blocker that may not exist.
+
+**Piece 1 — the APNs `.p8` — is still genuinely yours and cannot be measured.**
+Firebase's Cloud Messaging settings are console-only: there is no API a session
+can read them from, `gcloud` is not installed on the session machine and there is
+no application-default credential. So this one is reported, not verified — please
+say when it is uploaded to **both** projects.
+
+### The order matters, and it is not reorderable
+
+From ADR-042 D2. A build that claims the entitlement before the capability exists
+does not fail in CI — it fails in the **macOS release job**, the most expensive
+place in the system to find out, because our iOS CI check builds
+`--no-codesign` and cannot see the problem coming.
+
+1. you tick **Push Notifications** and upload the `.p8` to both projects;
+2. `gh workflow run appid-capabilities.yml` returns **exit 0** — measured, not reported;
+3. the provisioning profile regenerates and `match` picks it up;
+4. **only then** does a session add the plugin and the entitlement, in one commit.
 
 **What you get once it is done:** a question every morning at 08:00, a nudge when
 your partner answers, and a reminder in the afternoon if you have not. Those are
-the three you asked for; the server side of two of them already exists.
+the three you asked for.
+
+**What already exists while you do it.** The server composes the "your partner
+answered" push correctly today and hands it to the send seam — that half has been
+built and tested since M3.4. What never existed is anything to send it *to*: no
+device had ever registered a push token, because nothing in the app or the server
+could write one.
+
+**Session 062 built that.** The app can now record which phone belongs to which
+account, and — this is the part that needed care — **only the server can write it.**
+A phone's push token is effectively an address for that phone, so if the app itself
+could edit that list, a modified app could put someone else's phone on it and start
+receiving their notifications. It is now locked in the security rules in both
+directions, and the lock is tested by trying to break it.
+
+**Two things are still missing, and neither is engineering.** The plugin and the
+entitlement (step 4 above) wait on your portal tick. The daily-question and
+16:00 pushes you asked for are the next session's work and are not blocked by
+anything.
 
 ---
 
@@ -260,6 +353,11 @@ Apple Developer portal → Certificates, Identifiers & Profiles → **Identifier
 `com.beyondkaira.hayati` → tick **Associated Domains** → Save.
 *(Same page as **4(a)**'s Push Notifications tick — do both in one visit.)*
 
+> **Measured 2026-08-06: `ASSOCIATED_DOMAINS` is absent.** Confirmed by the same
+> read-out as 4(a) — see the box there for the portal's full capability list.
+> This item had been carried for months as *"nobody can see the portal"*; that is
+> no longer true in either direction.
+
 **Not blocking** (ADR-040). It *was*: the entitlement must exist in the
 **provisioning profile** as well as in `Runner.entitlements`, and `match` fetches
 profiles **readonly** (ADR-032) precisely so CI can never mint credentials, so
@@ -278,9 +376,14 @@ tapped invite lands in the app. The `apple-app-site-association` file is **alrea
 live and verified** at `https://ikimiz.web.app/.well-known/apple-app-site-association`,
 so nothing else is needed on the web side.
 
-**Say what you see either way.** A session cannot read the portal, so nobody
-knows whether this capability is already enabled — no build has ever been signed
-with the entitlement, so it has never been exercised.
+**~~Say what you see either way. A session cannot read the portal, so nobody
+knows whether this capability is already enabled~~** — **no longer true as of
+Session 062.** `gh workflow run appid-capabilities.yml` reads the App ID's
+capability list out of Apple's portal and prints it, so this question and the App
+Attest one below are both answered by one dispatch and neither needs you to
+report anything. See item **4(a)**. *(What remains true: no build has ever been
+signed with this entitlement, so the capability has never been exercised even if
+it is enabled.)*
 
 > **The third capability question, same page (ADR-039).** The prod App Check
 > provider is **App Attest**, but `Runner.entitlements` deliberately does *not*
@@ -288,9 +391,10 @@ with the entitlement, so it has never been exercised.
 > attestation cannot currently succeed. Harmless today (App Check activation
 > fails open instead of blocking the boot, and enforcement is off), but it will
 > hard-break the day enforcement is switched on. A session did not add the
-> entitlement blind, for the same signing reason as above. **Check whether App
-> Attest appears in the capability list and say what you see** — that one
-> observation settles it.
+> entitlement blind, for the same signing reason as above. ~~**Check whether App
+> Attest appears in the capability list and say what you see**~~ — **you do not
+> need to look.** `gh workflow run appid-capabilities.yml` prints the entire
+> capability list, App Attest included (item **4(a)**).
 
 ## 2(e). The website — the invite half is LIVE; the pretty domain and the legal pages need you
 

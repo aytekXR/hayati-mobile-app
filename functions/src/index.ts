@@ -16,5 +16,6 @@ export { revenueCatWebhook } from './entitlements/revenuecat-webhook';
 export { createInvite } from './invites/create-invite';
 export { invitePreview } from './invites/invite-preview';
 export { joinInvite } from './invites/join-invite';
+export { registerPushToken, unregisterPushToken } from './notifications/push-token';
 export { questionRollover } from './rollover/question-rollover';
 export { answerReveal } from './streak/on-answer-created';
