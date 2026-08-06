@@ -15,7 +15,13 @@ dependencies:
   firebase_auth: ^6.5.4
   firebase_core: ^4.11.0
   firebase_crashlytics: ^5.2.4
-  firebase_messaging: ^16.4.2
+  # FLOOR IS 16.4.3, NOT 16.4.2, AND THAT IS LOAD-BEARING. 16.4.2 declares
+  # `firebase_core_platform_interface: ^7.1.0` while its code uses `FirebasePlugin`,
+  # which exists only in 8.x — so it resolves cleanly, passes `flutter analyze` and
+  # every Linux test, and then fails at Dart compile in the iOS build. 16.4.3 is the
+  # release that corrected the declaration. Found by ios-build-smoke, which is the
+  # only check in this repo that compiles iOS at all.
+  firebase_messaging: ^16.4.3
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -35,7 +41,14 @@ dependencies:
 
 dev_dependencies:
   build_runner: ^2.7.5
-  firebase_core_platform_interface: ^7.1.0
+  # Pinned as a DIRECT dev dependency only for `firebase_core_platform_interface/test.dart`
+  # (firebase_bootstrap_test.dart). It is not a test-only detail: it constrains the
+  # whole Firebase set, and at ^7.1.0 it silently held firebase_messaging back to
+  # 16.4.2 — a release whose own constraint is WRONG (it declares ^7.1.0 while its
+  # code uses `FirebasePlugin`, which exists only in 8.x). That combination resolves
+  # cleanly and then fails at Dart compile on a real iOS build. 16.4.3 corrected the
+  # declaration to ^8.0.0. Keep this in step with the Firebase set, not behind it.
+  firebase_core_platform_interface: ^8.1.0
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
