@@ -36,6 +36,105 @@ import 'package:flutter_test/flutter_test.dart';
 /// BOUND, recorded: this proves the settings are present and correctly valued.
 /// It cannot prove Apple ACCEPTS them — only a real release-lane run does.
 void main() {
+  // ---------------------------------------------------------------------
+  // Runner.entitlements — the OTHER release-critical file no per-PR check reads.
+  //
+  // Same motivation as the pbxproj sentinel below and a sharper instance of it:
+  // entitlements are consumed only at CODESIGN time, and `ios-build-smoke` runs
+  // without codesigning, so this file is structurally invisible to every
+  // required check. A wrong value here fails in release.yml's macOS job.
+  //
+  // The XML-validity assertion is not pedantry. Until S063 this file was NOT
+  // well-formed XML — two comments contained `--`, which XML forbids inside a
+  // comment — and it had been shipping that way since M1.3 because Xcode's
+  // parser is lenient where a strict one is not. Nothing caught it, because
+  // nothing had ever parsed the file. Now something does.
+  group('Runner.entitlements', () {
+    const entitlementsPath = 'ios/Runner/Runner.entitlements';
+
+    late String source;
+
+    setUpAll(() {
+      final file = File(entitlementsPath);
+      expect(file.existsSync(), isTrue, reason: '$entitlementsPath is missing');
+      source = file.readAsStringSync();
+    });
+
+    test(
+      'is well-formed XML — no `--` inside a comment (it was not, until S063)',
+      () {
+        // Walk the comments only: `--` is legal in element text, illegal between
+        // `<!--` and `-->`. A hand check beats a full XML parser here because the
+        // failure we care about is exactly this one and the message can say so.
+        final comments = RegExp(
+          r'<!--(.*?)-->',
+          dotAll: true,
+        ).allMatches(source);
+        expect(
+          comments,
+          isNotEmpty,
+          reason:
+              'this file is heavily commented; zero matches means the regex broke',
+        );
+        for (final comment in comments) {
+          final body = comment.group(1)!;
+          expect(
+            body.contains('--'),
+            isFalse,
+            reason:
+                'XML forbids `--` inside a comment. Offending comment starts: '
+                '${body.trim().split('\n').first}',
+          );
+        }
+      },
+    );
+
+    test('declares aps-environment = production (ADR-042 D2 step 4)', () {
+      // production, not development: every build that consumes this file is
+      // signed for App Store distribution (release.yml -> match `appstore` ->
+      // pilot). The dev FLAVOUR is a Dart entrypoint, not a signing identity.
+      expect(source, contains('<key>aps-environment</key>'));
+      expect(
+        RegExp(
+          r'<key>aps-environment</key>\s*<string>production</string>',
+        ).hasMatch(source),
+        isTrue,
+        reason: 'aps-environment must be exactly `production`',
+      );
+    });
+
+    test(
+      'keeps Sign in with Apple — the entitlement that was already shipping',
+      () {
+        expect(source, contains('com.apple.developer.applesignin'));
+      },
+    );
+
+    // ADR-040. Re-adding this without first enabling the capability on the App ID
+    // is the exact failure that cost a release, and the file's own comment says
+    // so at length. This pins that the comment is still telling the truth.
+    test('still does NOT declare associated-domains (ADR-040)', () {
+      expect(
+        source.contains('<key>com.apple.developer.associated-domains</key>'),
+        isFalse,
+      );
+    });
+
+    // SEC-3. Background delivery is what the PIN-lock store's recorded finding is
+    // waiting for; token capture needs none of it. If this test goes red, SEC-3
+    // must be decided in the same change, not after it.
+    test('Info.plist declares NO UIBackgroundModes yet (SEC-3 is undecided)', () {
+      final plist = File('ios/Runner/Info.plist').readAsStringSync();
+      expect(
+        plist.contains('UIBackgroundModes'),
+        isFalse,
+        reason:
+            'Adding UIBackgroundModes/remote-notification is the event SEC-3 is '
+            'waiting for (secure_storage_pin_lock_store.dart). Decide it first.',
+      );
+    });
+  });
+
   const pbxprojPath = 'ios/Runner.xcodeproj/project.pbxproj';
 
   /// The founder's Apple Developer Team ID. An identifier, not a credential —
