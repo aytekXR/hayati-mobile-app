@@ -17,6 +17,7 @@ import '../../coach/presentation/coach_screen.dart';
 import '../../entitlements/presentation/pack_selection_screen.dart';
 import '../../entitlements/presentation/premium_gate.dart';
 import '../../entitlements/presentation/state/entitlement_providers.dart';
+import '../../notifications/presentation/state/push_token_sync.dart';
 import '../../settings/presentation/widgets/settings_gear_overlay.dart';
 import '../domain/couple.dart';
 import '../domain/couple_answer.dart';
@@ -75,6 +76,25 @@ class _PairedHomeScreenState extends ConsumerState<PairedHomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // ADR-042 D6: ask for notification permission HERE — after pairing, on the
+    // first screen that has actually shown the user what the app is for — and
+    // never during boot. ADR-039 D1/D2 make that binding: the boot is fail-open
+    // and every wait on the launch->paired path is bounded, while a permission
+    // prompt is an indefinite wait on a human. iOS also gives exactly one dialog
+    // per install, so the moment is a product decision and this is it.
+    //
+    // Post-frame and unawaited: this must never delay the first paint, and the
+    // provider swallows every failure (a declined prompt is an ordinary answer,
+    // not an error). PushTokenSync guards itself against repeat calls, so a
+    // rebuild costs nothing.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref
+            .read(pushTokenSyncProvider.notifier)
+            .promptForPermissionAndRegister(),
+      );
+    });
   }
 
   @override

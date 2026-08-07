@@ -39,6 +39,21 @@ class FcmPushTokenSource implements PushTokenSource {
   final FirebaseMessaging _messaging;
 
   @override
+  Future<bool> ensurePermission() async {
+    // requestPermission() is idempotent from the caller's side: iOS shows its
+    // dialog only on the first call per install and thereafter returns the
+    // standing answer, so a repeated call is a cheap read rather than a repeated
+    // interruption. `provisional: false` deliberately — a provisional grant
+    // delivers quietly to the notification centre with no alert, which for a
+    // couples app whose whole point is "your partner answered" would look
+    // exactly like the feature not working.
+    final settings = await _messaging.requestPermission();
+    final status = settings.authorizationStatus;
+    return status == AuthorizationStatus.authorized ||
+        status == AuthorizationStatus.provisional;
+  }
+
+  @override
   Future<String?> currentToken() async {
     // On iOS, getToken() throws rather than returning null when APNs has not
     // registered — which is the ordinary state before the entitlement and before
