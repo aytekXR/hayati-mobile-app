@@ -40,7 +40,7 @@ thing that refresh could only ask you to report._
 >
 > You authorised the API path on 2026-08-06 and **Push Notifications is now
 > ticked** on `com.beyondkaira.hayati` (measured before: absent; enabled; measured
-> after: present). The entitlement shipped in **build 115**, which signed, uploaded
+> after: present). The entitlement shipped in **build 115** (and 116), which signed, uploaded
 > and is **installable by you right now** — you are an internal tester, so it needs
 > no review.
 >
@@ -67,14 +67,13 @@ thing that refresh could only ask you to report._
 
 > **What changed since the last refresh (2026-08-01):**
 >
-> * ✅ **Apple approved build 113.** It is `IN_BETA_TESTING`, the invitations went
->   out, and **the `Friends` group holds eight — four have installed it.** Item 2(c) is closed
->   and gone from this page.
-> * 🔴 **Two new things need you**, both small, both blocking real work: **4(a)**
->   (an APNs key and one portal tick — without them the app can never send a
->   notification) and **an icon decision** (the box below).
-> * ⚠️ **Build 114 has been sitting unsubmitted since 2026-08-02.** Your testers
->   are on 113, which does not have the "Something went wrong" fix you reported.
+> * ✅ **Apple approved build 113**, and **builds 115 and 116 have since shipped** —
+>   116 on 2026-08-07, carrying the whole notification stack. Your testers are no
+>   longer three weeks behind. Item 2(c) is closed and gone from this page.
+> * ✅ **The portal tick is done** (2026-08-06, with your authorisation, over the
+>   API rather than by hand). Only the APNs **key** is left — the box at the top.
+> * 🔴 **The icon decision is still open** — the box below. It has now waited three
+>   sessions behind the notification work.
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
 current code and current rules, the invite site is live, **build 113 is approved
@@ -86,7 +85,7 @@ decision from you before a session can finish them.
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~98%** — M1→M6.3 all merged. All three notifications you asked for are built, and **build 115 is the first ever signed to receive them**. The phone can now register itself and the server can address it. **No notification has still ever been delivered**, because Firebase has no APNs key to hand it to Apple with. The plan's ✅ on M3.4 stays struck through until one actually arrives. | **4(a) piece 1** — the `.p8`. Nothing else. |
+| **Is the MVP built?** | **~98%** — M1→M6.3 all merged. All three notifications you asked for are built, deployed and **running in production**, and **build 116 is the first that can actually receive one** — it is the first that asks you for permission, without which iOS never issues a token. (115 has the entitlement but not the prompt, so it cannot work; install 116.) **No notification has still ever been delivered**, because Firebase has no APNs key to hand it to Apple with. The plan's ✅ on M3.4 stays struck through until one actually arrives. | **4(a) piece 1** — the `.p8`. Nothing else. |
 | **Can people install it?** | **100%** — done. Build 113 is approved and live. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Ship **114+** so they stop testing three-week-old code. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
@@ -614,10 +613,11 @@ Build numbers are automatic (`100 + the CI run number`); the *version* (`0.1.0`)
 comes from `app/pubspec.yaml` and must match the tag, and CI stops you loudly if
 they disagree.
 
-⚠️ **Build 114 is uploaded and has never been submitted.** Your eight testers are
-on **113**, which predates the post-sign-in dead-end fix (the "Something went
-wrong" you reported), the real support page, the UI polish pass and the
-iPhone-only change. Submitting it is one dispatch and a session will offer:
+✅ **Resolved 2026-08-06/07.** Build 114 was never submitted, and rather than
+submit a stale binary, **115 and then 116 were built and submitted** — 116 carries
+the post-sign-in dead-end fix (the "Something went wrong" you reported), the real
+support page, the UI polish pass, the iPhone-only change AND the entire
+notification stack. **Install 116.** The dispatch below is kept for the next time:
 
 ```sh
 gh workflow run testflight-testers.yml \
