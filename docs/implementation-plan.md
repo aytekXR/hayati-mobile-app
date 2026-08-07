@@ -65,12 +65,32 @@ M3.4 ~~✅~~ **⚠️ CORRECTED 2026-08-06 (Session 062) — see the note at the
 > it reaches couples who have no streak at all. All three passes still ride **one**
 > couples read per sweep.
 >
-> **It still does not deliver a push**, because `PUSH_NOTIFICATIONS` is **measured
-> absent** on the App ID (2026-08-06, run 31054773143) and a build claiming the
-> entitlement would fail at codesign. Every layer above the device is now built,
-> tested and composed; what is missing is one portal checkbox and the plugin
-> behind it (#188). **M3.4 stays open until a push reaches a device and somebody
-> sees it.**
+> **S063 then closed the device half too** (#191 the plugin, #193 the capability
+> write tool, #194 `aps-environment`, #196 the permission prompt): the App ID
+> capability was ticked with founder authorisation, the entitlement signed, and
+> **build 116** shipped — the first build in this app's history that can receive a
+> notification, and the first that ever asks for permission.
+>
+> **Two corrections belong in this line, because both are the same defect this note
+> exists to record.**
+>
+> 1. **D6 was deferred as "a UI surface" and was in fact the gate.** Nothing in
+>    `app/lib` had ever called `requestPermission`, and on iOS `getToken()` returns
+>    nothing without it. Build 115 shipped the entitlement and could never have
+>    captured a token. Fixed in #196.
+> 2. **The server half was merged, green, and NOT DEPLOYED.** Production ran
+>    Functions from before #190 — `registerPushToken` and `unregisterPushToken` did
+>    not exist there at all, so the app would have called them and received
+>    NOT_FOUND, silently. Deployed 2026-08-07 with founder authorisation and
+>    verified RUNNING by the production sweep log, not by the deploy's own output
+>    (lesson **86**; issue **#166**).
+>
+> **It still has not delivered a push.** What remains is not engineering: the APNs
+> `.p8` uploaded through the Firebase console (console-only — no `gcloud`, no ADC,
+> no CLI command), and a human opening build 116 on a real iPhone and granting
+> permission. **M3.4 stays open until a push reaches a device and somebody sees
+> it** — which, three false "it's done" reports later, is exactly why that
+> criterion is written this way.
 
 ## M4 — Paywall & entitlements (3 sessions)
 

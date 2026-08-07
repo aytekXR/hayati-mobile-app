@@ -6,7 +6,7 @@
 > Before starting, read the two companions:
 > * **`session-context.md`** — toolchain, machine, review discipline, binding
 >   invariants, and the never-without-asking list.
-> * **`session-lessons.md`** — the institutional lessons, numbered to **85**. Cited
+> * **`session-lessons.md`** — the institutional lessons, numbered to **86**. Cited
 >   below by number.
 >
 > Re-derive the session number from `git log`; a session on another machine can consume it.

@@ -50,6 +50,22 @@ _Environment facts below were last re-measured **2026-08-05**._
   cannot be verified from here — say so rather than asserting it.
 * The `firebase` CLI **is** logged in as the founder (`aaytekinerdogan@gmail.com`) with access
   to `hayatiapp-prod` and `hayatiapp-dev`. That is a **local** path only.
+* **What that login can actually do was unknown until S063, and one of them is the only
+  instrument this repo has for a question it keeps getting wrong.** All four work today:
+
+  | | |
+  |---|---|
+  | `firebase functions:log --project hayatiapp-prod --only <fn>` | **reads PRODUCTION logs.** This is what caught S063's silent failure: four hourly sweeps logged two of the three per-pass summaries, and the missing line was the whole diagnosis. Free, read-only, instant. |
+  | `firebase functions:list --project hayatiapp-prod` | the deployed function inventory. Set-compare it against the exports in `functions/src/index.ts`. |
+  | `python3 tool/ci/rules_drift.py --project hayatiapp-prod --from-firebase-cli` | verifies deployed rules against this ref **with no `FIREBASE_SERVICE_ACCOUNT`** — the CI lane needs that secret, this path does not. |
+  | `firebase deploy --only functions` / `--only firestore:rules` | the deploy. **§7 applies — ask first.** |
+
+  **There is no Functions deploy workflow** (`deploy-rules.yml` and `deploy-site.yml` exist;
+  functions have none), so deployment is a manual step nothing tracks. That is issue **#166**,
+  and it cost S063 the entire push feature: everything merged, every check green, and the
+  callables the app calls did not exist in production. **"Merged and green" is not "running"**
+  (lesson **86**) — and the first row of that table is how you tell the difference in about
+  ten seconds. Use it before reporting any feature that spans a deploy boundary as shipped.
 
 ## 3. Toolchain and commands
 
@@ -153,7 +169,17 @@ Do not change these without reading the ADR that set them.
   first. *(ADR-041 D5's typed-confirmation guard is a guard, not permission.)*
 * Dispatch the release lane (it uploads a real binary to the founder's TestFlight).
 * Grant public invoker on prod, or migrate RevenueCat subscriber ids.
-* Re-bootstrap `match` certificates.
+* Re-bootstrap `match` certificates. **`MATCH_BOOTSTRAP=true` is a ONE-RUN variable** —
+  it makes `match` non-readonly so it can regenerate a profile. Delete it the moment the
+  run lands, or CI keeps the ability to mint credentials that ADR-032's readonly exists to
+  remove. S063 set it, used it, and deleted it in the same sitting; verify with
+  `gh variable list` rather than assuming.
+* **Enable or disable a capability on the App ID.** `tool/ci/appid_capability_enable.py`
+  exists since S063 and works, behind a `--confirm ENABLE` literal — but it changes how a
+  real binary signs and it **invalidates the existing provisioning profile**. Its read-only
+  sibling's header explains why it was deliberately not built for a year; the founder
+  authorised the write on 2026-08-06 for one capability, which is not standing consent for
+  the next one. Undo is `--disable-id <id>`.
 * `npm audit fix --force`, or downgrade `firebase-admin` (ADR-034 refuses it).
 * Enable Dependabot on the founder's behalf.
 * Guess the founder's legal name into a legal document.
