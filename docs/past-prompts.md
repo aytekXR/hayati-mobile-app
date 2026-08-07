@@ -2427,6 +2427,16 @@ Build 116 would have prompted for permission, captured a token, called the calla
 * `firebase deploy --only functions` — 13 functions, `registerPushToken` and `unregisterPushToken` **created**; confirmed by `functions:list`.
 * `firebase deploy --only firestore:rules` — confirmed by the repo's own instrument, `rules_drift.py --from-firebase-cli` → **exit 0, "MATCHES the ruleset on this ref"**. The `fcmTokens` freeze is live in production for the first time.
 
+**And then the deploy was proven RUNNING, not merely accepted** — the same way its absence was diagnosed. The 21:00 UTC sweep:
+
+```
+question_rollover: sweep complete                  {"assigned":1,"buckets":1,...}
+question_rollover: daily-question sweep complete   {"checked":0,"sent":0,...}   <- NEW
+question_rollover: at-risk sweep complete          {"checked":0,"sent":0,...}
+```
+
+The middle line did not exist in any sweep before 21:00. A deploy that reports success and a deploy whose code is executing are different claims, and this is the second one.
+
 **#166 gets its concrete recurrence.** It has been open since 2026-08-01 saying nothing compares deployed Functions to `main`; the comment records that this instance cost the whole feature, and that two *cheap partial* checks would each have caught it — a deployed-function-list set comparison, or an assertion over the sweep's own structured log. Neither answers the exhaustive "is the deployed code identical to main" that the issue was filed against. **Both would have worked, which is the argument for building one.**
 
 **Also true and worth stating: there is no Functions deploy workflow in this repo.** `deploy-rules.yml` and `deploy-site.yml` exist; functions have none. Every deploy is manual, and nothing tracks whether it happened.
