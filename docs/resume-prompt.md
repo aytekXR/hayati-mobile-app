@@ -19,8 +19,9 @@ left.
 
 > **Push is no longer this file's objective.** S063 took it as far as engineering
 > reaches: the capability is ticked, `aps-environment` is signed into **build
-> 115**, and all three behaviours compose and route. **One console action
-> remains** — the APNs `.p8` into both Firebase projects — and it is
+> 116**, all three behaviours compose and route, and — this was nearly missed —
+> **the server half is now actually DEPLOYED** (it had been merged and green and
+> not running; lesson **86**). **One console action remains** — the APNs `.p8` into both Firebase projects — and it is
 > founder-only and unmeasurable (`gcloud` absent, no ADC, no Firebase CLI APNs
 > command; re-checked 2026-08-06, do not re-derive by guessing). When the founder
 > says it is done, the very next thing to do is **ask them to open build 115,
@@ -39,6 +40,8 @@ left.
 | **Build 116** | Uploaded 2026-08-07, `VALID`, `internal=IN_BETA_TESTING`, assigned to `Friends`, submitted for review. **THE build to talk to the founder about** — 115 has the entitlement but NOT the permission prompt, so 115 can never capture a token. 116 can. |
 | **Build 115** | Superseded. Apple approved its beta review (`external=IN_BETA_TESTING`), but it is functionally push-dead — no permission request. |
 | **`MATCH_BOOTSTRAP`** | Set for exactly one release run to regenerate the profile, then **deleted**. Verify it is still gone (`gh variable list`) — if it is set, CI can mint credentials, which ADR-032's readonly exists to prevent. |
+| **Deployed Functions** | Brought up to `main` on 2026-08-07 by hand (there is **no deploy workflow** — see #166). **Re-measure, do not inherit:** `firebase functions:list --project hayatiapp-prod` against the exports in `functions/src/index.ts`, and `firebase functions:log --only questionRollover` for the three per-sweep summary lines. A missing `daily-question sweep complete` means prod is behind again. |
+| **Deployed rules** | Match `main` as of 2026-08-07 (`rules_drift.py --project hayatiapp-prod --from-firebase-cli` → exit 0). The `fcmTokens` freeze is live. |
 | **Build 113/114** | Superseded by 115. |
 | **`firestore.rules`** | **Changed in S062 and NOT deployed** — prod/dev differ from `main` until `deploy-rules.yml` runs, which needs `FIREBASE_SERVICE_ACCOUNT` (operator 2(e)(iii)). **The `fcmTokens` freeze is not live yet.** |
 | **Screenshots** | en-US: 6 live since 2026-08-03. `tr` never uploaded. |
