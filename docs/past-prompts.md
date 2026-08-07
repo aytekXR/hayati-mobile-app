@@ -2397,3 +2397,19 @@ The session's own resume prompt called the App ID tick founder-blocked, and ever
 * `Runner.entitlements` **had not been well-formed XML since M1.3** — two comments contained `--`. It shipped through every signed build because Xcode's parser is lenient and *nothing had ever parsed the file*. Found only because adding a key meant parsing it. Now fixed and pinned, along with `aps-environment = production`, the continued absence of `associated-domains` (ADR-040), and the continued absence of `UIBackgroundModes` (SEC-3 must be decided before that key is added).
 
 **The objective is one console action short, and it is not one I can take.** Firebase needs the APNs `.p8` or it cannot hand a notification to Apple at all. Re-checked rather than repeated: `gcloud` is not installed, there is no application-default credential, and the authenticated Firebase CLI has no APNs command. **Every layer is now built, signed and shipped except that key.**
+
+### S063 continued — **D6, and the silence it would have caused**
+
+Build 115 shipped the entitlement and would have delivered **nothing**, forever, with no error anywhere.
+
+`grep -rn "requestPermission" app/lib` returned **zero hits**, and on iOS `getToken()` cannot return a token until the user has authorised notifications. So the state after #194 was: capability ticked, entitlement signed, plugin initialising, callables deployed, rules frozen, all three kinds composing and routing — **and no device would ever have registered.** The founder would have uploaded the APNs key, opened the app, and got silence.
+
+That is lesson **79** one layer further down: every piece correct, the chain dead, no error surface. It was found by asking *"what would actually happen when the `.p8` lands"* rather than *"is my part done"*. **D6 was deferred as 'a UI surface'; it was in fact the gate everything else sits behind.**
+
+Shipped in #196: `PushTokenSource.ensurePermission()`, the FCM implementation (`provisional: false` — a provisional grant delivers with no alert, which for a *"your partner answered"* app looks exactly like the feature being broken), `PushTokenSync.promptForPermissionAndRegister()`, and the call site on `PairedHomeScreen` — after pairing, post-frame, unawaited, pinned by a test that fails if sign-in alone ever triggers it. Three mutations, each reddening its named assertion.
+
+**Build 116** carries it. `VALID`, `internal=IN_BETA_TESTING`, assigned to `Friends`, submitted for review. Build 115 was approved by Apple in the meantime but is functionally push-dead.
+
+**One operational note worth keeping:** Apple's build propagation lags upload by minutes. The first assign+submit of 116 failed with `HTTP 404: There is no resource of type 'builds' with id …` — a *race*, not a failure. A retry three minutes later succeeded. Do not read that 404 as a broken lane.
+
+**The objective ends here, and not because it was finished.** Every layer that can be built is built, signed, shipped and green. A push has still never arrived, and the two things standing in the way are both human: the APNs `.p8` uploaded through the Firebase console, and a person opening build 116 on a real iPhone and tapping Allow.

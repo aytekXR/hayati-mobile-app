@@ -21,6 +21,13 @@ thing that refresh could only ask you to report._
 
 > ### 🔔 ONE THING now stands between you and a notification: the APNs key
 >
+> **Install build 116** (TestFlight — it is already available to you, no review
+> wait). It is the first build in this app's history that can receive a
+> notification at all, and the first that will ever ASK you for permission —
+> the prompt appears on the paired home screen, once. Say yes.
+>
+> Then do the `.p8` below. Then tell me whether anything arrives at 08:00.
+>
 > You authorised the API path on 2026-08-06 and **Push Notifications is now
 > ticked** on `com.beyondkaira.hayati` (measured before: absent; enabled; measured
 > after: present). The entitlement shipped in **build 115**, which signed, uploaded

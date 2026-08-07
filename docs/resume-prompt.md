@@ -36,7 +36,8 @@ left.
 | **Push, server side** | **DONE.** All three founder behaviours compose and route: `dailyQuestion` at couple-local 08:00, `partnerAnswered` on the reveal trigger, the unanswered nudge at 16:00. `fcmTokens` has writers and a rules lock. |
 | **Push, device side** | **Nothing has ever arrived** — but the plugin, the adapter, the app-root activation AND `aps-environment` are all on `main` and **shipped in build 115**. Missing: the APNs `.p8` in Firebase (founder-only). |
 | **App ID capabilities** | `PUSH_NOTIFICATIONS` **ticked 2026-08-06** (API, founder-authorised; undo id `Q344R7M7MY_PUSH_NOTIFICATIONS`). `ASSOCIATED_DOMAINS` and `APP_ATTEST` still absent — neither blocks anything today. |
-| **Build 115** | Uploaded 2026-08-06, `processing=VALID`, `internal=IN_BETA_TESTING`, assigned to `Friends`, **submitted for Beta App Review**. The founder can install it now. First build ever signed with a push entitlement. |
+| **Build 116** | Uploaded 2026-08-07, `VALID`, `internal=IN_BETA_TESTING`, assigned to `Friends`, submitted for review. **THE build to talk to the founder about** — 115 has the entitlement but NOT the permission prompt, so 115 can never capture a token. 116 can. |
+| **Build 115** | Superseded. Apple approved its beta review (`external=IN_BETA_TESTING`), but it is functionally push-dead — no permission request. |
 | **`MATCH_BOOTSTRAP`** | Set for exactly one release run to regenerate the profile, then **deleted**. Verify it is still gone (`gh variable list`) — if it is set, CI can mint credentials, which ADR-032's readonly exists to prevent. |
 | **Build 113/114** | Superseded by 115. |
 | **`firestore.rules`** | **Changed in S062 and NOT deployed** — prod/dev differ from `main` until `deploy-rules.yml` runs, which needs `FIREBASE_SERVICE_ACCOUNT` (operator 2(e)(iii)). **The `fcmTokens` freeze is not live yet.** |
@@ -105,9 +106,10 @@ dispatch `appstore-screenshots.yml -f upload=true -f locales=en-US,tr`. If not, 
 is a founder action already on the operator page.
 
 **2 — Close M3.4, but only the founder can start it.** Ask whether the APNs `.p8`
-is uploaded to **both** Firebase projects. If yes: ask them to open build 115,
-grant the notification permission, and say whether anything arrives. **That
-observation is the only thing that can close M3.4**, and no session can make it.
+is uploaded to **both** Firebase projects. If yes: ask them to install **build
+116** (not 115), open it to the paired home screen, **accept the permission
+prompt**, and say whether anything arrives at 08:00. **That observation is the
+only thing that can close M3.4**, and no session can make it.
 
 ⚠️ **Runtime is still unobserved.** The plugin BUILDS against this project's
 pure-Dart `FirebaseOptions` (there is no `GoogleService-Info.plist`) and coexists
