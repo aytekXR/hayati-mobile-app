@@ -19,20 +19,34 @@ _Last refreshed: **2026-08-06** (Sessions 062–063). The 2026-08-05 refresh re-
 every line against Apple, GitHub, Google and your live site; S062 added the one
 thing that refresh could only ask you to report._
 
-> ### 📍 One portal page now closes three open items, and we can see it from here
+> ### 🔔 ONE THING now stands between you and a notification: the APNs key
 >
-> **Measured 2026-08-06, straight out of Apple's portal:** `com.beyondkaira.hayati`
-> has **`APPLE_ID_AUTH`** and **`IN_APP_PURCHASE`** ticked, and is missing
-> **`PUSH_NOTIFICATIONS`** (item **4(a)**), **`ASSOCIATED_DOMAINS`** (item
-> **2(d)**) and **`APP_ATTEST`**.
+> You authorised the API path on 2026-08-06 and **Push Notifications is now
+> ticked** on `com.beyondkaira.hayati` (measured before: absent; enabled; measured
+> after: present). The entitlement shipped in **build 115**, which signed, uploaded
+> and is **installable by you right now** — you are an internal tester, so it needs
+> no review.
 >
-> All three are checkboxes on **one page**: Certificates, Identifiers & Profiles →
-> Identifiers → `com.beyondkaira.hayati`. One visit, three ticks, Save.
+> **What is left is piece 1, and only you can do it.** Firebase needs Apple's APNs
+> key or it cannot hand a notification to Apple at all:
 >
-> This used to be three separate bullets that each said *"a session cannot read
-> the portal, so nobody knows."* That was a missing tool, not a missing
-> permission — S062 built it, and from now on nobody has to ask you whether you
-> did it.
+> 1. Apple Developer portal → **Keys** → **+** → tick **Apple Push Notifications
+>    service (APNs)** → Continue → Register → **download the `.p8`** (once only).
+>    Note the **Key ID** on that page; your **Team ID** is `UH7MXG7Z94`.
+> 2. Firebase console → **`hayatiapp-prod`** → ⚙ Project settings → **Cloud
+>    Messaging** → **Apple app configuration** → upload the `.p8` with those two ids.
+> 3. **Do the same for `hayatiapp-dev`** — the same key works for both.
+>
+> Unlike the tick, this one genuinely cannot be measured or done from a session:
+> Firebase's Cloud Messaging settings are console-only. Checked again on
+> 2026-08-06 — `gcloud` is not installed, there is no application-default
+> credential, and the Firebase CLI has no APNs command at all. So please just say
+> when it is done.
+>
+> **Still untickled, still one page, still yours if you want them:**
+> `ASSOCIATED_DOMAINS` (item **2(d)**) and `APP_ATTEST`. Neither blocks
+> notifications; both are the same Identifiers page you no longer have to visit
+> for push.
 
 > **What changed since the last refresh (2026-08-01):**
 >
@@ -55,7 +69,7 @@ decision from you before a session can finish them.
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~97%** — M1→M6.3 all merged. **No notification has still ever been delivered.** Sessions 062–063 built everything above the device: the app records which phone to notify (server-writable only), and all three notifications you asked for — 08:00 question, partner-answered, 16:00 reminder — are composed and routed. **The phone still has no way to RECEIVE one**, and that is the portal tick below. The plan's ✅ on M3.4 stays struck through until a push actually arrives. | **4(a)** — one checkbox and one key. |
+| **Is the MVP built?** | **~98%** — M1→M6.3 all merged. All three notifications you asked for are built, and **build 115 is the first ever signed to receive them**. The phone can now register itself and the server can address it. **No notification has still ever been delivered**, because Firebase has no APNs key to hand it to Apple with. The plan's ✅ on M3.4 stays struck through until one actually arrives. | **4(a) piece 1** — the `.p8`. Nothing else. |
 | **Can people install it?** | **100%** — done. Build 113 is approved and live. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Ship **114+** so they stop testing three-week-old code. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
@@ -120,7 +134,18 @@ works for both.
 **2. Tick Push Notifications on the App ID (~1 min).** Apple Developer portal →
 **Identifiers** → `com.beyondkaira.hayati` → tick **Push Notifications** → Save.
 
-> ### 📍 Measured 2026-08-06 — it is **not ticked**, and that is now a fact rather than a guess
+> ### ✅ DONE 2026-08-06 — ticked, and the entitlement is already in a shipped build
+>
+> You authorised the API path; `PUSH_NOTIFICATIONS` was enabled from CI
+> ([run 31130371860](https://github.com/aytekXR/hayati-mobile-app/actions/runs/31130371860))
+> and the verification read in the same run returned exit 0. `aps-environment`
+> then landed, the provisioning profile regenerated, and **build 115 signed and
+> uploaded** — the first build in this app's history to carry a push entitlement.
+>
+> Undo handle, if it is ever needed: capability id
+> `Q344R7M7MY_PUSH_NOTIFICATIONS`.
+>
+> <details><summary>The measurement that stood here before (kept, because it is what made the fix safe)</summary>
 >
 > The probe ran green against Apple's portal
 > ([run 31054773143](https://github.com/aytekXR/hayati-mobile-app/actions/runs/31054773143))
@@ -143,8 +168,10 @@ works for both.
 > already going there for Push Notifications; ticking the other two while you are
 > in there costs nothing and closes item 2(d) at the same time.
 >
-> This also retires the last of the *"a session cannot read the portal, so nobody
-> knows"* bullets. Whatever you do — or do not do — the next dispatch will say so.
+> This also retired the last of the *"a session cannot read the portal, so nobody
+> knows"* bullets.
+>
+> </details>
 
 **Why the second one matters more than it looks.** The app has to declare a push
 entitlement, and that entitlement must also exist in the **provisioning
@@ -177,7 +204,7 @@ will not add the entitlement until the tick is confirmed.
 > "not ticked" when nobody actually looked would send a session off to build
 > around a blocker that may not exist.
 
-**Piece 1 — the APNs `.p8` — is still genuinely yours and cannot be measured.**
+**Piece 1 — the APNs `.p8` — is the ONLY remaining blocker, and it is genuinely yours.**
 Firebase's Cloud Messaging settings are console-only: there is no API a session
 can read them from, `gcloud` is not installed on the session machine and there is
 no application-default credential. So this one is reported, not verified — please

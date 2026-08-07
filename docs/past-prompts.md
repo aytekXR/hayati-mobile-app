@@ -2374,3 +2374,26 @@ Recipient resolution, the quiet guard and the per-token error boundary moved to 
 **Functions 1067 tests / 54 files, 97.45% stmts.** Typecheck caught a test-only type error vitest's esbuild transpile runs straight past — the `npm run typecheck` step earns its place.
 
 **Not done:** the app icon and `tr` screenshots, again. Both are unblocked and both keep losing to the objective; S064's prompt puts the icon first.
+
+### S063 continued — **the push blocker was an authority boundary, and the founder moved it**
+
+The session's own resume prompt called the App ID tick founder-blocked, and every document repeated it. Asked directly, with the trade-off stated (tick it by hand vs. authorise an API write that invalidates the provisioning profile while `match` runs readonly, on a live app with eight TestFlight users), **the founder authorised the API path** — and, separately, a new build.
+
+**What that unlocked, in order, each step measured before the next:**
+
+| | |
+|---|---|
+| `PUSH_NOTIFICATIONS` measured **absent** | run 31054773143 → exit 1 |
+| **enabled** from CI, founder-authorised | run 31130371860 → OK, id `Q344R7M7MY_PUSH_NOTIFICATIONS` |
+| **verified** ticked | same run's read → exit 0 |
+| `aps-environment` landed (#194) | `production`; the profile regenerated via one `MATCH_BOOTSTRAP=true` run, and **the variable was deleted immediately after** — leaving it would leave CI able to mint credentials, the exact posture ADR-032's readonly exists to prevent |
+| **build 115 signed and uploaded** | the first build in this app's history carrying a push entitlement. `processing=VALID`, `internal=IN_BETA_TESTING`, assigned to `Friends`, submitted for Beta App Review |
+
+**The write tool (#193) does not overrule the read tool's header — it answers it.** That header gave two reasons for being read-only, and they needed opposite treatment (→ **lesson 85**): *"a founder decision"* is an authority boundary, and the move is to ask; *"could do it by accident"* is an engineering boundary, and the move is a lock. It got `--confirm ENABLE` (ADR-019's wire-literal precedent, exact match), the closed capability vocabulary checked before any request, idempotence, and a `--disable-id` undo gated the same way. Five mutations, each reddening the assertion that names it — one of them printing the exact POST that would otherwise have escaped.
+
+**Two defects found by doing rather than reasoning:**
+
+* `firebase_messaging` **16.4.2 declares a constraint its own code violates**, and this repo's *dev-only* pin of `firebase_core_platform_interface` at `^7.1.0` steered pub straight onto it. Green `pub get`, green analyze, 1653 green tests; only the iOS kernel snapshot failed. → **lesson 84.**
+* `Runner.entitlements` **had not been well-formed XML since M1.3** — two comments contained `--`. It shipped through every signed build because Xcode's parser is lenient and *nothing had ever parsed the file*. Found only because adding a key meant parsing it. Now fixed and pinned, along with `aps-environment = production`, the continued absence of `associated-domains` (ADR-040), and the continued absence of `UIBackgroundModes` (SEC-3 must be decided before that key is added).
+
+**The objective is one console action short, and it is not one I can take.** Firebase needs the APNs `.p8` or it cannot hand a notification to Apple at all. Re-checked rather than repeated: `gcloud` is not installed, there is no application-default credential, and the authenticated Firebase CLI has no APNs command. **Every layer is now built, signed and shipped except that key.**
