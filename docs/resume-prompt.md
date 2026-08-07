@@ -24,7 +24,7 @@ left.
 > not running; lesson **86**). **One console action remains** — the APNs `.p8` into both Firebase projects — and it is
 > founder-only and unmeasurable (`gcloud` absent, no ADC, no Firebase CLI APNs
 > command; re-checked 2026-08-06, do not re-derive by guessing). When the founder
-> says it is done, the very next thing to do is **ask them to open build 115,
+> says it is done, the very next thing to do is **ask them to open build 116,
 > grant the notification permission, and report whether a push arrives** — that
 > observation is the only thing that can close M3.4, and no session can make it.
 
@@ -35,7 +35,7 @@ left.
 | | State |
 |---|---|
 | **Push, server side** | **DONE.** All three founder behaviours compose and route: `dailyQuestion` at couple-local 08:00, `partnerAnswered` on the reveal trigger, the unanswered nudge at 16:00. `fcmTokens` has writers and a rules lock. |
-| **Push, device side** | **Nothing has ever arrived** — but the plugin, the adapter, the app-root activation AND `aps-environment` are all on `main` and **shipped in build 115**. Missing: the APNs `.p8` in Firebase (founder-only). |
+| **Push, device side** | **Nothing has ever arrived** — but the plugin, the adapter, the app-root activation, `aps-environment` AND the permission prompt are all on `main` and **shipped in build 116**. The server half is deployed and proven running. Missing: the APNs `.p8` in Firebase (founder-only). |
 | **App ID capabilities** | `PUSH_NOTIFICATIONS` **ticked 2026-08-06** (API, founder-authorised; undo id `Q344R7M7MY_PUSH_NOTIFICATIONS`). `ASSOCIATED_DOMAINS` and `APP_ATTEST` still absent — neither blocks anything today. |
 | **Build 116** | Uploaded 2026-08-07, `VALID`, `internal=IN_BETA_TESTING`, assigned to `Friends`, submitted for review. **THE build to talk to the founder about** — 115 has the entitlement but NOT the permission prompt, so 115 can never capture a token. 116 can. |
 | **Build 115** | Superseded. Apple approved its beta review (`external=IN_BETA_TESTING`), but it is functionally push-dead — no permission request. |
@@ -72,7 +72,7 @@ it is load-bearing for the on-device check at operator 4(3).
 
 ### Part 2 — ship the icon in a build
 
-Build 115 went out on 2026-08-06 with the push slice. The icon needs one more.
+Builds 115 and 116 went out on 2026-08-06/07 with the push slice. The icon needs one more.
 
 ```sh
 gh workflow run release.yml --ref main
@@ -119,7 +119,8 @@ pure-Dart `FirebaseOptions` (there is no `GoogleService-Info.plist`) and coexist
 with the scene-based AppDelegate — both proven by a real macOS compile. Nothing has
 proven the swizzling behaves on a live device, or that a token is ever actually
 captured. `PushTokenSync` fails open around all of it, so the honest failure mode
-is silence. **Build 115 is the first build that could show this. Ask.**
+is silence. **Build 116 is the first build that could show this — NOT 115, which has
+the entitlement but no permission prompt and therefore can never capture a token. Ask.**
 
 ⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
 first (`secure_storage_pin_lock_store.dart`: a locked-device background read of an
