@@ -38,6 +38,30 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**85 — A boundary a past session drew on SAFETY grounds is not the same as one drawn on CAPABILITY grounds, and the two need opposite treatment.** *(2026-08-06)*
+`appid_capabilities.py` was built read-only with an explicit reason in its header:
+enabling a capability "is a founder decision, and a tool that could do it would
+also be a tool that could do it by accident." For a session working toward push
+delivery, that reads as a wall. It is two different things wearing one sentence:
+
+* *"a founder decision"* — an **authority** boundary. Only the founder can move
+  it, and the correct action is to ASK, with the trade-off stated (here: a portal
+  click by hand vs. an API write that invalidates the provisioning profile while
+  `match` runs readonly, on a live app with 8 TestFlight users).
+* *"could do it by accident"* — an **engineering** boundary. Nobody needs to
+  authorise anything; it needs a lock. The repo already had the pattern in
+  ADR-019's `confirm: 'DELETE'` wire literal.
+
+The session that wrote that header collapsed both into "don't build it," which
+was right *then* — it had no authorisation and no reason to spend the effort.
+Read later as a standing prohibition, it would have blocked the feature forever.
+
+**When you meet a recorded "we deliberately cannot do X", separate the two before
+accepting it.** If the reason is authority, ask. If the reason is risk, engineer
+the guard. Only "it is impossible" is a wall — and that one is worth
+re-measuring too: `gcloud` absent, no ADC, and no `firebase` CLI APNs command
+was checked, not assumed, before calling the APNs `.p8` genuinely out of reach.
+
 **84 — A dev-only dependency pin constrains the WHOLE resolution, and a package can declare a constraint its own code violates.** *(2026-08-06)*
 Adding `firebase_messaging` resolved cleanly, analyzed clean, and passed all 1653
 tests. The iOS build then failed with `Type 'FirebasePlugin' not found`. Two

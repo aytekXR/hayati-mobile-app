@@ -6,15 +6,26 @@
 > Before starting, read the two companions:
 > * **`session-context.md`** — toolchain, machine, review discipline, binding
 >   invariants, and the never-without-asking list.
-> * **`session-lessons.md`** — the institutional lessons, numbered to **83**. Cited
+> * **`session-lessons.md`** — the institutional lessons, numbered to **85**. Cited
 >   below by number.
 >
 > Re-derive the session number from `git log`; a session on another machine can consume it.
 
-**Objective: ship the app icon the founder chose, and get a build to the testers.**
+**Objective: ship the app icon the founder chose.**
 
-Both are unblocked. Both have lost to the push objective for two sessions running.
-The founder has asked about the icon once and about testers' builds twice.
+It is decided, unblocked, and has lost to the push objective for three sessions
+running. The founder asked for it on 2026-08-05 and it is the fastest visible win
+left.
+
+> **Push is no longer this file's objective.** S063 took it as far as engineering
+> reaches: the capability is ticked, `aps-environment` is signed into **build
+> 115**, and all three behaviours compose and route. **One console action
+> remains** — the APNs `.p8` into both Firebase projects — and it is
+> founder-only and unmeasurable (`gcloud` absent, no ADC, no Firebase CLI APNs
+> command; re-checked 2026-08-06, do not re-derive by guessing). When the founder
+> says it is done, the very next thing to do is **ask them to open build 115,
+> grant the notification permission, and report whether a push arrives** — that
+> observation is the only thing that can close M3.4, and no session can make it.
 
 ---
 
@@ -23,10 +34,11 @@ The founder has asked about the icon once and about testers' builds twice.
 | | State |
 |---|---|
 | **Push, server side** | **DONE.** All three founder behaviours compose and route: `dailyQuestion` at couple-local 08:00, `partnerAnswered` on the reveal trigger, the unanswered nudge at 16:00. `fcmTokens` has writers and a rules lock. |
-| **Push, device side** | **Nothing has ever arrived** — but as of #191 the plugin, the FCM adapter and the app-root activation are ON `main` and **compile on macOS**. What is missing is literally `aps-environment` in `Runner.entitlements`, which cannot land until the tick. |
-| **App ID capabilities** | Measured 2026-08-06 (run `31054773143`): `APPLE_ID_AUTH` + `IN_APP_PURCHASE` ticked; **`PUSH_NOTIFICATIONS`, `ASSOCIATED_DOMAINS`, `APP_ATTEST` ABSENT.** Re-dispatch `appid-capabilities.yml` — it is one command and it decides whether #188 is live. |
-| **Build 113** | Apple-approved, `IN_BETA_TESTING`, 8 in `Friends` (2 anonymous public-link installs). |
-| **Build 114** | Uploaded 2026-08-02, **`READY_FOR_BETA_SUBMISSION` — never submitted.** Everyone is still on 113. |
+| **Push, device side** | **Nothing has ever arrived** — but the plugin, the adapter, the app-root activation AND `aps-environment` are all on `main` and **shipped in build 115**. Missing: the APNs `.p8` in Firebase (founder-only). |
+| **App ID capabilities** | `PUSH_NOTIFICATIONS` **ticked 2026-08-06** (API, founder-authorised; undo id `Q344R7M7MY_PUSH_NOTIFICATIONS`). `ASSOCIATED_DOMAINS` and `APP_ATTEST` still absent — neither blocks anything today. |
+| **Build 115** | Uploaded 2026-08-06, `processing=VALID`, `internal=IN_BETA_TESTING`, assigned to `Friends`, **submitted for Beta App Review**. The founder can install it now. First build ever signed with a push entitlement. |
+| **`MATCH_BOOTSTRAP`** | Set for exactly one release run to regenerate the profile, then **deleted**. Verify it is still gone (`gh variable list`) — if it is set, CI can mint credentials, which ADR-032's readonly exists to prevent. |
+| **Build 113/114** | Superseded by 115. |
 | **`firestore.rules`** | **Changed in S062 and NOT deployed** — prod/dev differ from `main` until `deploy-rules.yml` runs, which needs `FIREBASE_SERVICE_ACCOUNT` (operator 2(e)(iii)). **The `fcmTokens` freeze is not live yet.** |
 | **Screenshots** | en-US: 6 live since 2026-08-03. `tr` never uploaded. |
 
@@ -54,20 +66,20 @@ tester's device will use).
 ⚠️ **Leave `AppIconDiscreet` alone.** `redesign/icons/README.md` §5 is explicit, and
 it is load-bearing for the on-device check at operator 4(3).
 
-### Part 2 — ship a build
+### Part 2 — ship the icon in a build
 
-113 predates #169 (the founder's own *"Something went wrong"*), #170, #173, #179,
-and now the entire push slice. All merged, built into 114, and reached nobody.
+Build 115 went out on 2026-08-06 with the push slice. The icon needs one more.
 
 ```sh
 gh workflow run release.yml --ref main
 gh workflow run testflight-testers.yml -f dry_run=false -f assign_latest_build=true -f submit_for_review=true
 ```
 
-⚠️ **Ask the founder before dispatching `release.yml`.** (`session-context.md`
-never-without-asking list.)
-⚠️ **Never infer delivery from a green release** — read the assignment step's log or
-re-run `-f status_only=true`. It has failed silently twice, and Apple refuses a
+⚠️ **Ask the founder before dispatching `release.yml`** (`session-context.md`
+never-without-asking list). They authorised the 115 dispatch specifically; that
+does not carry forward.
+⚠️ **Never infer delivery from a green release** — read the assignment step's log
+or re-run `-f status_only=true`. It has failed silently twice, and Apple refuses a
 second beta submission with a message that prints as "already submitted — no-op"
 and exits **0**.
 
@@ -92,26 +104,23 @@ first: read with `tool/ci/testflight_testers.py --store-status`; if `tr` exists,
 dispatch `appstore-screenshots.yml -f upload=true -f locales=en-US,tr`. If not, it
 is a founder action already on the operator page.
 
-**2 — #188's last line — ONLY if the capability probe returns exit 0.** Run it
-first; it is one command. If it still returns **1**, say so and move on rather than
-building around it.
+**2 — Close M3.4, but only the founder can start it.** Ask whether the APNs `.p8`
+is uploaded to **both** Firebase projects. If yes: ask them to open build 115,
+grant the notification permission, and say whether anything arrives. **That
+observation is the only thing that can close M3.4**, and no session can make it.
 
-If it returns **0**, the remaining work is genuinely one commit:
-```
-app/ios/Runner/Runner.entitlements   + aps-environment  (development / production)
-```
-…then a release. **Do not add `UIBackgroundModes: remote-notification` in the same
-breath** — that is the event SEC-3 is waiting for
-(`secure_storage_pin_lock_store.dart:25-28`: a locked-device background read of an
-`unlocked_this_device` Keychain item fails and hits the fail-open path). Decide
-SEC-3 first, separately. Token capture does not need background modes; only
-background *delivery* does.
+⚠️ **Runtime is still unobserved.** The plugin BUILDS against this project's
+pure-Dart `FirebaseOptions` (there is no `GoogleService-Info.plist`) and coexists
+with the scene-based AppDelegate — both proven by a real macOS compile. Nothing has
+proven the swizzling behaves on a live device, or that a token is ever actually
+captured. `PushTokenSync` fails open around all of it, so the honest failure mode
+is silence. **Build 115 is the first build that could show this. Ask.**
 
-⚠️ **Runtime is still unobserved.** #191 proved the plugin BUILDS against this
-project's pure-Dart `FirebaseOptions` (there is no `GoogleService-Info.plist`) and
-coexists with the scene-based AppDelegate. It could not prove the swizzling behaves
-on a live device. `PushTokenSync` fails open around it, but **watch the first build
-that reaches a tester** rather than assuming.
+⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
+first (`secure_storage_pin_lock_store.dart`: a locked-device background read of an
+`unlocked_this_device` Keychain item fails and hits the fail-open path). Token
+capture needs none of it; only background *delivery* does. `signing_sentinel_test`
+reddens if it is added.
 
 **3 — The rest.** Re-derive from `gh issue list`. **#176** (Rubik Light declared,
 not bundled — the cheapest real bug here) · **#175** (10 of 14 raised cards render
