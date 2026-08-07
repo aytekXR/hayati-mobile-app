@@ -46,6 +46,17 @@ class _FakeSource implements PushTokenSource {
   Exception? currentTokenThrows;
   int currentTokenCalls = 0;
 
+  bool permissionGranted = true;
+  Exception? permissionThrows;
+  int permissionCalls = 0;
+
+  @override
+  Future<bool> ensurePermission() async {
+    permissionCalls++;
+    if (permissionThrows != null) throw permissionThrows!;
+    return permissionGranted;
+  }
+
   final StreamController<String> refreshes =
       StreamController<String>.broadcast();
 
@@ -262,6 +273,86 @@ void main() {
     // The assertion is that pumping the queue completed with no unhandled
     // error: a background sync must never take down the tree.
     expect(repository.registered, isEmpty);
+  });
+
+  // ADR-042 D6. THE call that makes everything else do anything on iOS: without
+  // a permission grant `getToken()` returns nothing, so the entitlement, the
+  // plugin, the callables and the sweeps are all correct and SILENT. That
+  // failure mode has no error surface, which is why it gets its own group.
+  group('promptForPermissionAndRegister (ADR-042 D6)', () {
+    test('grants -> captures the token and registers it', () async {
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+      // Nothing registered yet: the source answers only after permission, which
+      // is the whole shape of the iOS contract.
+      repository.registered.clear();
+
+      final granted = await sync.promptForPermissionAndRegister();
+
+      expect(granted, isTrue);
+      expect(source.permissionCalls, 1);
+      expect(repository.registered, ['device-token']);
+    });
+
+    test('declines -> registers NOTHING, and that is not an error', () async {
+      source.permissionGranted = false;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+      repository.registered.clear();
+
+      final granted = await sync.promptForPermissionAndRegister();
+
+      expect(granted, isFalse);
+      expect(repository.registered, isEmpty);
+    });
+
+    // iOS shows its dialog once per install and never again. The guard is not
+    // about the dialog — it is about not re-entering the capture path on every
+    // rebuild of the screen that calls this.
+    test('prompts at most ONCE, however many times it is called', () async {
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+
+      await sync.promptForPermissionAndRegister();
+      await sync.promptForPermissionAndRegister();
+      await sync.promptForPermissionAndRegister();
+
+      expect(source.permissionCalls, 1);
+    });
+
+    test('a throwing permission call never escapes', () async {
+      source.permissionThrows = Exception('no notification centre');
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+
+      expect(await sync.promptForPermissionAndRegister(), isFalse);
+    });
+
+    // The boot path must never touch this: ADR-039 D1 makes the boot fail-open
+    // and D2 bounds every wait on launch->paired. A permission prompt is an
+    // indefinite wait on a human, so nothing on that path may trigger it.
+    test(
+      'is NEVER triggered by sign-in alone — only by an explicit call',
+      () async {
+        final auth = FakeAuthRepository();
+        final container = containerFor(auth);
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        auth.emit(user);
+        await pumpEventQueue();
+
+        expect(source.permissionCalls, 0);
+      },
+    );
   });
 
   test('a second user signing in registers for that user', () async {

@@ -46,6 +46,11 @@ part 'push_token_sync.g.dart';
 class PushTokenSync extends _$PushTokenSync {
   String? _syncedUid;
 
+  /// Guards the one-shot permission prompt. iOS only ever shows its dialog once
+  /// per install, so a second call is harmless — but re-entering the whole
+  /// capture path on every rebuild of the paired screen would not be.
+  bool _promptedForPermission = false;
+
   /// The token this provider last registered — the one sign-out must remove.
   String? _registeredToken;
 
@@ -102,6 +107,45 @@ class PushTokenSync extends _$PushTokenSync {
       // No source overridden yet (the expected state until D2 step 4), or the
       // plugin failed to initialize. Either way: no pushes, no crash.
       debugPrint('PushTokenSync.tokenRefreshes unavailable: $failure');
+    }
+  }
+
+  /// Ask for notification permission, and register the token if it is granted.
+  ///
+  /// **The call that makes the rest of this file do anything on iOS.** Without a
+  /// permission grant `getToken()` returns nothing, so every other piece —
+  /// entitlement, plugin, callables, sweeps — is correct and silent.
+  ///
+  /// Called from the paired home screen, per ADR-042 D6: after pairing, on a
+  /// screen that has shown the user what the app is for, and never during boot.
+  /// Fire-and-forget by contract — it must never block a frame (ADR-039 D2) and
+  /// it never throws.
+  ///
+  /// Returns whether permission is now held, for callers that want to render
+  /// differently; the registration is the side effect that matters.
+  Future<bool> promptForPermissionAndRegister() async {
+    if (_promptedForPermission) return _registeredToken != null;
+    _promptedForPermission = true;
+    try {
+      final granted = await ref
+          .read(pushTokenSourceProvider)
+          .ensurePermission();
+      if (!granted) {
+        // A user who declines is an ordinary outcome, not a failure. Nothing is
+        // retried and nothing is surfaced: the app works exactly as it did
+        // before push existed.
+        debugPrint('PushTokenSync: notification permission not granted');
+        return false;
+      }
+      // Permission is what was missing; the token can be captured now. The
+      // refresh subscription was already attached at sign-in.
+      await _captureAndRegister(initial: false);
+      return _registeredToken != null;
+    } catch (failure) {
+      debugPrint(
+        'PushTokenSync.promptForPermission failed: ${failure.runtimeType}',
+      );
+      return false;
     }
   }
 
