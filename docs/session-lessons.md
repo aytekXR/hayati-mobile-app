@@ -38,6 +38,35 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**86 — "Merged and green" is not "running". This repo has no instrument that can tell you the difference for Functions, and it cost the whole push feature.** *(2026-08-07)*
+S062/S063 merged the entire push stack across #187-#196. Every PR green, every
+post-merge `main` run green including `integration-emulator`, the capability
+ticked, the entitlement signed, two builds shipped. I told the founder more than
+once that *"everything is built and shipped except the APNs `.p8`."*
+
+**Production was running Functions code from before #190.** `registerPushToken`
+and `unregisterPushToken` did not exist there at all. Build 116 would have
+prompted for permission, captured a token, called the callable, and received
+NOT_FOUND — no token, no push, ever, with no error surface, because every layer
+is fail-open by design.
+
+**Nothing in the repository could have told me.** There is no Functions deploy
+workflow (`deploy-rules.yml` and `deploy-site.yml` exist; functions have none),
+so deployment is a manual step nothing tracks, and #166 has been open since
+2026-08-01 saying exactly this.
+
+**How it was actually caught, and the transferable part:** by reading production
+logs — `firebase functions:log --project hayatiapp-prod`. Four consecutive hourly
+sweeps logged the two passes the old code has and **not** the one my new code
+emits unconditionally. The absence of an expected log line was the whole
+diagnosis.
+
+So: **when a feature spans a deploy boundary, "did my code merge" and "is my code
+running" are different questions, and only the second one matters to a user.**
+Ask the second one directly, against the live system, before reporting a feature
+as shipped. The tooling to do it already existed here — an authenticated CLI —
+and no session had thought to point it at production.
+
 **85 — A boundary a past session drew on SAFETY grounds is not the same as one drawn on CAPABILITY grounds, and the two need opposite treatment.** *(2026-08-06)*
 `appid_capabilities.py` was built read-only with an explicit reason in its header:
 enabling a capability "is a founder decision, and a tool that could do it would

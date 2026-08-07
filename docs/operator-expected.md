@@ -21,12 +21,22 @@ thing that refresh could only ask you to report._
 
 > ### 🔔 ONE THING now stands between you and a notification: the APNs key
 >
-> **Install build 116** (TestFlight — it is already available to you, no review
-> wait). It is the first build in this app's history that can receive a
-> notification at all, and the first that will ever ASK you for permission —
-> the prompt appears on the paired home screen, once. Say yes.
+> **Install build 116** (TestFlight — already available to you, no review wait).
+> It is the first build in this app's history that can receive a notification at
+> all, and the first that will ever ASK you for permission — the prompt appears
+> on the paired home screen, once. Say yes.
 >
 > Then do the `.p8` below. Then tell me whether anything arrives at 08:00.
+>
+> **Correction, recorded because you were told otherwise.** On 2026-08-06 you were
+> told everything was built and shipped bar the `.p8`. That was wrong: the server
+> code had been merged but **never deployed**, so the two functions the app calls
+> to register your phone did not exist in production at all. Your phone would have
+> asked for permission, got a token, tried to hand it over, and been told there is
+> no such function — silently, because every layer is built to fail quietly rather
+> than alarm you. Deployed on 2026-08-07 with your authorisation, and verified by
+> reading production back rather than trusting the deploy. The security rules that
+> lock that field went out at the same time.
 >
 > You authorised the API path on 2026-08-06 and **Push Notifications is now
 > ticked** on `com.beyondkaira.hayati` (measured before: absent; enabled; measured

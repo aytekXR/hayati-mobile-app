@@ -2413,3 +2413,20 @@ Shipped in #196: `PushTokenSource.ensurePermission()`, the FCM implementation (`
 **One operational note worth keeping:** Apple's build propagation lags upload by minutes. The first assign+submit of 116 failed with `HTTP 404: There is no resource of type 'builds' with id …` — a *race*, not a failure. A retry three minutes later succeeded. Do not read that 404 as a broken lane.
 
 **The objective ends here, and not because it was finished.** Every layer that can be built is built, signed, shipped and green. A push has still never arrived, and the two things standing in the way are both human: the APNs `.p8` uploaded through the Firebase console, and a person opening build 116 on a real iPhone and tapping Allow.
+
+### S063 continued — **"merged and green" was not "running", and nothing here could have said so**
+
+Everything above was merged, green, and **not deployed**. Production was running Functions from before #190: `registerPushToken` and `unregisterPushToken` **did not exist there at all**, and `questionRollover` had no daily-question pass.
+
+Build 116 would have prompted for permission, captured a token, called the callable, and received **NOT_FOUND** — no token, no push, ever, with no error surface, because every layer is fail-open by design. **The founder had been told twice that everything was shipped bar the `.p8`.** That was false.
+
+**Caught by reading production, not by a check.** `firebase functions:log --project hayatiapp-prod` over four consecutive hourly sweeps showed `sweep complete` and `at-risk sweep complete` and **no `daily-question sweep complete`** — a line the new code emits unconditionally. Its absence was the entire diagnosis. → **lesson 86.**
+
+**Deployed 2026-08-07 with founder authorisation**, both halves, and verified by reading back rather than trusting the deploy output:
+
+* `firebase deploy --only functions` — 13 functions, `registerPushToken` and `unregisterPushToken` **created**; confirmed by `functions:list`.
+* `firebase deploy --only firestore:rules` — confirmed by the repo's own instrument, `rules_drift.py --from-firebase-cli` → **exit 0, "MATCHES the ruleset on this ref"**. The `fcmTokens` freeze is live in production for the first time.
+
+**#166 gets its concrete recurrence.** It has been open since 2026-08-01 saying nothing compares deployed Functions to `main`; the comment records that this instance cost the whole feature, and that two *cheap partial* checks would each have caught it — a deployed-function-list set comparison, or an assertion over the sweep's own structured log. Neither answers the exhaustive "is the deployed code identical to main" that the issue was filed against. **Both would have worked, which is the argument for building one.**
+
+**Also true and worth stating: there is no Functions deploy workflow in this repo.** `deploy-rules.yml` and `deploy-site.yml` exist; functions have none. Every deploy is manual, and nothing tracks whether it happened.
