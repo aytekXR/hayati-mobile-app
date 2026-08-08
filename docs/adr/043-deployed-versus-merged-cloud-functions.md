@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-09 (Session 065)
 - **Deciders:** session agent (no founder input needed for the code; **two operator consequences fall out** — see D7 and D8)
-- **Related:** issue **#166** (this ADR answers it), **ADR-041** (the rules half — this is its Functions sibling and mirrors its exit taxonomy, its preflight-job shape and its read-only-by-construction rule; **D1's marker-file objection is examined and found NOT to apply**, see D3), **ADR-030** (Node 22), **ADR-013** (`RC_WEBHOOK_TOKEN` in Secret Manager), **ADR-034** (fail-closed, delta-not-absolute), **ADR-024** (all policy in the tool, not the YAML), `docs/architecture.md` §9, `docs/test-suite.md` §2
+- **Related:** issue **#166** (this ADR answers it), **ADR-041** (the rules half — this is its Functions sibling and mirrors its exit taxonomy, its preflight-job shape, its main-only placement and its read-only-by-construction rule; **D1's marker-file objection transfers intact and is applied** in D1 below, and **D6.1's `::warning::` exception is inherited rather than re-argued**, see D6.1), **ADR-030** (Node 22), **ADR-013** (`RC_WEBHOOK_TOKEN` in Secret Manager), **ADR-034** (fail-closed, delta-not-absolute), **ADR-024** (all policy in the tool, not the YAML), `docs/architecture.md` §9, `docs/test-suite.md` §2
 
 ## Context
 
@@ -205,6 +205,15 @@ would drift apart silently, and the tool would then be computing a reference
 over a set that is missing every compiled file — reporting drift forever, for a
 reason nothing in its output would name.
 
+### The assumption underneath, measured rather than assumed
+
+`referenceHash` only means anything if `npm run build` is **byte-reproducible**
+— otherwise two clean checkouts would disagree with each other before anyone
+got to production. It was measured: rebuilding `functions/` over an existing
+`lib/` reproduced **all 97 files byte-identically**, `tsc` and
+`bundle-packs.mjs` together. A build that were not reproducible would make this
+entire decision unsound, so it is a measurement and not a premise.
+
 ### Stated limitation, not papered over
 
 `referenceHash` assumes `functions/lib/` is a **current, clean** build of
@@ -212,7 +221,9 @@ reason nothing in its output would name.
 so a long-lived laptop checkout can carry stale `lib/` files that a CI runner
 would not. The tool cannot detect this and does not pretend to; on CI — the only
 place its exit code gates anything — `lib/` is built fresh into an empty
-checkout, so the assumption holds where it matters.
+checkout, so the assumption holds where it matters. An **absent** `lib/` is
+exit 2 with the remedy printed, never a comparison against a tree missing every
+compiled file.
 
 ## Decision 4 — Reconstruct `envHash` and `secretsHash` from the DEPLOYMENT, and say loudly what that puts out of contract
 
@@ -231,6 +242,30 @@ other two must be supplied.
   carries the project's default storage bucket, which is a remote fact; the
   deployed value *is* the string the CLI hashed, so taking it is a
   reconstruction, not a guess.
+
+### The two things that make `envHash` reproducible, both easy to get wrong
+
+**Key ORDER is part of the digest.** `prepare.js` builds
+`{...userEnvs, ...firebaseEnvs}` and `JSON.stringify` serialises in *insertion*
+order, never sorted. So the reconstruction is: user dotenv keys first, in file
+order; then `FIREBASE_CONFIG`; then `GCLOUD_PROJECT`. Building the dict the
+other way round produces a different hash and therefore a **false red** — which
+is indistinguishable from real drift, the worst failure this tool has. Python
+dicts preserve insertion order, and a mutation that swaps the two spreads
+reddens a named assertion.
+
+**`JSON.stringify` is not `json.dumps`.** Python's defaults insert a space
+after every `:` and `,` and escape non-ASCII to `\uXXXX`; V8 does neither. The
+tool uses `separators=(",", ":")` with `ensure_ascii=False`, and that claim is
+not asserted — it is **checked differentially against V8 itself** on ten inputs
+covering control characters, `U+2028`/`U+2029`, astral-plane code points,
+quote/backslash escaping and key order. All ten are byte-identical; the goldens
+in the test file are V8's own output, so "simplifying" either argument reddens.
+
+`defineString`/`defineSecret` **params** would add further keys to
+`environmentVariables`, and this repo uses none — secrets are declared with
+`secrets: ['NAME']`, which produces `secretEnvironmentVariables` and does not
+touch `envHash`. That is not assumed: it is what makes the reproduction exact.
 
 **What this deliberately puts out of contract, named rather than absorbed:**
 this check does **not** detect a secret rotation, nor a change to environment
@@ -261,6 +296,28 @@ The difference between 1 and 2 is the whole point and is restated here rather
 than cross-referenced, because collapsing them is exactly the defect
 `functions-rules` had.
 
+### Three cases where the honest code is 2 and the tempting code is 1
+
+**A function carrying no `firebase-functions-hash`.** Only firebase-tools
+stamps that label; a function deployed by `gcloud`, by a direct API call, or by
+a CLI old enough to predate it has none. Nothing can be concluded about its
+source — so it is **exit 2**, an *unmeasurable* function, never a matching one.
+
+**A listing with zero functions while this ref exports some.** That is either a
+project with nothing deployed — maximal drift — or a credential that can reach
+the API but cannot see the functions. The listing alone cannot tell them apart,
+and lesson **65** is exact about this: *an empty result is UNVERIFIED, not
+negative.* Reporting drift would send the next reader to redeploy a project
+that may be fine; reporting clean would be the original defect. **Exit 2, with
+both readings named.**
+
+**A `gcfv1` function, or a DataConnect-triggered one.** `applyHash.js` feeds
+v1 endpoints `functionsSourceV1Hash`, which can carry a `runtimeConfig` digest
+the v2 path never has; and `prepare.js` folds a DataConnect endpoint's GraphQL
+schema — a file *outside* the functions source directory — into the source
+digest. This tool implements neither. Both are **exit 2**: a comparison run
+with a missing input would report drift that is only a missing input.
+
 ## Decision 6 — It runs where `rules-drift` runs, and it is SKIPPED the same way
 
 `functions-drift-preflight` publishes a boolean; `functions-drift` gates on it.
@@ -278,6 +335,43 @@ The hermetic self-tests are a different matter and run in `quality` on every PR,
 beside the other pre-`pub get` self-tests — they need no network, no CLI and no
 credential.
 
+### D6.1 — the skip annotation is INHERITED from ADR-041 D6.1, not a new exception
+
+`functions-drift-preflight` emits `::warning::` when it skips for a missing
+credential, exactly as `rules-drift-preflight` does. `docs/architecture.md` §9
+says a green build must never carry a `::warning::`, and ADR-041 D6.1 recorded
+a deliberate exception for precisely this case: the annotation *is* the signal
+that nothing is watching, and burying it in a `::notice::` would make an unarmed
+gate indistinguishable from an armed one.
+
+This ADR is **not opening a second exception** — it is the same job shape, the
+same credential, the same silence. Stating it matters because the alternative
+reading (silent skip) would have been a defensible-looking implementation
+choice, and it would have quietly removed the only thing telling anyone the
+check is unarmed.
+
+### D6.2 — the CI lane checks `hayatiapp-prod` only. Dev is a session's instrument
+
+`rules-drift` checks both projects, and this one deliberately does not.
+
+The rules case and the Functions case are **not analogous**. A ruleset is one
+file and there is no reason dev should ever lag `main` — which is exactly how
+S064 found dev's missing `fcmTokens` freeze. Functions on dev **cannot** match
+`main` while operator item **0(c)** is open: `revenueCatWebhook` needs
+`RC_WEBHOOK_TOKEN`, dev does not have it, and the function therefore refuses to
+deploy there. Putting dev in the lane would redden `main` on every push, forever,
+for a filed operator dependency nobody can close that hour — ADR-034's and
+ADR-041 D6's cry-wolf shape, arrived at from a third road.
+
+The rejected alternative is worth naming: a committed *expected-missing*
+allowlist. That is ADR-025 D8's shape — a declaration nothing enforces — and it
+would silently absorb a genuinely missing function the day someone forgot to
+prune it.
+
+So dev is checked **by a session, on demand**, with the same tool and the same
+repeatable command. The moment 0(c) closes, adding `--project hayatiapp-dev` to
+the lane is a one-line change, and the YAML says so.
+
 ## Decision 7 — The credential CI would need, stated precisely
 
 #166 asks whether the question is answerable "with a credential CI could hold".
@@ -285,8 +379,15 @@ credential.
 `GOOGLE_APPLICATION_CREDENTIALS`, so a service-account JSON with
 **`roles/cloudfunctions.viewer`** (read-only, on both projects) is sufficient,
 and is the direct sibling of the `roles/firebaserules.viewer` account operator
-item **2(e)(iv)** already asks for. It is folded into that item rather than given
-a new number, so the founder performs one task and arms two checks.
+item **2(e)(iv)** already asks for.
+
+It keeps **item 2(e)(iv)'s number** — lesson **71**: operator numbers are cited
+by name from `rules_drift.py`, `ci.yml` and ADR-041, so a surviving item does
+not get renumbered. But keeping the number is not the same as leaving the text
+alone: that item's **instructions change in this diff** — a second role on the
+same service account, and a sentence saying the one secret now arms two checks
+rather than one. An item whose number survives while its instructions silently
+grow is how a founder ends up performing yesterday's task.
 
 **Read-only by construction, for ADR-041 D4's reason**: this tool must never be
 able to cause the drift it reports.
@@ -315,8 +416,29 @@ installed CLI's version and **fails closed (exit 2) on a different major**,
 printing the four source paths the derivation came from.
 
 A minor/patch difference prints a note and proceeds. It is not a `::warning::`:
-architecture §9 forbids one on a green build, and ADR-041 D6.1's exception was
-argued for a case this is not.
+architecture §9 forbids one on a green build, and D6.1's inherited exception was
+argued for the unarmed-gate case, which this is not.
+
+### A version pin cannot catch the algorithm moving INSIDE a version range
+
+That is the gap the panel review found, and it is real: the derivation has
+changed within a major before. So the tool does not rely on the pin alone. It
+**re-verifies four load-bearing shapes against the installed vendor source**
+every run, and refuses (exit 2) if any has moved:
+
+| file | the claim |
+|---|---|
+| `cache/hash.js` | `getEndpointHash` still joins `[sourceHash, envHash, secretsHash]` |
+| `cache/hash.js` | the digest is still `sha1` |
+| `prepareFunctionsUpload.js` | `sourceHash` is still `sha1` over the **sorted** per-file hashes |
+| `functions/secrets.js` | `getSecretVersions` still maps `{secret: version}` |
+
+`rules_drift.py` reads the installed CLI at runtime for the same reason — *"so
+that a firebase-tools upgrade which rotates or moves them produces a clear error
+instead of a silent 401."* Here the silent failure is worse than a 401: a tool
+computing confident nonsense and calling production drifted. The guard is
+mutation-checked in both directions — it passes against the real install and
+refuses a doctored one.
 
 **A limitation that cannot be engineered away and is therefore stated:** the
 tool verifies against the algorithm of the CLI installed *now*, while the hash it
@@ -326,13 +448,56 @@ a redeploy, and the deploy lane of D8 removes the ambiguity entirely.
 
 ## Consequences
 
-* #166's acceptance 1 is answered exhaustively and its acceptance **2** is taken
-  — a sound comparison exists. Acceptance 3 (close it as unanswerable) is
-  **not** the outcome, but the honest-gap posture it protected is preserved in
-  D4's named out-of-contract list and in D9's stated limitation.
-* `hayatiapp-dev` is the live positive case: the set comparison is **red** there
-  today, for a real reason.
-* Production reads as drift until it is redeployed from a clean tree — correctly.
-  The redeploy is a **§7 ask** and is not performed by this session.
+* #166's four acceptance criteria: **1** is answered exhaustively above; **2**
+  is taken — a sound comparison exists and is built in `rules_drift.py`'s shape;
+  **3** (close it as unanswerable) is therefore **not** the outcome, though the
+  honest-gap posture it protected survives in D4's named out-of-contract list,
+  D5's three exit-2 cases and D9's stated limitation; **4** is this ADR plus the
+  `docs/architecture.md` §9 entry **in the same diff**, which is what makes the
+  new jobs discoverable from the CI document rather than only from the YAML.
+* **`hayatiapp-dev` was the live positive case, and it was driven end to end.**
+  S065 deliberately left dev's drift in place so this checker could be watched
+  detecting something real rather than shipped green against nothing. Before:
+  **10 deployed, three exports missing, and all ten hashes mismatched.** Dev was
+  then deployed **from a clean tree** (dev is a session's to exercise) and the
+  tool re-run: **all twelve hash comparisons went silent** — a clean deploy
+  reproduces `referenceHash` bit-for-bit, which is the single strongest
+  confirmation that D3's reference set is defined correctly — leaving exactly
+  one finding, `revenueCatWebhook` absent, which is operator item **0(c)** and
+  not something a session can close. Red for a real reason, then green on the
+  half that was fixable, then red for a *named, filed* reason. A checker with
+  nothing to detect is the vacuous-green shape this repo keeps paying for.
+* Production reads as drift until it is redeployed from a clean tree — correctly,
+  and diagnosed as a process gap rather than as wrong code. The redeploy is a
+  **§7 ask** and is not performed by this session.
 * The tool is a strictly local instrument until operator 2(e)(iv) lands, at
   which point one secret arms both drift checks.
+
+### Residual risk this design knowingly accepts
+
+**The comparing CLI is not the deploying CLI.** The tool verifies against the
+algorithm of the firebase-tools installed *now*; the hash it compares against was
+stamped by whichever version performed the deploy. A deploy made by a version
+that computed hashes differently reads as drift. The vendor-shape guard bounds
+this — it refuses when *this* machine's CLI has moved — but it cannot inspect a
+CLI that ran on a different day. The remedy is a redeploy, and D8's lane
+removes the ambiguity entirely.
+
+**A function's state is observed at listing time.** A function that moves from
+`DEPLOYING` to `ACTIVE` between the listing and the comparison is correctly
+reported as it was when read, not as it became. Re-running the tool is the
+verification; there is no snapshot to be consistent with.
+
+**The hand-deploy diagnosis only works on the machine that made the deploy** —
+measured, not deduced. With the 62 foreign files moved aside, the same tool
+against the same production reported *"running source that is NOT this ref"*
+instead of *"deployed from a dirty tree"*. It is not wrong — it genuinely could
+no longer tell — but it means **the diagnostic branch is a local instrument and
+CI will always see the harsher of the two readings** until prod is redeployed
+cleanly. Which is the correct incentive, and one more argument for D8's lane.
+
+**A dotenv that binds stops the check rather than being interpreted.** The tool
+refuses to reimplement firebase-tools' strict dotenv parser, because a parser
+nothing validates, on the critical path of a hash comparison, produces a false
+RED that reads exactly like real drift. The day a `functions/.env*` binds for a
+compared project, this check exits 2 until someone extends it deliberately.
