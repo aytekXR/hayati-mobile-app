@@ -192,6 +192,24 @@ jobs:
       # guarding nothing, which is *literally* the defect #140 was filed about.
       - name: rules drift self-tests
         run: python3 tool/ci/rules_drift_test.py
+      # S064: the 15 iOS icons and 5 Android launcher icons had no generator —
+      # they were hand-produced one size at a time, and nothing could tell you a
+      # size had been missed. It had been: the Android five were still the
+      # default blue Flutter logo from the m0.1 scaffold, through 116 builds.
+      # These tests are hermetic (stdlib only — the tool deliberately depends on
+      # no image library, which is what lets the gate below run at all) and
+      # mutation-checked: a resampler shifted by one pixel, a defeated drift
+      # comparison, a dropped density, or "simplifying" the linear-light mixing
+      # each redden a named assertion.
+      - name: app icon generator self-tests
+        run: python3 tool/ci/app_icons_test.py
+      # The gate itself. Compares DECODED PIXELS, not file bytes: zlib's output
+      # is not guaranteed identical across zlib versions, so a byte comparison
+      # would red on a runner for a reason that has nothing to do with any icon.
+      # Exit 1 = an icon is not the correct downscale of the brandkit master;
+      # exit 2 = the master or Contents.json could not be read at all.
+      - name: app icon set matches the brandkit master
+        run: python3 tool/ci/app_icons.py --verify
       - name: pub get
         working-directory: app
         run: flutter pub get
