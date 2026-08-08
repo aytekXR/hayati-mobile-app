@@ -44,6 +44,47 @@ a check that mostly restates something else.
 > `main`" — which is candidate 2's weakness, and ADR-041 D1's objection applies
 > (whatever writes the record is the thing whose omission is the bug).
 
+### S064 got further than that. Four measurements, all read-only — start here
+
+**1. There is a clean instrument; do not use the audit log.**
+`firebase functions:list --project <p> --json` returns per-function
+`hash`, `labels`, and `source.storageSource.generation`. No `gcloud`, no ADC, no
+service account — the founder's local CLI login is enough.
+
+**2. The hash is PER-FUNCTION, not per-deploy.** Prod carries **three** distinct
+values across 13 functions: eleven share `fb789b16…` (the 2026-08-07 deploy),
+while `coachProxy` (`3e869aa3…`) and `revenueCatWebhook` (`476a433c…`) differ.
+Those two are exactly the functions that consume **secrets**, which is the
+obvious hypothesis for why their hash differs from siblings built out of the same
+source zip — **test it, do not assume it.** If secret *versions* participate in
+the hash, a rotation changes the hash without changing a line of code, and a
+checker built naively on it would report drift that is not drift.
+
+**3. `firebase deploy --dry-run` exists (CLI 15.22.4) and is NOT read-only.** Its
+own help says it "may still enable APIs on the target project", so pointing it at
+prod is a **§7 ask**, not a free measurement. Exercised against **dev**, it dies
+before reporting anything useful:
+
+```
+Error: Failed to validate secret versions:
+- RC_WEBHOOK_TOKEN … not found or has no versions   (operator item 0(c))
+```
+
+So **the rehearsal environment cannot run the instrument until an existing
+operator item is closed.** That is a finding for the issue, not a blocker for it.
+
+**4. The cheap set-comparison already found real drift — on dev.** Prod deploys
+all 13 exports in `functions/src/index.ts`. **Dev deploys 10.** Missing:
+`registerPushToken`, `unregisterPushToken`, `revenueCatWebhook`.
+
+> ⚠️ **That drift was left in place ON PURPOSE.** Dev is a session's to exercise
+> and fixing it is one command — but it is the only live positive case available
+> for the checker this session is meant to build, and a checker with nothing to
+> detect is the vacuous-green shape this repo keeps paying for. **Build the
+> check, watch it go red on dev, then deploy dev and watch it go green.** Note
+> the dev deploy will need `--only functions:registerPushToken,functions:unregisterPushToken`
+> to route around the missing secret in measurement 3.
+
 ---
 
 ## 1. Where things actually stand *(measured 2026-08-08 — re-measure, do not inherit)*
