@@ -13,26 +13,17 @@ import 'package:flutter_test/flutter_test.dart';
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  await _loadFamily('Rubik', const [
-    'assets/fonts/Rubik-Regular.ttf',
-    'assets/fonts/Rubik-Medium.ttf',
-    'assets/fonts/Rubik-SemiBold.ttf',
-    'assets/fonts/Rubik-Bold.ttf',
-  ]);
-  await _loadFamily('Noto Sans', const [
-    'assets/fonts/NotoSans-Regular.ttf',
-    'assets/fonts/NotoSans-Medium.ttf',
-    'assets/fonts/NotoSans-SemiBold.ttf',
-    'assets/fonts/NotoSans-Bold.ttf',
-  ]);
+  // Discovered from the bundled FontManifest rather than hard-coded, so this
+  // file cannot disagree with pubspec.yaml about which faces exist. It did:
+  // the four Rubik weights were listed here by hand, so when #176 added
+  // Rubik-Light the goldens would have kept rendering the question at Regular
+  // and the diff would have read as "no visual change" — the change being
+  // invisible to the instrument, not absent.
+  await _loadManifestFamily('Rubik');
+  await _loadManifestFamily('Noto Sans');
   // The Arabic fallback is a SEPARATE family: fallback resolution in tests
   // mirrors runtime, so without this every Arabic code point renders as tofu.
-  await _loadFamily('Noto Sans Arabic', const [
-    'assets/fonts/NotoSansArabic-Regular.ttf',
-    'assets/fonts/NotoSansArabic-Medium.ttf',
-    'assets/fonts/NotoSansArabic-SemiBold.ttf',
-    'assets/fonts/NotoSansArabic-Bold.ttf',
-  ]);
+  await _loadManifestFamily('Noto Sans Arabic');
 
   // MaterialIcons backs the RTL mirror net-proof: arrow_back must draw a real
   // directional glyph, not a symmetric placeholder box (a flipped box looks
@@ -42,14 +33,6 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   await _loadManifestFamily('MaterialIcons');
 
   await testMain();
-}
-
-Future<void> _loadFamily(String family, List<String> assets) async {
-  final loader = FontLoader(family);
-  for (final asset in assets) {
-    loader.addFont(rootBundle.load(asset));
-  }
-  await loader.load();
 }
 
 Future<void> _loadManifestFamily(String family) async {
@@ -68,4 +51,11 @@ Future<void> _loadManifestFamily(String family) async {
     await loader.load();
     return;
   }
+  // Loudly, not silently. A family that is absent from the manifest loads
+  // nothing, every glyph falls back to the flutter_test placeholder, and the
+  // goldens still pass — a green suite that measured the wrong pixels.
+  throw StateError(
+    'FontManifest.json declares no family "$family"; goldens would render it '
+    'in the flutter_test placeholder font. Check pubspec.yaml `fonts:`.',
+  );
 }

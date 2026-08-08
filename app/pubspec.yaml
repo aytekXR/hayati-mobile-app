@@ -71,6 +71,14 @@ flutter:
   fonts:
     - family: Rubik
       fonts:
+        # 300 is the daily question's hero weight (TypographyTokens.light). It
+        # was declared in code long before the face existed, so w300 silently
+        # resolved to Regular — see #176. Same release as the others
+        # (v2.300/gftools 0.9.30) and metrically identical to them: same
+        # unitsPerEm, same 935/-250 vertical metrics, same 885-codepoint
+        # coverage, same advance widths on the Regular of that batch.
+        - asset: assets/fonts/Rubik-Light.ttf
+          weight: 300
         - asset: assets/fonts/Rubik-Regular.ttf
           weight: 400
         - asset: assets/fonts/Rubik-Medium.ttf

@@ -32,10 +32,11 @@ abstract final class TypographyTokens {
   // Reserved for the question itself; it is deliberately NOT mapped onto a
   // Material TextTheme role so no component inherits it by accident.
   //
-  // NOTE: the Rubik Light (300) face is not bundled yet (the redesign adds
-  // 300/800 to the family); until the asset lands, Flutter resolves w300 to
-  // the nearest bundled face (Regular) — the declared weight is already
-  // correct so the glyphs lighten the day the font file ships.
+  // The Rubik Light (300) face is bundled since #176; before that, w300
+  // resolved to the nearest bundled face (Regular) and the hero text never
+  // actually lightened. The redesign also lists 800, but nothing declares w800
+  // anywhere in lib/, so that half was not bundled — add the face in the same
+  // diff as the first caller, not before it.
 
   static const double questionSize = 28;
   static const double questionHeightLatin = 1.35;
