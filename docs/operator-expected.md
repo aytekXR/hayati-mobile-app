@@ -88,9 +88,21 @@ single thing left is **one install and one tap**.
 **Done.** The mark you chose is now every icon the app has: 15 iOS sizes, 5
 Android launcher sizes, and the 1024 App Store icon — all 20 regenerated from
 your file and each one verified changed at the byte level. It is on `main` and
-in **build 117**, dispatched on 2026-08-08 with your authorisation. Confirmed
-present in the built app, not just the repo: the icon inside `Runner.app`
-dropped from 6 KB to 3 KB, which is the new file.
+in **build 117**, which is **live on your TestFlight right now** —
+`processing=VALID`, `internal=IN_BETA_TESTING`, and Apple approved its beta
+review, so your external testers have it too.
+
+**Verified all the way to Apple, not just to the repo.** App Store Connect
+returns its own rendering of the icon inside the uploaded binary, and it is your
+mark:
+
+```
+icon: .../AppIcon60x60@2x.png  (120x120)
+```
+
+Chain: your file → the generator → the repo → Xcode's asset catalog → the signed
+binary (the icon inside `Runner.app` dropped 6 KB → 3 KB, which is the new file)
+→ Apple's own copy.
 
 Two things worth knowing, neither needing anything from you:
 
