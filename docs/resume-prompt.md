@@ -1,4 +1,4 @@
-# Resume Prompt — Session 064
+# Resume Prompt — Session 065
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -6,132 +6,188 @@
 > Before starting, read the two companions:
 > * **`session-context.md`** — toolchain, machine, review discipline, binding
 >   invariants, and the never-without-asking list.
-> * **`session-lessons.md`** — the institutional lessons, numbered to **86**. Cited
+> * **`session-lessons.md`** — the institutional lessons, numbered to **90**. Cited
 >   below by number.
 >
 > Re-derive the session number from `git log`; a session on another machine can consume it.
 
-**Objective: ship the app icon the founder chose.**
+**Objective: answer #166 — is the deployed Functions code comparable to `main`, and if so, gate it.**
 
-It is decided, unblocked, and has lost to the push objective for three sessions
-running. The founder asked for it on 2026-08-05 and it is the fastest visible win
-left.
+This is the check whose absence cost the entire push feature. S063 merged the
+whole stack, every PR green, `integration-emulator` green, two builds shipped —
+and production was running Functions from before #190, so the callables the app
+invokes **did not exist**. Nothing in the repository could have said so
+(lesson **86**). #166 has been open since 2026-08-01 saying exactly this.
 
-> **Push is no longer this file's objective.** S063 took it as far as engineering
-> reaches: the capability is ticked, `aps-environment` is signed into **build
-> 116**, all three behaviours compose and route, and — this was nearly missed —
-> **the server half is now actually DEPLOYED** (it had been merged and green and
-> not running; lesson **86**). **One console action remains** — the APNs `.p8` into both Firebase projects — and it is
-> founder-only and unmeasurable (`gcloud` absent, no ADC, no Firebase CLI APNs
-> command; re-checked 2026-08-06, do not re-derive by guessing). When the founder
-> says it is done, the very next thing to do is **ask them to open build 116,
-> grant the notification permission, and report whether a push arrives** — that
-> observation is the only thing that can close M3.4, and no session can make it.
+**It is measurement-first and may honestly close as unanswerable** — read the
+issue body, it sets that out. Acceptance 3 is a legitimate outcome: *"no sound
+comparison exists, here is the evidence, closed."* An honest recorded gap beats
+a check that mostly restates something else.
+
+> **S064 found the first real lead, so do not start from zero.** The deployed
+> functions carry a Firebase-stamped label:
+>
+> ```
+> "labels":{"deployment-tool":"cli-firebase","deployment-callable":"true",
+>           "firebase-functions-hash":"fb789b160cab7febc561eb7573a404e2367363cd"}
+> ```
+>
+> Seen on 2026-08-08 in the **audit-log entries** returned by
+> `firebase functions:log --project hayatiapp-prod --only registerPushToken`
+> (the `CreateFunction` AuditLog records from the 2026-08-07 deploy — not in
+> `functions:list` output, which does not show labels).
+>
+> That is candidate **1** in the issue body, and it is now *observed to exist*
+> rather than hypothesised. **The open question is the one the issue already
+> names: is it derivable from a checkout?** If the hash cannot be recomputed
+> locally from `functions/`, it identifies a deploy but cannot answer "is this
+> `main`" — which is candidate 2's weakness, and ADR-041 D1's objection applies
+> (whatever writes the record is the thing whose omission is the bug).
+
+### S064 got further than that. Four measurements, all read-only — start here
+
+**1. There is a clean instrument; do not use the audit log.**
+`firebase functions:list --project <p> --json` returns per-function
+`hash`, `labels`, and `source.storageSource.generation`. No `gcloud`, no ADC, no
+service account — the founder's local CLI login is enough.
+
+**2. The hash is PER-FUNCTION, not per-deploy.** Prod carries **three** distinct
+values across 13 functions: eleven share `fb789b16…` (the 2026-08-07 deploy),
+while `coachProxy` (`3e869aa3…`) and `revenueCatWebhook` (`476a433c…`) differ.
+Those two are exactly the functions that consume **secrets**, which is the
+obvious hypothesis for why their hash differs from siblings built out of the same
+source zip — **test it, do not assume it.** If secret *versions* participate in
+the hash, a rotation changes the hash without changing a line of code, and a
+checker built naively on it would report drift that is not drift.
+
+**3. `firebase deploy --dry-run` exists (CLI 15.22.4) and is NOT read-only.** Its
+own help says it "may still enable APIs on the target project", so pointing it at
+prod is a **§7 ask**, not a free measurement. Exercised against **dev**, it dies
+before reporting anything useful:
+
+```
+Error: Failed to validate secret versions:
+- RC_WEBHOOK_TOKEN … not found or has no versions   (operator item 0(c))
+```
+
+So **the rehearsal environment cannot run the instrument until an existing
+operator item is closed.** That is a finding for the issue, not a blocker for it.
+
+**4. The cheap set-comparison already found real drift — on dev.** Prod deploys
+all 13 exports in `functions/src/index.ts`. **Dev deploys 10.** Missing:
+`registerPushToken`, `unregisterPushToken`, `revenueCatWebhook`.
+
+> ⚠️ **That drift was left in place ON PURPOSE.** Dev is a session's to exercise
+> and fixing it is one command — but it is the only live positive case available
+> for the checker this session is meant to build, and a checker with nothing to
+> detect is the vacuous-green shape this repo keeps paying for. **Build the
+> check, watch it go red on dev, then deploy dev and watch it go green.** Note
+> the dev deploy will need `--only functions:registerPushToken,functions:unregisterPushToken`
+> to route around the missing secret in measurement 3.
 
 ---
 
-## 1. Where things actually stand *(measured 2026-08-06 — re-measure, do not inherit)*
+## 1. Where things actually stand *(measured 2026-08-08 — re-measure, do not inherit)*
 
 | | State |
 |---|---|
-| **Push, server side** | **DONE.** All three founder behaviours compose and route: `dailyQuestion` at couple-local 08:00, `partnerAnswered` on the reveal trigger, the unanswered nudge at 16:00. `fcmTokens` has writers and a rules lock. |
-| **Push, device side** | **Nothing has ever arrived** — but the plugin, the adapter, the app-root activation, `aps-environment` AND the permission prompt are all on `main` and **shipped in build 116**. The server half is deployed and proven running. Missing: the APNs `.p8` in Firebase (founder-only). |
-| **App ID capabilities** | `PUSH_NOTIFICATIONS` **ticked 2026-08-06** (API, founder-authorised; undo id `Q344R7M7MY_PUSH_NOTIFICATIONS`). `ASSOCIATED_DOMAINS` and `APP_ATTEST` still absent — neither blocks anything today. |
-| **Build 116** | Uploaded 2026-08-07, `VALID`, `internal=IN_BETA_TESTING`, assigned to `Friends`, submitted for review. **THE build to talk to the founder about** — 115 has the entitlement but NOT the permission prompt, so 115 can never capture a token. 116 can. |
-| **Build 115** | Superseded. Apple approved its beta review (`external=IN_BETA_TESTING`), but it is functionally push-dead — no permission request. |
-| **`MATCH_BOOTSTRAP`** | Set for exactly one release run to regenerate the profile, then **deleted**. Verify it is still gone (`gh variable list`) — if it is set, CI can mint credentials, which ADR-032's readonly exists to prevent. |
-| **Deployed Functions** | Brought up to `main` on 2026-08-07 by hand (there is **no deploy workflow** — see #166). **Re-measure, do not inherit:** `firebase functions:list --project hayatiapp-prod` against the exports in `functions/src/index.ts`, and `firebase functions:log --only questionRollover` for the three per-sweep summary lines. A missing `daily-question sweep complete` means prod is behind again. |
-| **Deployed rules** | Match `main` as of 2026-08-07 (`rules_drift.py --project hayatiapp-prod --from-firebase-cli` → exit 0). The `fcmTokens` freeze is live. |
-| **Build 113/114** | Superseded by 115. |
-| **`firestore.rules`** | **Changed in S062 and NOT deployed** — prod/dev differ from `main` until `deploy-rules.yml` runs, which needs `FIREBASE_SERVICE_ACCOUNT` (operator 2(e)(iii)). **The `fcmTokens` freeze is not live yet.** |
-| **Screenshots** | en-US: 6 live since 2026-08-03. `tr` never uploaded. |
+| **Push, server side** | **DONE and RUNNING.** All 13 exports in `functions/src/index.ts` are deployed to prod, and all **three** per-sweep summary lines appear on every hourly pass (`sweep complete`, `daily-question sweep complete`, `at-risk sweep complete`). The missing third line was S063's whole diagnosis; it is present. |
+| **Push, credentials** | **DONE.** The founder confirmed on 2026-08-08 that the APNs `.p8` is uploaded to **both** Firebase projects. `PUSH_NOTIFICATIONS` was ticked 2026-08-06. |
+| **Push, device side** | **Still zero.** `registerPushToken` has **never been invoked by a device** (only `CreateFunction` audit entries), and `checked` is **0** on every `daily-question sweep complete`. Nobody has a token because nobody has opened a build and tapped Allow. |
+| **How to check that WITHOUT asking the founder** | `firebase functions:log --project hayatiapp-prod --only registerPushToken` and the `checked` counter above. **Both move the moment a real device accepts the prompt** (lesson **90**). This replaced "ask them whether a push arrived", which blocked M3.4 for three sessions. |
+| **Build 117** | **Live.** `processing=VALID`, `internal=IN_BETA_TESTING`, **`external=IN_BETA_TESTING`** (Apple approved the beta review), groups `founders, Friends`. Carries the icon AND the whole push slice. Delivery was **not inferred from the green release** — the assignment (`assigned build 117 to 'Friends'`) and the submission (`build 117: submitted for Beta App Review`) were each read out of the job log, then re-read from the API. Apple's own icon rendering was fetched and is the founder's mark. Build number is `100 + run_number` (ADR-032). |
+| **App icon** | **SHIPPED.** All 20 rasters derive from the founder's master via `tool/ci/app_icons.py`; `--verify` runs in CI's `quality` job. `AppIconDiscreet` byte-identical. |
+| **Deployed rules** | **Both projects match `main`** — `rules_drift.py --from-firebase-cli` exit **0** for prod AND dev on 2026-08-08. Dev had drifted since 2026-08-01 and was deployed this session (dev is a session's to exercise). The `fcmTokens` freeze is live in both. |
+| **Screenshots** | en-US: 6 live. **`tr` absent, and NOT for the reason three prompts have said.** Apple refuses to create the `tr` localization — *"the app name is already being used by another app"* — on **every release since build 112**, silently, because the `deliver` step is `continue-on-error` by design (ADR-020 D8) and nobody read it. Filed as **#204**. It needs a founder *decision* (a different Turkish display name), not a click. |
+| **`MATCH_BOOTSTRAP`** | Confirmed absent from `gh variable list` 2026-08-08. |
 
 ---
 
 ## 2. THE OBJECTIVE
 
-### Part 1 — the app icon (decided, just not executed)
+Work the issue's four acceptance criteria in order. **Acceptance 1 is the
+session** — 2 and 3 are the two possible outcomes of it.
 
-The founder was shown the candidates and chose
-**`brandkit/branding-assets/icons/hayati-appicon-ios-1024.png`**, the pre-redesign
-mark. **Execute that; do not re-open the choice.**
+### Acceptance 1 — measure, and say which questions the instrument can answer
 
-⚠️ **`git revert` is the wrong instrument** (lesson **80**). `git log --follow` on
-`Icon-App-1024x1024@1x.png` returns exactly two commits, and the earlier one is the
-**default blue Flutter logo** from the m0.1 scaffold. The chosen file has never been
-in that path's history.
+For **both** projects: what is deployed, and is that answerable at all with a
+credential CI could hold? Name plainly what the `firebase` CLI can and cannot
+do. `gcloud` is **not installed** and there is **no ADC** — say so rather than
+asserting Cloud Functions v2 admin API results you cannot obtain (candidate 3
+may be unreachable from here for exactly that reason; that is a finding, not a
+failure).
 
-⚠️ **There is no `flutter_launcher_icons`.** The 15 iOS PNGs and 5 Android
-`mipmap-*/ic_launcher.png` are hand-produced. Generate them deliberately and
-**verify every size actually changed** (lesson **66** — a generator that silently
-skips a size leaves a stale icon at exactly one scale factor, which is the one a
-tester's device will use).
+The concrete first experiment, given the lead above:
 
-⚠️ **Leave `AppIconDiscreet` alone.** `redesign/icons/README.md` §5 is explicit, and
-it is load-bearing for the on-device check at operator 4(3).
+1. Read the label off a deployed function by a repeatable command (the audit-log
+   path above works; find whether a cleaner one exists).
+2. Try to recompute `firebase-functions-hash` from `functions/` in a checkout.
+   If it is not derivable, candidate 1 collapses into candidate 2.
+3. Re-run after a no-op redeploy to `hayatiapp-dev` and see whether the hash is
+   stable for identical source — **a hash that changes per deploy cannot detect
+   drift, and a hash that never changes cannot either.** Dev is a session's to
+   exercise; prod is not.
 
-### Part 2 — ship the icon in a build
+### Acceptance 2 or 3 — build it, or close it with evidence
 
-Builds 115 and 116 went out on 2026-08-06/07 with the push slice. The icon needs one more.
+If a sound comparison exists, build it in `rules_drift.py`'s shape: fail-closed,
+the exit-code taxonomy (**0** in sync / **1** drift / **2** could not measure),
+either MEASURED or **visibly SKIPPED** with no third outcome (lesson **77**),
+hermetic self-tests registered in `quality`, mutation-checked with each mutation
+reddening a *named* assertion. `tool/ci/app_icons.py` + its test are this
+session's worked example of that shape, including the sections-based harness
+that reports which property moved when a mutation *raises*.
 
-```sh
-gh workflow run release.yml --ref main
-gh workflow run testflight-testers.yml -f dry_run=false -f assign_latest_build=true -f submit_for_review=true
-```
+If no sound comparison exists, **close #166 with the evidence** and record the
+two cheap partial checks that would each have caught S063's actual failure —
+they are named in `past-prompts.md` S063 and both are now demonstrated:
 
-⚠️ **Ask the founder before dispatching `release.yml`** (`session-context.md`
-never-without-asking list). They authorised the 115 dispatch specifically; that
-does not carry forward.
-⚠️ **Never infer delivery from a green release** — read the assignment step's log
-or re-run `-f status_only=true`. It has failed silently twice, and Apple refuses a
-second beta submission with a message that prints as "already submitted — no-op"
-and exits **0**.
+* a **set comparison** of `firebase functions:list` against the exports in
+  `functions/src/index.ts` (13 vs 13 today), and
+* an **assertion over the sweep's own structured log** — the absence of
+  `daily-question sweep complete` *was* the diagnosis.
 
-### Acceptance criteria
+Neither answers "is the deployed code identical to `main`". **Both would have
+worked**, which is the argument for building one even if the exhaustive answer
+is unreachable.
 
-1. Every icon size regenerated and **diffed** — assert on the bytes, not on the
-   generator's exit code.
-2. `AppIconDiscreet` byte-identical before and after.
-3. The build dispatched only after the founder says yes, and its TestFlight
-   assignment **read back from the API**, not inferred.
-4. If the founder is unavailable, land the icon and **say plainly that the build
-   was not dispatched and why** — do not dispatch it to avoid an awkward handoff.
+### Acceptance 4
+
+ADR + `docs/architecture.md` §9 in the same diff (rule #8).
+
+### ⚠️ Before touching anything
+
+**Prod Functions deploys are on the never-without-asking list** (`session-context.md`
+§7). Arming anything in CI needs the same operator secret as the rules half
+(**2(e)(iii)**), which is still absent — so expect the lane to be *visibly
+skipped*, by design, exactly like `rules-drift`.
 
 ---
 
 ## 3. Then, in priority order
 
-**1 — `tr` screenshots.** en-US is **done and live**; tell the founder, they asked
-again only because nobody told them. **TestFlight has no screenshot field**
-(measured, PR #181). `tr` needs its App Store **version localization** to exist
-first: read with `tool/ci/testflight_testers.py --store-status`; if `tr` exists,
-dispatch `appstore-screenshots.yml -f upload=true -f locales=en-US,tr`. If not, it
-is a founder action already on the operator page.
+**1 — Ask whether the founder installed 117 and tapped Allow, then MEASURE.**
+Do not ask them what arrived; ask only whether they accepted the prompt, then
+read `registerPushToken`'s log and the `checked` counter yourself. If a token was
+captured and no push arrives at 08:00, that is a real bug and now a findable one.
 
-**2 — Close M3.4, but only the founder can start it.** Ask whether the APNs `.p8`
-is uploaded to **both** Firebase projects. If yes: ask them to install **build
-116** (not 115), open it to the paired home screen, **accept the permission
-prompt**, and say whether anything arrives at 08:00. **That observation is the
-only thing that can close M3.4**, and no session can make it.
+**2 — #204, the `tr` localization.** Do **not** repeat the old instruction to
+the founder ("just add the locale") — it was wrong and is corrected on the
+operator page. Apple rejects the name. The non-founder half of #204 is real
+engineering and is unblocked: **make a failed `deliver` visible** so a green
+release cannot again mean "store metadata silently did not land" (ADR-024 D1:
+all notifier policy lives in `slack_notify.sh`, and the notifier has no vote on
+the build). Once the founder picks a name, `name.txt` + `release_lane_lint.dart`
++ ADR-032 move in one diff, then
+`appstore-screenshots.yml -f upload=true -f locales=en-US,tr`.
 
-⚠️ **Runtime is still unobserved.** The plugin BUILDS against this project's
-pure-Dart `FirebaseOptions` (there is no `GoogleService-Info.plist`) and coexists
-with the scene-based AppDelegate — both proven by a real macOS compile. Nothing has
-proven the swizzling behaves on a live device, or that a token is ever actually
-captured. `PushTokenSync` fails open around all of it, so the honest failure mode
-is silence. **Build 116 is the first build that could show this — NOT 115, which has
-the entitlement but no permission prompt and therefore can never capture a token. Ask.**
+**3 — The rest.** Re-derive from `gh issue list`. **#175** (10 of 14 raised cards
+render flat) · **#174** (no `liveRegion` — the reveal is never announced) ·
+**#137** · **#129/#121** · **#115** · **#41**.
 
 ⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
-first (`secure_storage_pin_lock_store.dart`: a locked-device background read of an
-`unlocked_this_device` Keychain item fails and hits the fail-open path). Token
-capture needs none of it; only background *delivery* does. `signing_sentinel_test`
-reddens if it is added.
-
-**3 — The rest.** Re-derive from `gh issue list`. **#176** (Rubik Light declared,
-not bundled — the cheapest real bug here) · **#175** (10 of 14 raised cards render
-flat) · **#174** (no `liveRegion` — the reveal is never announced) · **#166**
-(measurement-first; may honestly close as unanswerable) · **#137** · **#129/#121**.
+first. Token capture needs none of it; only background *delivery* does.
+`signing_sentinel_test` reddens if it is added.
 
 ---
 
@@ -139,15 +195,15 @@ flat) · **#174** (no `liveRegion` — the reveal is never announced) · **#166*
 
 | What | Blocked on | Why a session cannot take it alone |
 |---|---|---|
-| **operator 4(a)** — APNs key + Push Notifications tick | founder | **MEASURED ABSENT 2026-08-06.** Gates #188 and every actual delivery. The `.p8` half is console-only and unmeasurable. |
-| **operator 2(d)** — Associated Domains | founder | **MEASURED ABSENT.** Same portal page as 4(a) — one visit does both. |
-| **`tr` App Store version localization** | founder | Screenshots cannot upload into a locale that does not exist |
-| **operator 2(e)(iii)** | founder | `FIREBASE_SERVICE_ACCOUNT`. **Now also blocks the S062 rules freeze from going live.** |
+| **M3.4's last inch** | the founder's phone | One install + one permission tap. **The credential half is CLOSED** (APNs `.p8` confirmed 2026-08-08). Verification is no longer blocked — only the tap is. |
+| **`tr` App Store version localization** | founder | Measured absent. Screenshots cannot upload into a locale that does not exist |
+| **operator 2(d)** — Associated Domains | founder | Measured absent. Same portal page as the push tick |
+| **operator 2(e)(iii)** | founder | `FIREBASE_SERVICE_ACCOUNT`. Gates arming any deploy lane in CI |
 | **operator 2(e)(iv) / #165** | founder | One read-only SA + `gh secret set`. Until then `rules-drift` is SKIPPED **by design** |
 | **operator 2(e)(ii)** | founder | The controller's legal name. Blocks `/privacy`, `/terms`, the listing |
 | **#115** | founder | Making a prod endpoint world-reachable is a security decision on a live system |
 | **#41** | founder | Live billing identity — *clean change* vs *migration* |
-| **#48**, **#15**, **#136** | the device | On-device observation nobody has made — **and four testers have it installed** |
+| **#48**, **#15**, **#136** | the device | On-device observation nobody has made |
 | **#13** | M6.5 | Android, Gate-3 gated (ADR-006) |
 | **#63**, **#71** | founder | Brandkit revisions |
 
@@ -159,4 +215,4 @@ Append to `past-prompts.md` → regenerate this file (one objective) → refresh
 `operator-expected.md` → commit + push → verify CI → **watch the post-merge `main` run**
 (`integration-emulator` is main-only) → `codegraph sync`.
 
-**S059–S061 skipped this three times. S062 and S063 both ran it. Keep the streak.**
+**S059–S061 skipped this three times. S062, S063 and S064 all ran it. Keep the streak.**

@@ -85,12 +85,35 @@ M3.4 ~~✅~~ **⚠️ CORRECTED 2026-08-06 (Session 062) — see the note at the
 >    verified RUNNING by the production sweep log, not by the deploy's own output
 >    (lesson **86**; issue **#166**).
 >
-> **It still has not delivered a push.** What remains is not engineering: the APNs
-> `.p8` uploaded through the Firebase console (console-only — no `gcloud`, no ADC,
-> no CLI command), and a human opening build 116 on a real iPhone and granting
-> permission. **M3.4 stays open until a push reaches a device and somebody sees
-> it** — which, three false "it's done" reports later, is exactly why that
-> criterion is written this way.
+> **It still has not delivered a push.** What remains is not engineering.
+>
+> **Update 2026-08-08 (Session 064) — the credential half is closed.** The founder
+> confirmed the APNs `.p8` is uploaded to **both** Firebase projects, and the
+> Push Notifications capability was ticked on 2026-08-06. Everything a session
+> can build, deploy or authorise now exists and was re-measured in production the
+> same day: 13 Functions deployed and current with `main`, and all three
+> per-sweep summary lines emitted on every hourly pass.
+>
+> **What is left is a human opening the app and tapping Allow** — build 116 or
+> later; **never 115**, which carries the entitlement but not the prompt and can
+> therefore never be issued a token.
+>
+> **The verification half moved back inside the session** (lesson **90**). This
+> criterion used to read "somebody sees it", which made the whole item wait on a
+> report. Production answers a sharper form of the question, and a session can
+> read it directly:
+>
+> ```
+> firebase functions:log --only registerPushToken   -> ever invoked by a device?
+> "daily-question sweep complete" {"checked": N}     -> couples evaluated for a push
+> ```
+>
+> Baseline measured 2026-08-08: `registerPushToken` **has never been invoked** by
+> a device (only deploy audit entries), and `checked` is **0** on every pass — no
+> couple has a token. Both numbers move the moment a real device accepts the
+> prompt. **M3.4 stays open until a push reaches a device**, but "did the token
+> get captured" is now a measurement rather than a question for the founder —
+> which, three false "it's done" reports later, is the point.
 
 ## M4 — Paywall & entitlements (3 sessions)
 

@@ -38,6 +38,89 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**91 — An unread failure does not stay silent; it gets EXPLAINED, and the explanation lands on a person.** *(2026-08-08)*
+Lesson 69 already says *`continue-on-error` is not the bug; an UNREAD failure
+is.* This is what the unread failure actually did, which is worse than "nothing
+happened."
+
+`release.yml`'s `deliver` step is `continue-on-error: true` **for a good reason**
+(ADR-020 D8: store copy must never fail a run whose binary already shipped). It
+has failed identically on **every release since build 112** — six of them —
+with Apple refusing to create the `tr` listing: *"the app name is already being
+used by another app."* Green step, green job, green run, silent notifier.
+
+**The gap did not go unexplained. It went WRONGLY explained.** Turkish
+screenshots were missing, so the absence got attributed to the only visible
+cause — the founder had not added the locale — and `operator-expected.md` carried
+that for several sessions, ending in a confident one-minute click path that
+would have hit the same rejection. *S064 wrote a fresh version of that same wrong
+instruction earlier the same day, from a correct measurement (`tr` really is
+absent) and a wrong inference about why.*
+
+So: **when a symptom has an obvious human-shaped cause, check whether a machine
+already recorded a different one** — especially where something is permitted to
+fail quietly. And when you allow a step to fail, decide in the same breath *who
+reads it and where* — a failure nobody reads is not a deferred cost, it is a
+false explanation waiting to be adopted. Filed as **#204**, whose first
+acceptance criterion is visibility, not the fix.
+
+**90 — Before recording "only a human can observe this", ask what the system already writes down.** *(2026-08-08)*
+M3.4 sat blocked for three sessions on an operator dependency phrased as *"ask
+the founder to install the build, accept the prompt, and say whether a push
+arrives at 08:00."* That is a real dependency for the *install* — and the wrong
+boundary for the *observation*. Production answers a sharper version of the
+question directly, to a CLI this repo already had:
+
+* `firebase functions:log --only registerPushToken` — has any device **ever**
+  called it? (Measured: no. Only deploy audit entries.)
+* the `daily-question sweep complete` line's `checked` counter — how many
+  couples were even evaluated for a push? (Measured: `0`, every hourly pass.)
+
+So the founder's half shrank to *"open it and tap Allow"*, and the verification
+half moved back inside the session, where it can be re-run at will. **The
+generalisable move: split a blocked item into the part that genuinely needs the
+human and the part you assumed needed them because it was written in the same
+sentence.** Lesson 85 said a recorded boundary may be authority rather than
+capability; this is the third kind — a boundary that is real for one clause and
+imaginary for the next.
+
+**89 — A test harness that names its inputs BY HAND cannot see a new input, and its silence reads as "nothing changed".** *(2026-08-08)*
+`flutter_test_config.dart` loaded the brand fonts from a hard-coded list of four
+Rubik files. #176's fix adds a *fifth* face to `pubspec.yaml`. Goldens would have
+kept rendering the question at Regular, the golden diff would have come back
+empty, and the honest-looking conclusion — *"the font change is a no-op"* —
+would have been exactly backwards: the change was invisible to the instrument,
+not absent. The repo already had the drift-proof mechanism (`FontManifest.json`,
+used for MaterialIcons) sitting in the same file, four lines below.
+**When you add to a declared set, check whether the TEST reads the declaration
+or a private copy of it.** And the same file's manifest loader returned
+*silently* when a family was missing — loading nothing, rendering every glyph in
+the placeholder font, and passing. It throws now.
+
+**88 — A byte comparison of a COMPRESSED artefact tests the compressor as well as the content.** *(2026-08-08)*
+The icon gate was first written to compare committed PNG bytes against a fresh
+render. It passed locally and would have been wrong to ship: `zlib`'s output is
+not guaranteed identical across zlib versions, so the gate could red on a CI
+runner for a reason that has nothing to do with any icon — and a false red that
+looks exactly like a true one is worse than no gate. Comparing **decoded pixels**
+is both portable and the property actually worth asserting: *this file is the
+correct downscale of the master*, however it happens to be deflated. **Ask what
+your comparison is a comparison OF.** Content-addressing a derived binary
+silently pins every tool in the chain that produced it.
+
+**87 — A handoff's claim about a binary asset's HISTORY is as inheritable, and as wrong, as any other — and the asset itself is a first-hand instrument.** *(2026-08-08)*
+`resume-prompt.md` said *"the 15 iOS PNGs and 5 Android `mipmap-*/ic_launcher.png`
+are hand-produced."* The iOS fifteen were. **The Android five were the default
+blue Flutter logo from the m0.1 scaffold, untouched through 116 builds** — and
+the PNGs said so without anyone opening them: 442–1443 bytes, colour type 3
+(palette) with `tRNS` and a `tEXt` chunk, while every hand-produced icon in the
+tree is truecolour RGB. `git log --follow` on any of them returns exactly one
+commit, the scaffold. **The metadata of a binary is testimony about where it came
+from, and it costs seconds to read.** This is lesson 3's shape (an inherited
+premise nobody re-measured) applied to a file rather than a fact — and the reason
+it survived so long is that a wrong icon on an unshipped platform breaks nothing,
+so no signal ever contradicted it.
+
 **86 — "Merged and green" is not "running". This repo has no instrument that can tell you the difference for Functions, and it cost the whole push feature.** *(2026-08-07)*
 S062/S063 merged the entire push stack across #187-#196. Every PR green, every
 post-merge `main` run green including `integration-emulator`, the capability
