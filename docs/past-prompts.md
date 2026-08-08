@@ -2440,3 +2440,92 @@ The middle line did not exist in any sweep before 21:00. A deploy that reports s
 **#166 gets its concrete recurrence.** It has been open since 2026-08-01 saying nothing compares deployed Functions to `main`; the comment records that this instance cost the whole feature, and that two *cheap partial* checks would each have caught it — a deployed-function-list set comparison, or an assertion over the sweep's own structured log. Neither answers the exhaustive "is the deployed code identical to main" that the issue was filed against. **Both would have worked, which is the argument for building one.**
 
 **Also true and worth stating: there is no Functions deploy workflow in this repo.** `deploy-rules.yml` and `deploy-site.yml` exist; functions have none. Every deploy is manual, and nothing tracks whether it happened.
+
+---
+
+## Session 064 — 2026-08-08 — **the app icon the founder chose, shipped and made unfakeable; then the Light face the hero text had been declaring for weeks** *(first-hand)*
+
+**Objective (one, per `resume-prompt.md`): ship the app icon the founder chose.** It had lost to the push objective for three sessions running. Done, plus the next two unblocked items, plus two operator dependencies that turned out to be smaller than they were written.
+
+### The handoff was wrong about half the objective, and the artefacts said so
+
+`resume-prompt.md` described the target as *"the 15 iOS PNGs and 5 Android `mipmap-*/ic_launcher.png` are hand-produced."* The iOS fifteen were. **The Android five were the default blue Flutter logo from the m0.1 scaffold (`d16ec95`), untouched through 116 builds.**
+
+Nobody had to dig for this. The PNG headers say it: 442–1443 bytes, **colour type 3 (palette) with `tRNS` and a `tEXt` chunk**, where every hand-produced icon in the tree is truecolour RGB. `git log --follow` on any of them returns exactly one commit. → **lesson 87.**
+
+It survived because a wrong icon on an unshipped platform breaks nothing, so no signal ever contradicted it.
+
+### What shipped (PR #202, merged `b6a420b`)
+
+All **20** rasters now derive from the founder's one master rather than being hand-produced. Every one changed, proven by sha256 of all 24 tracked PNGs before and after — 20 changed, 4 unchanged (`AppIconDiscreet` + the three `LaunchImage` files).
+
+`tool/ci/app_icons.py`, stdlib only. No Pillow, no ImageMagick, no ffmpeg — none are installed on this machine, and **a gate that needs a native image library is a gate that never runs.** Two properties earn it:
+
+* **The iOS target list is read from `Contents.json`, never hardcoded.** The asset catalog and the emitted set therefore cannot drift apart, which is the only way *"every size was regenerated"* is checkable rather than assertable (lesson 66).
+* **`--verify` compares decoded PIXELS, not file bytes.** The first draft compared bytes and would have been wrong to ship → **lesson 88**.
+
+Exit codes follow the repo taxonomy, split by *which* input failed: unreadable master → **2** (nothing can be concluded), unreadable target → **1** (a committed icon that is not 8-bit RGB is a finding). Downscaling is an exact integer area-average **in linear light**; the 1024 marketing icon is pixel-identical to the founder's file with alpha stripped, since Apple rejects a marketing icon carrying one.
+
+**Cross-checked against an independent implementation before trusting it**: ffmpeg's lanczos, mean |Δ| **0.10** code words at 180px. That number is what rules out a geometric half-pixel shift; the visible disagreement is confined to the seed edges, where lanczos rings and linear-light averaging lifts.
+
+### The tests, and what the mutations proved
+
+`tool/ci/app_icons_test.py` — **90 hermetic checks**, registered in `ci.yml` beside the other pre-`pub get` self-tests, and *confirmed to have executed on the runner* rather than assumed (`90 checks, 0 failed` and `all 20 icons match` read back out of the job log).
+
+The resampler is checked **differentially against a slow independent reference written in the test file** — `Fraction`-exact overlap, no shared code path with `_spans` or the prefix sums. A fixture derived from its own subject proves nothing.
+
+**11 mutations, every one reddens a NAMED assertion.** The first run had two that reddened by *crashing*, which is a red that names nothing, so the harness was restructured into independently-running sections that record a raising mutation as a named failure of its section (lesson 75's instrument, applied to itself):
+
+| mutation | what reddened |
+|---|---|
+| spans shifted by one | 7 coverage assertions + 3 sections |
+| identity fast path corrupted | identity returns input; fast path agrees with general |
+| drift never detected | unwritten tree is DRIFT; --write created the file |
+| drift accepts any decodable file | ONE stale size is caught (+2) |
+| cannot-measure collapsed into drift | missing master is exit 2, not 0 or 1 |
+| unreadable target escalated to cannot-measure | end_to_end raised CannotMeasure |
+| alpha refusal removed | a non-opaque master is refused |
+| filename size-disagreement accepted | declared at two sizes is refused |
+| filter choice defeated | a flat field uses Up |
+| linear-light mixing "simplified" to sRGB | mixing is done in LINEAR light |
+| an Android density silently dropped | the plan covers all 20 |
+
+### Two operator dependencies got smaller once asked properly
+
+**The founder authorised the release dispatch** (`release.yml` on `b6a420b`) and **confirmed the APNs `.p8` is uploaded to both Firebase projects.** The second had been the single blocker on M3.4 for three sessions.
+
+That answer immediately exposed a better question. The item was written as *"ask the founder to install the build, accept the prompt, and say whether a push arrives at 08:00"* — but only the first clause needs a human. Production answers the rest, to a CLI this repo already had:
+
+```
+registerPushToken     — ever invoked by a device?  NO (only deploy audit entries)
+daily-question sweep  — "checked": 0 on every hourly pass
+```
+
+`checked: 0` means no couple even had a token to evaluate. The founder's half is now *open it and tap Allow*; the verification moved back inside the session. → **lesson 90.**
+
+### Measured while there, and one thing fixed
+
+* **Prod Functions are current with `main`** — all 13 exports deployed, and all **three** per-sweep summary lines present on every hourly pass (the missing third line was S063's whole diagnosis).
+* **`rules_drift.py` came back exit 1.** Prod matched `main`; **`hayatiapp-dev` had drifted since 2026-08-01** and was missing the S062 `fcmTokens` freeze — the rule that stops a client naming another device's token and taking delivery of its notifications. Dev is a session's to exercise (`session-context.md` §7), so it was deployed and re-verified: **exit 0, both projects.** This also corrects `resume-prompt.md`, which contained two contradictory lines about whether the freeze was live.
+* **`tr` measured, not asked.** The listing carries `en-US` with 6 screenshots and **no `tr` localization at all** on version 1.0 (`PREPARE_FOR_SUBMISSION`, editable now). That is why Turkish screenshots keep being skipped, and it is a one-minute founder action.
+* **`MATCH_BOOTSTRAP` confirmed absent** from `gh variable list`. ADR-032's readonly holds.
+
+### Then #176 (PR #203) — and the harness that would have hidden it
+
+`TypographyTokens.questionStyleFor` has declared `w300` for the product's hero text since the redesign. Rubik was bundled at 400/500/600/700, so w300 resolved to Regular and the glyphs never lightened.
+
+The issue stayed open on **provenance**, not licensing. Settled by measurement: `googlefonts/rubik` publishes no releases and ships only the variable font on `main`, so the v2.300 statics already here are gftools instances. The Google Fonts static release was confirmed to be the same batch — same version and build tool, **identical vertical metrics** (upem 1000, 935/−250), **identical 885-code-point coverage** including Turkish and Arabic, and **identical advance widths** on that batch's Regular versus ours (`H=714 n=606 ı=242`). It carries 76 more alternate glyphs, which is the entire 33KB size delta. sha256 and source URL are in the commit.
+
+**`flutter_test_config.dart` would have made the whole change invisible.** It loaded the brand families from a hard-coded list of four Rubik files, so a fifth face in `pubspec.yaml` would never have reached the goldens — the diff would have read *"no visual change"* and the honest-looking conclusion would have been exactly backwards. The drift-proof mechanism was already in the same file four lines below (`FontManifest.json`, used for MaterialIcons). The three brand families now use it, and its silent-miss return is now a throw. Mutation-checked. → **lesson 89.**
+
+Blast radius measured *before* regenerating: exactly **63** goldens across the three question surfaces the issue names and nothing else — which independently confirms the token's claim that the Question style is mapped onto no Material role. The regenerated goldens show lighter strokes with **unchanged line-wrap points**, which is what a metrically compatible face looks like.
+
+**800 was deliberately not bundled.** QW-3 asks for 300 and 800; nothing in `lib/` declares w800, so it would have shipped as 200KB of dead asset.
+
+### Proven
+
+`1663 tests pass` · `flutter analyze` clean · `dart format` clean · coverage **87.69%** (gate 68) · `app_icons.py --verify` exit 0 and `--write` idempotent · post-merge `main` CI for the icon **green including `integration-emulator`** · both icon CI steps read back out of the runner's job log.
+
+### Operator dependencies
+
+**Two closed** (APNs `.p8`; the release authorisation). **Two open**: the `tr` version localization, and the one install + permission tap that no session can perform.

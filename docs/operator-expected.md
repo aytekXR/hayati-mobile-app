@@ -15,87 +15,98 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-06** (Sessions 062–063). The 2026-08-05 refresh re-measured
-every line against Apple, GitHub, Google and your live site; S062 added the one
-thing that refresh could only ask you to report._
+_Last refreshed: **2026-08-08** (Session 064)._
 
-> ### 🔔 ONE THING now stands between you and a notification: the APNs key
+> ### 🔔 ONE THING now stands between you and a notification, and it takes ten seconds
 >
-> **Install build 116** (TestFlight — already available to you, no review wait).
-> It is the first build in this app's history that can receive a notification at
-> all, and the first that will ever ASK you for permission — the prompt appears
-> on the paired home screen, once. Say yes.
+> **Install the newest build, open it, and tap Allow when iOS asks about
+> notifications.** That is the whole remaining action. Everything else — the
+> code, the deploy, the security rules, the entitlement, the portal tick, and
+> the APNs key you uploaded on 2026-08-08 — is done.
 >
-> Then do the `.p8` below. Then tell me whether anything arrives at 08:00.
+> **Use build 117 or 116. Never 115** — it carries the entitlement but never asks
+> you for permission, and without permission iOS never issues a token, so 115
+> cannot work no matter how long you wait. **117 also carries your new icon.**
 >
-> **Correction, recorded because you were told otherwise.** On 2026-08-06 you were
-> told everything was built and shipped bar the `.p8`. That was wrong: the server
-> code had been merged but **never deployed**, so the two functions the app calls
-> to register your phone did not exist in production at all. Your phone would have
-> asked for permission, got a token, tried to hand it over, and been told there is
-> no such function — silently, because every layer is built to fail quietly rather
-> than alarm you. Deployed on 2026-08-07 with your authorisation, and verified by
-> reading production back rather than trusting the deploy. The security rules that
-> lock that field went out at the same time.
+> ### You do not have to report anything back, and that is new
 >
-> You authorised the API path on 2026-08-06 and **Push Notifications is now
-> ticked** on `com.beyondkaira.hayati` (measured before: absent; enabled; measured
-> after: present). The entitlement shipped in **build 115** (and 116), which signed, uploaded
-> and is **installable by you right now** — you are an internal tester, so it needs
-> no review.
+> This box used to end with *"then tell me whether anything arrives at 08:00"* —
+> which is why it sat here for three sessions: only you could see the answer. It
+> turns out production says it directly, and a session can read it. Measured on
+> 2026-08-08, before you install:
 >
-> **What is left is piece 1, and only you can do it.** Firebase needs Apple's APNs
-> key or it cannot hand a notification to Apple at all:
+> ```
+> registerPushToken     — ever called by a phone?   NO   (only deploy records)
+> daily-question sweep  — couples checked for push:  0    (every hourly pass)
+> ```
 >
-> 1. Apple Developer portal → **Keys** → **+** → tick **Apple Push Notifications
->    service (APNs)** → Continue → Register → **download the `.p8`** (once only).
->    Note the **Key ID** on that page; your **Team ID** is `UH7MXG7Z94`.
-> 2. Firebase console → **`hayatiapp-prod`** → ⚙ Project settings → **Cloud
->    Messaging** → **Apple app configuration** → upload the `.p8` with those two ids.
-> 3. **Do the same for `hayatiapp-dev`** — the same key works for both.
+> `0` means no phone has ever handed over a token. **The moment you tap Allow,
+> both numbers move**, and a session can confirm it within minutes without asking
+> you. If they *don't* move, that is the real bug — and it will finally be
+> visible, because every layer of that path is built to fail quietly.
 >
-> Unlike the tick, this one genuinely cannot be measured or done from a session:
-> Firebase's Cloud Messaging settings are console-only. Checked again on
-> 2026-08-06 — `gcloud` is not installed, there is no application-default
-> credential, and the Firebase CLI has no APNs command at all. So please just say
-> when it is done.
->
-> **Still untickled, still one page, still yours if you want them:**
+> **Still unticked, still one page, still yours if you want them:**
 > `ASSOCIATED_DOMAINS` (item **2(d)**) and `APP_ATTEST`. Neither blocks
-> notifications; both are the same Identifiers page you no longer have to visit
-> for push.
+> notifications.
 
-> **What changed since the last refresh (2026-08-01):**
+> **What changed since the last refresh (2026-08-06):**
 >
-> * ✅ **Apple approved build 113**, and **builds 115 and 116 have since shipped** —
->   116 on 2026-08-07, carrying the whole notification stack. Your testers are no
->   longer three weeks behind. Item 2(c) is closed and gone from this page.
-> * ✅ **The portal tick is done** (2026-08-06, with your authorisation, over the
->   API rather than by hand). Only the APNs **key** is left — the box at the top.
-> * 🔴 **The icon decision is still open** — the box below. It has now waited three
->   sessions behind the notification work.
+> * ✅ **The APNs key is uploaded to both projects** (you confirmed 2026-08-08).
+>   That was the last thing anyone was waiting on. Item 4(a) is closed.
+> * ✅ **Your app icon shipped.** All 20 sizes, regenerated from the file you
+>   chose and each verified changed. Build **117** was dispatched with your
+>   authorisation on 2026-08-08 and carries it.
+> * 🔎 **Your Android icons had never been the brand at all** — still the default
+>   blue Flutter logo from the first commit, through 116 builds. Fixed in the same
+>   change, and CI now fails if any size stops matching your master.
+> * 🟡 **Turkish screenshots: measured, and now answerable.** Your listing has no
+>   `tr` localization at all — that is why they keep being skipped. One minute in
+>   App Store Connect; the exact path is in item (B).
+> * ✅ **A security rule that was live in production was missing from dev** since
+>   2026-08-01 — the one stopping a client from claiming another device's
+>   notification token. Deployed and verified; both projects now match.
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
-current code and current rules, the invite site is live, **build 113 is approved
-and installed on four people's phones, with four more invited** — and the two things you noticed this week (no
-notifications, the icon) are both real, both now written down, and both need one
-decision from you before a session can finish them.
+current code and current rules, the invite site is live, your icon shipped, the
+notification stack is finished on every side anyone but you can reach — and the
+single thing left is **one install and one tap**.
 
 ## Readiness snapshot — three different questions, three different answers
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~98%** — M1→M6.3 all merged. All three notifications you asked for are built, deployed and **running in production**, and **build 116 is the first that can actually receive one** — it is the first that asks you for permission, without which iOS never issues a token. (115 has the entitlement but not the prompt, so it cannot work; install 116.) **No notification has still ever been delivered**, because Firebase has no APNs key to hand it to Apple with. The plan's ✅ on M3.4 stays struck through until one actually arrives. | **4(a) piece 1** — the `.p8`. Nothing else. |
-| **Can people install it?** | **100%** — done. Build 113 is approved and live. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Ship **114+** so they stop testing three-week-old code. |
+| **Is the MVP built?** | **~99%** — M1→M6.3 all merged. All three notifications are built, deployed and **running in production**, the APNs key is uploaded to both projects (you confirmed 2026-08-08), and **every remaining piece is now on your phone's side.** Measured in production the same day: `registerPushToken` exists and **has never once been called by a device**, and every hourly sweep logs `checked: 0` — nobody has a token yet, because nobody has opened a build and accepted the prompt. **No notification has still ever been delivered.** M3.4's ✅ stays struck through until one arrives. | **One install.** Open the build, accept the notification prompt. A session can then verify token capture from the production logs **without you reporting anything** — see 4(a). |
+| **Can people install it?** | **100%** — done, and no longer stale. Builds **115, 116 and 117** have all shipped since; 116 passed Apple's beta review (`external=IN_BETA_TESTING`) and **117 carries the new icon plus the whole notification stack**. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Your testers are current. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
 ---
 
-# 🔵 Two answers a session is waiting on right now
+# 🔵 What a session is waiting on right now
 
-Neither takes more than a minute. Both are blocking work that is otherwise ready.
+## (A) ✅ The app icon — ANSWERED 2026-08-05, **SHIPPED 2026-08-08**
 
-## (A) ✅ The app icon — ANSWERED 2026-08-05, no longer blocking
+**Done.** The mark you chose is now every icon the app has: 15 iOS sizes, 5
+Android launcher sizes, and the 1024 App Store icon — all 20 regenerated from
+your file and each one verified changed at the byte level. It is on `main` and
+in **build 117**, dispatched on 2026-08-08 with your authorisation. Confirmed
+present in the built app, not just the repo: the icon inside `Runner.app`
+dropped from 6 KB to 3 KB, which is the new file.
+
+Two things worth knowing, neither needing anything from you:
+
+* **Your file ships unmodified at 1024.** The store icon is pixel-identical to
+  the PNG you picked, with only the alpha channel stripped — Apple rejects a
+  marketing icon that carries one.
+* **The Android icons had never been the brand at all.** They were still the
+  default blue Flutter logo from the very first scaffold commit, through 116
+  builds. Nothing in the project could have told anyone; there was no generator,
+  so each size was produced by hand and nothing compared them. There is one now,
+  and CI fails if any size stops matching your master.
+
+*The discreet grey icon is untouched, verified byte-identical — different job,
+deliberately.*
+
+<details><summary>The record of how the choice was made (kept — it is why nobody should re-open it)</summary>
 
 You said the current icon reads as phallic and asked to revert to the previous
 one. **"The previous one" had three possible meanings and one of them would have
@@ -121,19 +132,72 @@ build. Nothing further is needed from you.
 
 *The discreet grey icon stays exactly as it is — different job, deliberately.*
 
-## (B) Does your App Store listing have a **Turkish** localization?
+</details>
 
-Your **English** screenshots are done and live — six of them, correct order, on
-the listing since 2026-08-03. **Turkish was skipped**, because screenshots can
-only upload into a locale that already exists on the listing. If `tr` is not
-there, add it in App Store Connect (App Store → the version → **+** next to the
-language list) and say so; the upload is then one dispatch.
+## (B) 🟡 Add a **Turkish** localization to your App Store listing — measured, not guessed
+
+**You no longer have to answer this one; it was measured on 2026-08-08 and the
+answer is no.** Your listing reads:
+
+```
+app: ikimiz (com.beyondkaira.hayati) id=6794737016
+app store versions (newest first):
+  1.0  state=PREPARE_FOR_SUBMISSION  platform=IOS  <-- editable
+      en-US: APP_IPHONE_67=6
+```
+
+`en-US` has its six screenshots, correct order, live since 2026-08-03. **`tr`
+does not exist on the version at all**, and screenshots cannot upload into a
+locale that is not there — which is the entire reason Turkish keeps getting
+skipped.
+
+**What to do (~1 min):** App Store Connect → App Store → the **1.0** version →
+**+** next to the language list → Turkish. That is all; the version is in
+`PREPARE_FOR_SUBMISSION`, so it is editable right now. The upload is then a
+single dispatch and needs nothing further from you.
 
 ---
 
-# 🔴 4(a). The APNs key + the Push Notifications capability — **nothing can notify anyone until this exists**
+# 🟡 4(a). Push — **both pieces are done. One install is the whole remaining gap.**
 
-**This is why the app never notifies you.** It is not a bug in the notification
+> ### ✅ The APNs `.p8` — DONE 2026-08-08, both projects (you confirmed it)
+> ### ✅ The Push Notifications tick — DONE 2026-08-06
+>
+> **Every server-side and credential-side piece of push now exists.** Verified
+> in production on 2026-08-08: all 13 Functions deployed and current with
+> `main`, `registerPushToken` live, and all three per-sweep summary lines
+> present on every hourly pass.
+>
+> ### What is left is one thing, and only your phone can do it
+>
+> **Open the app and accept the notification prompt.** Install the newest build
+> from TestFlight, open it to the paired home screen, and tap **Allow** when iOS
+> asks about notifications. That is the entire remaining action.
+>
+> **Do not use build 115.** It carries the entitlement but not the permission
+> prompt, so iOS never issues it a token and it can never work. 116 works; the
+> build dispatched on 2026-08-08 (117) works and also carries your new icon.
+>
+> ### You do NOT have to report back, and that is new
+>
+> Until now this item ended with *"tell us whether a push arrived at 08:00"* —
+> an observation only you could make, which is why it sat here for three
+> sessions. It turns out production says it directly, and a session can read it:
+>
+> ```
+> registerPushToken   — invoked by a device?  (today: never, only deploy audit entries)
+> daily-question sweep — "checked": N          (today: 0 on every hourly pass)
+> ```
+>
+> `checked: 0` means no couple even had a token to evaluate. **The moment you
+> accept that prompt, both numbers move**, and a session can confirm capture
+> within minutes without asking you anything. If they do not move, that is the
+> real bug — the one nothing has been able to see until now, because every layer
+> of the token path fails open by design and silence looks identical to success.
+
+<details><summary>The original two-piece instructions (kept for reference; both pieces are done)</summary>
+
+**This is why the app never notified you.** It is not a bug in the notification
 logic — that logic is written, tested and correct. It is that the phone was never
 given the plumbing to receive a push, and Firebase was never given the key it
 needs to talk to Apple. Two pieces, both yours:
@@ -220,11 +284,13 @@ will not add the entitlement until the tick is confirmed.
 > "not ticked" when nobody actually looked would send a session off to build
 > around a blocker that may not exist.
 
-**Piece 1 — the APNs `.p8` — is the ONLY remaining blocker, and it is genuinely yours.**
-Firebase's Cloud Messaging settings are console-only: there is no API a session
-can read them from, `gcloud` is not installed on the session machine and there is
-no application-default credential. So this one is reported, not verified — please
-say when it is uploaded to **both** projects.
+**Piece 1 — the APNs `.p8`.** Firebase's Cloud Messaging settings are
+console-only: there is no API a session can read them from, `gcloud` is not
+installed on the session machine and there is no application-default credential.
+So this one was reported, not verified — **you confirmed it on 2026-08-08 for
+both projects**, and it is closed.
+
+</details>
 
 ### The order matters, and it is not reorderable
 
