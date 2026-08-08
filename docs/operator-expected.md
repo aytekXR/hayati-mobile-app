@@ -59,9 +59,11 @@ _Last refreshed: **2026-08-08** (Session 064)._
 > * 🔎 **Your Android icons had never been the brand at all** — still the default
 >   blue Flutter logo from the first commit, through 116 builds. Fixed in the same
 >   change, and CI now fails if any size stops matching your master.
-> * 🟡 **Turkish screenshots: measured, and now answerable.** Your listing has no
->   `tr` localization at all — that is why they keep being skipped. One minute in
->   App Store Connect; the exact path is in item (B).
+> * 🟡 **Turkish screenshots — we had the reason wrong, and now we don't.** Your
+>   listing has no `tr` localization, but not because nobody clicked a button:
+>   **Apple has been refusing to create it on every release since build 112**,
+>   because another app already uses the name in Turkish. Six releases said so and
+>   nobody read it. It needs a **decision** from you, not a click — item (B).
 > * ✅ **A security rule that was live in production was missing from dev** since
 >   2026-08-01 — the one stopping a client from claiming another device's
 >   notification token. Deployed and verified; both projects now match.
