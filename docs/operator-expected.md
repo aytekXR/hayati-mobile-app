@@ -151,10 +151,38 @@ does not exist on the version at all**, and screenshots cannot upload into a
 locale that is not there — which is the entire reason Turkish keeps getting
 skipped.
 
-**What to do (~1 min):** App Store Connect → App Store → the **1.0** version →
-**+** next to the language list → Turkish. That is all; the version is in
-`PREPARE_FOR_SUBMISSION`, so it is editable right now. The upload is then a
-single dispatch and needs nothing further from you.
+### ⚠️ Corrected the same day — it is NOT a one-minute click, and this is a decision only you can make
+
+The first version of this item told you to click **+ Turkish** and be done. That
+would have failed, and it is worth saying why plainly.
+
+**Apple has been refusing to create the Turkish listing on every single release
+since build 112** — six of them — and nobody read the error, because the step is
+deliberately allowed to fail without failing the build:
+
+```
+Activating version language tr...
+[!] Cannot add localization due to app name. — You cannot add this localization
+    because the app name is already being used by another app.
+```
+
+App Store display names are unique **per language**. `ikimiz` is yours in
+English; **in Turkish, another app already holds it.** So the reason there are
+no Turkish screenshots was never that nobody clicked the button.
+
+**Your decision, three options** — a session should not pick for you:
+
+1. **A different Turkish display name.** The listing name only; the app on the
+   home screen is unaffected. Something like *İkimiz — Çift Sorusu* would clear
+   the collision. Say the words and a session does the rest.
+2. **Ship English-only on the store listing** and drop Turkish. The *app* is
+   still fully Turkish — this is only the store page. The screenshots item then
+   closes as won't-do.
+3. **Claim the name from Apple** (their message offers this if you have
+   trademark rights). Slow, and yours alone.
+
+Tracked as **#204**, which also fixes the real defect underneath: a release that
+fails to publish store metadata should not look green and silent.
 
 ---
 

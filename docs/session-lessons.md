@@ -38,6 +38,32 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**91 — An unread failure does not stay silent; it gets EXPLAINED, and the explanation lands on a person.** *(2026-08-08)*
+Lesson 69 already says *`continue-on-error` is not the bug; an UNREAD failure
+is.* This is what the unread failure actually did, which is worse than "nothing
+happened."
+
+`release.yml`'s `deliver` step is `continue-on-error: true` **for a good reason**
+(ADR-020 D8: store copy must never fail a run whose binary already shipped). It
+has failed identically on **every release since build 112** — six of them —
+with Apple refusing to create the `tr` listing: *"the app name is already being
+used by another app."* Green step, green job, green run, silent notifier.
+
+**The gap did not go unexplained. It went WRONGLY explained.** Turkish
+screenshots were missing, so the absence got attributed to the only visible
+cause — the founder had not added the locale — and `operator-expected.md` carried
+that for several sessions, ending in a confident one-minute click path that
+would have hit the same rejection. *S064 wrote a fresh version of that same wrong
+instruction earlier the same day, from a correct measurement (`tr` really is
+absent) and a wrong inference about why.*
+
+So: **when a symptom has an obvious human-shaped cause, check whether a machine
+already recorded a different one** — especially where something is permitted to
+fail quietly. And when you allow a step to fail, decide in the same breath *who
+reads it and where* — a failure nobody reads is not a deferred cost, it is a
+false explanation waiting to be adopted. Filed as **#204**, whose first
+acceptance criterion is visibility, not the fix.
+
 **90 — Before recording "only a human can observe this", ask what the system already writes down.** *(2026-08-08)*
 M3.4 sat blocked for three sessions on an operator dependency phrased as *"ask
 the founder to install the build, accept the prompt, and say whether a push

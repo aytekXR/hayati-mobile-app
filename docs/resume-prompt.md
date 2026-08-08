@@ -57,7 +57,7 @@ a check that mostly restates something else.
 | **Build 117** | Dispatched 2026-08-08 from `b6a420b` with founder authorisation. **Carries the icon AND the whole push slice.** Build number is `100 + run_number` (ADR-032) = 117 for run `31281091074`. **Re-read its TestFlight state from the API — never infer it from a green release** (`-f status_only=true`). |
 | **App icon** | **SHIPPED.** All 20 rasters derive from the founder's master via `tool/ci/app_icons.py`; `--verify` runs in CI's `quality` job. `AppIconDiscreet` byte-identical. |
 | **Deployed rules** | **Both projects match `main`** — `rules_drift.py --from-firebase-cli` exit **0** for prod AND dev on 2026-08-08. Dev had drifted since 2026-08-01 and was deployed this session (dev is a session's to exercise). The `fcmTokens` freeze is live in both. |
-| **Screenshots** | en-US: 6 live. **`tr` measured absent** — version 1.0 (`PREPARE_FOR_SUBMISSION`) carries only `en-US`. Founder action, on the operator page. |
+| **Screenshots** | en-US: 6 live. **`tr` absent, and NOT for the reason three prompts have said.** Apple refuses to create the `tr` localization — *"the app name is already being used by another app"* — on **every release since build 112**, silently, because the `deliver` step is `continue-on-error` by design (ADR-020 D8) and nobody read it. Filed as **#204**. It needs a founder *decision* (a different Turkish display name), not a click. |
 | **`MATCH_BOOTSTRAP`** | Confirmed absent from `gh variable list` 2026-08-08. |
 
 ---
@@ -130,9 +130,14 @@ Do not ask them what arrived; ask only whether they accepted the prompt, then
 read `registerPushToken`'s log and the `checked` counter yourself. If a token was
 captured and no push arrives at 08:00, that is a real bug and now a findable one.
 
-**2 — `tr` screenshots.** Blocked until the founder adds the Turkish version
-localization (measured absent 2026-08-08; it is on the operator page with the
-exact click path). Once it exists:
+**2 — #204, the `tr` localization.** Do **not** repeat the old instruction to
+the founder ("just add the locale") — it was wrong and is corrected on the
+operator page. Apple rejects the name. The non-founder half of #204 is real
+engineering and is unblocked: **make a failed `deliver` visible** so a green
+release cannot again mean "store metadata silently did not land" (ADR-024 D1:
+all notifier policy lives in `slack_notify.sh`, and the notifier has no vote on
+the build). Once the founder picks a name, `name.txt` + `release_lane_lint.dart`
++ ADR-032 move in one diff, then
 `appstore-screenshots.yml -f upload=true -f locales=en-US,tr`.
 
 **3 — The rest.** Re-derive from `gh issue list`. **#175** (10 of 14 raised cards

@@ -2526,6 +2526,49 @@ Blast radius measured *before* regenerating: exactly **63** goldens across the t
 
 `1663 tests pass` · `flutter analyze` clean · `dart format` clean · coverage **87.69%** (gate 68) · `app_icons.py --verify` exit 0 and `--write` idempotent · post-merge `main` CI for the icon **green including `integration-emulator`** · both icon CI steps read back out of the runner's job log.
 
+### Build 117, and what reading its log turned up
+
+The release was dispatched with founder authorisation and came back green. Green
+was not taken as delivery — `resume-prompt.md` says the assignment has failed
+silently twice — so the `sign-upload` job log was read line by line via
+`gh api .../jobs/<id>/logs` (never `gh run view --job --log`, lesson 65).
+
+The assignment was real: **`assigned build 117 to 'Friends'`**, after eight
+`build 117 not visible to the API yet; waiting…` polls. The icon was confirmed
+in the *built product*, not just the repo — `build-report` lists
+`AppIcon60x60@2x.png` at **3 KB** inside `Runner.app`, which is the new file
+(3,146 bytes); the old one was 6,472.
+
+**Four steps below that, a failure nobody had ever read.** `fastlane deliver`:
+
+```
+Activating version language tr...
+[!] Cannot add localization due to app name. — You cannot add this localization
+    because the app name is already being used by another app.
+```
+
+Checked across the last six releases: **112, 113, 114, 115, 116 and 117 all hit
+it, once each.** The step is `continue-on-error: true` **by design** (ADR-020 D8)
+and that decision is still right — the binary had already shipped. The defect is
+that nothing surfaced it.
+
+**It had already produced a wrong instruction to the founder, twice.** Turkish
+screenshots were missing, so the cause was attributed to the only visible
+candidate — nobody had added the locale — and the operator page said so for
+several sessions. *This session wrote a fresh version of that same wrong
+instruction earlier the same day*, from a correct measurement (`tr` really is
+absent from version 1.0) and a wrong inference about why. It was corrected
+within the hour, from the log. → **lesson 91**, and **#204**, whose first
+acceptance criterion is visibility rather than the fix.
+
+The real blocker is a founder *decision*, not a click: App Store display names
+are unique per language, `ikimiz` is held by another app in Turkish, and the
+options are a different Turkish listing name, English-only, or a trademark
+claim. A session should pick none of them.
+
 ### Operator dependencies
 
-**Two closed** (APNs `.p8`; the release authorisation). **Two open**: the `tr` version localization, and the one install + permission tap that no session can perform.
+**Two closed** (APNs `.p8`; the release authorisation). **Two open**: the one
+install + permission tap that no session can perform, and — newly and correctly
+stated — the Turkish **display name** decision behind #204, which is not the
+locale click this page has been asking for.
