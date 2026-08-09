@@ -46,14 +46,32 @@ class _FakeSource implements PushTokenSource {
   Exception? currentTokenThrows;
   int currentTokenCalls = 0;
 
+  /// How many readiness probes answer "not yet" before the platform is ready.
+  /// This is the iOS APNs handshake, which completes AFTER the permission grant
+  /// returns — the window ADR-044's retry exists for.
+  int notReadyForFirst = 0;
+  int readyCalls = 0;
+
+  /// How many `currentToken` calls throw before one succeeds — iOS's
+  /// `apns-token-not-set`, which is a THROW rather than a null.
+  int throwsForFirst = 0;
+
   bool permissionGranted = true;
   Exception? permissionThrows;
   int permissionCalls = 0;
+
+  /// Model the iOS contract rather than a convenient one: before a permission
+  /// grant, iOS mints NO token at all. Default false so the warm-start tests
+  /// keep modelling the ordinary case — permission granted in an earlier
+  /// session, so a restored sign-in gets a token with no prompt.
+  bool tokenOnlyAfterPermission = false;
+  bool _granted = false;
 
   @override
   Future<bool> ensurePermission() async {
     permissionCalls++;
     if (permissionThrows != null) throw permissionThrows!;
+    _granted = permissionGranted;
     return permissionGranted;
   }
 
@@ -63,9 +81,19 @@ class _FakeSource implements PushTokenSource {
   Future<void> dispose() => refreshes.close();
 
   @override
+  Future<bool> isReadyForToken() async {
+    readyCalls++;
+    if (tokenOnlyAfterPermission && !_granted) return false;
+    return readyCalls > notReadyForFirst;
+  }
+
+  @override
   Future<String?> currentToken() async {
     currentTokenCalls++;
     if (currentTokenThrows != null) throw currentTokenThrows!;
+    if (currentTokenCalls <= throwsForFirst) {
+      throw Exception('[firebase_messaging/apns-token-not-set]');
+    }
     return token;
   }
 
@@ -97,9 +125,16 @@ void main() {
   setUp(() {
     repository = _FakeRepository();
     source = _FakeSource();
+    // The retry is PROVEN, not asserted — so it must run in milliseconds. The
+    // attempt COUNT is left at its shipped value on purpose: a test that also
+    // shrank that would stop guarding the bound it exists to guard.
+    PushTokenSync.tokenCaptureBackoff = Duration.zero;
   });
 
-  tearDown(() => source.dispose());
+  tearDown(() {
+    PushTokenSync.tokenCaptureBackoff = const Duration(milliseconds: 500);
+    source.dispose();
+  });
 
   test('warm start: a restored signed-in session registers the current token '
       'with no auth event', () async {
@@ -251,7 +286,7 @@ void main() {
     expect(repository.registered, isEmpty);
   });
 
-  test('a throwing token source never escapes', () async {
+  test('a permanently throwing token source never escapes', () async {
     source.currentTokenThrows = Exception('no APNs token');
     final auth = FakeAuthRepository(initialUser: user);
     final container = containerFor(auth);
@@ -260,6 +295,113 @@ void main() {
     await pumpEventQueue();
 
     expect(repository.registered, isEmpty);
+  });
+
+  // ADR-044. THE regression group. The previous version of this file asserted
+  // that a throwing `currentToken` was a silent no-op — which is exactly what
+  // the bug was, so the test converted the defect into a specification and
+  // nothing could ever go red. On iOS `getToken()` THROWS `apns-token-not-set`
+  // until APNs answers, and APNs answers AFTER the permission grant returns, so
+  // the single capture attempt was issued inside the one window where iOS
+  // guarantees it fails. Measured consequence in production: `registerPushToken`
+  // was never once invoked across builds 115-117, while the server sweep was
+  // logging `checked:1  skippedNoToken:2` at the couple's 08:00.
+  group('capture survives the iOS APNs handshake (ADR-044)', () {
+    test(
+      'a token that only arrives on a LATER attempt is still registered',
+      () async {
+        source.throwsForFirst = 3; // apns-token-not-set, three times
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        expect(repository.registered, ['device-token']);
+        expect(source.currentTokenCalls, 4);
+      },
+    );
+
+    test(
+      'a platform that is not READY yet is waited for, not given up on',
+      () async {
+        source.notReadyForFirst = 2; // APNs has not handed over a device token
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        expect(repository.registered, ['device-token']);
+        // It did not ask for a token while the platform said it could not mint
+        // one — asking anyway is what threw.
+        expect(source.currentTokenCalls, 1);
+      },
+    );
+
+    test(
+      'the retry is BOUNDED — a device that never becomes ready stops',
+      () async {
+        source.notReadyForFirst = 9999;
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        expect(repository.registered, isEmpty);
+        // ADR-039 D2: never an unbounded wait on the launch->paired path.
+        //
+        // The LITERAL, deliberately — not `PushTokenSync.tokenCaptureAttempts`.
+        // Asserting against the constant under test is satisfied by its own
+        // subject (lesson 75): doubling the budget would move both sides and this
+        // check would stay green while the bound it exists to guard had changed.
+        // Caught by the mutation harness, which is what it is for.
+        expect(source.readyCalls, 6);
+        expect(PushTokenSync.tokenCaptureAttempts, 6);
+        expect(source.currentTokenCalls, 0);
+      },
+    );
+
+    // The regression this fix itself introduced, caught by the full suite and
+    // pinned here. A container with no source override is the pre-D2-step-4
+    // state AND every widget test that builds the app — resolving the SOURCE is
+    // not a transient failure, so retrying it only schedules timers, and
+    // `pumpAndSettle` never settles while a timer is pending. It took 60
+    // unrelated widget tests red.
+    testWidgets('NO source override: gives up at once and leaves no pending '
+        'timer for pumpAndSettle to wait on', (tester) async {
+      final auth = FakeAuthRepository(initialUser: user);
+      addTearDown(auth.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWith((ref) => auth),
+          pushTokenRepositoryProvider.overrideWith((ref) => repository),
+          // pushTokenSourceProvider deliberately NOT overridden.
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(pushTokenSyncProvider);
+      await tester.pumpAndSettle();
+
+      expect(repository.registered, isEmpty);
+    });
+
+    test('a sign-out mid-retry abandons the capture', () async {
+      source.notReadyForFirst = 9999;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+
+      container.read(pushTokenSyncProvider);
+      auth.emit(null);
+      await pumpEventQueue();
+
+      expect(repository.registered, isEmpty);
+      // It stopped early rather than holding the loop open for an account that
+      // is gone: strictly fewer probes than the full budget.
+      expect(source.readyCalls, lessThan(6));
+    });
   });
 
   test('a failing repository never escapes', () async {
@@ -280,6 +422,11 @@ void main() {
   // plugin, the callables and the sweeps are all correct and SILENT. That
   // failure mode has no error surface, which is why it gets its own group.
   group('promptForPermissionAndRegister (ADR-042 D6)', () {
+    // The group's premise, now actually modelled: on iOS no token exists before
+    // the grant, so a sign-in alone registers nothing and this call is the only
+    // thing that can produce one.
+    setUp(() => source.tokenOnlyAfterPermission = true);
+
     test('grants -> captures the token and registers it', () async {
       final auth = FakeAuthRepository(initialUser: user);
       final container = containerFor(auth);
@@ -325,6 +472,29 @@ void main() {
 
       expect(source.permissionCalls, 1);
     });
+
+    // ADR-044 D3. The guard used to latch BEFORE permission was requested, so a
+    // capture that failed was permanent for the life of the process — on iOS,
+    // the likely outcome. It now guards re-entrancy only.
+    test(
+      'a GRANTED permission whose capture failed is retried on a later call',
+      () async {
+        source.notReadyForFirst = 9999; // APNs never answers this time round
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        final sync = container.read(pushTokenSyncProvider.notifier);
+        await pumpEventQueue();
+
+        expect(await sync.promptForPermissionAndRegister(), isFalse);
+        expect(repository.registered, isEmpty);
+
+        // The phone finishes its APNs registration a moment later.
+        source.notReadyForFirst = 0;
+
+        expect(await sync.promptForPermissionAndRegister(), isTrue);
+        expect(repository.registered, ['device-token']);
+      },
+    );
 
     test('a throwing permission call never escapes', () async {
       source.permissionThrows = Exception('no notification centre');

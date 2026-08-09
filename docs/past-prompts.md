@@ -2729,3 +2729,94 @@ Both review panels were checked for `agents_error` / `agents_empty_result` befor
 **One changed, none new.** Item **2(e)(iv)** keeps its number (lesson 71) but its *instructions* change: the same read-only service account now needs **Cloud Functions Viewer** alongside Firebase Rules Viewer, and the one secret arms **two** checks. An item whose number survives while its instructions silently grow is how a founder ends up performing yesterday's task.
 
 **#166 closed** with the evidence. **#206 filed** — the deploy lane, the residual, and the reason the dirty-tree branch has to exist at all.
+
+---
+
+## Session 066 — 2026-08-09 — **"the app is not sending notifications" — and it was never only the founder's tap: the counter everyone quoted was hour-gated, and the capture asked once at the exact moment iOS guarantees failure** *(first-hand)*
+
+**Objective (founder directive, mid-session): notifications do not arrive. Fix it.**
+
+The standing story across four sessions was *"everything is built; the founder just has to install a build and tap Allow."* Both halves of that turned out to be wrong in an interesting way: the server side is **better** than claimed (verified working to the last inch), and the device side had a **real bug** that would have swallowed the tap.
+
+### The instrument everyone quoted could not answer the question it was asked
+
+`operator-expected.md` and four resume prompts carried:
+
+> `daily-question sweep — couples checked for push: 0` (every hourly pass).
+> `0` means no phone has ever handed over a token.
+
+`runDailyQuestion` opens with `if (hour !== DAILY_QUESTION_LOCAL_HOUR) continue;` — the pass evaluates **only** buckets whose *couple-local* hour is 8. So `checked: 0` is the expected reading for 23 of every 24 sweeps whatever the token state is, and the sampled hours (21:00Z, 22:00Z) were exactly those. → **lesson 97**.
+
+The couple's zone was derivable from the logs rather than guessed: the assignment pass logs `assigned: 1` at **21:00Z**, which is their local midnight, so they are UTC+3 and their 08:00 is **05:00Z**. At that sweep:
+
+```
+question_rollover: sweep complete                    existing:1  buckets:1
+W: sweep push skipped, no fcm tokens  recipientUid=lvny6fJ…  kind=dailyQuestion
+W: sweep push skipped, no fcm tokens  recipientUid=ZCBj6Hq…  kind=dailyQuestion
+question_rollover: daily-question sweep complete
+        checked:1  sent:0  skippedNoToken:2  skippedNoDay:0  suppressedQuiet:0  failed:0
+```
+
+**The server wakes at the right local hour, finds the couple, resolves both members as non-answerers, composes a push for each, and stops because neither phone has an address.** Every layer above the token lookup is verified working in production — a much stronger statement than the one the docs were making, arrived at by reading the code that increments the counter.
+
+### The bug: one racy call, then silence for the rest of the process
+
+`FcmPushTokenSource.currentToken()` was `_messaging.getToken()`. On iOS **FCM cannot mint a token until APNs has handed the app a device token, and that arrives asynchronously AFTER `requestPermission()` returns** — called before it, `getToken()` does not return null, it **throws** `apns-token-not-set`.
+
+`promptForPermissionAndRegister()` did exactly that: grant → immediately capture → throw → `catch { debugPrint }` → return. **No retry.** And `_promptedForPermission` latched *before* the attempt, so the prompt path never ran again for the life of the process. The one capture attempt was issued inside the precise window in which iOS guarantees it can fail.
+
+The port's own contract already forbade this — *"Never throws for an ordinary absence"* — and the adapter's own comment admitted it violated it. **An adapter that breaks its port's contract and documents the violation is a defect with a comment on it.**
+
+### The test had turned the bug into a specification
+
+`push_token_sync_test.dart` contained *"a throwing token source never escapes"*: make `currentToken` throw, assert nothing is registered, green. That is the defect, asserted as correct — which is why nothing ever reddened. → **lesson 98**. It was replaced rather than deleted quietly; the new assertion is that a throw is **retried** and a token arriving on a later attempt **is registered**.
+
+The fake was also not modelling iOS: it returned a token with no permission, so the group whose comment claimed *"the source answers only after permission, which is the whole shape of the iOS contract"* was not testing that shape at all. It does now.
+
+### The fix (ADR-044)
+
+* **D1** — the port gains `isReadyForToken()`; the adapter answers it thinly (`getAPNSToken() != null`), and the **waiting stays above the seam** where it is provable on Linux with a fake. That is ADR-042 D2's own trade, applied to the one piece that had been left below the port.
+* **D2** — a **bounded** retry: 6 attempts, linear backoff, ≈7.5s worst case, `unawaited` from a post-frame callback. ADR-039 D2 requires bounded, and it is.
+* **D3** — the prompt guard now covers **re-entrancy, not repetition**: a granted permission whose capture failed stays retryable on the next paired-home mount.
+
+### The mutation harness earned its keep immediately
+
+**7 mutations, and the first run had one that reddened nothing** — *"the bound is loosened (attempts doubled)"*. The bounded-ness test asserted `readyCalls == PushTokenSync.tokenCaptureAttempts`, i.e. **against the very constant the mutation moves**: both sides shifted and the check stayed green (lesson 75's shape). Pinned to a literal, and now **7/7 redden a named test**:
+
+| mutation | what reddened |
+|---|---|
+| the retry loop removed (one attempt, as before) | a platform that is not READY yet is waited for |
+| readiness not consulted | a sign-out mid-retry abandons the capture |
+| the bound loosened (attempts doubled) | the retry is BOUNDED |
+| sign-out mid-retry no longer abandons | a sign-out mid-retry abandons the capture |
+| a throw is terminal again (the pre-ADR-044 swallow) | a token that only arrives on a LATER attempt is registered |
+| D3 reverted (latch before the outcome) | prompts at most ONCE, however many times called |
+| an empty-string token accepted | an empty token registers nothing |
+
+### The fix broke 60 unrelated widget tests, and the first explanation was wrong
+
+The full suite came back `-60`, all in `privacy_lock`. The first hypothesis —
+that three concurrent `flutter test` runs had corrupted shared golden/build
+state — was **stated before it was checked, and it was wrong**. A clean solo run
+reproduced the same 60. Running the same file against `origin/main` in a
+throwaway worktree settled it: `+15: All tests passed` there, `+2 -13` here.
+**Self-inflicted.**
+
+`_captureAndRegister` resolved `pushTokenSourceProvider` *inside* the retry loop,
+so in any container without that override — the pre-D2-step-4 state, and every
+widget test that builds the app — it caught "no source" and then still scheduled
+five `Future.delayed` timers. **`pumpAndSettle` never settles while a timer is
+pending.**
+
+Resolving the source **once, outside the loop** fixes it and is also more
+correct: a missing provider is not a transient condition and no backoff conjures
+one. Pinned with a `testWidgets` case that calls `pumpAndSettle` on a container
+with no override, so it cannot come back silently.
+
+### Operator dependency — one, and it is unavoidable
+
+**Proven:** `1669 tests pass` (full suite, run alone) · `flutter analyze` clean ·
+`dart format` clean · 7/7 mutations redden a NAMED test · the push suite at 25
+tests including the no-source regression.
+
+**The fix is in the app binary, so it needs a new TestFlight build**, and dispatching the release lane uploads a real binary to the founder's TestFlight — `session-context.md` §7, a founder ask. **Builds 115–117 all carry the bug**; tapping Allow on them may register nothing. The operator page now says use a build made after 2026-08-09 and explains why, replacing four sessions of "just tap Allow".

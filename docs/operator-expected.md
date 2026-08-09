@@ -37,13 +37,41 @@ _Last refreshed: **2026-08-09** (Session 065)._
 >
 > ```
 > registerPushToken     — ever called by a phone?   NO   (only deploy records)
-> daily-question sweep  — couples checked for push:  0    (every hourly pass)
 > ```
 >
-> `0` means no phone has ever handed over a token. **The moment you tap Allow,
-> both numbers move**, and a session can confirm it within minutes without asking
-> you. If they *don't* move, that is the real bug — and it will finally be
-> visible, because every layer of that path is built to fail quietly.
+> ### ⚠️ Corrected 2026-08-09 — we were reading the wrong counter, and there WAS a bug
+>
+> This box used to add *"daily-question sweep — couples checked: 0 on every
+> hourly pass"* and conclude that no phone had ever handed over a token. **That
+> conclusion did not follow.** The sweep only evaluates couples whose own local
+> clock reads 08:00, so `checked: 0` is the expected reading for 23 hours out of
+> every 24 no matter what — and the hours that had been sampled were exactly
+> those. Four sessions repeated it.
+>
+> Measured at the hour it actually means something (05:00 UTC = your 08:00):
+>
+> ```
+> question_rollover: daily-question sweep complete
+>         checked: 1   sent: 0   skippedNoToken: 2   suppressedQuiet: 0   failed: 0
+> ```
+>
+> **Your server side is not waiting for anything — it is working.** It wakes at
+> your 08:00, finds your couple, works out that neither of you has answered yet,
+> and composes a notification for each of you. Then it stops, because neither
+> phone has ever given it an address to send to.
+>
+> **And that was not only because nobody tapped Allow.** There was a real bug in
+> the app: on iOS, Apple does not hand the app its notification address the
+> instant you tap Allow — it arrives a moment later. The app asked once, at
+> exactly the wrong moment, and when that failed it gave up silently and never
+> asked again for the rest of that run. So on the old builds, tapping Allow had a
+> good chance of registering nothing at all, with nothing anywhere reporting a
+> problem. **Fixed in this change** (it now waits for Apple and retries, briefly
+> and in the background).
+>
+> **So please use a build made after 2026-08-09.** Install it, open it to your
+> paired home screen, and tap Allow. A session can then confirm within minutes,
+> without you reporting anything.
 >
 > **Still unticked, still one page, still yours if you want them:**
 > `ASSOCIATED_DOMAINS` (item **2(d)**) and `APP_ATTEST`. Neither blocks
@@ -96,7 +124,7 @@ single thing left is **one install and one tap**.
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~99%** — M1→M6.3 all merged. All three notifications are built, deployed and **running in production**, the APNs key is uploaded to both projects (you confirmed 2026-08-08), and **every remaining piece is now on your phone's side.** Measured in production the same day: `registerPushToken` exists and **has never once been called by a device**, and every hourly sweep logs `checked: 0` — nobody has a token yet, because nobody has opened a build and accepted the prompt. **No notification has still ever been delivered.** M3.4's ✅ stays struck through until one arrives. | **One install.** Open the build, accept the notification prompt. A session can then verify token capture from the production logs **without you reporting anything** — see 4(a). |
+| **Is the MVP built?** | **~99%** — M1→M6.3 all merged. All three notifications are built, deployed and **running in production**. Measured 2026-08-09 at the only hour the counters mean anything (your 08:00): the sweep found your couple, resolved both of you as not-yet-answered, and composed a push for each — then stopped at `skippedNoToken: 2`, because no phone has ever registered an address. `registerPushToken` has **never once been called by a device**. Part of that was a **real bug on the app side**, fixed 2026-08-09 (ADR-044): iOS delivers the notification address a moment AFTER you tap Allow, and the app asked once, at the wrong moment, then gave up silently. **No notification has still ever been delivered.** M3.4's ✅ stays struck through until one arrives. | **One install of a build made after 2026-08-09.** Open it to your paired home screen and accept the prompt. A session then verifies token capture from the production logs **without you reporting anything** — see 4(a). |
 | **Can people install it?** | **100%** — done, and no longer stale. Builds **115, 116 and 117** have all shipped since; 116 passed Apple's beta review (`external=IN_BETA_TESTING`) and **117 carries the new icon plus the whole notification stack**. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Your testers are current. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
@@ -250,11 +278,14 @@ fails to publish store metadata should not look green and silent.
 > daily-question sweep — "checked": N          (today: 0 on every hourly pass)
 > ```
 >
-> `checked: 0` means no couple even had a token to evaluate. **The moment you
-> accept that prompt, both numbers move**, and a session can confirm capture
-> within minutes without asking you anything. If they do not move, that is the
-> real bug — the one nothing has been able to see until now, because every layer
-> of the token path fails open by design and silence looks identical to success.
+> ⚠️ **Corrected 2026-08-09.** `checked` is only non-zero on the sweep that
+> matches your OWN 08:00 (05:00 UTC), so reading it at any other hour said
+> nothing about tokens — and that is the reading four sessions repeated. At the
+> right hour it says `checked: 1, skippedNoToken: 2`: the server is working and
+> waiting for an address. A **real app-side bug** was also found and fixed the
+> same day (ADR-044) — iOS hands over the address a moment after you tap Allow,
+> and the app asked once, at the wrong moment, then gave up silently. Use a build
+> made after 2026-08-09.
 
 <details><summary>The original two-piece instructions (kept for reference; both pieces are done)</summary>
 

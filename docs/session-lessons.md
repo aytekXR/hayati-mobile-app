@@ -38,6 +38,31 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**98 — A test that asserts the swallow is correct converts the bug into a specification.** *(S066)*
+`push_token_sync_test.dart` contained *"a throwing token source never escapes"*:
+set `currentToken` to throw, assert nothing is registered, green. That is
+**exactly** what the defect was — iOS throws `apns-token-not-set` until APNs
+answers, and the single capture attempt was issued in that window — so the test
+locked the failure in and nothing could ever go red. Fail-open code is
+especially prone to this: *"it did not crash"* is trivially satisfied by *"it did
+nothing."* **When the code under test is allowed to swallow, the test must assert
+what happens NEXT** — retried, recovered, surfaced — not merely that the swallow
+was quiet.
+
+**97 — A counter read at the wrong hour is not evidence, however many times you read it.** *(S066)*
+Four sessions reported *"`checked: 0` on every hourly pass, so no phone has ever
+handed over a token"* and told the founder one tap was all that stood in the way.
+But `runDailyQuestion` opens with `if (hour !== DAILY_QUESTION_LOCAL_HOUR)
+continue` — the pass evaluates only couples whose OWN local clock reads 8, so
+`checked: 0` is the expected reading for 23 hours out of 24 regardless of tokens,
+and the sampled hours were exactly those. At the couple's real 08:00 the same log
+says `checked: 1, skippedNoToken: 2` and names both recipient uids — the opposite
+story: the server works to the last inch. **Before quoting a counter, read the
+code that increments it and ask what the sampling window has to be for the number
+to mean anything.** A gated metric sampled outside its gate is not weak evidence;
+it is no evidence, and it reads exactly like strong evidence.
+
+
 **96 — A read-only review agent will happily run YOUR write-tool, and the revert is silent.** *(S065)*
 `session-context.md` §5.8 already says *after every review workflow returns,
 `git status` must be EMPTY before you commit.* This is how it actually bites.
