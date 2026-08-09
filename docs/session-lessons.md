@@ -38,6 +38,64 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**96 — A read-only review agent will happily run YOUR write-tool, and the revert is silent.** *(S065)*
+`session-context.md` §5.8 already says *after every review workflow returns,
+`git status` must be EMPTY before you commit.* This is how it actually bites.
+The diff-review agents were told READ-ONLY and given no edit tools — but the
+session's own **mutation harness** was sitting in the scratchpad, and it works by
+writing a mutation into the source and restoring a snapshot in a `finally`. An
+agent ran it as "a way to check the tests", and its restore **silently reverted a
+source edit made after its snapshot**. Nothing errored; a later test run just
+quietly disagreed with the file I thought was on disk, and one measurement taken
+inside that window was wrong.
+**Two rules.** A harness that mutates tracked files is a *write* tool: move it out
+of reach (or make it operate on a copy) before any concurrent agent runs. And
+**§5.8's check is not only for the moment the workflow returns** — a measurement
+taken *while* a review is in flight is as suspect as a commit made after one.
+Re-run tests, mutations and the live check after the workflow has actually
+finished, and trust nothing sampled mid-flight.
+
+**95 — A tool that reproduces a vendor's algorithm must re-verify the ALGORITHM, not just pin the version.** *(S065)*
+`functions_drift.py` transcribes firebase-tools' hash derivation. A version pin
+catches a major rewrite; it cannot catch the algorithm moving *inside* a range
+you still accept — and that has happened before in this vendor. The silent
+failure is worse than a stale pin: a tool computing confident nonsense and
+calling production drifted. So it **re-greps four load-bearing shapes out of the
+installed vendor source every run** and exits 2 if any has moved. `rules_drift.py`
+already had the instinct (it reads the CLI's OAuth constants at runtime "so that
+an upgrade produces a clear error instead of a silent 401"); generalise it.
+**When you reimplement someone else's algorithm, the authority is their installed
+source — check it at runtime, not at review time.**
+
+**94 — When two exits both mean "bad", the report still has to say WHICH bad.** *(S065)*
+The Functions drift check found production mismatching a clean checkout. The
+tempting output is "DRIFT". The true output is one of two utterly different
+things: *production is running the wrong code* (alarming) or *production is
+running the right code, hand-deployed from a dirty tree* (housekeeping). Both are
+exit 1. Computing a second digest purely to separate them cost about twenty lines
+and is the difference between a usable gate and one whose red gets ignored on the
+third occurrence. **A report that cannot name its own finding's cause is the next
+reader's wasted hour** — and the CI annotation, which is the one line most people
+read, must carry the same distinction rather than a generic verb.
+
+**93 — `filter(Boolean)` over strings is a no-op, and the mutation that proves it will pass.** *(S065)*
+`getEndpointHash` does `[a,b,c].filter(Boolean).join("")`. The transcription
+kept the filter; the mutation "delete the filter, just concatenate" **reddened
+nothing**, because for strings the two expressions are identical — `"" + x == x`.
+The filter only becomes load-bearing when a component is *absent* (`undefined` in
+JS, `None` in Python), which the test did not cover. **When a mutation reddens
+nothing, the tool is not necessarily right — the test may simply not reach the
+property.** Ask what input makes the deleted code observable, and assert *that*.
+
+**92 — Gitignored debris on the deployer's laptop is part of the artifact.** *(S065)*
+`firebase deploy` packages the **directory** and never consults git. Production's
+source digest therefore includes **62 files no checkout has** — an old lcov
+report and a debug log — so prod cannot be compared byte-exactly to `main` even
+though it *is* `main`. Nothing in the repo could show this, because the repo
+cannot see the files. **Any artifact built by a hand-typed command from a working
+directory carries that directory's accidents.** The fix is never a cleverer
+comparison; it is a lane that builds from a clean checkout (#206).
+
 **91 — An unread failure does not stay silent; it gets EXPLAINED, and the explanation lands on a person.** *(2026-08-08)*
 Lesson 69 already says *`continue-on-error` is not the bug; an UNREAD failure
 is.* This is what the unread failure actually did, which is worse than "nothing

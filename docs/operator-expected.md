@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-08** (Session 064)._
+_Last refreshed: **2026-08-09** (Session 065)._
 
 > ### 🔔 ONE THING now stands between you and a notification, and it takes ten seconds
 >
@@ -49,7 +49,26 @@ _Last refreshed: **2026-08-08** (Session 064)._
 > `ASSOCIATED_DOMAINS` (item **2(d)**) and `APP_ATTEST`. Neither blocks
 > notifications.
 
-> **What changed since the last refresh (2026-08-06):**
+> **What changed since the last refresh (2026-08-08):**
+>
+> * 🔎 **We found out why the notifications feature quietly failed in August — and
+>   built the thing that would have caught it.** Back then the whole push stack was
+>   written, merged and green, two builds shipped, and the functions your phone
+>   calls **had never been deployed to production.** Nothing anywhere compared the
+>   code that is *running* to the code that is *finished*. That comparison now
+>   exists for Cloud Functions, the way it already did for the security rules.
+> * 🟡 **It needs the same one thing from you as the rules check — item 2(e)(iv),
+>   which now needs a second read-only role on the same account.** Until then both
+>   checks show as SKIPPED rather than pretending to pass.
+> * ✅ **Your development backend was three functions behind and is now current.**
+>   It was missing both notification-token functions. Deployed and verified.
+> * ℹ️ **Production is running exactly the right code** — that was checked, not
+>   assumed. The new tool does report a difference, but it is a *housekeeping*
+>   one: the last deploy was typed by hand from a laptop and swept 62 stray local
+>   files into the upload. Harmless, and the real fix (**#206**) needs nothing
+>   from you.
+>
+> **From the 2026-08-06 refresh:**
 >
 > * ✅ **The APNs key is uploaded to both projects** (you confirmed 2026-08-08).
 >   That was the last thing anyone was waiting on. Item 4(a) is closed.
@@ -633,9 +652,29 @@ authorization rules — the lane still requires a manual dispatch and requires
 typing `hayatiapp-prod` into a confirmation box, and **no session will fire it at
 prod without asking you first.**
 
-### (iv) One read-only secret arms the check that catches silent rule drift — issue #165
+### (iv) One read-only secret now arms **TWO** checks — issue #165, and the Functions one that cost us the notifications feature
 
-Read-only, one command, closes a real hole.
+Read-only, one command, closes two real holes.
+
+> **⚠️ This item changed on 2026-08-09 — the account needs a SECOND role.** It used
+> to arm one check. It now arms two, because the same missing-watchman problem
+> turned out to exist for the **Cloud Functions code** as well as for the rules,
+> and that one has already cost you something concrete.
+>
+> **This is the gap that ate the notification feature.** At Session 063 the entire
+> push stack was written, reviewed, merged, and every check was green — but
+> nobody had deployed it, so the functions your phone calls **did not exist in
+> production.** Two builds shipped believing it worked. Nothing in the project
+> could have told anyone, because nothing was comparing the code that is
+> *running* to the code that is *merged*.
+>
+> That comparison now exists (`functions-drift`, ADR-043). Like the rules one, it
+> is built and **unarmed**, and shows as SKIPPED on every run rather than
+> pretending to pass.
+
+**What is different when you do it:** in step 2 below, grant the account
+**Cloud Functions Viewer** as well as Firebase Rules Viewer. Everything else —
+the name, the one command, the one secret — is unchanged.
 
 For eighteen days both projects served the rules from **2026-07-09** while six
 milestones of newer rules sat merged in the repo and never deployed. That is what
@@ -651,16 +690,29 @@ that nothing is watching.)* To arm it:
 
 1. Firebase console → ⚙ → **Users and permissions** → **Service accounts** tab →
    Google Cloud console → **Create service account**, name it `ci-rules-viewer`.
-2. Grant it the role **Firebase Rules Viewer** — on **both** `hayatiapp-prod` and
-   `hayatiapp-dev`. It is read-only: this account cannot change anything, which is
-   deliberate, so the job that runs on every merge can never itself cause the
-   drift it is looking for.
+2. Grant it **two** roles — **Firebase Rules Viewer** *and* **Cloud Functions
+   Viewer** — on **both** `hayatiapp-prod` and `hayatiapp-dev`. Both are
+   read-only: this account cannot change anything, which is deliberate, so the
+   jobs that run on every merge can never themselves cause the drift they are
+   looking for.
 3. Create a **JSON key** for it and download the file.
 4. ```sh
    gh secret set FIREBASE_RULES_VIEWER_SA < ci-rules-viewer.json
    ```
 5. Delete the downloaded file. Confirm with `gh secret list`; the run after that
-   shows `rules-drift` as a real green check instead of a skipped one.
+   shows **`rules-drift` and `functions-drift`** as real green checks instead of
+   skipped ones.
+
+**What the Functions half will tell you on its first armed run**, measured
+2026-08-09 so there are no surprises: it will report **drift on
+`hayatiapp-prod`** — and the reason is *not* that production is running the
+wrong code. It is running exactly the code on `main`. It was deployed by hand
+from a laptop whose `functions/` folder also happened to contain 62 leftover
+files (an old test-coverage report and a debug log), and those got swept into
+the upload. The tool says so in those words rather than raising an alarm. The
+real fix is a **deploy workflow** — Cloud Functions are the last thing here
+still deployed by a typed command — which is **#206** and needs nothing from
+you.
 
 ---
 
@@ -1018,8 +1070,9 @@ these.
 | **#176** | The Question text style asks for Rubik **Light**, which is not bundled — so it silently renders at Regular. The cheapest real bug on the list. |
 | **#175** | 10 of 14 raised cards render flat: the card decoration is copy-pasted per screen instead of coming off the theme. |
 | **#174** | Nothing in the app is announced to VoiceOver when the reveal happens — no `liveRegion` anywhere. |
-| **#166** | Nothing compares the **deployed function code** to `main`, the way `rules-drift` now does for rules. Deliberately measurement-first: the first question is whether it is answerable at all. |
-| **#165** | `rules-drift` is built but unarmed — that is item 2(e)(iv) above. |
+| ~~**#166**~~ | ✅ **Closed 2026-08-09.** It asked whether the deployed function code can be compared to `main` *at all* — and it can, exactly. The check exists now. This is the gap that cost you the notification feature at S063. |
+| **#206** | Cloud Functions are the **only** deploy target still done by a typed command with nothing tracking it. That is why production, though running the right code, cannot be compared to a clean checkout. Nothing needed from you to build it. |
+| **#165** | `rules-drift` is built but unarmed — that is item 2(e)(iv) above, which now arms **two** checks. |
 | **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
 | **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app applies on screen. Latent today — **it stops being latent the moment 4(a) lands and pushes start arriving.** |
 | **#129** | The release lane's `Gemfile.lock` comment is false, the lane installs unfrozen, and no release run has touched the committed lock. |

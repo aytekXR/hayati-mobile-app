@@ -453,9 +453,17 @@ def listing_fail_closed():
 
 
 def git(root: str, *argv: str) -> None:
+    """Every setting the fixture depends on is pinned on the command line.
+
+    A runner with no global git identity, a different `init.defaultBranch`, or
+    commit signing turned on must produce the SAME fixture as this laptop —
+    otherwise a red here would be about the runner's git config rather than
+    about the tool, which is the least useful red there is.
+    """
     subprocess.run(
         ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false",
-         "-C", root, *argv],
+         "-c", "init.defaultBranch=main", "-c", "core.autocrlf=false",
+         "-c", "core.excludesFile=/dev/null", "-C", root, *argv],
         capture_output=True, text=True, check=True, timeout=60)
 
 
@@ -720,7 +728,151 @@ def vendor_derivation_guard():
 
 
 # --------------------------------------------------------------------------
-# 9. The real repository — the plan must describe the tree it ships with
+# 9. The subprocess seams — hermetic, via a fake `firebase` on disk
+# --------------------------------------------------------------------------
+
+
+def fake_firebase(root: str, stdout: str, code: int = 0) -> str:
+    """A stand-in executable. No network, no real CLI, fully deterministic."""
+    path = os.path.join(root, "fake-firebase")
+    with open(path, "w") as handle:
+        handle.write("#!/bin/sh\ncat <<'FAKEEOF'\n" + stdout + "\nFAKEEOF\nexit " + str(code) + "\n")
+    os.chmod(path, 0o755)
+    return path
+
+
+@section
+def subprocess_seams():
+    root = tempfile.mkdtemp()
+    try:
+        check("cli_version: reads the version the binary prints",
+              D.cli_version(fake_firebase(root, "15.22.4")) == "15.22.4")
+        # An update banner can print on EITHER side of the version, and which
+        # side is not ours to assume — so the version is found by shape, from
+        # either position, rather than by index.
+        check("cli_version: finds the version under a banner ABOVE it",
+              D.cli_version(fake_firebase(root, "Update available!\n15.22.4")) == "15.22.4")
+        check("cli_version: finds the version under a banner BELOW it",
+              D.cli_version(fake_firebase(root, "15.22.4\nUpdate available!")) == "15.22.4")
+        try:
+            # A banner that itself carries a version number is the case where
+            # picking [0] or [-1] would silently validate the derivation against
+            # the WRONG version. Two candidates must be a refusal, not a choice.
+            D.cli_version(fake_firebase(root, "15.22.4\n16.0.0 is available"))
+            check("cli_version: TWO version-shaped lines is a refusal, not a guess",
+                  False, "it picked one")
+        except D.MeasurementError as exc:
+            check("cli_version: TWO version-shaped lines is a refusal, not a guess", True)
+            check("cli_version: and says how many it saw", "2 version-shaped" in str(exc), str(exc))
+        try:
+            D.cli_version(os.path.join(root, "definitely-not-installed"))
+            check("cli_version: an absent binary is 'could not measure'", False, "accepted")
+        except D.MeasurementError as exc:
+            check("cli_version: an absent binary is 'could not measure'", True)
+            check("cli_version: and says it will not pretend to pass",
+                  "will not pretend to pass" in str(exc), str(exc))
+
+        payload = json.dumps({"status": "success", "result": []})
+        got = D.run_listing("p", fake_firebase(root, payload), root)
+        check("run_listing: parses the CLI's JSON", got == {"status": "success", "result": []})
+
+        # Lesson 65: silence is UNVERIFIED. `functions:list` printing nothing
+        # must never be read as "this project has no functions".
+        try:
+            D.run_listing("p", fake_firebase(root, "", code=0), root)
+            check("run_listing: EMPTY stdout is an unverified read, not an empty project",
+                  False, "accepted")
+        except D.MeasurementError as exc:
+            check("run_listing: EMPTY stdout is an unverified read, not an empty project", True)
+            check("run_listing: and says so in those terms",
+                  "unverified read" in str(exc), str(exc))
+
+        try:
+            D.run_listing("p", fake_firebase(root, "Error: not logged in"), root)
+            check("run_listing: non-JSON output is refused", False, "accepted")
+        except D.MeasurementError as exc:
+            check("run_listing: non-JSON output is refused", True)
+            check("run_listing: and quotes what it saw instead",
+                  "not logged in" in str(exc), str(exc))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+@section
+def walk_follows_symlinks_like_the_cli():
+    """`ignoreSymlinks` is NOT set on the deploy path, so the CLI's statSync
+    follows them and their targets are packaged. A tool that skipped them would
+    compute a hash over a smaller set than the CLI uploaded."""
+    root = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(root, "real"))
+        with open(os.path.join(root, "real", "target.js"), "w") as handle:
+            handle.write("payload")
+        os.symlink(os.path.join(root, "real", "target.js"), os.path.join(root, "link.js"))
+        os.symlink(os.path.join(root, "real"), os.path.join(root, "linkdir"))
+
+        patterns = list(D.DEFAULT_IGNORE) + list(D.ALWAYS_IGNORE)
+        rel = sorted(os.path.relpath(p, root) for p in D.walk_packaged(root, patterns))
+        check("walk: a symlink to a FILE is packaged (ignoreSymlinks is not set on deploy)",
+              "link.js" in rel, str(rel))
+        check("walk: a symlink to a DIRECTORY is descended into",
+              "linkdir/target.js" in rel, str(rel))
+
+        os.symlink(os.path.join(root, "nowhere"), os.path.join(root, "broken.js"))
+        try:
+            D.walk_packaged(root, patterns)
+            check("walk: a BROKEN symlink is 'could not measure', not silently skipped",
+                  False, "accepted")
+        except D.MeasurementError as exc:
+            check("walk: a BROKEN symlink is 'could not measure', not silently skipped", True)
+            check("walk: and says the CLI would refuse this tree",
+                  "the CLI would refuse" in str(exc), str(exc))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+@section
+def partition_and_dirty_notes():
+    root = build_fixture(foreign=True)
+    try:
+        src = os.path.join(root, "functions")
+        check("git_dirty: a committed fixture reports NOTHING dirty",
+              D.git_dirty("functions", root) == [], str(D.git_dirty("functions", root)))
+        with open(os.path.join(src, "src", "index.ts"), "a") as handle:
+            handle.write("// edited\n")
+        dirty = D.git_dirty("functions", root)
+        check("git_dirty: an edited TRACKED file is reported", len(dirty) == 1, str(dirty))
+        check("git_dirty: an untracked/ignored file is NOT reported as dirty",
+              not any("lcov" in d or "coverage" in d for d in dirty), str(dirty))
+        # The note it drives must appear, because the reference below it is then
+        # this working copy of the tracked files rather than HEAD's.
+        RUN_LISTING[0] = lambda p: listing_for(fixture_hashes(root)[0])
+        _, text = run_cli(["--project", "p", "--root", root])
+        check("main: an edited tracked file prints the note that the reference is "
+              "the WORKING COPY, not HEAD", "differ from HEAD" in text, text)
+
+        # A trailing separator on the build dir must not change membership: the
+        # partition compares normalised absolute paths, not raw strings.
+        packaged = D.walk_packaged(src, list(D.DEFAULT_IGNORE) + list(D.ALWAYS_IGNORE))
+        tracked = D.git_tracked("functions", root)
+        plain = D.Partition(packaged, tracked, os.path.join(src, "lib"))
+        slashed = D.Partition(packaged, tracked, os.path.join(src, "lib") + os.sep)
+        dotted = D.Partition(packaged, tracked, os.path.join(src, ".", "lib"))
+        check("Partition: a trailing separator on the build dir changes nothing",
+              plain.build == slashed.build, f"{plain.build} vs {slashed.build}")
+        check("Partition: a non-normalised build dir changes nothing",
+              plain.build == dotted.build, f"{plain.build} vs {dotted.build}")
+        check("Partition: the three parts are DISJOINT",
+              not (set(plain.tracked) & set(plain.build))
+              and not (set(plain.build) & set(plain.foreign))
+              and not (set(plain.tracked) & set(plain.foreign)))
+    finally:
+        RUN_LISTING[0] = None
+        shutil.rmtree(root, ignore_errors=True)
+
+
+# --------------------------------------------------------------------------
+# 10. The real repository — the plan must describe the tree it ships with
 # --------------------------------------------------------------------------
 
 

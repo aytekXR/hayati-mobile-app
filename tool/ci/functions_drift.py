@@ -392,7 +392,19 @@ def cli_version(firebase_bin: str) -> str:
         raise MeasurementError(f"`{firebase_bin} --version` failed: {exc}") from None
     if out.returncode != 0:
         raise MeasurementError(f"`{firebase_bin} --version` exited {out.returncode}")
-    return out.stdout.strip().splitlines()[-1].strip() if out.stdout.strip() else ""
+    # firebase-tools can print an update banner alongside the version, and which
+    # side it lands on is not ours to assume. Take the lines that LOOK like a
+    # version and refuse if that is not exactly one — picking `[0]` or `[-1]`
+    # would silently pin this check to a banner the day the layout changes, and
+    # a derivation validated against the wrong version is the exact failure this
+    # guard exists to prevent.
+    candidates = [ln.strip() for ln in out.stdout.splitlines()
+                  if re.match(r"^\d+\.\d+\.\d+", ln.strip())]
+    if len(candidates) != 1:
+        raise MeasurementError(
+            f"`{firebase_bin} --version` printed {len(candidates)} version-shaped line(s); "
+            f"expected exactly one. Output was: {out.stdout.strip()[:200]!r}")
+    return candidates[0]
 
 
 def assert_supported_cli(version: str) -> list[str]:
