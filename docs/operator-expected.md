@@ -69,6 +69,75 @@ _Last refreshed: **2026-08-09** (Session 065)._
 > problem. **Fixed in this change** (it now waits for Apple and retries, briefly
 > and in the background).
 >
+> ### ✅ BUILD 118 IS UPLOADED AND ON YOUR TESTFLIGHT — it carries the fix
+>
+> You authorised the release on 2026-08-09 and it is done. Verified by reading
+> App Store Connect, not by trusting a green build:
+>
+> ```
+> build 118   processing=VALID   uploaded 2026-08-09
+>     internal = IN_BETA_TESTING             <-- YOU can install it right now
+>     external = READY_FOR_BETA_SUBMISSION   <-- your friends cannot yet, see below
+> ```
+>
+> **Install build 118, open it to your paired home screen, and tap Allow.**
+> That is the whole remaining action, and it is the first build in this app's
+> history that can actually keep the answer.
+>
+> *(The earlier "delete and reinstall 117" trick is now unnecessary — 118 has the
+> real fix, so an ordinary update is fine.)*
+>
+> **Your seven friends are still on 117 and still have the bug.** 118 was
+> assigned to the `Friends` group but **not submitted for Apple's beta review**,
+> which external testers need. One dispatch fixes that whenever you want it —
+> just say so:
+>
+> ```sh
+> gh workflow run testflight-testers.yml \
+>   -f dry_run=false -f assign_latest_build=true -f submit_for_review=true
+> ```
+>
+> ### You do not have to report anything back, and that is new
+>
+> This box used to end with *"then tell me whether anything arrives at 08:00"* —
+> which is why it sat here for three sessions: only you could see the answer. It
+> turns out production says it directly, and a session can read it. Measured on
+> 2026-08-08, before you install:
+>
+> ```
+> registerPushToken     — ever called by a phone?   NO   (only deploy records)
+> ```
+>
+> ### ⚠️ Corrected 2026-08-09 — we were reading the wrong counter, and there WAS a bug
+>
+> This box used to add *"daily-question sweep — couples checked: 0 on every
+> hourly pass"* and conclude that no phone had ever handed over a token. **That
+> conclusion did not follow.** The sweep only evaluates couples whose own local
+> clock reads 08:00, so `checked: 0` is the expected reading for 23 hours out of
+> every 24 no matter what — and the hours that had been sampled were exactly
+> those. Four sessions repeated it.
+>
+> Measured at the hour it actually means something (05:00 UTC = your 08:00):
+>
+> ```
+> question_rollover: daily-question sweep complete
+>         checked: 1   sent: 0   skippedNoToken: 2   suppressedQuiet: 0   failed: 0
+> ```
+>
+> **Your server side is not waiting for anything — it is working.** It wakes at
+> your 08:00, finds your couple, works out that neither of you has answered yet,
+> and composes a notification for each of you. Then it stops, because neither
+> phone has ever given it an address to send to.
+>
+> **And that was not only because nobody tapped Allow.** There was a real bug in
+> the app: on iOS, Apple does not hand the app its notification address the
+> instant you tap Allow — it arrives a moment later. The app asked once, at
+> exactly the wrong moment, and when that failed it gave up silently and never
+> asked again for the rest of that run. So on the old builds, tapping Allow had a
+> good chance of registering nothing at all, with nothing anywhere reporting a
+> problem. **Fixed in this change** (it now waits for Apple and retries, briefly
+> and in the background).
+>
 > ### 🟢 Worth trying RIGHT NOW, before any of the below — it costs you two minutes
 >
 > **Delete İkimiz from your phone, reinstall build 117 from TestFlight, sign in,
