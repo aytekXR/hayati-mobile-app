@@ -895,13 +895,36 @@ def repo_reality():
 
     tracked = D.git_tracked(source_rel, root)
     check("repo: git reports tracked files under functions/", len(tracked) > 50, str(len(tracked)))
-    part = D.Partition(D.walk_packaged(src, patterns), tracked, os.path.join(src, "lib"))
+    build_dir = D.build_output_dir(src)
+    part = D.Partition(D.walk_packaged(src, patterns), tracked, build_dir)
     check("repo: every packaged file lands in exactly one partition",
           len(part.packaged) == len(part.tracked) + len(part.build) + len(part.foreign),
           f"{len(part.packaged)} vs {len(part.tracked)}+{len(part.build)}+{len(part.foreign)}")
-    check("repo: functions/lib is built, so the reference set has build output "
-          "(run `npm run build` in functions/ if this reddens)",
-          len(part.build) > 0)
+
+    # `quality` runs BEFORE any npm install and never builds functions/, so on a
+    # CI runner this repository legitimately has no functions/lib. Asserting
+    # "the build output is present" would redden there for a reason that is not
+    # a defect — the cry-wolf shape. So assert the CONTRACT in whichever state
+    # this tree is actually in, and assert BOTH halves of it: the unbuilt case
+    # is the one the runner exercises, and it must be exit 2 with the remedy
+    # printed, never a comparison against a tree missing every compiled file.
+    if os.path.isdir(build_dir):
+        check("repo: functions/lib is built, so the reference set carries build output",
+              len(part.build) > 0)
+        check("repo: no build-output file is also reported as tracked",
+              not (set(part.build) & set(part.tracked)))
+    else:
+        code, text = D.EXIT_CANNOT_MEASURE, ""
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = D.main(["--project", "unused", "--root", root, "--skip-version-check"],
+                          listing_loader=lambda p: {"status": "success", "result": []})
+        text = out.getvalue() + err.getvalue()
+        check("repo: with functions/lib unbuilt, the tool is 'could not measure' — "
+              "never a comparison against a tree missing every compiled file",
+              code == D.EXIT_CANNOT_MEASURE, f"exit {code}\n{text}")
+        check("repo: and it prints the remedy", "npm run build" in text, text)
+        check("repo: an unbuilt tree yields no build-output partition", len(part.build) == 0)
 
 
 # --------------------------------------------------------------------------
