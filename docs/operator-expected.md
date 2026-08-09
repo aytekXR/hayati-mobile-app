@@ -889,12 +889,27 @@ Please eyeball each of these on a TestFlight build:
 Check enforcement stays OFF in both consoles until on-device attestation is
 verified), and **Universal links** (2(d)).
 
-> **One thing nobody can settle from a laptop:** whether the hourly rollover job
-> is actually **enabled** in Cloud Scheduler. `gcloud` is not installed here and
-> there is no application-default credential, so this has never been verified —
-> it is recorded as unknown rather than assumed. It matters more now than it did:
-> the 08:00 question push will ride that same hourly sweep. Google Cloud console →
-> Cloud Scheduler → `hayatiapp-prod` → confirm the job is `ENABLED` on `0 * * * *`.
+> ### ✅ ~~One thing nobody can settle from a laptop~~ — SETTLED 2026-08-09, and it needs nothing from you
+>
+> This asked you to open the Google Cloud console and confirm the hourly rollover
+> job is `ENABLED` on `0 * * * *`. It was recorded for months as unverifiable
+> because `gcloud` is not installed here and there is no application-default
+> credential.
+>
+> **It never needed `gcloud`.** The job's own output is in the Functions log, and
+> a job that is not running writes nothing. Measured:
+>
+> ```
+> 43 distinct hourly sweeps, 2026-08-07T08:00Z → 2026-08-09T02:00Z, ZERO gaps
+> ```
+>
+> Forty-three consecutive hours with no missing hour is not consistent with a
+> disabled schedule. **The scheduler is enabled and firing on the hour.** Nothing
+> for you to click, and one fewer console visit on your list.
+>
+> *(Third time this session that a "nobody can measure this" turned out to be
+> measurable with a tool already in the repo. Worth a habit: before recording an
+> unknown, ask what the thing would EMIT if it were working.)*
 
 ---
 
