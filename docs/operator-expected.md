@@ -87,6 +87,21 @@ _Last refreshed: **2026-08-09** (Session 065)._
 > *(The earlier "delete and reinstall 117" trick is now unnecessary — 118 has the
 > real fix, so an ordinary update is fine.)*
 >
+> **The sending side was probed on 2026-08-09 and is healthy.** A `validate_only`
+> send through Google's own FCM endpoint — which delivers nothing to anyone — was
+> accepted for both projects and rejected only the deliberately fake address it
+> was given:
+>
+> ```
+> hayatiapp-prod  ->  "The registration token is not a valid FCM registration token"
+> hayatiapp-dev   ->  same
+> ```
+>
+> No credential error, no project error. So the pipe from our server to Google is
+> open. The one link nobody can test without a real phone is the last hop —
+> Google to Apple — and that needs the address your phone produces when you tap
+> Allow.
+>
 > **Your seven friends are still on 117 and still have the bug.** 118 was
 > assigned to the `Friends` group but **not submitted for Apple's beta review**,
 > which external testers need. One dispatch fixes that whenever you want it —
