@@ -2572,3 +2572,145 @@ claim. A session should pick none of them.
 install + permission tap that no session can perform, and — newly and correctly
 stated — the Turkish **display name** decision behind #204, which is not the
 locale click this page has been asking for.
+
+---
+
+## Session 065 — 2026-08-09 — **#166 asked whether the deployed Functions can be compared to `main` at all. They can, exactly — and the thing stopping it is that nobody deploys from a clean tree** *(first-hand)*
+
+**Objective (one, per `resume-prompt.md`): answer #166 — is the deployed Functions code comparable to `main`, and if so, gate it.** The issue was filed measurement-first, with *"no sound comparison exists, here is the evidence, closed"* written into its acceptance criteria as a legitimate outcome. It is **not** the outcome.
+
+### The handoff said the open question was whether the hash is derivable. It is — and the vendor's own source says so
+
+S064 found `firebase-functions-hash` on the deployed functions and left the real question open: *is it derivable from a checkout?* If not, candidate 1 collapses into candidate 2 and ADR-041 D1's marker objection applies.
+
+It was settled by reading the algorithm out of the **installed firebase-tools 15.22.4** rather than out of any documentation — *query the platform, not the docs*, applied to a package sitting on disk:
+
+```
+sourceHash   = sha1( sorted([ sha1(bytes) for each packaged file ]).join("") )
+envHash      = sha1( JSON.stringify(backend.environmentVariables) )
+secretsHash  = sha1( JSON.stringify({ secretName: boundVersion, … }) )
+endpointHash = sha1( [sourceHash, envHash, secretsHash].filter(truthy).join("") )
+```
+
+**`sourceHash` digests a sorted multiset of per-file digests, not the zip bytes.** That one fact is the whole answer: a zip carries mtimes, entry order and compressor state and could never be reproduced; a sorted list of content hashes is content-addressed and machine-independent.
+
+**All 13 production hashes reproduced exactly, on the first attempt.** Including both outliers — which also settles S064's explicitly-untested hypothesis **by construction** rather than by inference: secret *versions* participate (`{"LLM_API_KEY":"1"}`, `{"RC_WEBHOOK_TOKEN":"1"}`), so a rotation moves the hash with no line of code changing. That is why the tool takes the secrets component from the deployment rather than guessing `"1"`.
+
+ADR-041 D1's objection was checked rather than waved past, and it does **not** defeat this: the hash is not a record a deploy lane writes about itself. `firebase deploy` computes it from the bytes it uploads, whoever runs it.
+
+### Then the reproduction turned out to depend on the laptop's rubbish
+
+It succeeded **only because this machine still held the debris it held at deploy time**. The CLI packages the *directory*; it never consults git.
+
+```
+packaged into the running production deployment : 275 files
+  tracked by git                                : 116
+  build output (functions/lib/)                 :  97
+  FOREIGN — gitignored, machine-local           :  62   (61 × coverage/**, firestore-debug.log)
+```
+
+A clean checkout hashes to `15924a45…`; production to `b29f795f…`. So the exact answer is sharper than either outcome #166 anticipated: **the deployed code IS comparable to `main`; what is not comparable is *this deployment*, because it was made by hand from a directory the repository cannot know.** A process gap, not a measurement gap → **lesson 92**, and **#206**.
+
+That shaped the design (ADR-043 D3): the verdict is computed over `tracked ∪ build output` — what a clean checkout plus `npm ci && npm run build` carries — and the working-tree digest is computed *only* so the report can separate **"production is running the wrong code"** from **"production is running the right code, hand-deployed"**. Both are exit 1. Without the split the reader cannot tell an emergency from housekeeping → **lesson 94**.
+
+### What shipped
+
+`tool/ci/functions_drift.py`, in `rules_drift.py`'s shape, with **two independent verdicts** and the worse one winning:
+
+* **the set comparison** — every name `functions/src/index.ts` exports must be deployed, and nothing else. No hashing, no build. **This is the check whose absence cost S063 the entire push feature.**
+* **the hash comparison** — per function.
+
+Exit taxonomy unchanged: `0` / `1` drift / `2` could not measure, **never 0**. Three cases resolve to 2 where 1 is tempting — a function with **no hash label** (unmeasurable, not matching), a **zero-function listing** (lesson 65), and **gcfv1 / DataConnect** (whose digest takes inputs this tool does not walk).
+
+Two premises were measured rather than assumed, because the whole design rests on them:
+
+* **`npm run build` is byte-reproducible** — 97 of 97 files identical on rebuild. Had it not been, two clean checkouts would disagree before anyone reached production.
+* **`js_stringify` is V8's `JSON.stringify`** — checked **differentially against node** on ten inputs covering control characters, `U+2028`/`U+2029`, astral-plane code points and key order. All ten byte-identical. (An earlier ad-hoc comparison appeared to diverge; the divergence was shell mangling of the test input, which is why it was redone from one shared file.)
+
+### The tests, and what the mutations proved
+
+`tool/ci/functions_drift_test.py` — **159 hermetic checks** on a CI runner (158 on a built tree), registered in `quality` beside the other pre-`pub get` self-tests. The fixtures are pinned to hashes **measured from production**: a fixture derived from its own subject proves nothing, and these could not be — Google computed them. The walk is checked against an enumeration the test builds itself, and the reference/working-tree fixture carries a **real foreign file**, so the mutation that swaps which digest is the verdict — the whole of D3 — cannot pass unseen.
+
+**22 mutations, every one reddens a NAMED assertion.** One of them is the reason for a new lesson:
+
+| mutation | what reddened |
+|---|---|
+| envHash: firebaseEnvs spread before userEnvs | user envs come FIRST (JS spread keeps insertion order) |
+| js_stringify: Python's default separators | 17 checks; V8 emits `{"LLM_API_KEY":"1"}` |
+| js_stringify: `ensure_ascii` left at its default | V8 emits `café` raw, not `café` |
+| endpoint_hash: falsy components no longer dropped | **nothing, at first** — see below |
+| secrets_hash: hashes the whole entry | maps `{secret: version}`, not the whole entry |
+| secrets_hash: missing version becomes null | a missing version is `""`, not null |
+| source_hash: digests no longer sorted | agrees with an INDEPENDENT re-implementation |
+| verdict computed from the working tree | a deployment matching the REFERENCE is exit 0 |
+| reference set: foreign files folded back in | the fixture's two digests genuinely DIVERGE |
+| reference set: build output dropped | the reference is tracked + built |
+| build dir hardcoded to `lib/` | read from package.json's main, never hardcoded |
+| barrel: a non-`export {` form skipped | `export *` is REFUSED |
+| a non-ACTIVE function accepted | non-ACTIVE is DRIFT even with a matching hash |
+| zero-function listing collapsed into drift | ZERO deployed is 'could not measure' (lesson 65) |
+| no hash label treated as matching | unmeasurable, not matching |
+| no FIREBASE_CONFIG defaults to `""` | the comparison would be against an invented value |
+| CLI major mismatch accepted | a different major is REFUSED |
+| vendor guard disabled | names the claim that stopped matching |
+| ignored DIRECTORIES descended into | packages exactly the expected set |
+| a binding dotenv silently ignored | a wrong parser would look like real drift |
+| multi-codebase silently uses the first | two codebases are REFUSED |
+| gcfv1 accepted under the gcfv2 derivation | gcfv1 is REFUSED |
+
+**`filter(Boolean)` over strings is a no-op, and the mutation deleting it passed.** For strings, `[a,b,c].filter(Boolean).join("")` and `a+b+c` are the same expression. The filter is only observable when a component is *absent* — which `applyHash.js` genuinely produces for a platform with no packaged source. The test now asserts the `None` case, and the mutation reddens → **lesson 93**. *When a mutation reddens nothing, the tool is not necessarily right; the test may simply not reach the property.*
+
+### A version pin cannot catch the algorithm moving inside a version
+
+The pre-code review panel raised it and it is real: this vendor's derivation has changed within a major before. So the tool **re-greps four load-bearing shapes out of the installed vendor source on every run** and exits 2 if any has moved — the same instinct `rules_drift.py` already had for the CLI's OAuth constants, generalised → **lesson 95**. Verified in both directions: 4/4 against the real install, and a doctored install is refused.
+
+### Watched catching something real, then watched going quiet
+
+S065's handoff deliberately left `hayatiapp-dev` drifted so this checker could be demonstrated rather than shipped green against nothing. It was driven end to end:
+
+```
+before : 10 deployed, 3 exports missing, and all 10 hashes mismatched
+         (dev had been running 2026-08-01 code)
+after a CLEAN-TREE deploy of the 12 that CAN deploy (dev is a session's to exercise):
+         12 deployed, ALL 12 hash comparisons silent, one finding left —
+         revenueCatWebhook absent, which is operator item 0(c) and not a session's to close
+```
+
+**A clean deploy reproduces `referenceHash` bit-for-bit.** That is the strongest available confirmation that D3's reference set is defined correctly, and it is the reason the design is trusted rather than merely tested.
+
+### One limitation found by trying to break it
+
+With the 62 foreign files moved aside, the same tool against the same production reported *"running source that is NOT this ref"* instead of *"deployed from a dirty tree"*. It is not wrong — it genuinely could no longer tell. So **the hand-deploy diagnosis is machine-local, and CI will always see the harsher reading** until prod is redeployed cleanly. Recorded in the ADR rather than discovered later.
+
+### Review
+
+Two panels, both run, both with `agents_error: 0` and `agents_empty_result: 0` — checked before trusting the distribution. **Pre-code, on the ADR** (5 lenses × 2 verifiers — a refuting skeptic and a governing-docs adjudicator, surfacing on *either*): 22 findings, 3 survived. They produced the envHash key-ordering paragraph, a corrected `Related` line that had claimed ADR-041 D1's objection was examined in a decision that does not discuss it, and confirmation that non-ACTIVE states deserve their own finding rather than a filter. **On the built diff**, a second panel with per-finding refutation.
+
+### §5.8 bit, in a way worth writing down
+
+The diff-review agents were told **read-only** and given no edit tools. One of
+them ran the session's own **mutation harness** out of the scratchpad — a
+reasonable-looking way to "check the tests" — and that harness writes a mutation
+into the source and restores a snapshot in a `finally`. Its restore **silently
+reverted a `cli_version` hardening made after its snapshot**. Nothing errored.
+A test run sampled inside that window reported a check count that made no sense,
+which is the only reason it was caught.
+
+Blast radius was one file, reverted to its last *committed and tested* state, so
+nothing unsound could have shipped — but the reading taken mid-flight was wrong,
+and it would have been easy to write that number into a document. → **lesson 96**,
+which extends §5.8: the harness is a *write* tool and must be out of reach, and a
+measurement taken *while* a review is in flight is as suspect as a commit made
+after one. Everything below was re-run after the workflow actually finished.
+
+### Proven
+
+`functions_drift: 159 checks, 0 failed` **read back out of the runner's own job log** · 22/22 mutations redden a named assertion · the tool run live against **both** projects · `ci.yml` parses and the new jobs are wired into `slack-notify`'s fan-in · dev deploy exit 0 and independently re-read.
+
+Both review panels were checked for `agents_error` / `agents_empty_result` before their distributions were believed (§5.5). The diff panel reported three "empty results" — inspected rather than assumed, and they were three lenses returning an empty *findings array*, not three dead agents. All five findings it did raise were refuted against primary sources; none survived.
+
+### Operator dependencies
+
+**One changed, none new.** Item **2(e)(iv)** keeps its number (lesson 71) but its *instructions* change: the same read-only service account now needs **Cloud Functions Viewer** alongside Firebase Rules Viewer, and the one secret arms **two** checks. An item whose number survives while its instructions silently grow is how a founder ends up performing yesterday's task.
+
+**#166 closed** with the evidence. **#206 filed** — the deploy lane, the residual, and the reason the dirty-tree branch has to exist at all.

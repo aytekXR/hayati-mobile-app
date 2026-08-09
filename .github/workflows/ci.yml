@@ -210,6 +210,20 @@ jobs:
       # exit 2 = the master or Contents.json could not be read at all.
       - name: app icon set matches the brandkit master
         run: python3 tool/ci/app_icons.py --verify
+      # ADR-043 (issue #166): the Functions sibling of the rules drift check.
+      # The check ITSELF needs a credential and the firebase CLI, so it runs in
+      # the `functions-drift` job below; these tests are hermetic — no network,
+      # no CLI, no credential — so they belong here, and they are the only part
+      # of that gate which runs on a PR.
+      #
+      # They are pinned to hashes MEASURED FROM PRODUCTION rather than to values
+      # this tool produced (a fixture derived from its own subject proves
+      # nothing), `js_stringify` is checked differentially against V8's own
+      # JSON.stringify output, and the reference/working-tree fixture carries a
+      # real foreign file so that swapping which digest is the verdict — the
+      # whole of ADR-043 D3 — cannot pass unseen.
+      - name: functions drift self-tests
+        run: python3 tool/ci/functions_drift_test.py
       - name: pub get
         working-directory: app
         run: flutter pub get
@@ -645,6 +659,95 @@ jobs:
             --project hayatiapp-prod \
             --project hayatiapp-dev
 
+  # ADR-043 (issue #166). The Functions half of the same question, and the one
+  # whose absence cost S063 the entire push feature: the whole stack merged,
+  # every check green, two builds shipped, and the callables the app invokes did
+  # not exist in production.
+  #
+  # Same preflight-job shape as rules-drift above and for the same reason — a
+  # job-level `if:` cannot read `secrets`, and a job whose every STEP skipped
+  # reports GREEN, which is this check's own subject defect wearing a new hat.
+  functions-drift-preflight:
+    name: functions-drift-preflight
+    # main only, including for dispatches — ADR-041 D6's argument transfers
+    # without amendment: drift is a property of `main` vs the projects, so a PR
+    # would go red for last week's undeployed Functions, which its author
+    # neither caused nor can fix (prod Functions deploys are a founder ask).
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_credential: ${{ steps.probe.outputs.has_credential }}
+    steps:
+      - id: probe
+        env:
+          SA: ${{ secrets.FIREBASE_RULES_VIEWER_SA }}
+        run: |
+          if [ -n "$SA" ]; then
+            echo "has_credential=true" >> "$GITHUB_OUTPUT"
+            echo "FIREBASE_RULES_VIEWER_SA present — the functions drift check will run."
+          else
+            echo "has_credential=false" >> "$GITHUB_OUTPUT"
+            # ADR-043 D6.1 inherits ADR-041 D6.1's recorded exception to
+            # architecture §9's "never a ::warning:: on a green build": the
+            # annotation IS the signal that nothing is watching, and a
+            # ::notice:: would make an unarmed gate look like an armed one.
+            echo "::warning::FIREBASE_RULES_VIEWER_SA is not set, so functions-drift will"
+            echo "::warning::be SKIPPED — not passed. Nothing is comparing the Cloud"
+            echo "::warning::Functions hayatiapp-prod is RUNNING to the code on main. That"
+            echo "::warning::gap cost S063 the whole push feature. See"
+            echo "::warning::docs/operator-expected.md item 2(e)(iv)."
+          fi
+
+  functions-drift:
+    name: functions-drift
+    needs: [functions-drift-preflight]
+    if: needs.functions-drift-preflight.outputs.has_credential == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      # The deployed source contains the COMPILED output, so the reference set
+      # is meaningless until `npm run build` has run. The tool exits 2 rather
+      # than comparing against a tree missing every compiled file.
+      - name: build functions/lib (it is part of what was deployed)
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
+      # Pinned to the dev-box version the hash derivation was read out of. The
+      # tool ALSO re-verifies four load-bearing shapes against this install's
+      # own source every run (ADR-043 D9), because a version pin cannot catch
+      # the algorithm moving inside a range we still accept.
+      - name: install firebase-tools (pinned to dev-box version)
+        run: npm install -g firebase-tools@15.22.4
+      - name: is what is RUNNING what is MERGED?
+        env:
+          # `firebase functions:list` authenticates through ADC, so the same
+          # read-only service account that arms rules-drift arms this — it needs
+          # roles/cloudfunctions.viewer added alongside roles/firebaserules.viewer
+          # (operator item 2(e)(iv)). Read-only by construction, ADR-041 D4: this
+          # tool must never be able to cause the drift it reports.
+          FIREBASE_SA: ${{ secrets.FIREBASE_RULES_VIEWER_SA }}
+        # Exit 1 = drift (it looked, they differ). Exit 2 = could not measure
+        # (fail closed). Both red, and the tool says which.
+        #
+        # hayatiapp-dev is deliberately NOT checked here (ADR-043 D6.2):
+        # revenueCatWebhook cannot deploy to dev until operator item 0(c) puts
+        # RC_WEBHOOK_TOKEN there, so dev is red BY CONSTRUCTION and would redden
+        # main forever for a filed dependency nobody can close that hour. A
+        # session checks dev on demand with the same command. When 0(c) closes,
+        # add `--project hayatiapp-dev` on the next line.
+        run: |
+          printf '%s' "$FIREBASE_SA" > /tmp/functions-drift-sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/functions-drift-sa.json
+          python3 tool/ci/functions_drift.py --project hayatiapp-prod
+
   slack-notify:
     name: slack-notify
     # ADR-024. The terminal fan-in: ONE message per run, never one per job.
@@ -669,7 +772,7 @@ jobs:
     # whose red arrives AFTER the merge with no other reader — ADR-024's founding
     # case — and the notifier is generic over `needs`, so it costs no script
     # change and renders a skipped drift check as ⏭ rather than as a pass.
-    needs: [quality, functions-rules, ios-build-smoke, integration-emulator, rules-drift]
+    needs: [quality, functions-rules, ios-build-smoke, integration-emulator, rules-drift, functions-drift]
     if: always()
     continue-on-error: true
     runs-on: ubuntu-latest
