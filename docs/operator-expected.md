@@ -69,9 +69,20 @@ _Last refreshed: **2026-08-09** (Session 065)._
 > problem. **Fixed in this change** (it now waits for Apple and retries, briefly
 > and in the background).
 >
-> **So please use a build made after 2026-08-09.** Install it, open it to your
-> paired home screen, and tap Allow. A session can then confirm within minutes,
-> without you reporting anything.
+> ### ⚠️ The fix is merged, but it is NOT in any build you can install yet
+>
+> Builds 115, 116 and 117 all carry the bug. **No build carrying the fix exists**
+> — it has to be produced, and producing one uploads a real binary to your
+> TestFlight, which a session will not do without your go-ahead.
+>
+> **Say the word and it happens in one command:**
+>
+> ```sh
+> gh workflow run release.yml --ref main
+> ```
+>
+> Then install that build, open it to your paired home screen, and tap Allow.
+> A session confirms within minutes, without you reporting anything.
 >
 > **Still unticked, still one page, still yours if you want them:**
 > `ASSOCIATED_DOMAINS` (item **2(d)**) and `APP_ATTEST`. Neither blocks
@@ -124,7 +135,7 @@ single thing left is **one install and one tap**.
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~99%** — M1→M6.3 all merged. All three notifications are built, deployed and **running in production**. Measured 2026-08-09 at the only hour the counters mean anything (your 08:00): the sweep found your couple, resolved both of you as not-yet-answered, and composed a push for each — then stopped at `skippedNoToken: 2`, because no phone has ever registered an address. `registerPushToken` has **never once been called by a device**. Part of that was a **real bug on the app side**, fixed 2026-08-09 (ADR-044): iOS delivers the notification address a moment AFTER you tap Allow, and the app asked once, at the wrong moment, then gave up silently. **No notification has still ever been delivered.** M3.4's ✅ stays struck through until one arrives. | **One install of a build made after 2026-08-09.** Open it to your paired home screen and accept the prompt. A session then verifies token capture from the production logs **without you reporting anything** — see 4(a). |
+| **Is the MVP built?** | **~99%** — M1→M6.3 all merged. All three notifications are built, deployed and **running in production**. Measured 2026-08-09 at the only hour the counters mean anything (your 08:00): the sweep found your couple, resolved both of you as not-yet-answered, and composed a push for each — then stopped at `skippedNoToken: 2`, because no phone has ever registered an address. `registerPushToken` has **never once been called by a device**. Part of that was a **real bug on the app side**, fixed 2026-08-09 (ADR-044): iOS delivers the notification address a moment AFTER you tap Allow, and the app asked once, at the wrong moment, then gave up silently. **No notification has still ever been delivered.** M3.4's ✅ stays struck through until one arrives. | **Authorize one release build, then one install.** The fix is merged but is in NO build yet — 115/116/117 all carry the bug — and producing one uploads a real binary to your TestFlight, so it waits on your word. Then open it to the paired home screen and accept the prompt; a session verifies capture from the production logs **without you reporting anything** — see 4(a). |
 | **Can people install it?** | **100%** — done, and no longer stale. Builds **115, 116 and 117** have all shipped since; 116 passed Apple's beta review (`external=IN_BETA_TESTING`) and **117 carries the new icon plus the whole notification stack**. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Your testers are current. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
