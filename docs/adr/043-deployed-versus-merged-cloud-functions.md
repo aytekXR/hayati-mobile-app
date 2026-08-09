@@ -276,9 +276,23 @@ limitation is the thing that makes a green check a false claim; a named one is a
 scope.
 
 **And it fails closed on reconstruction it cannot perform**: a deployed function
-with no readable `FIREBASE_CONFIG`, or a `functions/.env*` file that the CLI
-would read but git does not track, is **exit 2** — because in both cases the
-tool would be comparing against an input it invented.
+with no readable `FIREBASE_CONFIG` is **exit 2**, because the tool would
+otherwise be comparing against an input it invented.
+
+**`functions/.env*` is stricter than that, deliberately.** An earlier draft of
+this decision said an *untracked* dotenv is exit 2, implying a tracked one would
+be read. The shipped tool refuses **any** dotenv that binds for the compared
+project, tracked or not — and that is the correct behaviour, for the reason
+stated below D4's own limitation: firebase-tools parses dotenv with its own
+strict parser (quoting, escapes, multi-line values, reserved-key rejection), and
+a reimplementation that nothing validates, sitting on the critical path of a hash
+comparison, produces a **false RED indistinguishable from real drift**. Tracking
+status does not make a parser correct. No dotenv binds for either project today;
+the day one does, this check stops until someone extends it deliberately.
+
+*(Recorded rather than quietly corrected: this is the paraphrase-hunt the review
+discipline exists for — the ADR had drifted from the code by one adjective, in
+the direction that would have made the tool look less careful than it is.)*
 
 ## Decision 5 — The exit taxonomy is ADR-041's, unchanged
 
@@ -414,6 +428,15 @@ The algorithm was read out of firebase-tools **15.22.4**. If a future major
 rewrites it, this tool would compute confident nonsense. So it reads the
 installed CLI's version and **fails closed (exit 2) on a different major**,
 printing the four source paths the derivation came from.
+
+**The version is found by SHAPE, and two candidates is a refusal.** `firebase
+--version` can print an update banner alongside the number, and which side it
+lands on is not ours to assume — so the tool takes the lines that look like a
+version and exits 2 unless there is exactly one. Taking `[0]` or `[-1]` would
+silently pin this check to a banner the day the layout changed, and a banner that
+itself carries a version (*"16.0.0 is available"*) would then validate the
+derivation against the **wrong** version, which is the precise failure this whole
+decision exists to prevent.
 
 A minor/patch difference prints a note and proceeds. It is not a `::warning::`:
 architecture §9 forbids one on a green build, and D6.1's inherited exception was
