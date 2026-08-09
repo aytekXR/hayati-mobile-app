@@ -91,9 +91,11 @@ precedented, but say so rather than letting it look armed.
 deployed, and 116/117 do ask for permission. **Re-derive its state and close it if
 it is stale** rather than re-implementing something that shipped.
 
-**3 — The rest.** Re-derive from `gh issue list`. **#175** (10 of 14 raised cards
-render flat) · **#174** (no `liveRegion` — the reveal is never announced) ·
-**#137** · **#136** · **#129/#121** · **#115** · **#41**.
+**3 — The rest.** Re-derive from `gh issue list`. **#208** (`integration-emulator`
+hung silently and burned its whole 50-minute budget — second blow-out, and
+raising the ceiling again is not a fix) · **#175** (10 of 14 raised cards render
+flat) · **#174** (no `liveRegion` — the reveal is never announced) · **#137** ·
+**#136** · **#129/#121** · **#115** · **#41**.
 
 ⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
 first. Token capture needs none of it; only background *delivery* does.
