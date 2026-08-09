@@ -69,6 +69,26 @@ _Last refreshed: **2026-08-09** (Session 065)._
 > problem. **Fixed in this change** (it now waits for Apple and retries, briefly
 > and in the background).
 >
+> ### 🟢 Worth trying RIGHT NOW, before any of the below — it costs you two minutes
+>
+> **Delete İkimiz from your phone, reinstall build 117 from TestFlight, sign in,
+> and tap Allow.** A *fresh install* has a real chance of working even on the
+> buggy build, and here is the honest reason why.
+>
+> The app does two things: it asks Apple for your notification address once (that
+> is the broken part — it asks a moment too early and gives up), **and** it also
+> listens for Apple to announce a brand-new address. On a phone that has never
+> had one, that announcement fires the first time you grant permission — and the
+> listener is attached *before* the prompt, so it catches it. On an **upgrade**,
+> where an address already existed, nothing new is announced and there is nothing
+> to catch, which matches what we have seen for three builds.
+>
+> So: **delete first, then reinstall.** Not an update — a delete and a fresh
+> install. If notifications start arriving tomorrow at 08:00, that was it.
+>
+> Either way a session can tell within minutes whether your phone registered,
+> without you reporting anything.
+>
 > ### ⚠️ The fix is merged, but it is NOT in any build you can install yet
 >
 > Builds 115, 116 and 117 all carry the bug. **No build carrying the fix exists**
