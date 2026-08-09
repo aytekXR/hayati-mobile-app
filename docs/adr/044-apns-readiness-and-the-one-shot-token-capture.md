@@ -138,6 +138,60 @@ throw is *retried* and that a token appearing on a later attempt **is
 registered**. A test that blesses the defect is worse than no test, because it
 converts a bug into a specification.
 
+## Addendum (same day) — a SECOND defect, found by hunting rather than by waiting
+
+With the fix merged and build 118 shipped, the remaining step was the founder's
+tap. Rather than wait, the whole delivery path was hunted adversarially for a
+second defect that would still stop a notification *after* a valid token landed.
+Five lenses; four found nothing; one found this, and it survived refutation.
+
+**There is no foreground presentation handler anywhere in the app.** No
+`setForegroundNotificationPresentationOptions`, no `onMessage`, no
+`UNUserNotificationCenter` delegate. iOS's default is to hand a foreground push
+to the app and display **nothing** — no banner, no sound, no badge. The message
+is not lost; it is invisible, which to the person testing is indistinguishable
+from *"notifications are still broken."*
+
+It matters unevenly, and that asymmetry is why it was worth fixing now rather
+than filing:
+
+* the **08:00 daily question** arrives when the app is almost certainly
+  backgrounded — never affected;
+* **"your partner answered"** fires the instant the other member submits,
+  precisely when the recipient is most likely to be *in* the app. It is also
+  the push the founder named in their own words, and the one two people testing
+  together would hit first.
+
+`configureForegroundNotifications()` is called fire-and-forget from the flavor
+entrypoints — the rule `activateAppCheck` and `initializeCrashlytics` already
+follow, because it drives a platform channel and `initializeFirebase` is
+unit-tested on a plain VM. Unawaited and fail-open: a display preference must
+not cost launch latency (ADR-022) and must not be able to fail a boot
+(ADR-039 D1).
+
+**Why the entrypoints and not `ensurePermission()`.** The tempting placement is
+beside the permission grant. It is wrong: on a warm start where permission was
+granted in an earlier session, `promptForPermissionAndRegister` returns early on
+an already-registered token and `ensurePermission` is never reached — so the
+option would be set on the first launch after granting and never again.
+
+### What the hunt confirmed, which is worth as much as what it found
+
+Both paths the founder named are **verified working in production**, and they
+are independent of each other:
+
+```
+daily question   05:00Z sweep     checked:1  sent:0  skippedNoToken:2
+partner answered answerReveal     kind=partnerAnswered  "push skipped, no fcm tokens"
+                 (fired 2026-08-06 12:33, 21:26; 2026-08-07 01:14)
+```
+
+Two unrelated triggers, both composing a correct push, both stopping at the same
+missing input. The FCM message shape was checked too — `notification: {title,
+body}`, which is what produces a real alert rather than a silent data message —
+and FCM v1 was probed live and accepts sends for both projects. **No blocker
+remains on the path between an FCM token and a lock screen.**
+
 ## Consequences
 
 * The founder's remaining action is unchanged in words — install a build, tap

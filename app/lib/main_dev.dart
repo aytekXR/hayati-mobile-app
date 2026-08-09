@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseFirestore;
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/widgets.dart'
@@ -11,6 +13,7 @@ import 'core/config/app_config.dart';
 import 'core/firebase/app_check_bootstrap.dart';
 import 'core/firebase/firebase_bootstrap.dart';
 import 'core/firebase/google_sign_in_config.dart';
+import 'core/firebase/messaging_bootstrap.dart';
 import 'core/observability/boot_trace.dart';
 import 'core/observability/crashlytics_bootstrap.dart';
 import 'core/storage/local_flag_store.dart';
@@ -125,6 +128,10 @@ Future<void> main() async {
     ).wait;
     BootTrace.mark(BootTrace.stageLocalStateReady);
     final googleConfig = googleSignInConfigFor(config.flavor);
+    // ADR-044 addendum (#188): ask iOS to SHOW a push that arrives while the
+    // app is open. Unawaited on purpose — a display preference must not cost
+    // launch latency (ADR-022), and it fails open (ADR-039 D1).
+    unawaited(configureForegroundNotifications());
     BootTrace.mark(BootTrace.stageRunApp);
     runHayati(
       config,
