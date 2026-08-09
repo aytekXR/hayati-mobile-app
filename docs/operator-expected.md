@@ -69,20 +69,35 @@ _Last refreshed: **2026-08-09** (Session 065)._
 > problem. **Fixed in this change** (it now waits for Apple and retries, briefly
 > and in the background).
 >
-> ### ✅ BUILD 118 IS UPLOADED AND ON YOUR TESTFLIGHT — it carries the fix
+> ### ✅ BUILD 119 IS ON YOUR TESTFLIGHT — install THIS one, it carries BOTH fixes
 >
 > You authorised the release on 2026-08-09 and it is done. Verified by reading
 > App Store Connect, not by trusting a green build:
 >
 > ```
-> build 118   processing=VALID   uploaded 2026-08-09
+> build 119   processing=VALID   uploaded 2026-08-09
 >     internal = IN_BETA_TESTING             <-- YOU can install it right now
 >     external = READY_FOR_BETA_SUBMISSION   <-- your friends cannot yet, see below
 > ```
 >
-> **Install build 118, open it to your paired home screen, and tap Allow.**
-> That is the whole remaining action, and it is the first build in this app's
-> history that can actually keep the answer.
+> **Install build 119, open it to your paired home screen, and tap Allow.**
+> That is the whole remaining action.
+>
+> **Two separate bugs were found and fixed today, not one.** 118 fixed the first;
+> **119 fixes both** and is the one to install.
+>
+> 1. **The app threw away your notification address.** Apple hands it over a
+>    moment *after* you tap Allow. The app asked once, a moment too early, and
+>    when that failed it gave up silently and never asked again. Builds 115, 116
+>    and 117 all had this — **tapping Allow on any of them could register nothing
+>    at all**, with nothing anywhere reporting a problem.
+> 2. **A notification arriving while the app was OPEN showed nothing.** iOS does
+>    not display a banner over a foregrounded app unless the app asks it to, and
+>    ours never did. Your 08:00 question was unaffected (you would be out of the
+>    app), but **"your partner answered" was hit hardest** — that one fires the
+>    second the other person submits, exactly when you are most likely to be
+>    looking at the app. You would have seen silence and reasonably concluded it
+>    was still broken.
 >
 > *(The earlier "delete and reinstall 117" trick is now unnecessary — 118 has the
 > real fix, so an ordinary update is fine.)*
@@ -102,7 +117,7 @@ _Last refreshed: **2026-08-09** (Session 065)._
 > Google to Apple — and that needs the address your phone produces when you tap
 > Allow.
 >
-> **Your seven friends are still on 117 and still have the bug.** 118 was
+> **Your seven friends are still on 117 and still have BOTH bugs.** 119 was
 > assigned to the `Friends` group but **not submitted for Apple's beta review**,
 > which external testers need. One dispatch fixes that whenever you want it —
 > just say so:

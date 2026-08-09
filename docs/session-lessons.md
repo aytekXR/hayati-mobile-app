@@ -38,6 +38,22 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**99 — When you are blocked on a human, hunt the REST of the path instead of waiting.** *(S066)*
+The push fix was merged and a build shipped; the only remaining step was the
+founder installing it and tapping Allow, which no session can do. Waiting was the
+obvious move. Instead the whole delivery chain was hunted adversarially for a
+*second* defect that would still bite after the token landed — and there was one:
+**no foreground presentation option, so a push arriving while the app was open
+displayed nothing.** Harmless for the 08:00 sweep, fatal for "your partner
+answered", which fires exactly when the recipient is in the app. Had it not been
+found, the founder would have installed, tapped, seen silence, and reported the
+feature still broken — costing another build and another day.
+**A blocked goal is not an idle one.** Ask what the human's action will *unblock*,
+then audit everything downstream of it while you wait. Four of the five lenses
+found nothing, and that was worth knowing too: it converted "we think it works"
+into "no blocker remains between a token and a lock screen."
+
+
 **98 — A test that asserts the swallow is correct converts the bug into a specification.** *(S066)*
 `push_token_sync_test.dart` contained *"a throwing token source never escapes"*:
 set `currentToken` to throw, assert nothing is registered, green. That is

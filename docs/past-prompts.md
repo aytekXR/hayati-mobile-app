@@ -2813,6 +2813,44 @@ correct: a missing provider is not a transient condition and no backoff conjures
 one. Pinned with a `testWidgets` case that calls `pumpAndSettle` on a container
 with no override, so it cannot come back silently.
 
+### Then a SECOND defect, found by hunting rather than waiting
+
+With ADR-044 merged and build 118 shipped, the only remaining step was the
+founder's tap. Instead of waiting, the delivery path was hunted adversarially —
+five lenses, four of which found nothing. The fifth found this, and it survived
+refutation:
+
+**No foreground presentation option anywhere.** No
+`setForegroundNotificationPresentationOptions`, no `onMessage`, no
+`UNUserNotificationCenter` delegate. iOS presents nothing over a foregrounded
+app unless asked. The message is delivered and *invisible* — which to the person
+testing is indistinguishable from "still broken".
+
+Unevenly harmful, which is what made it worth fixing rather than filing: the
+08:00 daily question arrives when the app is backgrounded, but **"your partner
+answered" fires the instant the other member submits** — precisely when the
+recipient is in the app, and precisely the push the founder named. → **lesson 99**.
+
+Fixed in `messaging_bootstrap.dart`, fire-and-forget from the flavor entrypoints
+(the rule `activateAppCheck` already follows), unawaited and fail-open. **Not**
+beside the permission grant: on a warm start with permission already held,
+`promptForPermissionAndRegister` returns early and `ensurePermission` is never
+reached, so the option would be set once and never again.
+
+**What the hunt confirmed is worth as much as what it found.** Both paths the
+founder named are verified working in production, independently — the 05:00Z
+sweep (`checked:1 skippedNoToken:2`) and the real-time `answerReveal` trigger
+(`kind=partnerAnswered`, fired 2026-08-06 12:33 and 21:26, 2026-08-07 01:14).
+The FCM message shape is a real alert (`notification:{title,body}`), and FCM v1
+was probed live and accepts sends for both projects. No blocker remains between
+an FCM token and a lock screen.
+
+**Builds 118 and 119 both shipped**, on founder authorisation. 119 carries both
+fixes and is the one to install. The first release attempt produced NOTHING —
+`integration` hit its 40-minute budget after 27 minutes of silence and skipped
+signing while the run reported green (#208, second occurrence, first to cost a
+release).
+
 ### Operator dependency — one, and it is unavoidable
 
 **Proven:** `1669 tests pass` (full suite, run alone) · `flutter analyze` clean ·
