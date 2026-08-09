@@ -2707,6 +2707,21 @@ after one. Everything below was re-run after the workflow actually finished.
 
 `functions_drift: 159 checks, 0 failed` **read back out of the runner's own job log** · 22/22 mutations redden a named assertion · the tool run live against **both** projects · `ci.yml` parses and the new jobs are wired into `slack-notify`'s fan-in · dev deploy exit 0 and independently re-read.
 
+**The post-merge `main` run needed a second attempt, and that is recorded rather
+than tidied away.** `integration-emulator` was killed at exactly its 50-minute
+budget — reported by GitHub as **`cancelled`**, which reads like someone pressed
+a button — after emitting **nothing for 38 minutes** while parked at `00:00 +0`,
+immediately following a clean 49-second Xcode build. It was not this diff: the
+merge touches nothing under `app/` or `functions/`, and a re-run of the same job
+on the same commit passed with every suite genuinely executing
+(`auth +2`, `daily_question +1`, `pairing +2`, `profile`). `main` is green.
+
+It is instance **two** of this job blowing its budget — the job's own comment
+records S024's, which was answered by raising 40 → 50 — and this one has a
+different shape: S024's was uniform slowness, this was silence. Raising 50 → 60
+would convert a 50-minute hang into a 60-minute one. Filed as **#208** with the
+log excerpt.
+
 Both review panels were checked for `agents_error` / `agents_empty_result` before their distributions were believed (§5.5). The diff panel reported three "empty results" — inspected rather than assumed, and they were three lenses returning an empty *findings array*, not three dead agents. All five findings it did raise were refuted against primary sources; none survived.
 
 ### Operator dependencies
