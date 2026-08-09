@@ -2629,7 +2629,7 @@ Two premises were measured rather than assumed, because the whole design rests o
 
 ### The tests, and what the mutations proved
 
-`tool/ci/functions_drift_test.py` — **157 hermetic checks**, registered in `quality` beside the other pre-`pub get` self-tests. The fixtures are pinned to hashes **measured from production**: a fixture derived from its own subject proves nothing, and these could not be — Google computed them. The walk is checked against an enumeration the test builds itself, and the reference/working-tree fixture carries a **real foreign file**, so the mutation that swaps which digest is the verdict — the whole of D3 — cannot pass unseen.
+`tool/ci/functions_drift_test.py` — **159 hermetic checks** on a CI runner (158 on a built tree), registered in `quality` beside the other pre-`pub get` self-tests. The fixtures are pinned to hashes **measured from production**: a fixture derived from its own subject proves nothing, and these could not be — Google computed them. The walk is checked against an enumeration the test builds itself, and the reference/working-tree fixture carries a **real foreign file**, so the mutation that swaps which digest is the verdict — the whole of D3 — cannot pass unseen.
 
 **22 mutations, every one reddens a NAMED assertion.** One of them is the reason for a new lesson:
 
@@ -2705,7 +2705,7 @@ after one. Everything below was re-run after the workflow actually finished.
 
 ### Proven
 
-`157 checks, 0 failed` · 22/22 mutations redden a named assertion · the tool run live against **both** projects · `ci.yml` parses and the new jobs are wired into `slack-notify`'s fan-in · dev deploy exit 0 and independently re-read.
+`functions_drift: 159 checks, 0 failed` **read back out of the runner's own job log** · 22/22 mutations redden a named assertion · the tool run live against **both** projects · `ci.yml` parses and the new jobs are wired into `slack-notify`'s fan-in · dev deploy exit 0 and independently re-read.
 
 Both review panels were checked for `agents_error` / `agents_empty_result` before their distributions were believed (§5.5). The diff panel reported three "empty results" — inspected rather than assumed, and they were three lenses returning an empty *findings array*, not three dead agents. All five findings it did raise were refuted against primary sources; none survived.
 
