@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../domain/push_token_source.dart';
@@ -54,12 +56,32 @@ class FcmPushTokenSource implements PushTokenSource {
   }
 
   @override
+  Future<bool> isReadyForToken() async {
+    // ADR-044 D1. iOS mints an FCM token only once APNs has handed the app a
+    // device token, and that arrives asynchronously AFTER the permission grant.
+    // Asking `getToken()` before then throws `apns-token-not-set` — so this is
+    // the question that has to be answered first, and `PushTokenSync` owns the
+    // waiting.
+    //
+    // Thin by contract (ADR-042 D2): one call, no branches of its own beyond the
+    // platform test, nothing to assert about that a fake would not also satisfy.
+    if (!Platform.isIOS) return true;
+    try {
+      return await _messaging.getAPNSToken() != null;
+    } catch (_) {
+      // Not "no" — "cannot tell". The caller retries either way, and a throw
+      // here must never be louder than a null.
+      return false;
+    }
+  }
+
+  @override
   Future<String?> currentToken() async {
     // On iOS, getToken() throws rather than returning null when APNs has not
-    // registered — which is the ordinary state before the entitlement and before
-    // permission. PushTokenSync catches it and logs a no-op, so an absent token
-    // never reaches a user as an error; the null here is for the platforms and
-    // paths where the plugin answers politely.
+    // registered. `isReadyForToken` above is what keeps this call out of that
+    // window; the caller still treats a throw as "not yet" and retries, because
+    // an adapter that can throw for an ordinary absence must not be able to
+    // convert one unlucky moment into permanent silence (ADR-044 D2).
     return _messaging.getToken();
   }
 

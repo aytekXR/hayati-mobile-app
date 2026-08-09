@@ -35,6 +35,26 @@ abstract interface class PushTokenSource {
   /// unavailable — a user who says no is an ordinary state, not an error.
   Future<bool> ensurePermission();
 
+  /// Whether the platform has delivered everything FCM needs before it can mint
+  /// a registration token (ADR-044 D1).
+  ///
+  /// **This exists because iOS cannot produce an FCM token until APNs has handed
+  /// the app a device token, and that handoff completes AFTER
+  /// [ensurePermission] returns.** Called in that window, [currentToken] does
+  /// not return null — it *throws* `apns-token-not-set`. One capture attempt
+  /// issued the instant permission is granted therefore lands inside the exact
+  /// interval in which iOS guarantees it can fail, which is what kept
+  /// `registerPushToken` at zero invocations across builds 115–117 while every
+  /// other layer was verified working in production.
+  ///
+  /// Implementations answer only the question; the WAITING is a decision and
+  /// lives above this port in `PushTokenSync`, where it is provable on Linux
+  /// with a fake (ADR-042 D2's trade, applied to the one piece that had been
+  /// left below the seam).
+  ///
+  /// Trivially true on platforms with no such handshake.
+  Future<bool> isReadyForToken();
+
   /// The current registration token, or null when the device has none yet —
   /// permission not granted, APNs not reachable, or the plugin not installed.
   ///
@@ -42,6 +62,10 @@ abstract interface class PushTokenSource {
   /// normal state before permission, not an error. ADR-039's fail-open posture
   /// applies — a failure here is a logged no-op, exactly as App Check and
   /// Crashlytics fail open where they stand.
+  ///
+  /// A throw is nevertheless treated by the caller as **"not yet"** rather than
+  /// "never" (ADR-044 D2) — an adapter that cannot honour the sentence above is
+  /// a defect, and the caller must not turn it into a permanent silence.
   Future<String?> currentToken();
 
   /// Tokens as FCM rotates them. A refresh invalidates the previous token, so

@@ -6,6 +6,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../auth/domain/auth_state.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
 import '../../domain/push_token_repository_provider.dart';
+import '../../domain/push_token_source.dart';
 import '../../domain/push_token_source_provider.dart';
 
 part 'push_token_sync.g.dart';
@@ -46,10 +47,18 @@ part 'push_token_sync.g.dart';
 class PushTokenSync extends _$PushTokenSync {
   String? _syncedUid;
 
-  /// Guards the one-shot permission prompt. iOS only ever shows its dialog once
-  /// per install, so a second call is harmless — but re-entering the whole
-  /// capture path on every rebuild of the paired screen would not be.
-  bool _promptedForPermission = false;
+  /// Guards RE-ENTRANCY, not repetition (ADR-044 D3).
+  ///
+  /// This used to latch `true` *before* permission was even requested, so a
+  /// capture that failed — which on iOS was the likely outcome, see
+  /// [_captureAndRegister] — was permanent for the life of the process. It now
+  /// only stops two prompts running at once; a granted permission whose capture
+  /// did not produce a token stays retryable on the next paired-home mount.
+  ///
+  /// Re-asking is cheap: iOS shows its dialog once per install and thereafter
+  /// `requestPermission()` returns the standing answer without interrupting
+  /// anyone, so this is a read rather than a second prompt.
+  bool _promptInFlight = false;
 
   /// The token this provider last registered — the one sign-out must remove.
   String? _registeredToken;
@@ -124,21 +133,24 @@ class PushTokenSync extends _$PushTokenSync {
   /// Returns whether permission is now held, for callers that want to render
   /// differently; the registration is the side effect that matters.
   Future<bool> promptForPermissionAndRegister() async {
-    if (_promptedForPermission) return _registeredToken != null;
-    _promptedForPermission = true;
+    // Already holding a token: nothing to ask and nothing to do.
+    if (_registeredToken != null) return true;
+    if (_promptInFlight) return false;
+    _promptInFlight = true;
     try {
       final granted = await ref
           .read(pushTokenSourceProvider)
           .ensurePermission();
       if (!granted) {
         // A user who declines is an ordinary outcome, not a failure. Nothing is
-        // retried and nothing is surfaced: the app works exactly as it did
-        // before push existed.
+        // surfaced: the app works exactly as it did before push existed.
         debugPrint('PushTokenSync: notification permission not granted');
         return false;
       }
-      // Permission is what was missing; the token can be captured now. The
-      // refresh subscription was already attached at sign-in.
+      // Permission is what was missing; the token can be captured now — but on
+      // iOS not necessarily THIS instant, which is what _captureAndRegister's
+      // bounded retry is for. The refresh subscription was already attached at
+      // sign-in.
       await _captureAndRegister(initial: false);
       return _registeredToken != null;
     } catch (failure) {
@@ -146,17 +158,79 @@ class PushTokenSync extends _$PushTokenSync {
         'PushTokenSync.promptForPermission failed: ${failure.runtimeType}',
       );
       return false;
+    } finally {
+      _promptInFlight = false;
     }
   }
 
+  /// How many times capture is attempted before giving up, and the base of the
+  /// linear backoff between attempts (ADR-044 D2).
+  ///
+  /// **Bounded, because ADR-039 D2 requires every wait on the launch→paired path
+  /// to be** — worst case 0.5+1.0+1.5+2.0+2.5 ≈ 7.5s, issued `unawaited` from a
+  /// post-frame callback, so it can never delay a frame. A device that will
+  /// never produce a token pays that once, in the background, and stops.
+  ///
+  /// Overridable so the retry is PROVEN in milliseconds rather than asserted.
+  @visibleForTesting
+  static int tokenCaptureAttempts = 6;
+  @visibleForTesting
+  static Duration tokenCaptureBackoff = const Duration(milliseconds: 500);
+
+  /// Capture the token once the platform can actually produce one, then register.
+  ///
+  /// **This is the fix for the bug that kept the whole feature at zero
+  /// (ADR-044).** iOS mints an FCM token only after APNs answers, which happens
+  /// *after* the permission grant returns — so the old single call, issued the
+  /// instant permission was granted, sat inside the exact window where iOS
+  /// guarantees `getToken()` throws. It caught, logged, and never tried again.
+  ///
+  /// A throw is therefore **"not yet", never "never"**: the loop asks the port
+  /// whether the platform is ready, and treats both a throw and a null token as
+  /// a reason to wait rather than a reason to stop.
   Future<void> _captureAndRegister({required bool initial}) async {
+    // Resolving the SOURCE is not a transient failure and must not be retried.
+    // There is either an implementation wired at bootstrap or there is not, and
+    // no amount of backoff conjures one — the pre-D2-step-4 state, and every
+    // widget test that builds the app without overriding it.
+    //
+    // Keeping this inside the loop scheduled five pointless timers in exactly
+    // those containers, and `pumpAndSettle` never settles while a timer is
+    // pending: it took 60 unrelated widget tests red. The retry below is for a
+    // source that EXISTS and is not ready yet, which is a different thing.
+    final PushTokenSource source;
     try {
-      final token = await ref.read(pushTokenSourceProvider).currentToken();
-      if (token == null || token.isEmpty) return;
-      await _register(token, initial: initial);
+      source = ref.read(pushTokenSourceProvider);
     } catch (failure) {
-      debugPrint('PushTokenSync.currentToken failed: $failure');
+      debugPrint('PushTokenSync: no push token source: $failure');
+      return;
     }
+    for (var attempt = 0; attempt < tokenCaptureAttempts; attempt++) {
+      try {
+        if (await source.isReadyForToken()) {
+          final token = await source.currentToken();
+          if (token != null && token.isNotEmpty) {
+            await _register(token, initial: initial);
+            return;
+          }
+        }
+      } catch (failure) {
+        // Includes the iOS `apns-token-not-set` throw this loop exists for.
+        debugPrint(
+          'PushTokenSync.currentToken attempt $attempt failed: $failure',
+        );
+      }
+      // A signed-out user mid-retry has nothing left to register to; stop rather
+      // than hold a timer open for an account that is gone.
+      if (_syncedUid == null) return;
+      if (attempt < tokenCaptureAttempts - 1) {
+        await Future<void>.delayed(tokenCaptureBackoff * (attempt + 1));
+      }
+    }
+    debugPrint(
+      'PushTokenSync: no push token after $tokenCaptureAttempts attempts — '
+      'the device has no APNs registration yet, or permission was declined',
+    );
   }
 
   Future<void> _register(String token, {required bool initial}) async {
