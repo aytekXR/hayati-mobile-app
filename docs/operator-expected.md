@@ -17,6 +17,53 @@
 
 _Last refreshed: **2026-08-10** (Session 067)._
 
+> ### 🔴 URGENT — BILLING HAS COME OFF YOUR GOOGLE PROJECTS. Nothing can be deployed
+>
+> Found on **2026-08-10** while deploying your new 09:00 / 22:00 notification
+> hours. The deploy was refused:
+>
+> ```
+> HTTP 403: Write access to project 'hayatiapp-prod' was denied:
+>           please check billing account associated and retry
+> ```
+>
+> **It affects BOTH projects** — `hayatiapp-prod` and `hayatiapp-dev` — which
+> points at the billing *account* they share rather than one project being
+> unlinked. The usual causes are an expired card, a closed billing account, or a
+> spend cap that has been hit.
+>
+> **This worked the day before.** The same secret read returned success on
+> 2026-08-09, so something changed between then and now.
+>
+> #### What is still fine — do not panic
+>
+> * **Your app is running.** The hourly job fired all day, most recently
+>   **21:00 UTC today**. Your data, your functions and your users are unaffected.
+> * **Reading still works** — the function list, the logs, everything a session
+>   inspects.
+>
+> #### What is broken
+>
+> * **Nothing can be deployed to production or dev.** Not your new notification
+>   hours, and not an emergency fix if one were ever needed. Write access is
+>   refused outright.
+> * Two ways of trying were attempted and both failed the same way, so this is
+>   not a quirk of one command.
+>
+> #### What to do
+>
+> Open **console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod**
+> and check the billing account is still linked and in good standing. If a card
+> expired, updating it usually restores access within minutes.
+>
+> ⚠️ **Do not leave this.** Google keeps running services for a grace period
+> after billing goes invalid and then begins shutting them down. Right now you
+> have a working app and a blocked deploy; left alone, that can become a stopped
+> backend.
+>
+> *(This is also exactly the surprise item **2(a)** — the budget alert — exists
+> to prevent, and it is still unset.)*
+
 > ### 🔔 ONE THING stands between you and a notification: install **build 119** and tap Allow
 >
 > ```
@@ -173,8 +220,10 @@ fails to publish store metadata should not look green and silent.
 > workflow (that gap is issue #206), and deploying to production is something a
 > session will not do without asking you.
 >
-> Say the word and it is one command. Until then, expect the question push at
-> 08:00 and the nudge at 16:00.
+> **This is now blocked by the billing failure above, not by permission.** The
+> deploy was attempted on 2026-08-10 and refused. Until billing is restored,
+> expect the question push at **08:00** and the nudge at **16:00** — the old
+> hours — no matter what the code says.
 >
 > ### What is left is one thing, and only your phone can do it
 >
