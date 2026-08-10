@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AT_RISK_LOCAL_HOUR } from '../../src/notifications/at-risk';
+import { DAILY_QUESTION_LOCAL_HOUR } from '../../src/notifications/daily-question';
 import { isQuietLocalHour, localHour } from '../../src/notifications/local-hour';
 
 // M3.4 (ADR-012 decision 3). localHour is the sibling of localDayKey — same
@@ -88,21 +90,38 @@ describe('localHour', () => {
 });
 
 describe('isQuietLocalHour', () => {
-  it('is quiet for 22:00–08:00 couple-local and open otherwise (full boundary table)', () => {
-    const quiet = new Set([22, 23, 0, 1, 2, 3, 4, 5, 6, 7]);
+  it('is quiet for 23:00–08:00 couple-local and open otherwise (full boundary table)', () => {
+    const quiet = new Set([23, 0, 1, 2, 3, 4, 5, 6, 7]);
     for (let hour = 0; hour <= 23; hour += 1) {
       expect(isQuietLocalHour(hour)).toBe(quiet.has(hour));
     }
   });
 
-  it('is right-open at 08:00 and left-open at 22:00 (the exact boundaries)', () => {
+  it('is right-open at 08:00 and left-open at 23:00 (the exact boundaries)', () => {
     expect(isQuietLocalHour(7)).toBe(true); // still quiet
     expect(isQuietLocalHour(8)).toBe(false); // window ends at 08:00
-    expect(isQuietLocalHour(21)).toBe(false); // not yet quiet
-    expect(isQuietLocalHour(22)).toBe(true); // window opens at 22:00
+    expect(isQuietLocalHour(22)).toBe(false); // the nudge hour — MUST stay open
+    expect(isQuietLocalHour(23)).toBe(true); // window opens at 23:00
   });
 
-  it('leaves the hour-20 streak-at-risk sweep outside the quiet window', () => {
-    expect(isQuietLocalHour(20)).toBe(false);
+  // ADR-045. The window moved 22 -> 23 for exactly one reason: the founder asked
+  // for a 22:00 nudge, and 22 used to be the first QUIET hour. Had the window not
+  // moved with it, deliverSweepPush's defense-in-depth guard would have swallowed
+  // every nudge into `suppressedQuiet` — deployed, logged, and silent.
+  it('leaves BOTH scheduled sweep hours open — 09:00 question and 22:00 nudge', () => {
+    expect(isQuietLocalHour(DAILY_QUESTION_LOCAL_HOUR)).toBe(false);
+    expect(isQuietLocalHour(AT_RISK_LOCAL_HOUR)).toBe(false);
+  });
+
+  // The two constants are COUPLED to this window, so assert the coupling rather
+  // than the values alone: a drift of one hour in either direction, at either
+  // end, kills a feature silently while every unrelated test stays green.
+  it('the nudge sits on the LAST legal hour — one later is quiet', () => {
+    expect(isQuietLocalHour(AT_RISK_LOCAL_HOUR + 1)).toBe(true);
+  });
+
+  it('the question sits an hour clear of the morning edge — its old 08:00 seat was the boundary', () => {
+    expect(isQuietLocalHour(DAILY_QUESTION_LOCAL_HOUR - 1)).toBe(false);
+    expect(isQuietLocalHour(DAILY_QUESTION_LOCAL_HOUR - 2)).toBe(true);
   });
 });

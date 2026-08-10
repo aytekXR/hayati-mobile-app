@@ -15,235 +15,84 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-09** (Session 065)._
+_Last refreshed: **2026-08-10** (Session 067)._
 
-> ### 🔔 ONE THING now stands between you and a notification, and it takes ten seconds
->
-> **Install the newest build, open it, and tap Allow when iOS asks about
-> notifications.** That is the whole remaining action. Everything else — the
-> code, the deploy, the security rules, the entitlement, the portal tick, and
-> the APNs key you uploaded on 2026-08-08 — is done.
->
-> **Use build 117 or 116. Never 115** — it carries the entitlement but never asks
-> you for permission, and without permission iOS never issues a token, so 115
-> cannot work no matter how long you wait. **117 also carries your new icon.**
->
-> ### You do not have to report anything back, and that is new
->
-> This box used to end with *"then tell me whether anything arrives at 08:00"* —
-> which is why it sat here for three sessions: only you could see the answer. It
-> turns out production says it directly, and a session can read it. Measured on
-> 2026-08-08, before you install:
->
-> ```
-> registerPushToken     — ever called by a phone?   NO   (only deploy records)
-> ```
->
-> ### ⚠️ Corrected 2026-08-09 — we were reading the wrong counter, and there WAS a bug
->
-> This box used to add *"daily-question sweep — couples checked: 0 on every
-> hourly pass"* and conclude that no phone had ever handed over a token. **That
-> conclusion did not follow.** The sweep only evaluates couples whose own local
-> clock reads 08:00, so `checked: 0` is the expected reading for 23 hours out of
-> every 24 no matter what — and the hours that had been sampled were exactly
-> those. Four sessions repeated it.
->
-> Measured at the hour it actually means something (05:00 UTC = your 08:00):
->
-> ```
-> question_rollover: daily-question sweep complete
->         checked: 1   sent: 0   skippedNoToken: 2   suppressedQuiet: 0   failed: 0
-> ```
->
-> **Your server side is not waiting for anything — it is working.** It wakes at
-> your 08:00, finds your couple, works out that neither of you has answered yet,
-> and composes a notification for each of you. Then it stops, because neither
-> phone has ever given it an address to send to.
->
-> **And that was not only because nobody tapped Allow.** There was a real bug in
-> the app: on iOS, Apple does not hand the app its notification address the
-> instant you tap Allow — it arrives a moment later. The app asked once, at
-> exactly the wrong moment, and when that failed it gave up silently and never
-> asked again for the rest of that run. So on the old builds, tapping Allow had a
-> good chance of registering nothing at all, with nothing anywhere reporting a
-> problem. **Fixed in this change** (it now waits for Apple and retries, briefly
-> and in the background).
->
-> ### ✅ BUILD 119 IS ON YOUR TESTFLIGHT — install THIS one, it carries BOTH fixes
->
-> You authorised the release on 2026-08-09 and it is done. Verified by reading
-> App Store Connect, not by trusting a green build:
+> ### 🔔 ONE THING stands between you and a notification: install **build 119** and tap Allow
 >
 > ```
 > build 119   processing=VALID   uploaded 2026-08-09
->     internal = IN_BETA_TESTING             <-- YOU can install it right now
->     external = READY_FOR_BETA_SUBMISSION   <-- your friends cannot yet, see below
+>     internal = IN_BETA_TESTING             <-- you can install it right now
+>     external = READY_FOR_BETA_SUBMISSION   <-- your friends cannot yet
 > ```
 >
-> **Install build 119, open it to your paired home screen, and tap Allow.**
-> That is the whole remaining action.
+> Open it to your paired home screen and tap **Allow** when iOS asks about
+> notifications. That is the entire remaining action.
 >
-> **Two separate bugs were found and fixed today, not one.** 118 fixed the first;
-> **119 fixes both** and is the one to install.
+> ### Two real bugs were fixed to get here — it was never just the tap
+>
+> For four sessions this page told you the only thing missing was your tap. That
+> was wrong twice over, and both are now fixed and in build 119.
 >
 > 1. **The app threw away your notification address.** Apple hands it over a
->    moment *after* you tap Allow. The app asked once, a moment too early, and
->    when that failed it gave up silently and never asked again. Builds 115, 116
->    and 117 all had this — **tapping Allow on any of them could register nothing
->    at all**, with nothing anywhere reporting a problem.
+>    moment *after* you tap Allow; the app asked a moment too early, failed
+>    silently, and never asked again. **Builds 115, 116 and 117 all have this** —
+>    tapping Allow on any of them could register nothing at all, with nothing
+>    anywhere reporting a problem.
 > 2. **A notification arriving while the app was OPEN showed nothing.** iOS does
->    not display a banner over a foregrounded app unless the app asks it to, and
->    ours never did. Your 08:00 question was unaffected (you would be out of the
->    app), but **"your partner answered" was hit hardest** — that one fires the
->    second the other person submits, exactly when you are most likely to be
->    looking at the app. You would have seen silence and reasonably concluded it
->    was still broken.
+>    not display a banner over a foregrounded app unless asked, and ours never
+>    did. Your 09:00 question is unaffected (you would be out of the app), but
+>    **"your partner answered" was hit hardest** — that one fires the second the
+>    other person submits, exactly when you are most likely to be looking at the
+>    app.
 >
-> *(The earlier "delete and reinstall 117" trick is now unnecessary — 118 has the
-> real fix, so an ordinary update is fine.)*
+> ### Your server side is not waiting for anything — it is working
 >
-> **The sending side was probed on 2026-08-09 and is healthy.** A `validate_only`
-> send through Google's own FCM endpoint — which delivers nothing to anyone — was
-> accepted for both projects and rejected only the deliberately fake address it
-> was given:
+> Measured at the hour the counters actually mean something (your own morning
+> sweep), production finds your couple, works out that neither of you has
+> answered, and composes a notification for each of you:
 >
 > ```
-> hayatiapp-prod  ->  "The registration token is not a valid FCM registration token"
-> hayatiapp-dev   ->  same
+> daily-question sweep   checked: 1   sent: 0   skippedNoToken: 2
+> answer_reveal          kind=partnerAnswered  "push skipped, no fcm tokens"
 > ```
 >
-> No credential error, no project error. So the pipe from our server to Google is
-> open. The one link nobody can test without a real phone is the last hop —
-> Google to Apple — and that needs the address your phone produces when you tap
-> Allow.
+> It stops there because no phone has ever given it an address to send to. The
+> earlier reading of *"checked: 0, so nobody has a token"* was taken at the wrong
+> hours — that counter only moves at your own question hour — and it is corrected
+> now.
 >
-> **Your seven friends are still on 117 and still have BOTH bugs.** 119 was
-> assigned to the `Friends` group but **not submitted for Apple's beta review**,
-> which external testers need. One dispatch fixes that whenever you want it —
-> just say so:
+> ### You do not have to report anything back
+>
+> The moment you tap Allow, `registerPushToken` records its first real call and
+> the morning sweep flips from `skippedNoToken: 2` to `sent`. A session reads
+> both directly. If they do not move, that is a real bug and a findable one.
+>
+> ### Your seven friends are still on build 117, with both bugs
+>
+> 119 was assigned to the `Friends` group but **not submitted for Apple's beta
+> review**, which external testers need. One dispatch fixes that whenever you
+> want it — just say so:
 >
 > ```sh
 > gh workflow run testflight-testers.yml \
 >   -f dry_run=false -f assign_latest_build=true -f submit_for_review=true
 > ```
->
-> ### You do not have to report anything back, and that is new
->
-> This box used to end with *"then tell me whether anything arrives at 08:00"* —
-> which is why it sat here for three sessions: only you could see the answer. It
-> turns out production says it directly, and a session can read it. Measured on
-> 2026-08-08, before you install:
->
-> ```
-> registerPushToken     — ever called by a phone?   NO   (only deploy records)
-> ```
->
-> ### ⚠️ Corrected 2026-08-09 — we were reading the wrong counter, and there WAS a bug
->
-> This box used to add *"daily-question sweep — couples checked: 0 on every
-> hourly pass"* and conclude that no phone had ever handed over a token. **That
-> conclusion did not follow.** The sweep only evaluates couples whose own local
-> clock reads 08:00, so `checked: 0` is the expected reading for 23 hours out of
-> every 24 no matter what — and the hours that had been sampled were exactly
-> those. Four sessions repeated it.
->
-> Measured at the hour it actually means something (05:00 UTC = your 08:00):
->
-> ```
-> question_rollover: daily-question sweep complete
->         checked: 1   sent: 0   skippedNoToken: 2   suppressedQuiet: 0   failed: 0
-> ```
->
-> **Your server side is not waiting for anything — it is working.** It wakes at
-> your 08:00, finds your couple, works out that neither of you has answered yet,
-> and composes a notification for each of you. Then it stops, because neither
-> phone has ever given it an address to send to.
->
-> **And that was not only because nobody tapped Allow.** There was a real bug in
-> the app: on iOS, Apple does not hand the app its notification address the
-> instant you tap Allow — it arrives a moment later. The app asked once, at
-> exactly the wrong moment, and when that failed it gave up silently and never
-> asked again for the rest of that run. So on the old builds, tapping Allow had a
-> good chance of registering nothing at all, with nothing anywhere reporting a
-> problem. **Fixed in this change** (it now waits for Apple and retries, briefly
-> and in the background).
->
-> ### 🟢 Worth trying RIGHT NOW, before any of the below — it costs you two minutes
->
-> **Delete İkimiz from your phone, reinstall build 117 from TestFlight, sign in,
-> and tap Allow.** A *fresh install* has a real chance of working even on the
-> buggy build, and here is the honest reason why.
->
-> The app does two things: it asks Apple for your notification address once (that
-> is the broken part — it asks a moment too early and gives up), **and** it also
-> listens for Apple to announce a brand-new address. On a phone that has never
-> had one, that announcement fires the first time you grant permission — and the
-> listener is attached *before* the prompt, so it catches it. On an **upgrade**,
-> where an address already existed, nothing new is announced and there is nothing
-> to catch, which matches what we have seen for three builds.
->
-> So: **delete first, then reinstall.** Not an update — a delete and a fresh
-> install. If notifications start arriving tomorrow at 08:00, that was it.
->
-> Either way a session can tell within minutes whether your phone registered,
-> without you reporting anything.
->
-> ### ⚠️ The fix is merged, but it is NOT in any build you can install yet
->
-> Builds 115, 116 and 117 all carry the bug. **No build carrying the fix exists**
-> — it has to be produced, and producing one uploads a real binary to your
-> TestFlight, which a session will not do without your go-ahead.
->
-> **Say the word and it happens in one command:**
->
-> ```sh
-> gh workflow run release.yml --ref main
-> ```
->
-> Then install that build, open it to your paired home screen, and tap Allow.
-> A session confirms within minutes, without you reporting anything.
->
-> **Still unticked, still one page, still yours if you want them:**
-> `ASSOCIATED_DOMAINS` (item **2(d)**) and `APP_ATTEST`. Neither blocks
-> notifications.
 
-> **What changed since the last refresh (2026-08-08):**
+> **What changed since the last refresh (2026-08-09):**
 >
-> * 🔎 **We found out why the notifications feature quietly failed in August — and
->   built the thing that would have caught it.** Back then the whole push stack was
->   written, merged and green, two builds shipped, and the functions your phone
->   calls **had never been deployed to production.** Nothing anywhere compared the
->   code that is *running* to the code that is *finished*. That comparison now
->   exists for Cloud Functions, the way it already did for the security rules.
-> * 🟡 **It needs the same one thing from you as the rules check — item 2(e)(iv),
->   which now needs a second read-only role on the same account.** Until then both
->   checks show as SKIPPED rather than pretending to pass.
-> * ✅ **Your development backend was three functions behind and is now current.**
->   It was missing both notification-token functions. Deployed and verified.
-> * ℹ️ **Production is running exactly the right code** — that was checked, not
->   assumed. The new tool does report a difference, but it is a *housekeeping*
->   one: the last deploy was typed by hand from a laptop and swept 62 stray local
->   files into the upload. Harmless, and the real fix (**#206**) needs nothing
->   from you.
->
-> **From the 2026-08-06 refresh:**
->
-> * ✅ **The APNs key is uploaded to both projects** (you confirmed 2026-08-08).
->   That was the last thing anyone was waiting on. Item 4(a) is closed.
-> * ✅ **Your app icon shipped.** All 20 sizes, regenerated from the file you
->   chose and each verified changed. Build **117** was dispatched with your
->   authorisation on 2026-08-08 and carries it.
-> * 🔎 **Your Android icons had never been the brand at all** — still the default
->   blue Flutter logo from the first commit, through 116 builds. Fixed in the same
->   change, and CI now fails if any size stops matching your master.
-> * 🟡 **Turkish screenshots — we had the reason wrong, and now we don't.** Your
->   listing has no `tr` localization, but not because nobody clicked a button:
->   **Apple has been refusing to create it on every release since build 112**,
->   because another app already uses the name in Turkish. Six releases said so and
->   nobody read it. It needs a **decision** from you, not a click — item (B).
-> * ✅ **A security rule that was live in production was missing from dev** since
->   2026-08-01 — the one stopping a client from claiming another device's
->   notification token. Deployed and verified; both projects now match.
+> * ✅ **Your notification hours are now what you asked for** — the question
+>   announcement moved to **09:00** and the unanswered-day nudge to **22:00**.
+>   Both are on `main`; see the note under 4(a) about production still running
+>   the old hours until the server is redeployed.
+> * ⚠️ **The 22:00 nudge would have been silently swallowed.** Our own
+>   quiet-hours rule started at 22:00, so every 10 PM notification would have
+>   been composed and then dropped by our own guard — deployed, logged, and
+>   delivering nothing. The quiet window moved to **23:00–08:00** in the same
+>   change. It also means one less protected hour in your evening; if you would
+>   rather have it back, moving the nudge to 21:00 undoes that.
+> * ✅ **Build 119 shipped** with both notification bug fixes.
+> * ✅ **Closed items have been removed from this page**, as you asked. The
+>   history lives in `docs/past-prompts.md`.
 
 **Where things stand in one line:** the MVP is code-complete, both backends run
 current code and current rules, the invite site is live, your icon shipped, the
@@ -261,69 +110,6 @@ single thing left is **one install and one tap**.
 ---
 
 # 🔵 What a session is waiting on right now
-
-## (A) ✅ The app icon — ANSWERED 2026-08-05, **SHIPPED 2026-08-08**
-
-**Done.** The mark you chose is now every icon the app has: 15 iOS sizes, 5
-Android launcher sizes, and the 1024 App Store icon — all 20 regenerated from
-your file and each one verified changed at the byte level. It is on `main` and
-in **build 117**, which is **live on your TestFlight right now** —
-`processing=VALID`, `internal=IN_BETA_TESTING`, and Apple approved its beta
-review, so your external testers have it too.
-
-**Verified all the way to Apple, not just to the repo.** App Store Connect
-returns its own rendering of the icon inside the uploaded binary, and it is your
-mark:
-
-```
-icon: .../AppIcon60x60@2x.png  (120x120)
-```
-
-Chain: your file → the generator → the repo → Xcode's asset catalog → the signed
-binary (the icon inside `Runner.app` dropped 6 KB → 3 KB, which is the new file)
-→ Apple's own copy.
-
-Two things worth knowing, neither needing anything from you:
-
-* **Your file ships unmodified at 1024.** The store icon is pixel-identical to
-  the PNG you picked, with only the alpha channel stripped — Apple rejects a
-  marketing icon that carries one.
-* **The Android icons had never been the brand at all.** They were still the
-  default blue Flutter logo from the very first scaffold commit, through 116
-  builds. Nothing in the project could have told anyone; there was no generator,
-  so each size was produced by hand and nothing compared them. There is one now,
-  and CI fails if any size stops matching your master.
-
-*The discreet grey icon is untouched, verified byte-identical — different job,
-deliberately.*
-
-<details><summary>The record of how the choice was made (kept — it is why nobody should re-open it)</summary>
-
-You said the current icon reads as phallic and asked to revert to the previous
-one. **"The previous one" had three possible meanings and one of them would have
-shipped the default blue Flutter logo** (the literal previous commit is the m0.1
-scaffold), so you were asked to pick rather than guessed at.
-
-**Your answer: the pre-redesign brand mark** —
-`brandkit/branding-assets/icons/hayati-appicon-ios-1024.png`, the smaller,
-centred seeds with a pale dot that shipped before PR #94. A session swaps every
-size (15 iOS, 5 Android, plus the 1024 store icon) and it ships in the next
-build. Nothing further is needed from you.
-
-> **One thing that was flagged before you chose, recorded so nobody re-opens it.**
-> The mark you picked is the *same two-seed family* as the one you are objecting
-> to — smaller and centred, but the same paired-lobe shape. Three alternatives
-> without that silhouette are already drawn and QA'd in `redesign/icons/` (preview
-> at `redesign/icons/icon-preview.html`): **Whole Pomegranate** (*"reads as fruit
-> first, love second — the most glance-proof romantic option for phones checked by
-> family"*), **The Unfold** (*"fully non-romantic at a glance"*), and **Lit
-> Lattice** (held for v2). **Your call stands and the session will execute it** —
-> this note exists only so that if the smaller mark still reads wrong on the home
-> screen, you know three finished options are already sitting there.
-
-*The discreet grey icon stays exactly as it is — different job, deliberately.*
-
-</details>
 
 ## (B) 🟡 Add a **Turkish** localization to your App Store listing — measured, not guessed
 
@@ -377,15 +163,18 @@ fails to publish store metadata should not look green and silent.
 
 ---
 
-# 🟡 4(a). Push — **both pieces are done. One install is the whole remaining gap.**
+# 🟡 4(a). Push — **install build 119 and tap Allow. That is the whole gap.**
 
-> ### ✅ The APNs `.p8` — DONE 2026-08-08, both projects (you confirmed it)
-> ### ✅ The Push Notifications tick — DONE 2026-08-06
+> ### ⚠️ Your new hours are on `main` but NOT yet on the server
 >
-> **Every server-side and credential-side piece of push now exists.** Verified
-> in production on 2026-08-08: all 13 Functions deployed and current with
-> `main`, `registerPushToken` live, and all three per-sweep summary lines
-> present on every hourly pass.
+> You asked for the question at **09:00** and the unanswered nudge at **22:00**.
+> Both are merged. **Production is still running the old 08:00 / 16:00 hours**,
+> because Cloud Functions here are deployed by a hand-typed command rather than a
+> workflow (that gap is issue #206), and deploying to production is something a
+> session will not do without asking you.
+>
+> Say the word and it is one command. Until then, expect the question push at
+> 08:00 and the nudge at 16:00.
 >
 > ### What is left is one thing, and only your phone can do it
 >
@@ -417,102 +206,6 @@ fails to publish store metadata should not look green and silent.
 > and the app asked once, at the wrong moment, then gave up silently. Use a build
 > made after 2026-08-09.
 
-<details><summary>The original two-piece instructions (kept for reference; both pieces are done)</summary>
-
-**This is why the app never notified you.** It is not a bug in the notification
-logic — that logic is written, tested and correct. It is that the phone was never
-given the plumbing to receive a push, and Firebase was never given the key it
-needs to talk to Apple. Two pieces, both yours:
-
-**1. An APNs Authentication Key (~3 min).** Apple Developer portal →
-Certificates, Identifiers & Profiles → **Keys** → **+** → tick **Apple Push
-Notifications service (APNs)** → Continue → Register → **Download the `.p8`**
-(you can only download it once). Note the **Key ID** shown on that page and your
-**Team ID** (`UH7MXG7Z94`). Then Firebase console → `hayatiapp-prod` → ⚙ Project
-settings → **Cloud Messaging** → **Apple app configuration** → upload the `.p8`
-with the Key ID and Team ID. **Do the same for `hayatiapp-dev`** — the same key
-works for both.
-
-**2. Tick Push Notifications on the App ID (~1 min).** Apple Developer portal →
-**Identifiers** → `com.beyondkaira.hayati` → tick **Push Notifications** → Save.
-
-> ### ✅ DONE 2026-08-06 — ticked, and the entitlement is already in a shipped build
->
-> You authorised the API path; `PUSH_NOTIFICATIONS` was enabled from CI
-> ([run 31130371860](https://github.com/aytekXR/hayati-mobile-app/actions/runs/31130371860))
-> and the verification read in the same run returned exit 0. `aps-environment`
-> then landed, the provisioning profile regenerated, and **build 115 signed and
-> uploaded** — the first build in this app's history to carry a push entitlement.
->
-> Undo handle, if it is ever needed: capability id
-> `Q344R7M7MY_PUSH_NOTIFICATIONS`.
->
-> <details><summary>The measurement that stood here before (kept, because it is what made the fix safe)</summary>
->
-> The probe ran green against Apple's portal
-> ([run 31054773143](https://github.com/aytekXR/hayati-mobile-app/actions/runs/31054773143))
-> and reported **exit 1 — capability absent**. Not exit 2, so this is a real
-> read-out and not a permissions failure: the API key *can* see the App ID, and
-> what it saw was this.
->
-> ```
-> capabilities ticked on com.beyondkaira.hayati (the portal's own list):
->   - APPLE_ID_AUTH
->   - IN_APP_PURCHASE
->
-> requested and ABSENT:
->   MISSING PUSH_NOTIFICATIONS     <- this item
->   MISSING ASSOCIATED_DOMAINS     <- item 2(d)
->   MISSING APP_ATTEST
-> ```
->
-> **All three are one visit and one tick each**, on the same portal page. You are
-> already going there for Push Notifications; ticking the other two while you are
-> in there costs nothing and closes item 2(d) at the same time.
->
-> This also retired the last of the *"a session cannot read the portal, so nobody
-> knows"* bullets.
->
-> </details>
-
-**Why the second one matters more than it looks.** The app has to declare a push
-entitlement, and that entitlement must also exist in the **provisioning
-profile**. Our release lane fetches profiles **read-only on purpose** (so CI can
-never mint credentials), which means it cannot add the capability itself — a
-build that claims push without the capability **fails to sign**. That is exactly
-what happened with universal links and cost a release (ADR-040). So a session
-will not add the entitlement until the tick is confirmed.
-
-> ### ✅ You no longer have to *report* piece 2 — a session can now measure it
->
-> Session 062 built `appid-capabilities.yml`, which reads the App ID's capability
-> list straight out of Apple's portal over the App Store Connect API, using the
-> same key the release lane already holds. **Just do the tick; nobody needs to
-> ask you whether you did.**
->
-> ```sh
-> gh workflow run appid-capabilities.yml
-> ```
->
-> The same one dispatch also answers the two questions that used to ride along
-> with this item — **Associated Domains** (item 2(d)) and **App Attest** — so
-> those bullets are gone from your list too. They had been recorded as *"a
-> session cannot read the portal, so nobody knows"* for months, and that turned
-> out to be a missing tool rather than a missing permission.
->
-> If the workflow reports **could not measure** (exit 2), that means our API key
-> is not allowed to read Certificates & Identifiers — **not** that the capability
-> is off. That distinction is built into the tool on purpose, because reporting
-> "not ticked" when nobody actually looked would send a session off to build
-> around a blocker that may not exist.
-
-**Piece 1 — the APNs `.p8`.** Firebase's Cloud Messaging settings are
-console-only: there is no API a session can read them from, `gcloud` is not
-installed on the session machine and there is no application-default credential.
-So this one was reported, not verified — **you confirmed it on 2026-08-08 for
-both projects**, and it is closed.
-
-</details>
 
 ### The order matters, and it is not reorderable
 
@@ -530,7 +223,7 @@ place in the system to find out, because our iOS CI check builds
 your partner answers, and a reminder at 16:00 if you have not. Those are the three
 you asked for.
 
-> ### ✅ All three are now BUILT — they are waiting on this checkbox and nothing else
+> ### ✅ All three notifications are BUILT, DEPLOYED and RUNNING
 >
 > As of 2026-08-06 the server composes and routes all three: the 08:00 question, the
 > partner-answered nudge, and the 16:00 reminder. The 16:00 one deliberately fires
@@ -988,28 +681,6 @@ Please eyeball each of these on a TestFlight build:
 Check enforcement stays OFF in both consoles until on-device attestation is
 verified), and **Universal links** (2(d)).
 
-> ### ✅ ~~One thing nobody can settle from a laptop~~ — SETTLED 2026-08-09, and it needs nothing from you
->
-> This asked you to open the Google Cloud console and confirm the hourly rollover
-> job is `ENABLED` on `0 * * * *`. It was recorded for months as unverifiable
-> because `gcloud` is not installed here and there is no application-default
-> credential.
->
-> **It never needed `gcloud`.** The job's own output is in the Functions log, and
-> a job that is not running writes nothing. Measured:
->
-> ```
-> 43 distinct hourly sweeps, 2026-08-07T08:00Z → 2026-08-09T02:00Z, ZERO gaps
-> ```
->
-> Forty-three consecutive hours with no missing hour is not consistent with a
-> disabled schedule. **The scheduler is enabled and firing on the hour.** Nothing
-> for you to click, and one fewer console visit on your list.
->
-> *(Third time this session that a "nobody can measure this" turned out to be
-> measurable with a tool already in the repo. Worth a habit: before recording an
-> unknown, ask what the thing would EMIT if it were working.)*
-
 ---
 
 # Activation infrastructure — still unbought, still gating the funnel
@@ -1259,13 +930,11 @@ these.
 
 ---
 
-# Retired item numbers still cited by code
+---
 
-Kept only so a message printed by a tool points somewhere real. Nothing here needs
-you.
-
-| Number | Cited by | Status |
-|---|---|---|
-| **2(c)** — TestFlight external submission | `tool/ci/testflight_testers.py:1291` (prints only when the four Beta App Review contact fields are missing) | **Closed 2026-08-05.** Submitted 2026-08-01, approved by Apple, build 113 `IN_BETA_TESTING`, invitations sent. The contact fields are set and held as `release`-environment secrets. |
-| **#140** — merged-vs-deployed rules | ADR-041, `rules_drift.py` | **Closed 2026-08-01.** Residuals are #165 (above) and #166. |
-| **#130** — seasonal vocabulary parity | ADR-026 D3 | **Closed 2026-08-02** by PR #171. |
+*Closed items are not kept here.* This page lists only what is still open; the
+session-by-session record of everything that closed lives in
+`docs/past-prompts.md`, and the retired-but-still-cited item numbers (2(c), #140,
+#130) moved there too — `testflight_testers.py` still prints 2(c) when the Beta
+App Review contact fields are missing, so the number stays valid even though the
+item does not.

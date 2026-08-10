@@ -29,14 +29,28 @@ import { localHour } from './local-hour';
 import type { MessagingPort } from './messaging-port';
 import { SweepPushOutcome, deliverSweepPush, nonAnswerers } from './sweep-push';
 
-// The couple-LOCAL wall-clock hour the nudge fires on (ADR-042 D4, re-pointed from
-// 20): once per zone per day — only the sweep whose bucket-local hour reads 16
-// pushes. 16 is comfortably OUTSIDE the 22:00–08:00 quiet window (deliverSweepPush
-// re-checks anyway, defense in depth), unlike the daily-question pass at hour 8
-// which sits exactly on the boundary. Sub-hour-offset zones (Asia/Kathmandu +05:45)
-// land on the hourly sweep whose local clock reads 16:xx, exactly as their midnight
-// bucket does. DST transitions never occur at 16:xx in practice.
-export const AT_RISK_LOCAL_HOUR = 16;
+// The couple-LOCAL wall-clock hour the nudge fires on — **22** since ADR-045
+// (founder, 2026-08-10: "at 10:00 PM, if the question still hasn't been
+// answered"), re-pointed from the 16 of ADR-042 D4, which was itself re-pointed
+// from 20. Once per zone per day: only the sweep whose bucket-local hour reads 22.
+//
+// ⚠️ **22 IS THE BOUNDARY NOW — this constant and the quiet window are coupled.**
+// The window was 22:00–08:00, which made 22 the FIRST QUIET hour: shipping this
+// change alone would have had `deliverSweepPush`'s defense-in-depth guard swallow
+// every nudge and tally it in `suppressedQuiet`. The feature would have deployed,
+// logged cleanly, and delivered nothing. So ADR-045 moved the window to
+// 23:00–08:00 in the same change, making 22 the LAST legal hour.
+//
+// That is the same fragility the daily-question pass used to carry at 08:00, now
+// at the other end of the day: move either this constant or `isQuietLocalHour` by
+// one, in either direction, and the nudge dies silently while every unrelated test
+// stays green. Both directions are asserted in `at-risk.test.ts` and
+// `local-hour.test.ts`.
+//
+// Sub-hour-offset zones (Asia/Kathmandu +05:45) land on the hourly sweep whose
+// local clock reads 22:xx, exactly as their midnight bucket does. DST transitions
+// never occur at 22:xx in practice.
+export const AT_RISK_LOCAL_HOUR = 22;
 
 /** The at-risk sweep counters the handler logs and the tests assert on. */
 export interface AtRiskSummary {
