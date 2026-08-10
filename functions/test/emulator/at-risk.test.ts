@@ -5,7 +5,12 @@
 // injected port.
 //
 // ⚠️ ADR-042 D4 changed two things this suite used to pin, on purpose:
-//   * the hour moved 20 → 16, because the founder asked for 16:00;
+//   * the hour moved 20 → 16, because the founder asked for 16:00 — and ADR-045
+//     (2026-08-10) moved it again, 16 → 22, for "at 10:00 PM, if the question
+//     still hasn't been answered". 22 was the FIRST QUIET hour before that
+//     change, so ADR-045 moved the quiet window to 23:00–08:00 in the same diff;
+//     without that, every nudge would have been swallowed by the defense-in-depth
+//     guard and tallied in `suppressedQuiet` — deployed, logged, and silent;
 //   * the `streak.count > 0` gate is GONE, because the nudge now protects a
 //     RELATIONSHIP rather than a streak and must reach couples who have neither.
 // The tests that asserted the old rules were not relaxed — they were INVERTED to
@@ -23,6 +28,7 @@ import {
   deliverAtRiskPush,
   runStreakAtRisk,
 } from '../../src/notifications/at-risk';
+import { isQuietLocalHour } from '../../src/notifications/local-hour';
 import { composePush } from '../../src/notifications/payload-policy';
 import { bucketCouplesByTimezone } from '../../src/rollover/rollover-service';
 import { clearNoTriggerFirestore, noTriggerFirestore } from '../support/admin';
@@ -39,13 +45,15 @@ const UID_B = 'uid-b';
 const TZ = 'Europe/Istanbul';
 const DAY_KEY = '20260710';
 
-// 2026-07-10T13:00:00Z: Istanbul (+03) reads 16:00 → the nudge fires;
-// New York (EDT −04) reads 09:00 at the SAME instant → it does not.
-const AT = new Date('2026-07-10T13:00:00Z');
-// Asia/Kathmandu is +05:45: 11:00Z reads 16:45 → the sub-hour zone catches its
-// hour-16 sweep on the same run its local clock crosses 16:xx.
-const KTM_AT = new Date('2026-07-10T11:00:00Z');
-// Istanbul 23:00 — inside the 22:00–08:00 quiet window (defense-in-depth check).
+// 2026-07-10T19:00:00Z: Istanbul (+03) reads 22:00 → the nudge fires;
+// New York (EDT −04) reads 15:00 at the SAME instant → it does not.
+const AT = new Date('2026-07-10T19:00:00Z');
+// Asia/Kathmandu is +05:45: 16:30Z reads 22:15 → the sub-hour zone catches its
+// hour-22 sweep on the same run its local clock crosses 22:xx.
+const KTM_AT = new Date('2026-07-10T16:30:00Z');
+// Istanbul 23:00 — inside the 23:00–08:00 quiet window (defense-in-depth check),
+// and now exactly ONE HOUR after the nudge: the tightest possible proof that the
+// window and AT_RISK_LOCAL_HOUR did not drift into each other (ADR-045).
 const QUIET_AT = new Date('2026-07-10T20:00:00Z');
 
 interface StreakSeed {
@@ -103,8 +111,18 @@ beforeEach(async () => {
 });
 
 describe('runStreakAtRisk — hour-16 gate (ADR-042 D4)', () => {
-  it('AT_RISK_LOCAL_HOUR is 16 — the hour the founder asked for, not the streak hour', () => {
-    expect(AT_RISK_LOCAL_HOUR).toBe(16);
+  it('AT_RISK_LOCAL_HOUR is 22 — the hour the founder asked for (ADR-045)', () => {
+    expect(AT_RISK_LOCAL_HOUR).toBe(22);
+  });
+
+  // ⚠️ THE coupling this suite now owns. 22 used to be the first QUIET hour; the
+  // window moved to 23 in the same change so the nudge could exist at all. Move
+  // either constant by one, in either direction, and the feature dies silently
+  // while every unrelated test stays green — precisely how a push feature fails
+  // without anyone noticing.
+  it('hour 22 is NOT quiet, and 23 IS — the nudge sits on the LAST legal hour', () => {
+    expect(isQuietLocalHour(AT_RISK_LOCAL_HOUR)).toBe(false);
+    expect(isQuietLocalHour(AT_RISK_LOCAL_HOUR + 1)).toBe(true);
   });
 
   it('fires ONLY for the bucket at couple-local hour 16; a same-instant off-16 zone and a corrupt zone are untouched', async () => {
@@ -143,12 +161,12 @@ describe('runStreakAtRisk — hour-16 gate (ADR-042 D4)', () => {
     await seedUser(UID_B);
     const buckets = await bucketCouplesByTimezone(db);
 
-    // At AT (13:00Z) Kathmandu is 18:45 (hour 18) → nothing.
+    // At AT (19:00Z) Kathmandu is 00:45 next day (hour 0) → nothing.
     const offSummary = await runStreakAtRisk(db, AT, new FakeMessagingPort(), buckets);
     expect(offSummary.checked).toBe(0);
     expect(offSummary.sent).toBe(0);
 
-    // At KTM_AT (11:00Z) Kathmandu is 16:45 (hour 16) → fires.
+    // At KTM_AT (16:30Z) Kathmandu is 22:15 (hour 22) → fires.
     const port = new FakeMessagingPort();
     const summary = await runStreakAtRisk(db, KTM_AT, port, buckets);
     expect(summary.checked).toBe(1);

@@ -13,13 +13,16 @@ import { makeQuestionRolloverHandler } from '../../src/rollover/question-rollove
 import { adminFirestore, clearFirestoreData } from '../support/admin';
 import { FakeMessagingPort } from '../support/fake-messaging-port';
 
-// 2026-07-10T17:00:00Z reads 20:00 in Istanbul — the couple-local hour the
-// piggybacked at-risk pass fires on (ADR-012 D3). SCHEDULE_TIME (02:00Z, 05:00
-// local) is off-hour, so the existing sweeps above never trip the at-risk pass.
-// 13:00Z is 16:00 in Europe/Istanbul — the nudge hour since ADR-042 D4 (was 20).
-const AT_RISK_TIME = '2026-07-10T13:00:00Z';
-// 05:00Z is 08:00 in Europe/Istanbul — the daily-question hour (ADR-042 D3).
-const DAILY_QUESTION_TIME = '2026-07-10T05:00:00Z';
+// SCHEDULE_TIME (02:00Z, 05:00 local) is off-hour, so the ordinary sweeps above
+// never trip either push pass.
+// 19:00Z is 22:00 in Europe/Istanbul — the nudge hour since ADR-045 (was 16 under
+// ADR-042 D4, and 20 before that). 22 is the LAST hour before the 23:00 quiet
+// window, which moved in the same change so this push could exist at all.
+const AT_RISK_TIME = '2026-07-10T19:00:00Z';
+// 06:00Z is 09:00 in Europe/Istanbul — the daily-question hour since ADR-045
+// (was 08:00 under ADR-042 D3). Only the ANNOUNCEMENT moved; rollover still
+// assigns at local midnight.
+const DAILY_QUESTION_TIME = '2026-07-10T06:00:00Z';
 
 const db = adminFirestore();
 const couples = db.collection('couples');
@@ -111,7 +114,7 @@ describe('makeQuestionRolloverHandler', () => {
     await expect(handler(scheduledEvent(SCHEDULE_TIME))).rejects.toThrow('couples unlistable');
   });
 
-  it('drives all three passes off ONE couples read: logs every summary, and nudges at hour 16', async () => {
+  it('drives all three passes off ONE couples read: logs every summary, and nudges at hour 22', async () => {
     // A couple mid-streak with today's day doc still unrevealed and no answers yet
     // → both members are at-risk recipients. No answer docs are seeded, so the live
     // answerReveal trigger never fires here.
@@ -146,8 +149,9 @@ describe('makeQuestionRolloverHandler', () => {
       'question_rollover: at-risk sweep complete',
       expect.objectContaining({ checked: 1, sent: 2 }),
     );
-    // The third pass ran too and found nothing to do at 16:00 — ADR-012 D3's ONE
-    // couples read is shared by all three, so a pass that has no work still logs.
+    // The daily-question pass ran too and found nothing to do at 22:00 — ADR-012
+    // D3's ONE couples read is shared by all three, so a pass with no work still
+    // logs its summary.
     expect(infoSpy).toHaveBeenCalledWith(
       'question_rollover: daily-question sweep complete',
       expect.objectContaining({ checked: 0, sent: 0 }),
@@ -156,7 +160,7 @@ describe('makeQuestionRolloverHandler', () => {
   });
 
   // ADR-042 D3. Same shared buckets, different hour, different kind.
-  it('announces the daily question at hour 8, off the SAME single couples read', async () => {
+  it('announces the daily question at hour 9, off the SAME single couples read', async () => {
     await couples.doc('ist').set({
       memberUids: ['uid-a', 'uid-b'],
       timezone: 'Europe/Istanbul',
@@ -182,7 +186,7 @@ describe('makeQuestionRolloverHandler', () => {
       'question_rollover: daily-question sweep complete',
       expect.objectContaining({ checked: 1, sent: 2 }),
     );
-    // And the nudge pass, sharing the same buckets, correctly did nothing at 08:00.
+    // And the nudge pass, sharing the same buckets, correctly did nothing at 09:00.
     expect(infoSpy).toHaveBeenCalledWith(
       'question_rollover: at-risk sweep complete',
       expect.objectContaining({ checked: 0, sent: 0 }),

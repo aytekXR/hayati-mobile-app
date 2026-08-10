@@ -23,22 +23,29 @@ import type { MessagingPort } from './messaging-port';
 import { deliverSweepPush, nonAnswerers } from './sweep-push';
 
 /**
- * The couple-LOCAL wall-clock hour the daily-question push fires on (ADR-042 D3):
- * once per zone per day — only the sweep whose bucket-local hour reads 8 pushes.
+ * The couple-LOCAL wall-clock hour the daily-question push fires on — **9**
+ * since ADR-045 (founder, 2026-08-10: *"questions should be sent at 9:00 AM"*),
+ * re-pointed from the 8 ADR-042 D3 chose. Once per zone per day: only the sweep
+ * whose bucket-local hour reads 9 pushes.
  *
- * ⚠️ **8 is the boundary of the quiet window, not a value inside it.**
- * `isQuietLocalHour` is `hour >= 22 || hour < 8` — right-open at 08:00 — so hour 8
- * is the FIRST legal hour of the day and this push is the first thing the policy
- * allows. That is elegant and it is fragile: moving either the window or this
- * constant by one silently suppresses the entire feature while every unrelated
- * test stays green. Both directions are asserted in `daily-question.test.ts` and
- * mutation-checked, because a feature that fails by going quiet cannot be noticed
- * by its absence.
+ * **What moved and what deliberately did NOT.** Only the ANNOUNCEMENT moved. The
+ * rollover still assigns the day's question at local **midnight**, so the app
+ * shows the new question to anyone who opens it before 09:00 — the founder chose
+ * that explicitly over moving the assignment, because `dayKey`, the streak, the
+ * reveal and this pass are all keyed on the local-midnight boundary and moving it
+ * would have created a nine-hour window with no question and no defined state.
+ *
+ * **9 is no longer adjacent to the quiet window, and that is a small win.** Under
+ * ADR-042 D3 this constant sat exactly on the 08:00 boundary — the first legal
+ * hour — where a one-hour drift in either the window or the constant silently
+ * killed the feature. At 9 there is an hour of slack on this side. The fragile
+ * end has MOVED, not vanished: it is now the 22:00 nudge sitting against the new
+ * 23:00 window edge (`at-risk.ts`), and it is asserted there.
  *
  * Sub-hour-offset zones (Asia/Kathmandu +05:45) land on the hourly sweep whose
- * local clock reads 08:xx, exactly as their midnight bucket does.
+ * local clock reads 09:xx, exactly as their midnight bucket does.
  */
-export const DAILY_QUESTION_LOCAL_HOUR = 8;
+export const DAILY_QUESTION_LOCAL_HOUR = 9;
 
 /** The daily-question sweep counters the handler logs and the tests assert on. */
 export interface DailyQuestionSummary {

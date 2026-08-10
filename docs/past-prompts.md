@@ -2858,3 +2858,42 @@ release).
 tests including the no-source regression.
 
 **The fix is in the app binary, so it needs a new TestFlight build**, and dispatching the release lane uploads a real binary to the founder's TestFlight — `session-context.md` §7, a founder ask. **Builds 115–117 all carry the bug**; tapping Allow on them may register nothing. The operator page now says use a build made after 2026-08-09 and explains why, replacing four sessions of "just tap Allow".
+
+---
+
+## Session 067 — 2026-08-10 — **the founder set the notification hours, and the quiet window would have eaten the one they cared most about** *(first-hand)*
+
+**Objective (founder directive): questions at 09:00, and notifications only for a new question, a partner answering, and a 22:00 nudge if still unanswered.** Plus three documentation asks: where the roadmap and implementation plan stand, whether the handoff is current, and strip the closed items out of `operator-expected.md`.
+
+### One line of the request was materially ambiguous, so it was asked rather than guessed
+
+*"Questions should be sent at 9:00 AM, not at midnight"* has two readings: move the **announcement**, or move the **assignment**. They are not close in cost — `dayKey`, the streak, the reveal decision and both push passes are keyed on the local-midnight boundary, so moving assignment opens a nine-hour window per day with no question and no defined app state. **The founder chose the announcement.** A second question — the system has FOUR push kinds and the request named three — settled that both partner pushes stay, because `partnerAnswered` and `reveal` are the same event from opposite sides.
+
+### The finding: the 22:00 nudge would have shipped and delivered nothing
+
+`isQuietLocalHour` was `hour >= 22 || hour < 8`, and `deliverSweepPush` re-checks it per recipient as defense in depth. **22 was the FIRST QUIET HOUR.** Re-pointing the nudge to 22:00 alone would have had every one of those pushes composed, counted, and then dropped by our own guard into `suppressedQuiet` — on every couple, every night, with three healthy summary lines in the log and a green deploy.
+
+Caught by reading the guard *before* changing the constant. → the window moved to **23:00–08:00** in the same change (ADR-045 D3), making 22:00 the last legal hour.
+
+**The cost is stated rather than buried:** the founder asked for a 10 PM push and therefore for one fewer protected evening hour. Reversible with one constant if they want it back.
+
+### The fragility moved rather than vanished
+
+ADR-042 D3 had the daily question sitting exactly on the 08:00 edge, documented and tested as *"the thing most likely to silently kill this feature"*. After ADR-045, 09:00 has an hour of slack and **22:00 is flush against the new 23:00 edge** — the same coupling, at the other end of the day. Asserted in three files now, and one of those assertions is the one that matters most:
+
+> **Testing "not quiet" is not testing "the right hour."** 08:00 is still perfectly legal. Only a test pinned to the pass's OWN hour catches a constant that moved in one file and not the other — which is exactly what happened: `question-rollover-handler.test.ts` hardcodes its instants instead of importing the constants, so the first grep for `DAILY_QUESTION_LOCAL_HOUR` missed it entirely and the emulator suite is what found it.
+
+Three tests failed on the first run, all mine, all consequences of the retime: a sub-hour Kathmandu fixture pinned to 08:45, and the two handler fixtures. Two inline comments were then corrected a second time, because the first patch swapped which pass has no work at which hour.
+
+### The doc asks
+
+* **`operator-expected.md` stripped of closed items** as requested — 341 lines removed. The app-icon section (shipped), the closed APNs/portal-tick boxes, the historical two-piece instructions, the Cloud Scheduler item settled the day before, and the retired-number table (moved to this file, with a pointer left behind because `testflight_testers.py` still prints item 2(c)). The header block had also **accumulated across incremental edits** — it still told the founder to reinstall build 117 — so it was rewritten once rather than patched again.
+* **Handoff regenerated** for S068 with the #204 objective it has now deferred twice, and the state table carries the new hours plus the fact that **production still runs the old ones**.
+
+### Proven
+
+`54 test files, 1071 tests pass` · functions coverage **97.45%** (gate 80/85) · `tsc --noEmit` clean · eslint clean.
+
+### Operator dependencies
+
+**Two, both stated on the page.** The founder's install-and-tap for build 119 (unchanged), and a **prod Functions redeploy** for the new hours to take effect — production announces at 08:00 and nudges at 16:00 until then, which is exactly the merged-vs-running gap ADR-043's checker exists to make visible.

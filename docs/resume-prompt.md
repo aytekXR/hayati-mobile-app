@@ -1,51 +1,45 @@
-# Resume Prompt — Session 067
+# Resume Prompt — Session 068
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
-> Before starting, read the two companions:
-> * **`session-context.md`** — toolchain, machine, review discipline, binding
->   invariants, and the never-without-asking list.
-> * **`session-lessons.md`** — the institutional lessons, now numbered to **98**.
+> Read `session-context.md` (toolchain, machine, review discipline, the
+> never-without-asking list) and `session-lessons.md` (numbered to **99**) first.
+> Re-derive the session number from `git log`.
+
+**Objective: make a failed `deliver` VISIBLE — the engineering half of #204.**
+
+> ⚠️ **S066 and S067 both deferred this**, and the reason each time was a live
+> founder directive, not neglect: S066 fixed the two notification bugs
+> (ADR-044 + #215) and S067 re-pointed the notification hours (ADR-045) and
+> cleaned the operator page. The measurement phase is **already done and recorded
+> as a comment on #204** — read it before designing:
 >
-> Re-derive the session number from `git log`; a session on another machine can consume it.
+> * the step already exits 1 with an `##[error]`; it has **no `id`**, so
+>   `steps.<id>.outcome` is unreachable;
+> * `slack_notify.sh` derives everything from job-level `NEEDS_JSON`, so a
+>   step-level failure is structurally invisible to it;
+> * **ADR-024 D1 is binding** — all notifier policy lives in that one tested
+>   script and the notifier has **no vote** on the build. So the fix cannot be
+>   "make the step fail" and cannot be a bespoke notification path.
 
-**Objective: make a failed `deliver` VISIBLE, so a green release can never again
-mean "store metadata silently did not land" — the engineering half of #204.**
-
-> ⚠️ **S066 did not run this objective.** A founder directive arrived mid-session
-> — *"the app is not sending notifications, fix it"* — and superseded it. That
-> work is done and merged (ADR-044); this objective is unchanged and inherits
-> S066's completed measurement phase, which is **recorded as a comment on #204**:
-> the step already exits 1 with an `##[error]`, it has **no `id`** (so
-> `steps.<id>.outcome` is unreachable), and `slack_notify.sh` derives everything
-> from job-level `NEEDS_JSON`, so a step-level failure is structurally invisible
-> to it. Read that comment before designing.
-
-This is not the Turkish-name decision. That half is the founder's and is
-correctly stated on the operator page; **do not touch it and do not re-ask it.**
-
-The defect is ours: `fastlane store_metadata (deliver per locale)` has failed
-**identically on every release since build 112** — six of them — and the run is
-green and Slack says nothing. `continue-on-error: true` is **right** there
-(ADR-020 D8) — lesson **69**: *`continue-on-error` is not the bug; an UNREAD
+`fastlane store_metadata (deliver per locale)` has failed identically on **every
+release since build 112** — now nine of them, 112 through 119 — and every run was
+green and Slack said nothing. `continue-on-error: true` is **right** there
+(ADR-020 D8); lesson **69**: *`continue-on-error` is not the bug; an UNREAD
 failure is.* It has already produced a wrong instruction to the founder twice
 (lesson **91**).
 
-**ADR-024 D1 is binding**: all notifier policy lives in `tool/ci/slack_notify.sh`
-and the notifier has **no vote** on the build. So the fix cannot be "make the
-step fail", and it cannot be a bespoke notification path.
-
-**Do not grep for Apple's error string.** That is the same defect one level down
-— it goes quiet the day the message changes, and quiet reads as fine. Assert
+**Do not grep for Apple's error string.** That is the same defect one level down —
+it goes quiet the day the message changes, and quiet reads as fine. Assert
 **positive evidence of publication per locale** (expected set from
-`fastlane/metadata/*/`, actual from what deliver says it uploaded) and treat
-*absence of evidence* as a finding (lesson **65**), with the repo's exit taxonomy.
+`fastlane/metadata/*/`, actual from what deliver reports) and treat *absence of
+evidence* as a finding (lesson **65**), with the repo's exit taxonomy.
 
-⚠️ **You cannot dispatch `release.yml` to test this** (§7). The last six runs'
+⚠️ **You cannot dispatch `release.yml` to test this** (§7). The last nine runs'
 logs are the fixture source: `gh api repos/:owner/:repo/actions/jobs/<id>/logs`,
-**never** `gh run view --job --log` (lesson **65**). Job ids: `93165024416` (117),
-`92747059901` (116), `92728958753` (115).
+**never** `gh run view --job --log` (lesson **65**). Job ids: `93254284862` (119),
+`93165024416` (117), `92747059901` (116).
 
 ## 1. Where things actually stand *(measured 2026-08-09 — re-measure, do not inherit)*
 
@@ -56,8 +50,9 @@ logs are the fixture source: `gh api repos/:owner/:repo/actions/jobs/<id>/logs`,
 | **`hayatiapp-prod` Functions** | Running **this ref's source**, but hand-deployed from a laptop that swept in 62 gitignored files, so it does not equal a clean checkout. A **process** gap, not wrong code. That is **#206**, and the tool says so in those words. |
 | **Push, server side** | **DONE and RUNNING.** All 13 exports deployed to prod; all three per-sweep summary lines on every hourly pass. |
 | **Push, server side — MEASURED PROPERLY at last** | At the couple's OWN 08:00 (05:00Z; they are UTC+3, derived from `assigned: 1` at 21:00Z = local midnight) the sweep logs `checked:1  sent:0  skippedNoToken:2` and names both recipient uids. **Everything above the token lookup is verified working in production.** Reading `checked: 0` at any other hour says nothing — the pass is gated on couple-local hour 8 (lesson **97**). |
+| **Notification hours** | **CHANGED on `main`, ADR-045**: question announcement **09:00** (was 08:00), unanswered nudge **22:00** (was 16:00), quiet window **23:00–08:00** (was 22:00) — the window HAD to move or the 22:00 nudge would have been swallowed by our own guard. **Production still runs the OLD hours** until Functions are redeployed (#206; a prod deploy is a §7 ask). `functions_drift.py` is what makes that visible. |
 | **Push, device side** | **Was a real BUG, not just a missing tap** (ADR-044, merged S066). iOS delivers the APNs token *after* `requestPermission()` returns; capture asked once, in that window, caught the throw and never retried. **Builds 115–117 all carry it.** Fixed with a bounded retry. `registerPushToken` still has **zero device invocations** — re-measure with `firebase functions:log --only registerPushToken`. |
-| **What push now needs** | **A NEW BUILD.** The fix is in the binary and dispatching `release.yml` is a founder ask (§7). Until a post-2026-08-09 build is installed and the prompt accepted, nothing can arrive. |
+| **What push now needs** | **The founder's install + tap. Build 119 is live** (`internal=IN_BETA_TESTING`) and carries BOTH fixes — ADR-044's token-capture retry and #215's foreground presentation. `registerPushToken` still has **zero device invocations**; re-measure with `firebase functions:log --only registerPushToken`. |
 | **Build 117** | Live, `external=IN_BETA_TESTING`, carries the icon and the whole push slice. |
 | **Deployed rules** | Both projects matched `main` on 2026-08-08. Re-measure with `rules_drift.py --from-firebase-cli`. |
 | **`functions-drift` / `rules-drift` in CI** | Both **visibly SKIPPED** by design — one absent secret (operator **2(e)(iv)**, whose instructions changed this session: the same account now needs **Cloud Functions Viewer** too). |
