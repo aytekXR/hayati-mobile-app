@@ -38,6 +38,36 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**101 — "The absence of `gcloud`" is not "the absence of the credential."** *(S068)*
+`session-context.md` stated for months that *"Cloud Scheduler and Eventarc state
+cannot be verified from here"* because `gcloud` is not installed and there is no
+ADC. Both halves of that premise were true and the conclusion was false: the
+firebase CLI's stored refresh token carries the **`cloud-platform`** scope, and
+`rules_drift.py` had *already shipped* the code to mint from it — so Cloud
+Scheduler, Cloud Logging, Cloud Billing, Cloud Functions v2 and the Firestore REST
+API were all readable the whole time, from a helper this repo wrote itself.
+The cost was not theoretical: with no way to see Scheduler or request-level logs,
+a 37-hour production outage went unnoticed and was then *mis-reported as healthy*.
+**A capability was declared unreachable by reasoning about a missing tool rather
+than by trying the credential that was already in hand.** When a document says
+something cannot be measured, that is a claim to re-test, not a fact to inherit —
+and the first thing to test is whatever credential the repo already uses.
+
+**100 — An invocation ATTEMPT and a completed run are different events, and the log stream shows both.** *(S068, #219)*
+`questionRollover` failed 38 consecutive hourly invocations — Cloud Run refused
+each at the serving layer (`HTTP 500 "billing is disabled"`, latency 0s, container
+never started) — while Cloud Scheduler stayed `ENABLED` and fired punctually. A
+session read `firebase functions:log`, saw a line at every hour, and published
+*"Your app is running. The hourly job fired all day."* Every one of those lines
+was the **error**. Severity `E` and `I` differ by one character under the same
+function name, and the sweep's own summary lines were simply absent.
+**Health is the presence of the thing SUCCEEDING, never the absence of silence.**
+Key any liveness claim on a record only the successful path can emit — here
+`question_rollover: sweep complete`, which `runQuestionRollover` must return
+before it is written. `tool/ci/prod_pulse.py` now does exactly that, and its test
+replays this outage's signature (`ENABLED` + punctual + status 13 + no completed
+sweep) as the fixture a naive "did it fire?" check cannot pass.
+
 **99 — When you are blocked on a human, hunt the REST of the path instead of waiting.** *(S066)*
 The push fix was merged and a build shipped; the only remaining step was the
 founder installing it and tapping Allow, which no session can do. Waiting was the

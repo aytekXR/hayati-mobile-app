@@ -224,6 +224,17 @@ jobs:
       # whole of ADR-043 D3 — cannot pass unseen.
       - name: functions drift self-tests
         run: python3 tool/ci/functions_drift_test.py
+      # S068 (#219): `functions_drift` answers "is the deployed CODE current?".
+      # It cannot answer "is the deployed code RUNNING?" — and for 37 hours it
+      # was not: Cloud Run refused all 38 hourly invocations over disabled
+      # billing while `functions:list` and the scheduler both looked healthy.
+      # `prod_pulse` keys its verdict on the sweep's OWN completion log line, so
+      # an ENABLED scheduler firing punctually into a dead backend — the exact
+      # state a session published as "your app is running" — reads red. Only
+      # these tests are hermetic; the check needs the CLI credential and is a
+      # local/manual instrument (see its docstring on why no SA path exists).
+      - name: prod pulse self-tests
+        run: python3 tool/ci/prod_pulse_test.py
       - name: pub get
         working-directory: app
         run: flutter pub get
