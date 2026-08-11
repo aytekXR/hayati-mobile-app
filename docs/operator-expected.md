@@ -300,6 +300,25 @@ fails to publish store metadata should not look green and silent.
 > If that appears, the fix is one upload:
 > **console.firebase.google.com/project/hayatiapp-prod/settings/cloudmessaging**
 > → *Apple app configuration* → upload the `.p8`. Nothing needs rebuilding.
+>
+> ### You will not have to wait until 09:00 to find out
+>
+> The moment you tap Allow, this answers the whole question in one command —
+> and, crucially, names *which* link is broken rather than reprinting the
+> symptom, because "nothing arrived" has four different causes that look
+> identical:
+>
+> ```sh
+> python3 tool/ci/push_delivery_probe.py --from-firebase-cli
+> # once it reports a registered device:
+> python3 tool/ci/push_delivery_probe.py --from-firebase-cli --send-test --confirm SEND
+> ```
+>
+> The second one puts **one real notification** on your phone — which is the
+> proof, not a substitute for it. If it arrives, the entire chain works,
+> including the APNs key that nothing else can check. If it does not, the tool
+> says whether the key is missing, the token is dead, or the project is wrong,
+> and what to do about each.
 
 
 ### The order matters, and it is not reorderable

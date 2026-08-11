@@ -235,6 +235,16 @@ jobs:
       # local/manual instrument (see its docstring on why no SA path exists).
       - name: prod pulse self-tests
         run: python3 tool/ci/prod_pulse_test.py
+      # S068 (#219): the notification chain's last two links have never run, and
+      # every distinct way they can fail presents identically as "nothing
+      # arrived" — which is what cost S063 and S066 a session each. One of them,
+      # whether the APNs .p8 reached Firebase, is readable from NO Google API, so
+      # it can only be observed at the moment of a real send. This probe names
+      # the broken link instead of reprinting the symptom. These tests are
+      # hermetic; the probe itself needs the CLI credential and, to send, a typed
+      # --confirm SEND, because it puts a real notification on a real phone.
+      - name: push delivery probe self-tests
+        run: python3 tool/ci/push_delivery_probe_test.py
       - name: pub get
         working-directory: app
         run: flutter pub get
