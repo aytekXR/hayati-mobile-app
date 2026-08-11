@@ -133,6 +133,24 @@ _Last refreshed: **2026-08-11** (Session 068)._
 > the morning sweep flips from `skippedNoToken: 2` to `sent`. A session reads
 > both directly. If they do not move, that is a real bug and a findable one.
 >
+> ### Measured 2026-08-11 — and it narrows the problem to one thing
+>
+> **You both opened the app today** (your session 07:13 UTC, your partner's
+> 05:04 UTC — from the auth records, not guesswork). And `registerPushToken` has
+> **zero invocations in its entire log history** — not one success, not one
+> rejection, and *not even a failed request during the 37-hour outage*.
+>
+> That last detail is what makes this conclusive. If your phone had tried to
+> register and been refused by the dead backend, there would be a `500` against
+> it, exactly as there is against the sweep. There is nothing at all. **The call
+> was never attempted**, which means the phone never obtained a token to send —
+> so the fault is on the device side of the line, not the server side.
+>
+> Only two things do that: the app is a build that cannot capture a token
+> (**115/116/117** — the ADR-044 bug), or notifications are not permitted for it.
+> Both are cleared by installing **119** and making sure the permission is on
+> (Settings → Notifications → ikimiz, if no dialog appears).
+>
 > ### ✅ Your seven friends — build 119 is now with Apple
 >
 > 119 was assigned to the `Friends` group but had never been **submitted for
