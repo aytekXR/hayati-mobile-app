@@ -146,10 +146,40 @@ _Last refreshed: **2026-08-11** (Session 068)._
 > was never attempted**, which means the phone never obtained a token to send —
 > so the fault is on the device side of the line, not the server side.
 >
-> Only two things do that: the app is a build that cannot capture a token
-> (**115/116/117** — the ADR-044 bug), or notifications are not permitted for it.
-> Both are cleared by installing **119** and making sure the permission is on
-> (Settings → Notifications → ikimiz, if no dialog appears).
+> ### ⚠️ And the likeliest cause is NOT the build — corrected 2026-08-11
+>
+> This page has said that 115/116/117 "could register nothing at all". Reading
+> the code that actually shipped in 117 shows that is **overstated**, and the
+> difference decides what you should do next.
+>
+> Build 117 carries a **second** registration path the ADR-044 write-up did not
+> credit: alongside the one-shot token read that fails, it subscribes to
+> `onTokenRefresh` — and iOS delivers the token on that stream a moment later,
+> exactly when the one-shot call has already given up. That listener calls
+> `_register` directly. So on 117, granting permission should have produced a
+> token *anyway*, by the slower path.
+>
+> It produced nothing. Combined with zero invocations, that points away from the
+> build and at the simplest explanation: **notification permission has never been
+> granted for this app.** Either the prompt was never reached, or it was answered
+> *Don't Allow* — and iOS shows that dialog once per install and never again, so
+> the app cannot ask a second time.
+>
+> ### Which means the fastest fix may need no install at all
+>
+> **Try this first — it takes fifteen seconds:**
+>
+> 1. **Settings → Notifications → ikimiz → Allow Notifications: ON**
+> 2. Force-quit the app and reopen it to your home screen.
+>
+> On the build you already have, that alone should register — iOS hands the app a
+> token on launch once permission is held, and the refresh listener catches it.
+>
+> **Then install 119 anyway.** It is strictly better: it retries the capture six
+> times with backoff instead of relying on the refresh path, and it fixes the
+> separate bug where a notification arriving while the app is OPEN displayed
+> nothing. But if you want a notification today, the Settings toggle is the
+> shorter road.
 >
 > ### ✅ Your seven friends — build 119 is now with Apple
 >
