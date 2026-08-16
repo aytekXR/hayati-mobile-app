@@ -653,6 +653,37 @@ void main() {
     });
   });
 
+  test(
+    'a LATE failure never demotes a registration that already landed',
+    () async {
+      // Two captures can be in flight: the boot one, and the fresh one
+      // `promptForPermissionAndRegister` deliberately starts rather than joining
+      // (joining would spend the user's tap on a run that began before the
+      // grant). The boot run can finish EMPTY a moment after the prompt's run
+      // succeeded — and without a guard it overwrites `registered` with
+      // `awaitingDeviceToken`, showing a Try again button to a phone that is
+      // already reachable.
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+      expect(container.read(pushTokenSyncProvider).isRegistered, isTrue);
+
+      // Now make every subsequent capture fail, and drive one.
+      source
+        ..notReadyForFirst = 9999
+        ..statusOverride = PushPermission.denied;
+      await sync.refresh();
+
+      expect(
+        container.read(pushTokenSyncProvider).state,
+        PushRegistrationState.registered,
+        reason: 'a token already registered is the strongest evidence there is',
+      );
+      expect(container.read(pushTokenSyncProvider).token, 'device-token');
+    },
+  );
+
   group('refresh (ADR-046 D1/D5)', () {
     test('READS the permission and never prompts', () async {
       // The load-bearing property of the whole slice. `refresh()` runs on every

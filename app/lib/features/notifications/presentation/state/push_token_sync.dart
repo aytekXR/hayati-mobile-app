@@ -140,6 +140,23 @@ class PushTokenSync extends _$PushTokenSync {
     if (!_building) state = next;
   }
 
+  /// Emit a NON-success state, unless a token has already been registered.
+  ///
+  /// **Two captures can be in flight at once and only one of them can be right.**
+  /// `promptForPermissionAndRegister` deliberately starts a FRESH run rather than
+  /// joining the boot capture (joining would spend the user's tap on a run that
+  /// began before the grant and may be on its last attempt) — so the boot run can
+  /// finish, empty, a moment AFTER the prompt's run succeeded. Without this
+  /// guard it would then overwrite `registered` with `awaitingDeviceToken` and
+  /// show a **Try again** button to a phone that is already reachable.
+  ///
+  /// A late failure never demotes a success: the token is the evidence, and
+  /// nothing here produced better evidence than the run that got one.
+  void _emitUnlessRegistered(PushRegistrationState next) {
+    if (_registeredToken != null) return;
+    _emit(PushRegistration(state: next));
+  }
+
   void _syncFrom(AuthState authState) {
     if (authState is AuthSignedIn) {
       final uid = authState.user.uid;
@@ -225,11 +242,9 @@ class PushTokenSync extends _$PushTokenSync {
 
     switch (permission) {
       case PushPermission.denied:
-        _emit(const PushRegistration(state: PushRegistrationState.denied));
+        _emitUnlessRegistered(PushRegistrationState.denied);
       case PushPermission.notDetermined:
-        _emit(
-          const PushRegistration(state: PushRegistrationState.notDetermined),
-        );
+        _emitUnlessRegistered(PushRegistrationState.notDetermined);
       case PushPermission.granted:
         // Permission is held and there is still no token: this is the ADR-044
         // window, or the link ADR-046 D6 hardened. Either way the honest
@@ -273,7 +288,7 @@ class PushTokenSync extends _$PushTokenSync {
         // works exactly as it did before push existed. It is nevertheless a
         // state worth NAMING, because it is the one no future build can undo.
         debugPrint('PushTokenSync: notification permission not granted');
-        _emit(const PushRegistration(state: PushRegistrationState.denied));
+        _emitUnlessRegistered(PushRegistrationState.denied);
         return false;
       }
       // Permission is what was missing; the token can be captured now — but on
@@ -391,7 +406,7 @@ class PushTokenSync extends _$PushTokenSync {
     // It also makes the settled state independent of ORDERING: a concurrent
     // `refresh()` that already wrote `denied` is no longer overwritten by this
     // loop finishing a moment later.
-    _emit(PushRegistration(state: await _stateForCurrentPermission(source)));
+    _emitUnlessRegistered(await _stateForCurrentPermission(source));
   }
 
   /// The honest state for a device that has no token, read from the OS.
@@ -429,11 +444,7 @@ class PushTokenSync extends _$PushTokenSync {
       // failure from "no address yet", but it has the same remedy — try again —
       // and the same user-facing sentence, so it shares the state rather than
       // inventing a fifth one nobody could act on differently.
-      _emit(
-        const PushRegistration(
-          state: PushRegistrationState.awaitingDeviceToken,
-        ),
-      );
+      _emitUnlessRegistered(PushRegistrationState.awaitingDeviceToken);
     }
   }
 
