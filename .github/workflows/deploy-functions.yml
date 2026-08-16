@@ -165,6 +165,24 @@ jobs:
             echo "names=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # A NEWLINE MUST BE REFUSED BEFORE THE REGEX, because the regex cannot
+          # see it. `grep` matches line by line, so $'a\nb' passes on the
+          # strength of its first line alone — and then `IFS=',' read` consumes
+          # only that first line and `echo name=$ONLY >> $GITHUB_OUTPUT` writes a
+          # second, keyless line the parser discards. The run would deploy `a`,
+          # read back `a`, and go GREEN while `b` was requested and never
+          # deployed, with nothing in the log saying so. That is the silent
+          # mis-selection ADR-048 D3 refuses hyphens to avoid, arriving through a
+          # character the pattern never mentions. Reachable today: `gh workflow
+          # run ... -f only=$'a\nb'`.
+          case "$ONLY" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::The 'only' box must be a single line. It contained a line break,"
+              echo "::error::which would silently truncate the list to its first entry and"
+              echo "::error::deploy fewer functions than you asked for, with a green result."
+              exit 1
+              ;;
+          esac
           # Underscore is allowed (a barrel export is a JS identifier). A hyphen
           # is deliberately refused: parseFunctionSelector splits a selector on
           # [-.] into prefix-matched chunks, so a hyphenated name would not be
@@ -241,6 +259,7 @@ jobs:
           echo "pre-deploy drift status: $code (0 = already in sync, 1 = will change)"
 
       - name: deploy
+        id: deploy
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/deploy-functions-sa.json
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -283,8 +302,15 @@ jobs:
       #   deploy FAILS, read-back MATCHES -> every scoped function's source IS
       #                                      this ref and the CLI failed at
       #                                      something around the release.
+      #
+      # Gated on the deploy having been ATTEMPTED, not merely on always(). A run
+      # stopped by the main-pin, the typed confirmation or the secrets gate never
+      # touched the project, so a read-back there would report the drift that was
+      # already there and redden a run for a state it did not cause — the
+      # cry-wolf shape. A skipped earlier step leaves deploy.conclusion
+      # 'skipped'; success and failure both mean it ran.
       - name: prove what is deployed NOW is this ref
-        if: always()
+        if: always() && steps.deploy.conclusion != 'skipped'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/deploy-functions-sa.json
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

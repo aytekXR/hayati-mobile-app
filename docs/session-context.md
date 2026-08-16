@@ -80,9 +80,17 @@ _Environment facts below were last re-measured **2026-08-05**._
   like `deploy-rules.yml`, so the row above is still how a session deploys today — and §7
   still applies to prod. The lane's own command sequence is reproducible locally:
   ```sh
-  python3 tool/ci/functions_drift.py --project <p> --require-clean-tree [--only a,b]
-  firebase deploy --only functions[:a,functions:b] --project <p> --non-interactive
-  python3 tool/ci/functions_drift.py --project <p> [--only a,b]
+  # every exported function
+  python3 tool/ci/functions_drift.py --project <p> --require-clean-tree
+  firebase deploy --only functions --project <p> --non-interactive
+  python3 tool/ci/functions_drift.py --project <p>
+
+  # or a subset — note the `functions:` prefix goes on EVERY name, and a
+  # selector without it is silently dropped (an all-dropped list means NO
+  # filter, i.e. deploy everything)
+  python3 tool/ci/functions_drift.py --project <p> --require-clean-tree --only a,b
+  firebase deploy --only functions:a,functions:b --project <p> --non-interactive
+  python3 tool/ci/functions_drift.py --project <p> --only a,b
   ```
   **Never pass `--force`**: it deletes functions absent from the source with no prompt.
 

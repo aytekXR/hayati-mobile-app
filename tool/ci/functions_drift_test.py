@@ -952,6 +952,14 @@ def only_scopes_both_verdicts():
             code, text = run_cli(["--project", "p", "--root", root, "--only", "alpha"])
             check(f"only: an OUT-OF-SCOPE function {label} does NOT abort the dispatch",
                   code == D.EXIT_OK, f"exit {code}\n{text}")
+            # The other half, and without it the pair is worth much less: an
+            # implementation that skipped the guards for EVERY function whenever
+            # a scope is set would satisfy the two checks above and still be
+            # broken. Scoping TO the unmeasurable function must still be exit 2 —
+            # `--only` narrows WHICH functions are judged, never whether they are.
+            code, text = run_cli(["--project", "p", "--root", root, "--only", "beta"])
+            check(f"only: scoping TO a function {label} is still COULD NOT MEASURE",
+                  code == D.EXIT_CANNOT_MEASURE, f"exit {code}\n{text}")
 
         # Lesson 65 stays UNSCOPED: zero deployed at all is ambiguous, zero
         # deployed WITHIN a scope while others are visible is plain drift.
