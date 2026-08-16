@@ -9,13 +9,23 @@ part of 'push_token_sync.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Keeps the device's FCM registration token in lockstep with the auth state
-/// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold.
+/// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold — and, since
+/// ADR-046, publishes **why** it has no token when it has none.
 ///
 /// [build] reads the CURRENT auth state and syncs it, THEN listens for
 /// transitions — because `ref.listen` never fires for the value already present
 /// and `AuthController.build()` seeds `AuthSignedIn` synchronously on a restored
 /// session. A listen-only design would skip registration on every warm start,
 /// which is the shape of the bug `PurchasesIdentitySync` was written to avoid.
+///
+/// **The value is a [PushRegistration], not a token (ADR-046 D2).** Four
+/// distinct device-side failures — never prompted, declined, granted-but-no-token,
+/// callable threw — used to be indistinguishable from each other and from
+/// success, because every one of them ended in a `debugPrint` that a TestFlight
+/// build routes nowhere. Each now has a name a screen can render and a user can
+/// act on. The token is still carried inside that value, because it is
+/// load-bearing for the privacy control below and must not be lost to a refactor
+/// that was about display.
 ///
 /// **The sign-out removal is a privacy control, not a cleanup task.** A token
 /// that outlives a sign-out delivers the NEXT user's pushes to the PREVIOUS
@@ -36,22 +46,30 @@ part of 'push_token_sync.dart';
 /// failure to obtain or register one is a logged no-op exactly as App Check and
 /// Crashlytics fail open where they stand.
 ///
-/// This provider is wired and **inert until `pushTokenSourceProvider` is
-/// overridden** (ADR-042 D2 step 4, blocked on the App ID capability measured
-/// absent on 2026-08-06). Resolving the source is deferred to the moment a sync
-/// actually fires, so a signed-out lifecycle never touches it at all.
+/// Resolving [pushTokenSourceProvider] is deferred to the moment a sync actually
+/// fires, so a signed-out lifecycle never touches it at all.
 
 @ProviderFor(PushTokenSync)
 const pushTokenSyncProvider = PushTokenSyncProvider._();
 
 /// Keeps the device's FCM registration token in lockstep with the auth state
-/// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold.
+/// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold — and, since
+/// ADR-046, publishes **why** it has no token when it has none.
 ///
 /// [build] reads the CURRENT auth state and syncs it, THEN listens for
 /// transitions — because `ref.listen` never fires for the value already present
 /// and `AuthController.build()` seeds `AuthSignedIn` synchronously on a restored
 /// session. A listen-only design would skip registration on every warm start,
 /// which is the shape of the bug `PurchasesIdentitySync` was written to avoid.
+///
+/// **The value is a [PushRegistration], not a token (ADR-046 D2).** Four
+/// distinct device-side failures — never prompted, declined, granted-but-no-token,
+/// callable threw — used to be indistinguishable from each other and from
+/// success, because every one of them ended in a `debugPrint` that a TestFlight
+/// build routes nowhere. Each now has a name a screen can render and a user can
+/// act on. The token is still carried inside that value, because it is
+/// load-bearing for the privacy control below and must not be lost to a refactor
+/// that was about display.
 ///
 /// **The sign-out removal is a privacy control, not a cleanup task.** A token
 /// that outlives a sign-out delivers the NEXT user's pushes to the PREVIOUS
@@ -72,20 +90,28 @@ const pushTokenSyncProvider = PushTokenSyncProvider._();
 /// failure to obtain or register one is a logged no-op exactly as App Check and
 /// Crashlytics fail open where they stand.
 ///
-/// This provider is wired and **inert until `pushTokenSourceProvider` is
-/// overridden** (ADR-042 D2 step 4, blocked on the App ID capability measured
-/// absent on 2026-08-06). Resolving the source is deferred to the moment a sync
-/// actually fires, so a signed-out lifecycle never touches it at all.
+/// Resolving [pushTokenSourceProvider] is deferred to the moment a sync actually
+/// fires, so a signed-out lifecycle never touches it at all.
 final class PushTokenSyncProvider
-    extends $NotifierProvider<PushTokenSync, String?> {
+    extends $NotifierProvider<PushTokenSync, PushRegistration> {
   /// Keeps the device's FCM registration token in lockstep with the auth state
-  /// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold.
+  /// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold — and, since
+  /// ADR-046, publishes **why** it has no token when it has none.
   ///
   /// [build] reads the CURRENT auth state and syncs it, THEN listens for
   /// transitions — because `ref.listen` never fires for the value already present
   /// and `AuthController.build()` seeds `AuthSignedIn` synchronously on a restored
   /// session. A listen-only design would skip registration on every warm start,
   /// which is the shape of the bug `PurchasesIdentitySync` was written to avoid.
+  ///
+  /// **The value is a [PushRegistration], not a token (ADR-046 D2).** Four
+  /// distinct device-side failures — never prompted, declined, granted-but-no-token,
+  /// callable threw — used to be indistinguishable from each other and from
+  /// success, because every one of them ended in a `debugPrint` that a TestFlight
+  /// build routes nowhere. Each now has a name a screen can render and a user can
+  /// act on. The token is still carried inside that value, because it is
+  /// load-bearing for the privacy control below and must not be lost to a refactor
+  /// that was about display.
   ///
   /// **The sign-out removal is a privacy control, not a cleanup task.** A token
   /// that outlives a sign-out delivers the NEXT user's pushes to the PREVIOUS
@@ -106,10 +132,8 @@ final class PushTokenSyncProvider
   /// failure to obtain or register one is a logged no-op exactly as App Check and
   /// Crashlytics fail open where they stand.
   ///
-  /// This provider is wired and **inert until `pushTokenSourceProvider` is
-  /// overridden** (ADR-042 D2 step 4, blocked on the App ID capability measured
-  /// absent on 2026-08-06). Resolving the source is deferred to the moment a sync
-  /// actually fires, so a signed-out lifecycle never touches it at all.
+  /// Resolving [pushTokenSourceProvider] is deferred to the moment a sync actually
+  /// fires, so a signed-out lifecycle never touches it at all.
   const PushTokenSyncProvider._()
     : super(
         from: null,
@@ -129,24 +153,34 @@ final class PushTokenSyncProvider
   PushTokenSync create() => PushTokenSync();
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(String? value) {
+  Override overrideWithValue(PushRegistration value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<String?>(value),
+      providerOverride: $SyncValueProvider<PushRegistration>(value),
     );
   }
 }
 
-String _$pushTokenSyncHash() => r'6e271a4168469b3facbdf95c2ffde66e727f371c';
+String _$pushTokenSyncHash() => r'31ef4b47034c99cafe32d8f80eae24be4c9d24e1';
 
 /// Keeps the device's FCM registration token in lockstep with the auth state
-/// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold.
+/// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold — and, since
+/// ADR-046, publishes **why** it has no token when it has none.
 ///
 /// [build] reads the CURRENT auth state and syncs it, THEN listens for
 /// transitions — because `ref.listen` never fires for the value already present
 /// and `AuthController.build()` seeds `AuthSignedIn` synchronously on a restored
 /// session. A listen-only design would skip registration on every warm start,
 /// which is the shape of the bug `PurchasesIdentitySync` was written to avoid.
+///
+/// **The value is a [PushRegistration], not a token (ADR-046 D2).** Four
+/// distinct device-side failures — never prompted, declined, granted-but-no-token,
+/// callable threw — used to be indistinguishable from each other and from
+/// success, because every one of them ended in a `debugPrint` that a TestFlight
+/// build routes nowhere. Each now has a name a screen can render and a user can
+/// act on. The token is still carried inside that value, because it is
+/// load-bearing for the privacy control below and must not be lost to a refactor
+/// that was about display.
 ///
 /// **The sign-out removal is a privacy control, not a cleanup task.** A token
 /// that outlives a sign-out delivers the NEXT user's pushes to the PREVIOUS
@@ -167,23 +201,21 @@ String _$pushTokenSyncHash() => r'6e271a4168469b3facbdf95c2ffde66e727f371c';
 /// failure to obtain or register one is a logged no-op exactly as App Check and
 /// Crashlytics fail open where they stand.
 ///
-/// This provider is wired and **inert until `pushTokenSourceProvider` is
-/// overridden** (ADR-042 D2 step 4, blocked on the App ID capability measured
-/// absent on 2026-08-06). Resolving the source is deferred to the moment a sync
-/// actually fires, so a signed-out lifecycle never touches it at all.
+/// Resolving [pushTokenSourceProvider] is deferred to the moment a sync actually
+/// fires, so a signed-out lifecycle never touches it at all.
 
-abstract class _$PushTokenSync extends $Notifier<String?> {
-  String? build();
+abstract class _$PushTokenSync extends $Notifier<PushRegistration> {
+  PushRegistration build();
   @$mustCallSuper
   @override
   void runBuild() {
     final created = build();
-    final ref = this.ref as $Ref<String?, String?>;
+    final ref = this.ref as $Ref<PushRegistration, PushRegistration>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<String?, String?>,
-              String?,
+              AnyNotifier<PushRegistration, PushRegistration>,
+              PushRegistration,
               Object?,
               Object?
             >;

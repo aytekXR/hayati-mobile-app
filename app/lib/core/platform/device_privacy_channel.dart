@@ -12,6 +12,12 @@ import 'package:flutter/services.dart';
 ///   `domainState.biometry.stateHash` on iOS 18+ and the deprecated
 ///   `evaluatedPolicyDomainState` below it (ADR-018 rev 5, issue #47) — two
 ///   representations of the same opaque token, which this side never parses.
+/// * `openNotificationSettings` → void (ADR-046 Decision 4). One more method on
+///   the SAME channel rather than a new package: `permission_handler`,
+///   `app_settings` and `url_launcher` would each add a transitive dependency
+///   surface and an ADR-034 advisory obligation to wrap a single
+///   `UIApplication.openSettingsURLString` call. Two seams over one channel is
+///   the shape D6 already set.
 ///
 /// This file is DEVICE-ONLY by construction: it is reached solely through the
 /// `AppIconSwitcher` / `BiometricAuthenticator` adapters, which the entrypoints
@@ -39,6 +45,12 @@ class DevicePrivacyChannel {
 
   Future<String?> biometricEnrollmentState() =>
       _channel.invokeMethod<String>('biometricEnrollmentState');
+
+  /// Opens the app's own page in the iOS Settings app (ADR-046 D4). The only
+  /// place a `denied` notification permission can be changed — iOS never shows
+  /// its dialog a second time.
+  Future<void> openNotificationSettings() =>
+      _channel.invokeMethod<void>('openNotificationSettings');
 }
 
 /// The single channel name. The Swift half registers exactly this (Decision 6).

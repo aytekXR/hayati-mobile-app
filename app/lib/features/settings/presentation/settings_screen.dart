@@ -17,6 +17,7 @@ import '../../profile/domain/relationship_profile.dart';
 import '../../profile/presentation/state/profile_providers.dart';
 import '../domain/app_icon_switcher.dart';
 import 'pin_setup_screen.dart';
+import 'widgets/notification_permission_row.dart';
 import 'widgets/pin_verify_dialog.dart';
 import 'widgets/settings_error_line.dart';
 
@@ -29,9 +30,10 @@ Future<void> showSettings(BuildContext context, {required String uid}) {
   ).push(MaterialPageRoute<void>(builder: (_) => SettingsScreen(uid: uid)));
 }
 
-/// The app's settings surface (ADR-018 Decision 7, extended by ADR-019 D6/D7):
-/// app lock, the biometric accelerator, the discreet icon, the discreet-
-/// notification override, the two data-rights rows (download / delete), sign out.
+/// The app's settings surface (ADR-018 Decision 7, extended by ADR-019 D6/D7 and
+/// ADR-046 D3): app lock, the biometric accelerator, the discreet icon, **whether
+/// notifications actually work on this phone**, the discreet-notification
+/// override, the two data-rights rows (download / delete), sign out.
 ///
 /// This screen is pushed INSIDE the Navigator (and sits below the gate like
 /// everything else), so `showDialog` is legitimate here — unlike on the lock
@@ -382,6 +384,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               SettingsErrorLine(resolve: _iconError),
             ],
+            // ADR-046 D3. Directly ABOVE the discreet-notification switch, and
+            // that order is the argument: "hide notification content" over a
+            // phone that receives none is the inert-but-confident surface this
+            // row exists to remove.
+            const NotificationPermissionRow(),
             SwitchListTile(
               value: notificationDiscreet,
               onChanged: _notificationPrivacyBusy

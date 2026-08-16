@@ -46,8 +46,10 @@ import 'features/entitlements/data/firestore_entitlement_repository.dart';
 import 'features/entitlements/data/rc_purchases_repository.dart';
 import 'features/entitlements/domain/entitlement_repository_provider.dart';
 import 'features/entitlements/domain/purchases_repository_provider.dart';
+import 'features/notifications/data/channel_notification_settings_launcher.dart';
 import 'features/notifications/data/fcm_push_token_source.dart';
 import 'features/notifications/data/functions_push_token_repository.dart';
+import 'features/notifications/domain/notification_settings_launcher.dart';
 import 'features/notifications/domain/push_token_repository_provider.dart';
 import 'features/notifications/domain/push_token_source_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
@@ -207,21 +209,33 @@ Future<void> main() async {
         dataRightsRepositoryProvider.overrideWith(
           (ref) => FunctionsDataRightsRepository(),
         ),
-        // ADR-042 D1/D2. Both halves are real now: the repository calls the
+        // ADR-042 D1/D2. Both halves are real: the repository calls the
         // deployed callables, and the source is FCM.
         //
-        // It is INERT until the entitlement lands. `aps-environment` is absent
-        // from Runner.entitlements by design — the Push Notifications capability
-        // is not ticked on the App ID (measured 2026-08-06), and a build claiming
-        // the entitlement without it fails at CODESIGN in the macOS release job
-        // (ADR-040, one capability over). Without it iOS never registers with
-        // APNs, so getToken() yields nothing and PushTokenSync logs a no-op.
-        // Nothing here changes when the tick happens except that tokens start
-        // flowing.
+        // ⚠️ THIS COMMENT SAID "INERT — `aps-environment` is absent" UNTIL
+        // 2026-08-16, AND IT HAD BEEN FALSE FOR NINE DAYS. The Push
+        // Notifications capability was ticked on the App ID on 2026-08-06 and
+        // the entitlement landed in Runner.entitlements on 2026-08-07 (2a12a07,
+        // `production`), wired to Debug/Release/Profile. A stale "this cannot
+        // work yet" is worse than no comment: it is the fourth indistinguishable
+        // explanation for silence (ADR-046), and it reads as a reason to stop
+        // looking. Re-measure, do not inherit:
+        //     gh workflow run appid-capabilities.yml -f require=PUSH_NOTIFICATIONS
+        //
+        // Everything on this path is now verified reachable in production —
+        // `registerpushtoken` grants `roles/run.invoker` to `allUsers`, and the
+        // sweep composes a push for both members every day at their 09:00. What
+        // is missing is one device that has captured a token.
         pushTokenRepositoryProvider.overrideWith(
           (ref) => FunctionsPushTokenRepository(),
         ),
         pushTokenSourceProvider.overrideWith((ref) => FcmPushTokenSource()),
+        // ADR-046 D4. The one door out of a declined permission — iOS never
+        // shows its dialog twice. Bound BY VALUE, like the other three
+        // channel-backed seams, so `flutter test` never touches the channel.
+        notificationSettingsLauncherProvider.overrideWithValue(
+          const ChannelNotificationSettingsLauncher(),
+        ),
         // The three device-privacy seams (ADR-018 D2/D1/D6). Bound BY VALUE here
         // and nowhere else, so `flutter test` never touches the Keychain,
         // local_auth, or the hayati/device_privacy channel.

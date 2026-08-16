@@ -41,6 +41,31 @@ class FcmPushTokenSource implements PushTokenSource {
   final FirebaseMessaging _messaging;
 
   @override
+  Future<PushPermission> permissionStatus() async {
+    // ADR-046 D1. `getNotificationSettings()` READS the standing answer and
+    // shows nothing — unlike `requestPermission()`, which consumes iOS's
+    // one-per-install dialog. That difference is why these are two methods and
+    // not a flag, and why this one is safe to call on every mount and resume.
+    //
+    // Thin by contract (ADR-042 D2): one call and a mapping, nothing a fake
+    // would not also satisfy.
+    try {
+      final settings = await _messaging.getNotificationSettings();
+      return switch (settings.authorizationStatus) {
+        AuthorizationStatus.authorized ||
+        AuthorizationStatus.provisional => PushPermission.granted,
+        AuthorizationStatus.denied => PushPermission.denied,
+        // `notDetermined` and anything a future plugin version adds. Fail-open
+        // to the state that costs the user nothing: it offers the prompt, and
+        // the prompt is a no-op when the answer already exists.
+        _ => PushPermission.notDetermined,
+      };
+    } catch (_) {
+      return PushPermission.notDetermined;
+    }
+  }
+
+  @override
   Future<bool> ensurePermission() async {
     // requestPermission() is idempotent from the caller's side: iOS shows its
     // dialog only on the first call per install and thereafter returns the
