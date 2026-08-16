@@ -3024,3 +3024,76 @@ picking one now fixes eight findings rather than one.
 **#221** — the device now knows *why* it has no token, and a session still cannot
 read it. Needs a client-writable diagnostic field, a rules change and an ADR-019
 cascade review; Crashlytics was considered and rejected (no read API).
+
+## Session 070 — 2026-08-17 — #206: the Cloud Functions deploy lane, the last deploy target that was a hand-typed command
+
+**Objective (from resume-prompt.md):** #206 — build `deploy-functions.yml` following `deploy-rules.yml`'s shape (ADR-041 D5): dispatch-only, typed project-id confirmation for prod, measure BEFORE deploying with `functions_drift.py` (exit 2 aborts, exit 1 is the normal reason to run it), deploy, read back. Ships unarmed until operator 2(e)(iii); say so rather than letting it look armed.
+
+**Outcome:** done. ADR-048 + the lane + two tool flags + 40 new hermetic checks + the docs. Two issues filed rather than absorbed (#222, #223). The lane has never *executed* — it cannot, it is unarmed — but **its command sequence was exercised end to end against `hayatiapp-dev`**.
+
+**Commits:** `2fedbfb` (ADR, before code) → `4abd2a1` (design review folded in) → `0e328eb` (lane + tool) → `481de56` (docs) → `b8958ae` (built-diff review fixes) → close.
+
+**CI:** see the close commit.
+
+### Measured first, and TWO inherited facts were stale
+
+Re-measured 2026-08-17, none of it inherited:
+
+* **`hayatiapp-prod` is CLEAN** — `functions_drift.py` exit **0**, 13 deployed, reference `c250c5c25611e2fa…` over **213 files = 116 tracked + 97 built + 0 foreign**. ADR-043's 62 gitignored debris files are **gone**. The Cloud Functions v2 API puts all 13 at `2026-08-11T10:51Z`, `functions/` has not changed since `52d8065`, and `npm run build` did not move the reference hash — so the reference is a current build and that redeploy was made from a clean tree. **`operator-expected.md` was still telling the founder to expect a red first run over those 62 files. Withdrawn.**
+* **`hayatiapp-dev` was drifted** — 12 deployed at `2026-08-11T07:10Z`, none matching this ref, `revenueCatWebhook` absent.
+* **Secret Manager:** prod has `LLM_API_KEY` + `RC_WEBHOOK_TOKEN`; **dev has `LLM_API_KEY` only**. Operator **0(c)** is open, so `revenueCatWebhook` genuinely cannot deploy to dev — the live reason the lane needs `--only`.
+* `gh secret list`: **no `FIREBASE_SERVICE_ACCOUNT`**. The lane ships unarmed, like `deploy-rules.yml`, which has also never run.
+* Artifact Registry `gcf-artifacts`/`europe-west1`: the `firebase-functions-cleanup` policy exists on **both** projects.
+
+### Four vendor behaviours, read out of the installed firebase-tools 15.22.4 rather than its docs — each one moved a decision
+
+1. **`getEndpointFilters` turns a typo into a full deploy.** `--only` splits on commas, **silently drops** any selector not starting with `functions:`, and returns `undefined` — meaning *no filter at all* — when every selector is dropped. `--only functions:a,b` deploys only `a`; `--only functions:` deploys **everything**. So the lane constructs the selector itself from validated names and never forwards the operator's string.
+2. **`--force` deletes silently.** `promptForFunctionDeletion` returns early when it is set, so any function present in the project and absent from the source is removed with no prompt. Without it, non-interactive **aborts** and prints the explicit `functions:delete` commands. It is also one flag meaning four unrelated things. **Never passed.**
+3. **The CLI partially deploys on purpose.** `promptForUnsafeMigration` skips unsafe updates in non-interactive mode and continues. A Functions deploy is not atomic the way a rules release is — which is the whole argument for the `if: always()` read-back.
+4. **`checkServiceAgentRole` short-circuits**, so a steady-state redeploy never calls Secret Manager `setIamPolicy` — which is what let the operator ask for `secretmanager.viewer` instead of `admin`.
+
+Plus one measured non-event: `promptForCleanupPolicyDays` throws **after** a successful release when a location has no cleanup policy. Both projects have one, so it cannot fire today; it is named, and the `if: always()` read-back is exactly what would diagnose it.
+
+### The IAM role list was measured against the IAM API, and it refuted the documentation
+
+Firebase's IAM page says deploying Functions needs permissions *"not included in standard Firebase predefined roles"*. Reading each role's `includedPermissions` from `iam.googleapis.com/v1/roles/<id>` shows `roles/firebase.admin` **does** carry `cloudfunctions.functions.{get,list,create,update,delete,sourceCodeSet,setIamPolicy}`, `run.services.*`, `eventarc.triggers.*`, `artifactregistry.repositories.get` and `serviceusage.services.get`. What it lacks is `iam.serviceAccounts.actAs`, all of `cloudscheduler.*` (and `upsertScheduleV2` re-writes `questionRollover`'s job on **every** deploy) and `secretmanager.secrets.getIamPolicy`.
+
+**`secretmanager.viewer`, not `admin`, deliberately:** admin is the only role carrying `versions.access`, i.e. the only one that could read `LLM_API_KEY` and `RC_WEBHOOK_TOKEN`. Stated plainly in the ADR and the operator item: the list is measured for **coverage** and has never been **exercised**, so the first armed dispatch should go to dev where a missing role is free and names itself.
+
+### Built
+
+`.github/workflows/deploy-functions.yml` — dispatch-only; **prod additionally pinned to `refs/heads/main`** (a branch deploy to prod would *manufacture* the drift `functions-drift` exists to report); typed `hayatiapp-prod`; fail-closed secrets gate; per-project `concurrency` with `cancel-in-progress: false`; `--non-interactive` explicit rather than inferred from a TTY; measure → deploy → **read back**, the read-back gated on the deploy having been *attempted* and voting either way.
+
+`tool/ci/functions_drift.py` — `--only` narrowing **both** verdicts with the scope named in the report, the annotation and the success line; **out-of-scope functions recorded but never examined**; `--require-clean-tree`; and the `::error::` remedy rewritten, since it told the reader Functions have no deploy lane.
+
+### Reviewed twice, and both passes changed the design
+
+**Design review** (5 lenses × 2 verifiers, before any code): 17 raised, 14 verified, **3 dropped unverified and named**, 6 survived. The blocker: D5 scoped the two verdicts but not ADR-043's exit-2 cases, which fire while the listing is *parsed* — a naive implementation of the ADR's own words would abort a subset deploy over an out-of-scope `gcfv1`. Also `only`'s empty case was undefined, the regex refused `_` and was silent on `-`, D4's third row over-claimed causation, and two facts were wrong (the CLI reads **stdin** for interactivity; ADR-041 cites 2(e)(**iv**)). That last one came from a finding the cap had **dropped unverified** and was real — lesson 65's shape.
+
+**Built-diff review** (5 lenses × 2 verifiers): 8 raised, 2 survived; the safety lens returned **zero** findings, recorded as *found nothing* rather than *proved safe*. The survivor was a real silent partial deploy: a **newline** in `only` passes a line-by-line `grep`, `IFS=',' read` then keeps only the first line, and the run deploys one function, reads back one function and goes green while the second was never deployed. Reproduced in a shell before fixing (lesson **105**).
+
+### Exercised end to end on dev (§7 — dev is a session's to exercise)
+
+```
+pre-check   exit 1  — 12 functions on source that is NOT this ref; clean-tree assertion passed
+deploy      exit 0  — all 12 updated
+read-back   exit 0  — MATCHES, naming the 1 exported function it did NOT examine
+unscoped    exit 1  — revenueCatWebhook absent: operator 0(c), not closeable by a session
+```
+
+ADR-043's own pattern: red for a real reason → green on the fixable half → red for a **named, filed** reason. A clean deploy reproduces `referenceHash` bit-for-bit, which is the strongest available confirmation that D3's reference set is defined correctly.
+
+### Tests
+
+`functions_drift_test.py` **159 → 199** hermetic checks. Five mutations, each reddening **named** assertions, each restored and the file diffed byte-identical afterwards. The fifth was written after the review: the suite proved an out-of-scope unmeasurable function does not abort a scoped run, but not that scoping **to** one still exits 2 — so skipping the guards for *every* function under a scope would have passed. It now reddens three checks.
+
+The mutation run also found a defect in the **harness**: `run_cli` wrapped `D.main` in `redirect_stdout`, and argparse *exits* rather than returning, so an unknown flag killed the run past `except Exception` with its message inside a discarded buffer. Every new test had been failing **silently, exit 2, zero output** — the red that names nothing this file's docstring forbids.
+
+**Docs touched:** `docs/adr/048-*.md` (new), `adr/README.md`, `architecture.md` §9, `session-context.md` §2, `test-suite.md` §2 (`functions_drift`'s self-tests were undocumented there entirely), `operator-expected.md` (2(e)(iii) role list, 2(e)(iv) withdrawal, item 4(a), the #206 row), `session-lessons.md` (**105**, **106**, **107**).
+
+**Notes / debt logged:**
+* **#222** — 10 verified stale claims across the handoff documents (counts, a false *"nothing writes it yet"* for `fcmTokens`, two contradictions in the notifications section, three instruments missing from `session-context.md` §8). Found by an audit that ran during this session; **fixed only where this diff already made the text false**, filed for the rest.
+* **#223** — `deploy-rules.yml` can publish a **branch's** rules to prod (it checks the typed project id, never the ref), and neither it nor `deploy-site.yml` declares `concurrency`. `deploy-functions.yml` closes both for its own lane; changing an existing lane's safety posture deserves its own decision.
+* A 10-hour orphaned background `bash` from this session's own pre-`/clear` incarnation was found and killed (`session-context.md` §2). The other claude on this box is in `ai-videos`.
+
+**Next objective written to resume-prompt.md:** #221 — the device knows *why* it has no push token and a session still cannot read it.

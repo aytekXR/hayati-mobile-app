@@ -166,8 +166,9 @@ So prod requires `github.ref == 'refs/heads/main'`, checked before anything else
 dev, and `session-context.md` §7 says so.
 
 `deploy-rules.yml` has no such guard. That is a real gap in the precedent, it is
-**filed rather than fixed here** (session-rules §2), and this ADR is the record
-of why it is worth fixing.
+**filed as #223 rather than fixed here** (session-rules §2) — changing an
+existing lane's safety posture deserves its own decision — and this ADR is the
+record of why it is worth fixing.
 
 ## Decision 2 — The typed prod confirmation, unchanged
 
@@ -475,6 +476,14 @@ Named rather than absorbed, because an unnamed omission reads as coverage:
 * **A prod dispatch remains a founder ask** (`session-context.md` §7). The typed
   confirmation is a guard, not permission, and D1's `main` pin is not permission
   either.
+* **The built-diff review found one real defect in the lane** and it is recorded
+  rather than quietly patched: `only` accepted a **newline**, which passes a
+  line-by-line `grep`, is then truncated by `IFS=',' read`, and corrupts the
+  `GITHUB_OUTPUT` line — so the run would deploy the first function, read back
+  the first function, and go **green** while the rest were never deployed. That
+  is D3's silent-mis-selection failure arriving through a character the pattern
+  never mentions, which is why the guard now asserts the input's **shape** as
+  well as its alphabet (lesson **105**).
 
 ### Residual risk this design knowingly accepts
 

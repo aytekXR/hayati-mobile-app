@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-11** (Session 068)._
+_Last refreshed: **2026-08-17** (Session 070)._
 
 > ### ✅ RESOLVED — billing is back, and your question is arriving again
 >
@@ -323,7 +323,7 @@ gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=
 
 ---
 
-# 🟡 4(a). Push — **install the next build and tap Allow. If no prompt appears, the app now tells you why.**
+# 🟡 4(a). Push — **the fix is merged but NOT in any build. Today, use iOS Settings.**
 
 > ### ⚠️ Re-measured 2026-08-16 — and the instruction above may have been unfollowable
 >
@@ -355,13 +355,20 @@ gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=
 > None of those printed anything you or we could read. That is the bug that was
 > fixed, and it is the one that mattered.
 >
-> ### What is different in the next build
+> ### What is different in the next build — ⚠️ **and that build does not exist yet**
 >
-> **Settings now has a Notifications row that tells you which of the four you are
-> in, and gives you the one button that can fix it.** If notifications were
-> declined it says so plainly — *"the system will not ask again"* — and takes you
-> straight to the iOS Settings page. If they are on, it says that too, out loud,
-> instead of leaving you to guess.
+> **Re-measured 2026-08-17: the last build we shipped is still 119, from
+> 2026-08-09.** The Notifications row described below was written on 2026-08-16,
+> a week after it. It is finished and merged, and **it is on nobody's phone.**
+> Shipping it means one of us dispatching the release lane, which uploads a real
+> binary to your TestFlight — so **a session will ask you before doing it.** If
+> you want it, say so and it goes out.
+>
+> **The next build's Settings will have a Notifications row that tells you which
+> of the four states you are in, and gives you the one button that can fix it.**
+> If notifications were declined it will say so plainly — *"the system will not
+> ask again"* — and take you straight to the iOS Settings page. If they are on,
+> it will say that too, out loud, instead of leaving you to guess.
 >
 > **You can also fix it right now, without waiting for a build:**
 > **iOS Settings → Notifications → ikimiz → Allow Notifications ON**, then open
