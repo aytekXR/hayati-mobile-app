@@ -49,7 +49,7 @@ evidence: nothing.**
 Every one of those four ends in `debugPrint`, and **`debugPrint` on a TestFlight
 release build goes nowhere any human or any session can read**:
 
-| Where the silence is | file:line |
+| Where the silence is | file:line *(as of `c2cfd8e`, the tree this ADR replaces — do not expect these to resolve afterwards)* |
 |---|---|
 | permission declined | `push_token_sync.dart:147` |
 | capture exhausted after 6 attempts | `push_token_sync.dart:230` |
@@ -117,6 +117,29 @@ state of `awaitingDeviceToken` that persists is exactly the signature of the one
 runtime link ADR-042 left UNVERIFIED (Decision 5); `denied` is the one no build
 can fix; `notDetermined` on a paired device means the prompt never ran at all.
 
+### Two rules the implementation forced, recorded because they are decisions
+
+**(a) When the capture loop gives up, it ASKS the OS rather than assuming.** The
+loop's own log line names two different failures in one sentence — *"the device
+has no APNs registration yet, **or** permission was declined"* — and it genuinely
+cannot tell them apart. The first implementation emitted `awaitingDeviceToken`
+unconditionally, which labels a **declined** phone *"allowed, just not finished
+yet"* and offers it a **Try again** button that can never work. That is this
+ADR's own defect, reintroduced one level down: a confident wrong label is harder
+to doubt than the silence it replaced. One extra `permissionStatus()` read is the
+price, and it is also what makes the settled state independent of ordering — a
+concurrent `refresh()` that already wrote `denied` is no longer overwritten by
+the loop finishing a moment later.
+
+**(b) A late failure never demotes a success.** Two captures can be in flight,
+deliberately: `promptForPermissionAndRegister` starts a FRESH run rather than
+joining the boot one, because joining would spend the user's tap on a run that
+began before the grant and may be on its last attempt. So the boot run can finish
+empty *after* the prompt's run succeeded. Every non-success transition therefore
+goes through one guard — **if a token is registered, do not emit** — rather than
+four call sites each remembering to check. The token is the evidence; nothing
+that failed produced better.
+
 ## Decision 3 — The state is SHOWN, in Settings, and it is actionable
 
 A `Notifications` row lands in `settings_screen.dart`, directly above the
@@ -174,9 +197,17 @@ A fresh bounded attempt may be started by:
 * an explicit **Try again** tap in Settings.
 
 The `_promptInFlight` re-entrancy guard stays exactly as ADR-044 D3 left it: it
-stops two attempts running at once, and nothing more. Re-asking iOS is cheap —
+stops two **prompts** running at once, and nothing more. Re-asking iOS is cheap —
 after the first install-time dialog, `requestPermission()` is a read of the
 standing answer.
+
+⚠️ **It must not also guard the capture, however tidy that looks.** Merging the
+two into one lock ships a phone that **never shows the dialog**: the boot capture
+runs for up to ~7.5s, the paired home mounts inside that window, and a shared
+lock makes its `promptForPermissionAndRegister()` return early on every cold
+start. Two concurrent captures are merely wasteful; a skipped prompt is the whole
+feature. `refresh()` has its own separate guard, and a second `refresh()` JOINS an
+in-flight capture rather than starting a duplicate.
 
 **Rejected: an unbounded background retry loop.** It converts a bounded, provable
 cost into a timer that outlives every screen, for a device that may genuinely
