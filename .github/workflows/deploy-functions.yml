@@ -273,6 +273,14 @@ jobs:
           PROJECT_ID: ${{ steps.target.outputs.id }}
           SELECTOR: ${{ steps.selector.outputs.selector }}
         run: |
+          # Recorded BEFORE the deploy runs, so it is set whether the CLI
+          # succeeds or fails. The read-back gates on this rather than on
+          # `steps.deploy.conclusion`, because the `steps` context only carries
+          # steps that have RUN: if an earlier gate stopped the job,
+          # `steps.deploy.conclusion` is null, and `null != 'skipped'` is TRUE —
+          # which would run a read-back for a deploy that never happened. An
+          # output that is either "true" or absent has no such third state.
+          echo "attempted=true" >> "$GITHUB_OUTPUT"
           printf '%s' "$SA" > "$GOOGLE_APPLICATION_CREDENTIALS"
           # $SELECTOR is ONE token — `functions` or `functions:a,functions:b` —
           # built by the validated step above, so it is quoted rather than
@@ -314,10 +322,9 @@ jobs:
       # stopped by the main-pin, the typed confirmation or the secrets gate never
       # touched the project, so a read-back there would report the drift that was
       # already there and redden a run for a state it did not cause — the
-      # cry-wolf shape. A skipped earlier step leaves deploy.conclusion
-      # 'skipped'; success and failure both mean it ran.
+      # cry-wolf shape.
       - name: prove what is deployed NOW is this ref
-        if: always() && steps.deploy.conclusion != 'skipped'
+        if: always() && steps.deploy.outputs.attempted == 'true'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/deploy-functions-sa.json
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
