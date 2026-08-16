@@ -68,8 +68,15 @@ permissions:
 # thirteen endpoints. Queue, never cancel: a deploy killed between its fourth and
 # fifth function is the partially-applied state the read-back exists to catch.
 # Per project, because a dev deploy has no reason to wait behind a prod one.
+#
+# `github.event.inputs`, not `inputs`, and deliberately. Both resolve here, but
+# workflow-level `concurrency` is evaluated before any job starts and a bad
+# expression there is a PARSE error — and this lane is dispatch-only, so its
+# first real parse happens the first time someone dispatches it, which is a
+# founder action on a live project. The `github` context is unambiguously
+# available at workflow level; this is not the place to be 85% sure.
 concurrency:
-  group: deploy-functions-${{ inputs.project }}
+  group: deploy-functions-${{ github.event.inputs.project }}
   cancel-in-progress: false
 
 jobs:
