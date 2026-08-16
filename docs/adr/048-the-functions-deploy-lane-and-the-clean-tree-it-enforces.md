@@ -186,8 +186,21 @@ Measured finding 1 makes this a safety decision rather than an ergonomic one.
   so a value carrying shell metacharacters would otherwise execute. That rule is
   already written into `testflight-testers.yml` and `appid-capabilities.yml`;
   this lane inherits it.
-* The lane validates the input against `^[A-Za-z][A-Za-z0-9]*(,[A-Za-z][A-Za-z0-9]*)*$`
-  and refuses anything else.
+* **`only` is optional, its default is empty, and empty means every exported
+  function** — the lane then passes no `--only` at all, to the CLI or to the
+  tool. So there is exactly one way to ask for a full deploy (leave the box
+  empty) and exactly one way to ask for a subset (name them), and **neither can
+  produce the vendor's silent-full-deploy shape**: the dangerous input is a
+  *non-empty* selector that degrades to no filter, and a non-empty box is
+  validated before it can.
+* A non-empty value is validated against
+  `^[A-Za-z][A-Za-z0-9_]*(,[A-Za-z][A-Za-z0-9_]*)*$` and refused otherwise.
+  Underscore is allowed because a barrel export is a JS identifier and may carry
+  one. **A hyphen is deliberately refused**: `parseFunctionSelector` splits a
+  selector on `[-.]` into prefix-matched chunks, so a hyphenated name is not
+  compared the way this lane's report would claim it is. Every export is
+  camelCase today, so neither case fires — the rule is written down because on
+  the day one does not, the failure would be a silent mis-selection.
 * The lane then **builds** `functions:a,functions:b` itself, prefix on every
   element. It never emits a bare `--only functions:`, and it never forwards the
   operator's string.
@@ -222,13 +235,23 @@ code can give:
 deploy OK,   read-back MATCHES  -> deployed, and proven.
 deploy FAILS, read-back DRIFT   -> nothing landed, or some of it did. The report
                                    names which functions.
-deploy FAILS, read-back MATCHES -> everything landed and the CLI failed AFTER
-                                   the release — measured finding 5's cleanup
-                                   policy is exactly this shape.
+deploy FAILS, read-back MATCHES -> every scoped function's source IS this ref,
+                                   and the CLI failed at something around or
+                                   after the release — measured finding 5's
+                                   cleanup policy is exactly this shape.
 ```
 
 That last row is why finding 5 is recorded rather than dismissed: the design
 already diagnoses it.
+
+**The third row says what is true NOW; it does not say the deploy caused it.**
+A function already at this ref before the dispatch reads MATCHES whether or not
+its update landed — the read-back compares against the *ref*, never against the
+pre-deploy state. **The pre-check is what closes that gap**, which is the second
+reason it exists: *pre-DRIFT → post-MATCHES* is the deploy landing, and
+*pre-MATCHES → post-MATCHES* is a no-op re-deploy. A no-op re-deploy is a
+legitimate thing to dispatch — after a secret rotation, or to prove a suspicion —
+so it is reported, not failed.
 
 ## Decision 5 — Both measurements carry the SAME scope, and a scoped green says so
 
@@ -257,7 +280,31 @@ Collapsing those two would put the tool back where ADR-043 D5 started.
 
 Under a scope, *"deployed but not exported"* is suppressed: a subset deploy makes
 no claim about functions outside its subset, and reporting one would be the tool
-inventing a finding out of the operator's choice of arguments.
+inventing a finding out of the operator's choice of arguments. **That does leave
+a stale, unexported function unreported by this run — and reported by the next
+push**, because `functions-drift` runs **unscoped** on `main` (ADR-043 D6) and is
+exactly the lane that catches it. The scope narrows one dispatch's claim; it does
+not narrow the repository's.
+
+### The rule that makes the scope real, and without which it is decoration
+
+**A function outside the scope is RECORDED but never EXAMINED.** No platform
+(`gcfv1`), DataConnect, codebase, hash-label, `FIREBASE_CONFIG` or
+secret-binding check runs on it, and **none of them can produce exit 2**.
+
+This has to be said explicitly, because the natural implementation violates it.
+ADR-043 D5's three exit-2 cases are raised while *parsing the listing* — before
+any comparison — so a tool that parsed first and scoped second would exit 2 over
+a `gcfv1` function, or one carrying no hash label, that the dispatch never
+mentioned. That is precisely the abort this decision rejects, arrived at through
+the back door.
+
+It is also the *correct* reading of ADR-043 D5 rather than an amendment to it:
+those three cases are per-function judgements about **measurability**, and a
+dispatch naming two functions is not made blind by a third it never named.
+
+Recording the out-of-scope functions rather than dropping them is what keeps the
+zero-listing guard above, and the reported deployed count, telling the truth.
 
 ## Decision 6 — `--require-clean-tree`: the lane's entire justification, enforced instead of assumed
 
@@ -272,8 +319,13 @@ digest, exactly as a laptop's `coverage/` report did (lesson **92**).
 So `functions_drift.py` gains `--require-clean-tree`: **exit 2** if the packaged
 walk contains any foreign file, naming them.
 
-It runs on the **pre-check only**. It is a precondition of deploying, not a
-postcondition of having deployed, and asserting it twice would say nothing new.
+It runs on the **pre-check only**, and that is a decision rather than an economy.
+It is a precondition of deploying, and nothing writes into `functions/` between
+the pre-check and the CLI's own walk — `firebase.json` declares **no `predeploy`
+hook** for the functions target (measured). Putting it on the read-back as well
+would be actively worse: after a *failed* deploy the tree may legitimately carry
+debris, and an exit 2 there would replace the drift diagnosis that is the entire
+reason the read-back runs `if: always()` (D4).
 
 It also makes the *local* command honest: a session running the lane's exact
 command from this laptop is refused the moment `functions/coverage/` comes back,
@@ -301,10 +353,11 @@ in exchange for a permission (`setIamPolicy`) that a steady-state deploy never
 calls. ADR-041 D4 split credentials by privilege for the watcher; this is the
 same instinct applied to the deployer.
 
-The item **keeps the number 2(e)(iii)** — lesson **71**, it is cited by name from
-`deploy-site.yml`, `deploy-rules.yml` and ADR-041 — while its instructions
-change. An item whose number survives while its instructions silently grow is
-how a founder ends up performing yesterday's task.
+The item **keeps the number 2(e)(iii)** — lesson **71**: it is cited by name from
+`deploy-site.yml:95` and `deploy-rules.yml:32,96`, and ADR-041 cites its
+read-only sibling **2(e)(iv)** — while its instructions change. An item whose
+number survives while its instructions silently grow is how a founder ends up
+performing yesterday's task.
 
 **Stated, not buried: this role set is measured for COVERAGE and has not been
 EXERCISED.** No service account exists to exercise it with. Three named cases
@@ -337,9 +390,9 @@ read-back is what separates "the deploy failed" from "the deploy worked and the
 CLI failed afterwards".
 
 **`--non-interactive` is passed explicitly** rather than relied on. firebase-tools
-infers it from TTY detection, and a lane whose deletion-safety depends on a
-runner's stdout not being a terminal is one runner change away from a prompt that
-hangs until the job times out.
+infers it from `!process.stdin.isTTY` (`lib/command.js`, `prepare()`), and a lane
+whose deletion-safety depends on a runner's **stdin** not being a terminal is one
+runner change away from a prompt that hangs until the job times out.
 
 ## Decision 9 — The CLI pin becomes load-bearing in a new way, so it is asserted
 
@@ -442,3 +495,34 @@ fact.** D1 bounds it for prod and deliberately does not for dev.
 `functions/lib` that is a *stale* build of a *clean* source — ADR-043 D3's stated
 limitation, unchanged. On CI `lib/` is built fresh into an empty checkout, which
 is the only place this lane's exit code gates anything.
+
+## What the design review moved, recorded rather than quietly folded in
+
+This design was reviewed **before any code existed** (session-context.md §5.1/§5.3):
+five lenses — vendor behaviour, blast radius, tool semantics, governing documents,
+measurement integrity — each finding then put to **two independent verifiers**, a
+refuting skeptic and a governing-docs adjudicator, surfacing when *either* said
+real (§5.2). 17 findings raised, 14 verified, **3 dropped unverified and named**
+(§5.6), 6 survived. What it changed:
+
+* **The scope rule of D5 was missing its load-bearing half.** The adjudicator
+  showed that scoping only the two *verdicts* leaves ADR-043 D5's exit-2 cases
+  firing during listing parse, so an out-of-scope `gcfv1` or unlabelled function
+  would abort a dispatch that never named it — the exact abort D5 rejects. The
+  skeptic argued the ADR already implied it; the adjudicator's point stands
+  precisely because a *naive implementation of the stated words* would be wrong.
+  D5 now states the rule explicitly, because this ADR is the specification the
+  code is written from.
+* **`only`'s empty case was undefined** — the regex demanded at least one name
+  and nothing said how to ask for a full deploy. D3 now defines it.
+* **The regex was wrong in both directions**: it refused `_`, which a JS
+  identifier may carry, and said nothing about `-`, which the vendor's own
+  selector parser treats as a chunk separator. Both are now decided and argued.
+* **D4's third row over-claimed.** "Everything landed" is not what a read-back
+  against the *ref* can prove; it proves the source is this ref now. The pre-check
+  is what supplies causation, and D4 now says so.
+* **Two factual errors**: the CLI's interactivity comes from **stdin**, not
+  stdout, and ADR-041 cites **2(e)(iv)**, not 2(e)(iii). The second was one of the
+  three findings the cap dropped *unverified* — checked by hand afterwards, and
+  real. A dropped finding is not a refuted one (lesson **65**), which is why they
+  are listed rather than discarded.
