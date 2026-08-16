@@ -33,6 +33,11 @@
 #   COMMIT_TITLE       `head_commit.message || pull_request.title || ''`
 #   HEAD_SHA           `pull_request.head.sha || github.sha` (D5: on a PR,
 #                      GITHUB_SHA is the ephemeral merge commit — unlookable).
+#   EXTRA_FINDINGS     one line per non-blocking STEP finding (#204). A step that
+#                      is `continue-on-error: true` produces a SUCCESS job
+#                      result, so `NEEDS_JSON` is structurally blind to it — this
+#                      is the only channel that crosses that boundary. Empty or
+#                      unset changes nothing.
 #   SLACK_DRY_RUN=1    build + print the payload, POST nothing (what makes this
 #                      testable at all).
 #   plus the runner defaults: GITHUB_{REPOSITORY,WORKFLOW,REF_NAME,ACTOR,RUN_ID,
@@ -94,7 +99,32 @@ fi
 # post-merge main red this whole integration exists to deliver.
 # To get the reference's every-run behaviour, delete this block; the self-test
 # will fail immediately, which is the point.
-if [ "$outcome" = "success" ] && [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
+# ---------------------------------------------------------------------------
+# 2b. Non-blocking STEP findings (#204, ADR-024 D1 — the policy is HERE, in
+#     tested code, not in a YAML `if:` the self-test cannot see).
+#
+#     `fastlane store_metadata (deliver per locale)` is `continue-on-error: true`
+#     and rightly so (ADR-020 D8: the binary already shipped, and store copy is
+#     native-review-gated). But that makes the step's CONCLUSION success, the job
+#     green, and this notifier blind — so it failed identically on builds 112
+#     through 119, nine releases, and Slack said nothing every time. Lesson 69:
+#     `continue-on-error` is not the bug; an UNREAD failure is.
+#
+#     THE NOTIFIER STILL HAS NO VOTE (D3). A finding does not make `outcome`
+#     failure, does not redden anything, and does not change the exit code. It
+#     changes what the message SAYS — which is the entire remedy being asked for.
+# ---------------------------------------------------------------------------
+findings="$(printf '%s' "${EXTRA_FINDINGS:-}" | tr -d '\r' | sed '/^[[:space:]]*$/d')"
+
+# A green PR has a reader already (`gh pr checks`), so posting it is how a channel
+# becomes 90% noise and gets muted — and a muted channel swallows the post-merge
+# main red this whole integration exists to deliver.
+#
+# A FINDING is exempt, and that exemption is the point of #204: it is precisely
+# the signal that has no other reader, on a run that otherwise looks fine.
+if [ "$outcome" = "success" ] \
+  && [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] \
+  && [ -z "$findings" ]; then
   info "PR success — suppressed by the noise policy (D2); the session is already watching."
   exit 0
 fi
@@ -163,6 +193,11 @@ repo_name="${repo_full##*/}"
 
 if [ "$outcome" = "failure" ]; then
   headline="❌ CI failed"
+elif [ -n "$findings" ]; then
+  # Deliberately NOT "✅ CI passed". Every job DID pass, and saying so with no
+  # qualifier is exactly the sentence nine releases sent while the store
+  # localization silently did not happen.
+  headline="⚠️ CI passed, with findings"
 else
   headline="✅ CI passed"
 fi
@@ -174,6 +209,13 @@ text="$(printf '%s — %s / %s\n\nBranch: %s\nCommit: %s — %s\nActor: %s\nJobs
 
 if [ "$outcome" = "failure" ] && [ -n "$failed_jobs" ]; then
   text="$(printf '%s\nFailed: %s' "$text" "$failed_jobs")"
+fi
+
+# Escaped like every other free-text field: these lines are tool output, but they
+# quote locale ids and file names, and Slack's renderer runs client-side on
+# whatever arrives (a `<!channel>` in any text field is an active mention).
+if [ -n "$findings" ]; then
+  text="$(printf '%s\nFindings:\n%s' "$text" "$(slack_escape "$findings")")"
 fi
 
 text="$(printf '%s\nRun: %s\nTime: %s' "$text" "$run_url" "$stamp")"

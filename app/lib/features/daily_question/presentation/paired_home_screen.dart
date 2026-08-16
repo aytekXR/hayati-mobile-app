@@ -111,6 +111,16 @@ class _PairedHomeScreenState extends ConsumerState<PairedHomeScreen>
     // clock — is triggered here.
     if (state == AppLifecycleState.resumed) {
       setState(() {});
+      // ADR-046 D5: a resume is the dominant path back from the iOS Settings
+      // app, which is the ONLY route by which a declined notification
+      // permission ever becomes granted — and it is also a free second chance
+      // at ADR-044's bounded capture, which gives up after ~7.5s and used to
+      // stay given-up for the life of the process.
+      //
+      // `refresh()` READS the permission (ADR-046 D1) and never prompts, so
+      // this cannot consume iOS's one-per-install dialog on a resume the user
+      // did not initiate. Unawaited and fail-open, like the initial ask.
+      unawaited(ref.read(pushTokenSyncProvider.notifier).refresh());
     }
   }
 

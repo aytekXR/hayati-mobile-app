@@ -282,6 +282,14 @@ jobs:
     runs-on: macos-26          # Apple requires the iOS 26 SDK (Xcode 26) for App Store uploads
     timeout-minutes: 45
     environment: release
+    # #204. A step-level, non-blocking failure is STRUCTURALLY invisible to the
+    # notifier: `slack_notify.sh` derives everything from `toJson(needs)`, which
+    # carries JOB results only (ADR-024 D1 binds all notifier policy to that one
+    # tested script, so this cannot be a bespoke Slack call from inside the job).
+    # A job OUTPUT is the one channel that crosses that boundary, so the store
+    # audit's verdict travels here and the notifier reads it as data.
+    outputs:
+      store_metadata_audit: ${{ steps.store_metadata_audit.outputs.store_metadata_audit }}
     steps:
       - name: signing secrets gate
         # FIRST step, and an ordinary (non-if:) step BY DESIGN: a step skipped by an
@@ -527,12 +535,49 @@ jobs:
         # Pushes fastlane/metadata TR/EN via deliver(skip_binary_upload). NON-BLOCKING
         # (continue-on-error): store copy is native-review-gated (ADR-020 D8) and must
         # never fail the run — the TestFlight binary already shipped in the step above.
+        #
+        # ⚠️ It has failed on EVERY release since build 112 — nine of them — and every
+        # one of those runs was green with Slack silent, because `continue-on-error`
+        # makes the step's CONCLUSION success. `continue-on-error` is still right;
+        # lesson 69 is that an UNREAD failure is the bug. The `id` below is what makes
+        # the outcome readable at all: without one, `steps.<id>.outcome` — which IS
+        # `failure` even under continue-on-error — has no name to be reached by.
+        id: deliver_store_metadata
         continue-on-error: true
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
         run: bundle exec fastlane ios store_metadata
+      - name: store metadata audit (positive evidence per locale)
+        # #204. Asks App Store Connect what it actually holds and compares it with
+        # `fastlane/metadata/`. Deliberately NOT a grep for Apple's error string —
+        # that is the same defect one level down: it goes quiet the day the message
+        # changes, and quiet reads as fine. It also could not work here, because
+        # deliver aborts inside `verify_available_version_languages!` BEFORE the
+        # upload phase, so no per-locale success line exists in any of the nine logs.
+        #
+        # `if: always()` so it still reports when the step above failed — which is
+        # the only case anyone cares about. `continue-on-error` because it has NO
+        # VOTE (ADR-020 D8): the binary shipped, and a store-copy finding must not
+        # redden a release. Exit 1 = a locale did not publish, exit 2 = could not
+        # tell; the verdict leaves this job as an output, and the notifier reads it.
+        id: store_metadata_audit
+        if: always()
+        continue-on-error: true
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: |
+          # `python3 -m pip`, NOT bare `pip` — the same interpreter trap that kept
+          # the TestFlight assignment step silently broken for a whole session
+          # (S056): on macos-15/26 bare `pip` can resolve to a DIFFERENT interpreter
+          # than `python3`, so the install reports success and the script then
+          # raises ModuleNotFoundError inside a continue-on-error step.
+          python3 -m pip install --quiet 'pyjwt[crypto]==2.10.1'
+          python3 tool/ci/store_metadata_audit.py \
+            --bundle-id com.beyondkaira.hayati
 
   slack-notify:
     name: slack-notify
@@ -565,4 +610,8 @@ jobs:
           NEEDS_JSON: ${{ toJson(needs) }}
           COMMIT_TITLE: ${{ github.event.head_commit.message || '' }}
           HEAD_SHA: ${{ github.sha }}
+          # #204. The one thing `toJson(needs)` cannot carry: a STEP that failed
+          # without failing its job. All the policy for what to do with it lives
+          # in the script (ADR-024 D1), not in this YAML.
+          EXTRA_FINDINGS: ${{ needs.sign-upload.outputs.store_metadata_audit }}
         run: bash tool/ci/slack_notify.sh

@@ -144,6 +144,18 @@ jobs:
         run: |
           pip install --quiet 'pyjwt[crypto]==2.10.1'
           python3 tool/ci/testflight_testers_test.py
+      # #204. `store_metadata_audit.py` imports testflight_testers for the ASC
+      # credential path, so it rides the same pyjwt install and must come after
+      # it. Hermetic — a scripted transport, no Apple, no secret.
+      #
+      # The property it pins is the one nine green releases lacked: a locale
+      # committed to `fastlane/metadata/` and ABSENT from App Store Connect is a
+      # FINDING, and an unreadable API is exit 2 "could not measure", never
+      # exit 1 "the copy did not land". Collapsing those two is how a signal that
+      # measured nothing reads as a pass — and how `deliver` failed identically
+      # on builds 112 through 119 with Slack silent every time (lesson 69).
+      - name: store metadata audit self-tests
+        run: python3 tool/ci/store_metadata_audit_test.py
       # tool/ci/appid_capabilities.py shares that credential path (it imports
       # testflight_testers._token rather than growing a second copy), so it rides
       # the same pyjwt install. Its self-tests are hermetic — no network, no
@@ -224,6 +236,27 @@ jobs:
       # whole of ADR-043 D3 — cannot pass unseen.
       - name: functions drift self-tests
         run: python3 tool/ci/functions_drift_test.py
+      # S068 (#219): `functions_drift` answers "is the deployed CODE current?".
+      # It cannot answer "is the deployed code RUNNING?" — and for 37 hours it
+      # was not: Cloud Run refused all 38 hourly invocations over disabled
+      # billing while `functions:list` and the scheduler both looked healthy.
+      # `prod_pulse` keys its verdict on the sweep's OWN completion log line, so
+      # an ENABLED scheduler firing punctually into a dead backend — the exact
+      # state a session published as "your app is running" — reads red. Only
+      # these tests are hermetic; the check needs the CLI credential and is a
+      # local/manual instrument (see its docstring on why no SA path exists).
+      - name: prod pulse self-tests
+        run: python3 tool/ci/prod_pulse_test.py
+      # S068 (#219): the notification chain's last two links have never run, and
+      # every distinct way they can fail presents identically as "nothing
+      # arrived" — which is what cost S063 and S066 a session each. One of them,
+      # whether the APNs .p8 reached Firebase, is readable from NO Google API, so
+      # it can only be observed at the moment of a real send. This probe names
+      # the broken link instead of reprinting the symptom. These tests are
+      # hermetic; the probe itself needs the CLI credential and, to send, a typed
+      # --confirm SEND, because it puts a real notification on a real phone.
+      - name: push delivery probe self-tests
+        run: python3 tool/ci/push_delivery_probe_test.py
       - name: pub get
         working-directory: app
         run: flutter pub get

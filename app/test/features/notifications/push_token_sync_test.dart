@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/notifications/domain/push_registration.dart';
 import 'package:hayati_app/features/notifications/domain/push_token_repository.dart';
 import 'package:hayati_app/features/notifications/domain/push_token_repository_provider.dart';
 import 'package:hayati_app/features/notifications/domain/push_token_source.dart';
@@ -59,6 +60,23 @@ class _FakeSource implements PushTokenSource {
   bool permissionGranted = true;
   Exception? permissionThrows;
   int permissionCalls = 0;
+
+  /// What a NON-prompting read of the permission answers (ADR-046 D1). Distinct
+  /// from [permissionGranted] on purpose: `permissionStatus` exists as its own
+  /// method precisely because reading and asking are different acts, and a fake
+  /// that conflated them could not catch a caller that asked when it meant to
+  /// read — the one mistake that spends iOS's single per-install dialog.
+  PushPermission? statusOverride;
+  Exception? statusThrows;
+  int statusCalls = 0;
+
+  @override
+  Future<PushPermission> permissionStatus() async {
+    statusCalls++;
+    if (statusThrows != null) throw statusThrows!;
+    if (statusOverride != null) return statusOverride!;
+    return _granted ? PushPermission.granted : PushPermission.notDetermined;
+  }
 
   /// Model the iOS contract rather than a convenient one: before a permission
   /// grant, iOS mints NO token at all. Default false so the warm-start tests
@@ -523,6 +541,293 @@ void main() {
         expect(source.permissionCalls, 0);
       },
     );
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ADR-046: the five states, and the retry that is no longer once-only.
+  //
+  // Every one of these covers a production failure that was INVISIBLE until
+  // 2026-08-16: four accounts, zero registered devices, zero HTTP requests ever
+  // reaching `registerPushToken`, and every server-side layer verified working.
+  // What made it unfixable for five sessions was not that it failed — it is that
+  // the four ways it can fail all looked exactly like each other, and like
+  // success.
+  // ─────────────────────────────────────────────────────────────────────────
+  group('PushRegistration state (ADR-046 D2)', () {
+    test(
+      'a warm start that registers PUBLISHES it — not just internally',
+      () async {
+        // The regression this guards is subtle and was live: the old code gated
+        // `state =` on an `initial` flag threaded from build(), so a restored
+        // session registered a token and never published it. Invisible while
+        // nothing read the value; a permanently blank settings row now that the
+        // row exists.
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        expect(
+          container.read(pushTokenSyncProvider),
+          const PushRegistration(
+            state: PushRegistrationState.registered,
+            token: 'device-token',
+          ),
+        );
+      },
+    );
+
+    test('a DECLINED prompt is recorded as denied, not merely logged', () async {
+      // iOS shows its dialog once per install. After this, no rebuild and no
+      // re-prompt recovers — only the Settings app does, and nothing could say
+      // so while this was a debugPrint.
+      source
+        ..tokenOnlyAfterPermission = true
+        ..permissionGranted = false;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+
+      await sync.promptForPermissionAndRegister();
+
+      expect(
+        container.read(pushTokenSyncProvider).state,
+        PushRegistrationState.denied,
+      );
+      expect(container.read(pushTokenSyncProvider).needsSystemSettings, isTrue);
+    });
+
+    test('permission held but no token settles on awaitingDeviceToken', () async {
+      // The signature of the one runtime link ADR-042 left UNVERIFIED: APNs
+      // never hands over a device token, so all six ADR-044 attempts fail.
+      // `statusOverride` is what makes this case DISTINCT from a decline — the
+      // exhausted loop asks the OS rather than guessing, precisely so a denied
+      // phone is never labelled "allowed, just not finished yet".
+      source
+        ..statusOverride = PushPermission.granted
+        ..notReadyForFirst = 9999;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
+
+      expect(
+        container.read(pushTokenSyncProvider).state,
+        PushRegistrationState.awaitingDeviceToken,
+      );
+      expect(container.read(pushTokenSyncProvider).token, isNull);
+    });
+
+    test(
+      'a registration that THROWS is awaitingDeviceToken, not registered',
+      () async {
+        // The device has an address and the server does not. Same remedy, same
+        // sentence to the user — and emphatically not "on".
+        repository.failWith = Exception('callable refused');
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        expect(
+          container.read(pushTokenSyncProvider).state,
+          PushRegistrationState.awaitingDeviceToken,
+        );
+        expect(container.read(pushTokenSyncProvider).isRegistered, isFalse);
+      },
+    );
+
+    test('sign-out clears the state as well as the token', () async {
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
+      expect(container.read(pushTokenSyncProvider).isRegistered, isTrue);
+
+      auth.emit(null);
+      await pumpEventQueue();
+
+      expect(container.read(pushTokenSyncProvider), PushRegistration.unknown);
+      expect(repository.unregistered, ['device-token']);
+    });
+  });
+
+  test(
+    'a LATE failure never demotes a registration that already landed',
+    () async {
+      // Two captures can be in flight: the boot one, and the fresh one
+      // `promptForPermissionAndRegister` deliberately starts rather than joining
+      // (joining would spend the user's tap on a run that began before the
+      // grant). The boot run can finish EMPTY a moment after the prompt's run
+      // succeeded — and without a guard it overwrites `registered` with
+      // `awaitingDeviceToken`, showing a Try again button to a phone that is
+      // already reachable.
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+      expect(container.read(pushTokenSyncProvider).isRegistered, isTrue);
+
+      // Now make every subsequent capture fail, and drive one.
+      source
+        ..notReadyForFirst = 9999
+        ..statusOverride = PushPermission.denied;
+      await sync.refresh();
+
+      expect(
+        container.read(pushTokenSyncProvider).state,
+        PushRegistrationState.registered,
+        reason: 'a token already registered is the strongest evidence there is',
+      );
+      expect(container.read(pushTokenSyncProvider).token, 'device-token');
+    },
+  );
+
+  group('refresh (ADR-046 D1/D5)', () {
+    test('READS the permission and never prompts', () async {
+      // The load-bearing property of the whole slice. `refresh()` runs on every
+      // paired-home resume and every settings mount; if it could prompt, simply
+      // opening Settings would spend iOS's one-per-install dialog.
+      source.tokenOnlyAfterPermission = true;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+
+      await sync.refresh();
+      await sync.refresh();
+
+      expect(source.permissionCalls, 0);
+      expect(source.statusCalls, greaterThan(0));
+    });
+
+    test('a DENIED permission read settles on denied', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusOverride = PushPermission.denied;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+
+      expect((await sync.refresh()).state, PushRegistrationState.denied);
+    });
+
+    test('a NEVER-ASKED permission read settles on notDetermined', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusOverride = PushPermission.notDetermined;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+
+      expect((await sync.refresh()).state, PushRegistrationState.notDetermined);
+      expect(repository.registered, isEmpty);
+    });
+
+    test(
+      'the trip to iOS Settings and back: denied -> granted registers on resume',
+      () async {
+        // THE scenario this ADR exists for. A user who declined on build 116 is
+        // permanently denied; the only cure is the Settings app, and the only
+        // moment the app can notice is the resume afterwards.
+        source
+          ..tokenOnlyAfterPermission = true
+          ..statusOverride = PushPermission.denied;
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        final sync = container.read(pushTokenSyncProvider.notifier);
+        await pumpEventQueue();
+
+        expect((await sync.refresh()).state, PushRegistrationState.denied);
+        expect(repository.registered, isEmpty);
+
+        // The user flips the switch in iOS Settings and comes back.
+        source
+          ..statusOverride = PushPermission.granted
+          ..tokenOnlyAfterPermission = false;
+
+        final settled = await sync.refresh();
+
+        expect(settled.state, PushRegistrationState.registered);
+        expect(settled.token, 'device-token');
+        expect(repository.registered, ['device-token']);
+        // And it got there without ever asking — iOS's one dialog is untouched.
+        expect(source.permissionCalls, 0);
+      },
+    );
+
+    test('a bounded capture that gave up is RETRIED by a later refresh', () async {
+      // ADR-046 D5: bounded is not once-only. The old code gave up after ~7.5s
+      // and stayed given-up for the life of the process.
+      // NOT `tokenOnlyAfterPermission`: this test is about APNs readiness, and
+      // the fake gates that on an actual `ensurePermission()` call. Permission
+      // is already held here — which is exactly the case ADR-046 D5 covers, a
+      // grant whose capture window closed before the platform was ready.
+      source
+        ..statusOverride = PushPermission.granted
+        ..notReadyForFirst = 9999;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+
+      expect(
+        (await sync.refresh()).state,
+        PushRegistrationState.awaitingDeviceToken,
+      );
+
+      // The phone finishes its APNs registration a moment later.
+      source.notReadyForFirst = 0;
+
+      expect((await sync.refresh()).state, PushRegistrationState.registered);
+      expect(repository.registered, ['device-token']);
+    });
+
+    test(
+      'a refresh on a device that is already registered is a no-op',
+      () async {
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        final sync = container.read(pushTokenSyncProvider.notifier);
+        await pumpEventQueue();
+        final before = source.statusCalls;
+
+        await sync.refresh();
+
+        expect(source.statusCalls, before);
+        expect(repository.registered, ['device-token']);
+      },
+    );
+
+    test(
+      'a refresh while SIGNED OUT reports unknown and registers nothing',
+      () async {
+        final auth = FakeAuthRepository();
+        final container = containerFor(auth);
+        final sync = container.read(pushTokenSyncProvider.notifier);
+        await pumpEventQueue();
+
+        expect(await sync.refresh(), PushRegistration.unknown);
+        expect(source.statusCalls, 0);
+        expect(repository.registered, isEmpty);
+      },
+    );
+
+    test('a THROWING status read never escapes and changes nothing', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusThrows = Exception('no notification centre');
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+      final before = container.read(pushTokenSyncProvider);
+
+      expect(await sync.refresh(), before);
+    });
   });
 
   test('a second user signing in registers for that user', () async {

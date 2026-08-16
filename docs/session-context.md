@@ -46,16 +46,23 @@ _Environment facts below were last re-measured **2026-08-05**._
 * **A concurrent session on another machine can merge to `main` and consume your session
   number.** Re-derive the session number and the queue from `git log` + `gh issue list`,
   never from a document's prose.
-* `gcloud` is **not installed** and there is **no ADC**. Cloud Scheduler and Eventarc state
-  cannot be verified from here — say so rather than asserting it.
+* `gcloud` is **not installed** and there is **no ADC**. ~~Cloud Scheduler and Eventarc state
+  cannot be verified from here.~~ **That was wrong, and it cost 37 hours (S068, #219.)**
+  The firebase CLI's stored refresh token carries the **`cloud-platform`** scope, so
+  `tool/ci/rules_drift.py`'s existing `token_from_firebase_cli()` mints a token that reads
+  Cloud Scheduler, Cloud Logging, Cloud Billing, Cloud Functions v2 and the Firestore REST
+  API — no `gcloud`, no ADC, no service account. **Import that helper; do not re-implement
+  the OAuth dance.** The absence of `gcloud` is not the absence of the credential, and
+  treating the two as the same thing is what left an unmonitorable backend.
 * The `firebase` CLI **is** logged in as the founder (`aaytekinerdogan@gmail.com`) with access
   to `hayatiapp-prod` and `hayatiapp-dev`. That is a **local** path only.
 * **What that login can actually do was unknown until S063, and one of them is the only
-  instrument this repo has for a question it keeps getting wrong.** All four work today:
+  instrument this repo has for a question it keeps getting wrong.** All five work today:
 
   | | |
   |---|---|
-  | `firebase functions:log --project hayatiapp-prod --only <fn>` | **reads PRODUCTION logs.** This is what caught S063's silent failure: four hourly sweeps logged two of the three per-pass summaries, and the missing line was the whole diagnosis. Free, read-only, instant. |
+  | `firebase functions:log --project hayatiapp-prod --only <fn>` | **reads PRODUCTION logs.** This is what caught S063's silent failure: four hourly sweeps logged two of the three per-pass summaries, and the missing line was the whole diagnosis. Free, read-only, instant. ⚠️ **A line per hour is not health** — S067 read 38 consecutive `E` lines as "the job fired". |
+  | `python3 tool/ci/prod_pulse.py --from-firebase-cli` | **"is the daily loop actually RUNNING?"** — the question `functions:list` and `functions_drift` cannot answer. Keyed on the sweep's own `sweep complete` record, so a punctual scheduler over a dead backend reads red. Exit 0/1/2. |
   | `firebase functions:list --project hayatiapp-prod` | the deployed function inventory. Set-compare it against the exports in `functions/src/index.ts`. |
   | `python3 tool/ci/rules_drift.py --project hayatiapp-prod --from-firebase-cli` | verifies deployed rules against this ref **with no `FIREBASE_SERVICE_ACCOUNT`** — the CI lane needs that secret, this path does not. |
   | `firebase deploy --only functions` / `--only firestore:rules` | the deploy. **§7 applies — ask first.** |

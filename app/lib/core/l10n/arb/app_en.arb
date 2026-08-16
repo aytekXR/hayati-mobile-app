@@ -860,6 +860,42 @@
   "@settingsLockCooldown": {
     "description": "Shown in settings when a PIN op is refused because a cooldown is running — the PIN was never compared, so claiming it \"did not match\" would be a lie (review finding DVUX-4)."
   },
+  "settingsNotificationsTitle": "Notifications",
+  "@settingsNotificationsTitle": {
+    "description": "Settings row title: whether this phone can actually receive notifications (ADR-046 D3)."
+  },
+  "settingsNotificationsSubtitleOn": "On. This phone will get the daily question, your partner's answer, and the evening reminder.",
+  "@settingsNotificationsSubtitleOn": {
+    "description": "Settings row subtitle when a push token is registered. Success is stated out loud rather than implied by the absence of a warning."
+  },
+  "settingsNotificationsSubtitleOff": "Off. Turn them on to get the daily question, your partner's answer, and the evening reminder.",
+  "@settingsNotificationsSubtitleOff": {
+    "description": "Settings row subtitle when iOS has never been asked for notification permission."
+  },
+  "settingsNotificationsSubtitleDenied": "Off. Notifications were declined for this app, and the system will not ask again — you can turn them back on in Settings.",
+  "@settingsNotificationsSubtitleDenied": {
+    "description": "Settings row subtitle when notification permission was denied. iOS shows its dialog once per install, so only the Settings app can change this."
+  },
+  "settingsNotificationsSubtitleAwaiting": "Allowed, but this phone has not finished registering yet. This usually takes a moment — try again.",
+  "@settingsNotificationsSubtitleAwaiting": {
+    "description": "Settings row subtitle when permission is granted but no push token has been captured."
+  },
+  "settingsNotificationsTurnOn": "Turn on",
+  "@settingsNotificationsTurnOn": {
+    "description": "Settings row action: request notification permission."
+  },
+  "settingsNotificationsOpenSettings": "Open Settings",
+  "@settingsNotificationsOpenSettings": {
+    "description": "Settings row action: open the system Settings app, the only place a denied notification permission can be changed."
+  },
+  "settingsNotificationsRetry": "Try again",
+  "@settingsNotificationsRetry": {
+    "description": "Settings row action: attempt to capture the push token again."
+  },
+  "settingsNotificationsOpenFailed": "Settings couldn't be opened. Open the Settings app, find this app, and turn on Notifications.",
+  "@settingsNotificationsOpenFailed": {
+    "description": "Shown when the system refused to open the Settings app. Never a silent no-op."
+  },
   "settingsNotificationPrivacyTitle": "Discreet notifications",
   "@settingsNotificationPrivacyTitle": {
     "description": "Settings toggle title for the per-user notification-privacy override (ADR-019 D6)"

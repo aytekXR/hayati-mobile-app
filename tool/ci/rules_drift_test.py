@@ -388,6 +388,33 @@ def test_refresh_token_read_from_configstore() -> None:
                  "not logged in")
 
 
+def test_api_js_located_under_every_install_layout() -> None:
+    """The `firebase` exe must locate api.js on its own, without `npm root -g`.
+
+    It is the FALLBACK — it exists for the moment the npm lookup fails — and
+    under nvm it could not answer, because `.resolve()` follows the symlink to
+    `firebase-tools/lib/bin/firebase.js` and both old candidates then pointed a
+    directory too deep. `npm root -g` normally succeeding hid it; a 30s timeout
+    on a healthy box surfaced it as a spurious "could not measure" (2026-08-11).
+    """
+    import pathlib
+
+    nvm = pathlib.Path("/home/u/.nvm/versions/node/v20/lib/node_modules/"
+                       "firebase-tools/lib/bin/firebase.js")
+    check("nvm layout resolves",
+          pathlib.Path("/home/u/.nvm/versions/node/v20/lib/node_modules/"
+                       "firebase-tools/lib/api.js") in rd.api_js_candidates_from_exe(nvm),
+          True)
+    classic = pathlib.Path("/usr/local/lib/node_modules/firebase-tools/lib/bin/firebase.js")
+    check("classic layout still resolves",
+          pathlib.Path("/usr/local/lib/node_modules/firebase-tools/lib/api.js")
+          in rd.api_js_candidates_from_exe(classic), True)
+    # A path with almost no ancestry must not IndexError — the fallback has to
+    # fail closed through MeasurementError, not blow up before it gets there.
+    check("degenerate path yields candidates without raising",
+          isinstance(rd.api_js_candidates_from_exe(pathlib.Path("/firebase")), list), True)
+
+
 def test_service_account_assertion_claims() -> None:
     sa = {"client_email": "sa@p.iam.gserviceaccount.com", "private_key": "-----BEGIN...",
           "token_uri": "https://oauth2.googleapis.com/token"}
@@ -444,6 +471,7 @@ def main() -> int:
         test_client_credentials_parsed_from_installed_cli,
         test_api_js_without_credentials_fails_closed,
         test_refresh_token_read_from_configstore,
+        test_api_js_located_under_every_install_layout,
         test_service_account_assertion_claims,
         test_service_account_missing_field_fails_closed,
         test_access_token_is_never_printed,

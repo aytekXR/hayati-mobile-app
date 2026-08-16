@@ -14,7 +14,38 @@
 /// `--no-codesign` and cannot see it coming. So the FCM adapter is one class
 /// written when the plugin lands, and everything that decides anything is here
 /// and tested now.
+/// What the OS currently says about notification permission, with no dialog
+/// shown to ask it (ADR-046 D1).
+enum PushPermission {
+  /// iOS has never shown its dialog for this install. The prompt is still
+  /// available — and it is available exactly once.
+  notDetermined,
+
+  /// The user declined. **iOS will not ask again for the life of the install**,
+  /// so no rebuild and no re-prompt recovers this; only the Settings app does.
+  denied,
+
+  /// Authorised, or provisionally authorised. Mapped together deliberately —
+  /// [PushTokenSource.ensurePermission] treats `provisional` as a grant too, and
+  /// the two must not disagree about what "we have permission" means.
+  granted,
+}
+
 abstract interface class PushTokenSource {
+  /// What the OS says about notification permission **right now**, without
+  /// asking the user anything (ADR-046 D1).
+  ///
+  /// **This is a read, and [ensurePermission] is a request.** They are separate
+  /// methods because iOS gives exactly one dialog per install: a screen that
+  /// wants to *display* the current state must never be able to consume it. So
+  /// this one is safe on every mount, every resume and every settings build,
+  /// and the other one is not.
+  ///
+  /// Fail-open like everything else on this port: an implementation that cannot
+  /// tell answers [PushPermission.notDetermined], which is the state that costs
+  /// the user nothing — it offers the prompt, and the prompt is idempotent.
+  Future<PushPermission> permissionStatus();
+
   /// Ask the OS for notification permission, and report whether we now have it.
   ///
   /// **This is not optional plumbing — it is the gate everything else is behind.**

@@ -60,6 +60,11 @@ void main() {
       'getAlternateIconName',
       'setAlternateIconName',
       'biometricEnrollmentState',
+      // ADR-046 D4. The one door out of a declined notification permission —
+      // and the method whose absence would be least visible, because the
+      // adapter's throw is caught by a settings row that would then just say
+      // "couldn't open Settings" on a perfectly healthy phone.
+      'openNotificationSettings',
     ];
     for (final method in methods) {
       expect(

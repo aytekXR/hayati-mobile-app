@@ -175,6 +175,33 @@ def token_from_firebase_cli() -> str:
     })
 
 
+def api_js_candidates_from_exe(resolved_exe: pathlib.Path) -> list[pathlib.Path]:
+    """Every plausible `lib/api.js` for a resolved `firebase` executable path. Pure.
+
+    THE NVM CASE, which used to be missed. Under nvm the `firebase` on PATH is a
+    symlink, and `.resolve()` follows it to
+    `…/node_modules/firebase-tools/lib/bin/firebase.js` — so `parent.parent` is
+    `…/firebase-tools/lib`, and BOTH original candidates
+    (`<base>/lib/node_modules/…` and `<base>/lib/api.js`) miss the file sitting at
+    `<base>/api.js`. The npm lookup covered it up: `npm root -g` normally
+    succeeds, so the exe path was never the one that answered. When `npm` was
+    slow enough to hit the 30s timeout, the fallback that existed for exactly
+    that moment could not answer either, and a healthy box reported
+    "could not measure" (observed 2026-08-11).
+
+    So: walk the ancestry for a `firebase-tools` directory and take its
+    `lib/api.js`, which is layout-independent, and keep the older guesses too.
+    """
+    parents = list(resolved_exe.parents)
+    candidates = [p / "lib" / "api.js" for p in parents if p.name == "firebase-tools"]
+    if len(parents) >= 2:
+        base = parents[1]
+        candidates.append(base / "api.js")
+        candidates.append(base / "lib" / "node_modules" / "firebase-tools" / "lib" / "api.js")
+        candidates.append(base / "lib" / "api.js")
+    return candidates
+
+
 def _find_firebase_tools_api_js() -> pathlib.Path:
     import shutil
     import subprocess
@@ -189,9 +216,7 @@ def _find_firebase_tools_api_js() -> pathlib.Path:
         pass
     exe = shutil.which("firebase")
     if exe:
-        base = pathlib.Path(exe).resolve().parent.parent
-        candidates.append(base / "lib" / "node_modules" / "firebase-tools" / "lib" / "api.js")
-        candidates.append(base / "lib" / "api.js")
+        candidates.extend(api_js_candidates_from_exe(pathlib.Path(exe).resolve()))
     for c in candidates:
         if c.exists():
             return c

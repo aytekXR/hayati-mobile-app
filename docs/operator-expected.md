@@ -15,65 +15,84 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-10** (Session 067)._
+_Last refreshed: **2026-08-11** (Session 068)._
 
-> ### 🔴 URGENT — BILLING HAS COME OFF YOUR GOOGLE PROJECTS. Nothing can be deployed
+> ### ✅ RESOLVED — billing is back, and your question is arriving again
 >
-> Found on **2026-08-10** while deploying your new 09:00 / 22:00 notification
-> hours. The deploy was refused:
+> **Your billing is restored** (both projects read `billingEnabled: true` against
+> a billing account that is `open`, measured 2026-08-11 07:16 UTC). **Today's
+> question exists** — the sweep ran at **07:19 UTC** and created it:
 >
 > ```
-> HTTP 403: Write access to project 'hayatiapp-prod' was denied:
->           please check billing account associated and retry
+> question_rollover: sweep complete   assigned=1  existing=0  failed=0
 > ```
 >
-> **It affects BOTH projects** — `hayatiapp-prod` and `hayatiapp-dev` — which
-> points at the billing *account* they share rather than one project being
-> unlinked. The usual causes are an expired card, a closed billing account, or a
-> spend cap that has been hit.
+> Open the app and it is there. Nothing is asked of you here.
 >
-> **This worked the day before.** The same secret read returned success on
-> 2026-08-09, so something changed between then and now.
+> #### The previous version of this box was wrong, and the correction matters
 >
-> #### What is still fine — do not panic
+> It said *"Your app is running… your data, your functions and your users are
+> unaffected"* and called this a blocked deploy. **It was not. Your backend was
+> down for 37 hours** — 2026-08-09 18:00 UTC to 2026-08-11 07:19 UTC.
 >
-> * **Your app is running.** The hourly job fired all day, most recently
->   **21:00 UTC today**. Your data, your functions and your users are unaffected.
-> * **Reading still works** — the function list, the logs, everything a session
->   inspects.
+> Cloud Run refused **all 38 hourly invocations** at the serving layer before the
+> container ever started:
 >
-> #### What is broken
+> ```
+> HTTP 500  "The request failed because billing is disabled for this project."
+>           latency 0s   userAgent: Google-Cloud-Scheduler
+> ```
 >
-> * **Nothing can be deployed to production or dev.** Not your new notification
->   hours, and not an emergency fix if one were ever needed. Write access is
->   refused outright.
-> * Two ways of trying were attempted and both failed the same way, so this is
->   not a quirk of one command.
+> The mistake was reading `firebase functions:log` and seeing a line at every
+> hour. Every one of those lines was the **error**, not the sweep. An invocation
+> that is refused and a sweep that completes look nearly identical in that stream
+> — one letter apart, `E` and `I`.
 >
-> #### What to do
+> Two other claims in that box were also wrong, and are corrected for the record:
+> the projects do **not** share a billing account (prod `0197C1-…`, dev
+> `012195-…`, two separate accounts), so "both are affected → it must be the
+> shared account" was reasoning from a premise that was never checked.
 >
-> Open **console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod**
-> and check the billing account is still linked and in good standing. If a card
-> expired, updating it usually restores access within minutes.
+> #### What it actually cost you
 >
-> ⚠️ **Do not leave this.** Google keeps running services for a grace period
-> after billing goes invalid and then begins shutting them down. Right now you
-> have a working app and a blocked deploy; left alone, that can become a stopped
-> backend.
+> * **2026-08-10 has no question and never will.** No day doc was created for it.
+>   The rollover only ever writes *today's* key and deliberately does not backfill
+>   (ADR-011), so that day stays empty rather than being invented after the fact.
+> * Your streak still reads `lastMutualDate: 20260809`.
 >
-> *(This is also exactly the surprise item **2(a)** — the budget alert — exists
-> to prevent, and it is still unset.)*
+> #### So it cannot happen silently again
+>
+> `tool/ci/prod_pulse.py --from-firebase-cli` now answers *"is the daily loop
+> actually running?"* in about ten seconds. It keys its verdict on the sweep's own
+> completion record, so an ENABLED scheduler firing punctually into a dead backend
+> — exactly the state that got published as "your app is running" — reads red.
+>
+> *(Item **2(a)**, the budget alert, is still unset — and would have caught this
+> two days earlier.)*
 
 > ### 🔔 ONE THING stands between you and a notification: install **build 119** and tap Allow
 >
 > ```
 > build 119   processing=VALID   uploaded 2026-08-09
 >     internal = IN_BETA_TESTING             <-- you can install it right now
->     external = READY_FOR_BETA_SUBMISSION   <-- your friends cannot yet
+>     external = SUBMITTED (2026-08-11)      <-- your friends: waiting on Apple
 > ```
 >
 > Open it to your paired home screen and tap **Allow** when iOS asks about
 > notifications. That is the entire remaining action.
+>
+> **The fastest way to see one.** Do not wait for tomorrow's 09:00. Once you have
+> both installed 119 and allowed notifications, have you and your partner each
+> answer today's question — *"your partner answered"* fires the second the other
+> person submits, so you get a real notification in seconds instead of hours. It
+> is also the push that the foreground bug hit hardest, so it tests both fixes at
+> once.
+>
+> **If no dialog appears when you open the app**, iOS is remembering an answer you
+> already gave on an older build. Check
+> **Settings → Notifications → ikimiz → Allow Notifications**; iOS shows its
+> dialog once per install and never again, so a "Don't Allow" tapped on 115/116/117
+> can only be undone there.
 >
 > ### Two real bugs were fixed to get here — it was never just the tap
 >
@@ -114,23 +133,79 @@ _Last refreshed: **2026-08-10** (Session 067)._
 > the morning sweep flips from `skippedNoToken: 2` to `sent`. A session reads
 > both directly. If they do not move, that is a real bug and a findable one.
 >
-> ### Your seven friends are still on build 117, with both bugs
+> ### Measured 2026-08-11 — and it narrows the problem to one thing
 >
-> 119 was assigned to the `Friends` group but **not submitted for Apple's beta
-> review**, which external testers need. One dispatch fixes that whenever you
-> want it — just say so:
+> **You both opened the app today** (your session 07:13 UTC, your partner's
+> 05:04 UTC — from the auth records, not guesswork). And `registerPushToken` has
+> **zero invocations in its entire log history** — not one success, not one
+> rejection, and *not even a failed request during the 37-hour outage*.
 >
-> ```sh
-> gh workflow run testflight-testers.yml \
->   -f dry_run=false -f assign_latest_build=true -f submit_for_review=true
+> That last detail is what makes this conclusive. If your phone had tried to
+> register and been refused by the dead backend, there would be a `500` against
+> it, exactly as there is against the sweep. There is nothing at all. **The call
+> was never attempted**, which means the phone never obtained a token to send —
+> so the fault is on the device side of the line, not the server side.
+>
+> ### ⚠️ And the likeliest cause is NOT the build — corrected 2026-08-11
+>
+> This page has said that 115/116/117 "could register nothing at all". Reading
+> the code that actually shipped in 117 shows that is **overstated**, and the
+> difference decides what you should do next.
+>
+> Build 117 carries a **second** registration path the ADR-044 write-up did not
+> credit: alongside the one-shot token read that fails, it subscribes to
+> `onTokenRefresh` — and iOS delivers the token on that stream a moment later,
+> exactly when the one-shot call has already given up. That listener calls
+> `_register` directly. So on 117, granting permission should have produced a
+> token *anyway*, by the slower path.
+>
+> It produced nothing. Combined with zero invocations, that points away from the
+> build and at the simplest explanation: **notification permission has never been
+> granted for this app.** Either the prompt was never reached, or it was answered
+> *Don't Allow* — and iOS shows that dialog once per install and never again, so
+> the app cannot ask a second time.
+>
+> ### Which means the fastest fix may need no install at all
+>
+> **Try this first — it takes fifteen seconds:**
+>
+> 1. **Settings → Notifications → ikimiz → Allow Notifications: ON**
+> 2. Force-quit the app and reopen it to your home screen.
+>
+> On the build you already have, that alone should register — iOS hands the app a
+> token on launch once permission is held, and the refresh listener catches it.
+>
+> **Then install 119 anyway.** It is strictly better: it retries the capture six
+> times with backoff instead of relying on the refresh path, and it fixes the
+> separate bug where a notification arriving while the app is OPEN displayed
+> nothing. But if you want a notification today, the Settings toggle is the
+> shorter road.
+>
+> ### ✅ Your seven friends — build 119 is now with Apple
+>
+> 119 was assigned to the `Friends` group but had never been **submitted for
+> Apple's beta review**, which external testers need. It was submitted on
+> **2026-08-11** at your go-ahead:
+>
 > ```
-
-> **What changed since the last refresh (2026-08-09):**
+> build 119: submitted for Beta App Review
+> ```
 >
-> * ✅ **Your notification hours are now what you asked for** — the question
->   announcement moved to **09:00** and the unanswered-day nudge to **22:00**.
->   Both are on `main`; see the note under 4(a) about production still running
->   the old hours until the server is redeployed.
+> Beta review usually clears inside a day. When it does, `external` flips to
+> `IN_BETA_TESTING` and all seven get the build with both notification fixes —
+> nothing further is asked of you. Until then they remain on 117, which carries
+> both bugs.
+
+> **What changed since the last refresh (2026-08-10):**
+>
+> * ✅ **Your notification hours are LIVE, not merely merged** — the question
+>   announcement at **09:00** and the unanswered-day nudge at **22:00** were
+>   deployed to production on **2026-08-11**, once billing came back. All 13
+>   functions were redeployed in the same pass, which also closed the drift that
+>   had left **every one of them** running code older than `main`:
+>   `functions_drift` now reports *"all 13 deployed functions are a clean build of
+>   this ref"*.
+> * ✅ **Your daily question is arriving again** — see the resolved box at the top.
 > * ⚠️ **The 22:00 nudge would have been silently swallowed.** Our own
 >   quiet-hours rule started at 22:00, so every 10 PM notification would have
 >   been composed and then dropped by our own guard — deployed, logged, and
@@ -150,7 +225,7 @@ single thing left is **one install and one tap**.
 
 | Question | Where it stands | What is left |
 |---|---|---|
-| **Is the MVP built?** | **~99%** — M1→M6.3 all merged. All three notifications are built, deployed and **running in production**. Measured 2026-08-09 at the only hour the counters mean anything (your 08:00): the sweep found your couple, resolved both of you as not-yet-answered, and composed a push for each — then stopped at `skippedNoToken: 2`, because no phone has ever registered an address. `registerPushToken` has **never once been called by a device**. Part of that was a **real bug on the app side**, fixed 2026-08-09 (ADR-044): iOS delivers the notification address a moment AFTER you tap Allow, and the app asked once, at the wrong moment, then gave up silently. **No notification has still ever been delivered.** M3.4's ✅ stays struck through until one arrives. | **Authorize one release build, then one install.** The fix is merged but is in NO build yet — 115/116/117 all carry the bug — and producing one uploads a real binary to your TestFlight, so it waits on your word. Then open it to the paired home screen and accept the prompt; a session verifies capture from the production logs **without you reporting anything** — see 4(a). |
+| **Is the MVP built?** | **~99%** — M1→M6.3 all merged. All three notifications are built, deployed and **running in production**, on the 09:00/22:00 hours you asked for since the 2026-08-11 deploy. `users.fcmTokens` is still **absent on all four accounts** (measured 2026-08-11): `registerPushToken` has **never once been called by a device**, so the sweep composes a push and stops at `skippedNoToken`. Part of that was a **real bug on the app side**, fixed 2026-08-09 (ADR-044) and shipped in **build 119**: iOS delivers the notification address a moment AFTER you tap Allow, and the app asked once, at the wrong moment, then gave up silently. **No notification has still ever been delivered.** M3.4's ✅ stays struck through until one arrives. | **One install and one tap.** Build 119 is live on TestFlight internal — install it, open it to the paired home screen, accept the prompt. A session verifies capture from the production logs **without you reporting anything** — see 4(a). |
 | **Can people install it?** | **100%** — done, and no longer stale. Builds **115, 116 and 117** have all shipped since; 116 passed Apple's beta review (`external=IN_BETA_TESTING`) and **117 carries the new icon plus the whole notification stack**. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Your testers are current. |
 | **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
 
@@ -205,35 +280,129 @@ no Turkish screenshots was never that nobody clicked the button.
 3. **Claim the name from Apple** (their message offers this if you have
    trademark rights). Slow, and yours alone.
 
-Tracked as **#204**, which also fixes the real defect underneath: a release that
-fails to publish store metadata should not look green and silent.
+Tracked as **#204**, whose engineering half **shipped on 2026-08-16**: a release
+that fails to publish store metadata no longer looks green and silent.
+
+### 🔴 And the audit that built found something bigger — it is not just Turkish
+
+The new check asks App Store Connect what it actually holds and compares it with
+what this repo committed. Run against your live listing on **2026-08-16**:
+
+```
+expected locales (fastlane/metadata): en-US, tr
+published locales (App Store Connect): en-US
+
+FINDING: 8 problem(s) with the published copy.
+  - en-US: description differs        - en-US: promotionalText differs
+  - en-US: keywords differs           - en-US: whatsNew differs
+  - en-US: privacyPolicyUrl differs   - en-US: subtitle differs
+  - en-US: supportUrl differs
+  - tr: NOT PUBLISHED
+```
+
+**Nothing we have written has ever reached your App Store page.** Apple's
+refusal happens *before* the upload step, so the whole upload is abandoned — not
+just the Turkish part. Your English listing is still whatever was typed in by
+hand months ago, and **seven of its nine fields disagree with the copy in the
+repo**. Only the app name and the marketing URL happen to match.
+
+**This does not block anything and nothing is broken for your users** — it is the
+store *page*, not the app. But it means the App Store description, keywords,
+subtitle, support URL, privacy URL and "what's new" that a visitor reads today
+are not the ones we have been maintaining.
+
+**And it resolves itself the moment you pick a Turkish name** (option 1 above):
+once Apple stops refusing, deliver gets past that check and publishes *both*
+locales in full on the next release. One decision fixes all eight lines.
+
+You can re-read this yourself at any time, read-only, no release involved:
+
+```sh
+gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=true
+```
 
 ---
 
-# 🟡 4(a). Push — **install build 119 and tap Allow. That is the whole gap.**
+# 🟡 4(a). Push — **install the next build and tap Allow. If no prompt appears, the app now tells you why.**
 
-> ### ⚠️ Your new hours are on `main` but NOT yet on the server
+> ### ⚠️ Re-measured 2026-08-16 — and the instruction above may have been unfollowable
+>
+> Everything on the server is verified working, to the last inch, today:
+>
+> | | |
+> |---|---|
+> | the daily loop is running | `prod_pulse.py` exit 0, last sweep 26 minutes ago |
+> | the sweep finds you both | 06:00Z today — `checked:1  skippedNoToken:2  sent:0` |
+> | the app is allowed to call in | `registerpushtoken` grants public invoke — this is **not** the #115 problem |
+> | the build is entitled to push | `aps-environment=production`, wired to every build config since 2026-08-07 |
+> | build 119 carries both fixes | confirmed against the release tag, not the changelog |
+>
+> **And no phone has ever called in.** Four accounts, none with a notification
+> address, and Google's request log shows **zero** attempts ever reaching us.
+>
+> ### The reason that sat unfixable for five sessions
+>
+> There are four different ways this can fail on your phone, and **until today
+> all four looked exactly the same — like nothing happening**:
+>
+> 1. build 119 was never installed;
+> 2. **the prompt was declined** — on 115, 116, 117 or 119. iOS shows that dialog
+>    **once per install and never again**, so if *Don't Allow* was ever tapped, no
+>    new build can fix it and no prompt will appear. Only the Settings app can;
+> 3. permission was granted but the phone never handed over its address;
+> 4. the address was captured and the call to us failed.
+>
+> None of those printed anything you or we could read. That is the bug that was
+> fixed, and it is the one that mattered.
+>
+> ### What is different in the next build
+>
+> **Settings now has a Notifications row that tells you which of the four you are
+> in, and gives you the one button that can fix it.** If notifications were
+> declined it says so plainly — *"the system will not ask again"* — and takes you
+> straight to the iOS Settings page. If they are on, it says that too, out loud,
+> instead of leaving you to guess.
+>
+> **You can also fix it right now, without waiting for a build:**
+> **iOS Settings → Notifications → ikimiz → Allow Notifications ON**, then open
+> the app. That works on 119 as it stands.
+>
+> ### Nothing else is needed from you, and we can check without asking
+>
+> ```sh
+> python3 tool/ci/push_delivery_probe.py --from-firebase-cli
+> ```
+>
+> Today: `0/4 account(s) have registered a device`. The moment one does, that
+> line changes and the 09:00 sweep goes from `skippedNoToken` to `sent`.
+
+> ### ✅ Your new hours are LIVE on the server (2026-08-11)
 >
 > You asked for the question at **09:00** and the unanswered nudge at **22:00**.
-> Both are merged. **Production is still running the old 08:00 / 16:00 hours**,
-> because Cloud Functions here are deployed by a hand-typed command rather than a
-> workflow (that gap is issue #206), and deploying to production is something a
-> session will not do without asking you.
+> Both were deployed to production on 2026-08-11 at your go-ahead, once billing
+> came back. `functions_drift` confirms it: *all 13 deployed functions are a clean
+> build of this ref*. **Expect the question at 09:00 and the nudge at 22:00.**
 >
-> **This is now blocked by the billing failure above, not by permission.** The
-> deploy was attempted on 2026-08-10 and refused. Until billing is restored,
-> expect the question push at **08:00** and the nudge at **16:00** — the old
-> hours — no matter what the code says.
+> Cloud Functions here are still deployed by a hand-typed command rather than a
+> workflow (issue #206/#166) — which is why every one of the 13 had drifted from
+> `main` before this deploy.
 >
 > ### What is left is one thing, and only your phone can do it
 >
-> **Open the app and accept the notification prompt.** Install the newest build
-> from TestFlight, open it to the paired home screen, and tap **Allow** when iOS
-> asks about notifications. That is the entire remaining action.
+> ⚠️ **Written 2026-08-11 and left here for the history — read the 2026-08-16
+> block above first.** "Tap Allow when iOS asks" is only actionable if iOS still
+> asks, and if the dialog was ever declined it does not. That is the gap the
+> next build closes.
 >
-> **Do not use build 115.** It carries the entitlement but not the permission
-> prompt, so iOS never issues it a token and it can never work. 116 works; the
-> build dispatched on 2026-08-08 (117) works and also carries your new icon.
+> **Open the app and accept the notification prompt.** Install **build 119** from
+> TestFlight, open it to the paired home screen, and tap **Allow** when iOS asks
+> about notifications. That is the entire remaining action.
+>
+> **Use 119, not 115/116/117.** All three earlier builds carry the token-capture
+> bug (ADR-044): they ask iOS for the notification address a moment before iOS can
+> supply it, fail silently, and never ask again — so tapping Allow on any of them
+> can register nothing at all. 119 is the first build where the tap does what it
+> looks like it does.
 >
 > ### You do NOT have to report back, and that is new
 >
@@ -247,13 +416,51 @@ fails to publish store metadata should not look green and silent.
 > ```
 >
 > ⚠️ **Corrected 2026-08-09.** `checked` is only non-zero on the sweep that
-> matches your OWN 08:00 (05:00 UTC), so reading it at any other hour said
-> nothing about tokens — and that is the reading four sessions repeated. At the
-> right hour it says `checked: 1, skippedNoToken: 2`: the server is working and
-> waiting for an address. A **real app-side bug** was also found and fixed the
-> same day (ADR-044) — iOS hands over the address a moment after you tap Allow,
-> and the app asked once, at the wrong moment, then gave up silently. Use a build
-> made after 2026-08-09.
+> matches your OWN question hour (09:00 local = 06:00 UTC since the 2026-08-11
+> deploy), so reading it at any other hour said nothing about tokens — and that is
+> the reading four sessions repeated. At the right hour it says
+> `checked: 1, skippedNoToken: 2`: the server is working and waiting for an
+> address. A **real app-side bug** was also found and fixed the same day
+> (ADR-044) — iOS hands over the address a moment after you tap Allow, and the app
+> asked once, at the wrong moment, then gave up silently. Use build 119.
+>
+> ### The one link that has never been tested, and where it would show
+>
+> Step 1 of the checklist below is *"tick Push Notifications **and upload the
+> `.p8`** to both projects"*. The tick is confirmed; **whether the APNs key ever
+> reached Firebase is not verifiable from a session** — Google exposes no
+> read-only API for it, and it is the one piece of the chain that only matters at
+> the moment of the FIRST real send. Everything upstream of it is now proven.
+>
+> If it is missing, your tap will still register a token normally and the push
+> will fail at the last hop with a named error, which a session reads directly:
+>
+> ```
+> question_rollover: sweep push send failed   error=… "Auth error from APNS…"
+> ```
+>
+> If that appears, the fix is one upload:
+> **console.firebase.google.com/project/hayatiapp-prod/settings/cloudmessaging**
+> → *Apple app configuration* → upload the `.p8`. Nothing needs rebuilding.
+>
+> ### You will not have to wait until 09:00 to find out
+>
+> The moment you tap Allow, this answers the whole question in one command —
+> and, crucially, names *which* link is broken rather than reprinting the
+> symptom, because "nothing arrived" has four different causes that look
+> identical:
+>
+> ```sh
+> python3 tool/ci/push_delivery_probe.py --from-firebase-cli
+> # once it reports a registered device:
+> python3 tool/ci/push_delivery_probe.py --from-firebase-cli --send-test --confirm SEND
+> ```
+>
+> The second one puts **one real notification** on your phone — which is the
+> proof, not a substitute for it. If it arrives, the entire chain works,
+> including the APNs key that nothing else can check. If it does not, the tool
+> says whether the key is missing, the token is dead, or the project is wrong,
+> and what to do about each.
 
 
 ### The order matters, and it is not reorderable
@@ -268,14 +475,14 @@ place in the system to find out, because our iOS CI check builds
 3. the provisioning profile regenerates and `match` picks it up;
 4. **only then** does a session add the plugin and the entitlement, in one commit.
 
-**What you get once it is done:** a question every morning at 08:00, a nudge when
-your partner answers, and a reminder at 16:00 if you have not. Those are the three
+**What you get once it is done:** a question every morning at 09:00, a nudge when
+your partner answers, and a reminder at 22:00 if you have not. Those are the three
 you asked for.
 
 > ### ✅ All three notifications are BUILT, DEPLOYED and RUNNING
 >
-> As of 2026-08-06 the server composes and routes all three: the 08:00 question, the
-> partner-answered nudge, and the 16:00 reminder. The 16:00 one deliberately fires
+> Since 2026-08-11 production runs the hours you asked for: the **09:00** question, the
+> partner-answered nudge, and the **22:00** reminder. The 22:00 one deliberately fires
 > **even if you have no streak** — you asked for it so your partner does not get
 > angry, not to protect a counter.
 >

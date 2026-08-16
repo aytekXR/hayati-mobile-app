@@ -413,6 +413,102 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 10. Non-blocking STEP findings (#204).
+#
+#     THE FAILURE THIS GUARDS. `fastlane store_metadata (deliver per locale)` is
+#     `continue-on-error: true`, so its failure leaves the job SUCCESS and
+#     `NEEDS_JSON` — which carries job results only — cannot see it. Nine
+#     consecutive releases (builds 112-119) therefore posted "✅ CI passed" while
+#     the Turkish App Store localization silently did not exist. Every assertion
+#     below is one half of "the message now says so, and still has no vote".
+# ---------------------------------------------------------------------------
+FINDING_LINE='store metadata: 1 finding(s) — tr not published'
+
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=push \
+    EXTRA_FINDINGS="$FINDING_LINE"
+text="$(jq -r '.text' <<<"$STDOUT" 2>/dev/null || true)"
+if [ "$CODE" -ne 0 ]; then
+  bad "findings: exits 0 — the notifier still has no vote (D3)" "exit=$CODE"
+elif ! grep -qF 'tr not published' <<<"$text"; then
+  bad "findings: the finding text reaches the message" "text=$text"
+elif ! grep -qF '⚠️ CI passed, with findings' <<<"$text"; then
+  bad "findings: the headline is qualified, not a bare ✅" "text=$text"
+elif grep -qF '❌' <<<"$text"; then
+  bad "findings: a finding must NOT render as a failure" "text=$text"
+else
+  ok "findings: a green run carrying a step finding says so, and is still green"
+fi
+
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=push
+text="$(jq -r '.text' <<<"$STDOUT" 2>/dev/null || true)"
+if ! grep -qF '✅ CI passed' <<<"$text"; then
+  bad "findings: with NO findings the headline is unchanged" "text=$text"
+elif grep -qF 'Findings:' <<<"$text"; then
+  bad "findings: an empty EXTRA_FINDINGS must add no section" "text=$text"
+else
+  ok "findings: absent EXTRA_FINDINGS changes nothing (the common case)"
+fi
+
+# A whitespace-only value is what an UNSET job output actually interpolates to in
+# YAML — the shape that would otherwise print an empty "Findings:" header on
+# every single release and train the reader to ignore it.
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=push \
+    EXTRA_FINDINGS="$(printf '\n  \n')"
+text="$(jq -r '.text' <<<"$STDOUT" 2>/dev/null || true)"
+if grep -qF 'Findings:' <<<"$text"; then
+  bad "findings: a blank/whitespace value must be treated as none" "text=$text"
+elif ! grep -qF '✅ CI passed' <<<"$text"; then
+  bad "findings: a blank value must not qualify the headline" "text=$text"
+else
+  ok "findings: a whitespace-only value is none (the unset-job-output shape)"
+fi
+
+# The noise policy EXEMPTION, and the reason it is safe: a finding is precisely
+# the signal that has no other reader on a run that otherwise looks fine.
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=pull_request \
+    EXTRA_FINDINGS="$FINDING_LINE"
+if [ -z "$(jq -r '.text' <<<"$STDOUT" 2>/dev/null)" ]; then
+  bad "findings: a PR success WITH a finding must not be suppressed" "stdout=$STDOUT"
+else
+  ok "findings: the noise policy exempts a finding, and only a finding"
+fi
+
+# And the exemption is narrow — a clean PR is still silent.
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=pull_request
+if [ -n "$(jq -r '.text' <<<"$STDOUT" 2>/dev/null)" ]; then
+  bad "findings: a clean PR success is STILL suppressed" "stdout=$STDOUT"
+else
+  ok "findings: the exemption did not widen the noise policy"
+fi
+
+# Findings are tool output, but they quote locale ids and file names, and Slack's
+# renderer runs client-side on whatever arrives.
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=push \
+    EXTRA_FINDINGS='store metadata: <!channel> & <http://evil|Apple>'
+text="$(jq -r '.text' <<<"$STDOUT" 2>/dev/null || true)"
+if grep -qF '<!channel>' <<<"$text"; then
+  bad "findings: an @channel mention must be escaped" "text=$text"
+elif ! grep -qF '&lt;!channel&gt;' <<<"$text"; then
+  bad "findings: escaping produced neither the raw nor the escaped form" "text=$text"
+elif ! grep -qF '&amp;' <<<"$text"; then
+  bad "findings: & must be escaped first, or the escapes double-escape" "text=$text"
+else
+  ok "findings: mrkdwn escaping applies to findings too"
+fi
+
+# A failure is still a failure — a finding must not soften it.
+run SLACK_DRY_RUN=1 NEEDS_JSON="$QUALITY_RED" GITHUB_EVENT_NAME=push \
+    EXTRA_FINDINGS="$FINDING_LINE"
+text="$(jq -r '.text' <<<"$STDOUT" 2>/dev/null || true)"
+if ! grep -qF '❌ CI failed' <<<"$text"; then
+  bad "findings: a red run stays red" "text=$text"
+elif ! grep -qF 'tr not published' <<<"$text"; then
+  bad "findings: and still carries the finding" "text=$text"
+else
+  ok "findings: a red run stays red AND carries the finding"
+fi
+
+# ---------------------------------------------------------------------------
 echo
 if [ "$fail" -gt 0 ]; then
   printf 'slack_notify_test: %d passed, %d FAILED\n' "$pass" "$fail" >&2

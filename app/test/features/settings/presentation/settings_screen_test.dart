@@ -492,9 +492,21 @@ void main() {
   });
 
   group('row 4 — sign out', () {
+    // Sign out lives at the BOTTOM of a ListView that has grown a row for every
+    // decision this screen has absorbed (ADR-019 D6/D7, ADR-046 D3), so it is
+    // below the fold on a test viewport. Scroll to it rather than shrinking the
+    // screen to fit the test.
+    Future<void> scrollToSignOut(WidgetTester tester) =>
+        tester.scrollUntilVisible(
+          find.text(en.settingsSignOut),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+
     testWidgets('signs out through the auth controller', (tester) async {
       final env = arrange(record: lockRecord());
       await pumpSettings(tester, env.overrides);
+      await scrollToSignOut(tester);
 
       await tester.tap(find.text(en.settingsSignOut));
       await tester.pumpAndSettle();
@@ -505,6 +517,7 @@ void main() {
     testWidgets('the subtitle says the PIN goes with it', (tester) async {
       final env = arrange(record: lockRecord());
       await pumpSettings(tester, env.overrides);
+      await scrollToSignOut(tester);
       // The lock is device-scoped and dies with the session (Decision 1) — a
       // surprise worth spending a line of copy on.
       expect(find.text(en.settingsSignOutSubtitle), findsOneWidget);

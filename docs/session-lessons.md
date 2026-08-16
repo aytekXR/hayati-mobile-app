@@ -38,6 +38,74 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**104 — A confident wrong state is worse than the missing one it replaced.** *(S069, ADR-046)*
+The whole point of ADR-046 was that four device-side notification failures were
+indistinguishable, so `PushTokenSync` gained five named states. The first
+implementation then emitted `awaitingDeviceToken` at the end of an exhausted
+capture **unconditionally** — which labels a phone whose owner tapped *Don't
+Allow* as *"allowed, just not finished registering yet"* and hands it a **Try
+again** button that can never work. The loop genuinely cannot tell the two apart:
+its own log line says so in one sentence (*"no APNs registration yet, OR
+permission was declined"*). The fix is one call — ask the OS — and it also made
+the settled state independent of ordering, because a concurrent `refresh()` that
+had already written `denied` was being overwritten by the loop finishing a moment
+later. **When you replace a silence with a label, check that the code can
+actually distinguish what the label claims;** a guess with a confident name is
+harder to doubt than the silence was.
+
+**103 — There is no positive fixture when the thing has never once succeeded.** *(S069, #204, ADR-047)*
+The plan for #204 was to parse `deliver`'s per-locale success lines out of the
+nine release logs. There are none: deliver aborts inside
+`verify_available_version_languages!`, which runs **before** the upload phase, so
+every one of the nine logs contains only the failure. A parser written against a
+guess at the success format would have been a test whose fixture came from its
+own subject (recurring shape 4) — green forever, guarding nothing. **Before
+designing a log parser, confirm the log contains the line you intend to key on.**
+The instrument moved to asking App Store Connect what it actually holds, which
+needs no fixture at all — and that read immediately found seven `en-US` fields
+drifted, which the intended parser could never have seen.
+
+**102 — A shared lock over two paths that must not block each other is a tidiness bug with teeth.** *(S069, ADR-046)*
+Merging `PushTokenSync`'s prompt guard and its capture guard into one
+`_attemptInFlight` looked like a simplification and would have shipped a device
+that **never shows the permission dialog**: the boot capture runs for up to ~7.5s
+(ADR-044 D2), the paired home mounts inside that window, and the shared lock
+would have made `promptForPermissionAndRegister()` return early every cold start.
+Two concurrent captures are merely wasteful; a skipped prompt is the entire
+feature. The guards are back apart, with the reason written where the next person
+will try to merge them again. **Before unifying two guards, ask what each one
+would BLOCK, not what each one protects.**
+
+**101 — "The absence of `gcloud`" is not "the absence of the credential."** *(S068)*
+`session-context.md` stated for months that *"Cloud Scheduler and Eventarc state
+cannot be verified from here"* because `gcloud` is not installed and there is no
+ADC. Both halves of that premise were true and the conclusion was false: the
+firebase CLI's stored refresh token carries the **`cloud-platform`** scope, and
+`rules_drift.py` had *already shipped* the code to mint from it — so Cloud
+Scheduler, Cloud Logging, Cloud Billing, Cloud Functions v2 and the Firestore REST
+API were all readable the whole time, from a helper this repo wrote itself.
+The cost was not theoretical: with no way to see Scheduler or request-level logs,
+a 37-hour production outage went unnoticed and was then *mis-reported as healthy*.
+**A capability was declared unreachable by reasoning about a missing tool rather
+than by trying the credential that was already in hand.** When a document says
+something cannot be measured, that is a claim to re-test, not a fact to inherit —
+and the first thing to test is whatever credential the repo already uses.
+
+**100 — An invocation ATTEMPT and a completed run are different events, and the log stream shows both.** *(S068, #219)*
+`questionRollover` failed 38 consecutive hourly invocations — Cloud Run refused
+each at the serving layer (`HTTP 500 "billing is disabled"`, latency 0s, container
+never started) — while Cloud Scheduler stayed `ENABLED` and fired punctually. A
+session read `firebase functions:log`, saw a line at every hour, and published
+*"Your app is running. The hourly job fired all day."* Every one of those lines
+was the **error**. Severity `E` and `I` differ by one character under the same
+function name, and the sweep's own summary lines were simply absent.
+**Health is the presence of the thing SUCCEEDING, never the absence of silence.**
+Key any liveness claim on a record only the successful path can emit — here
+`question_rollover: sweep complete`, which `runQuestionRollover` must return
+before it is written. `tool/ci/prod_pulse.py` now does exactly that, and its test
+replays this outage's signature (`ENABLED` + punctual + status 13 + no completed
+sweep) as the fixture a naive "did it fire?" check cannot pass.
+
 **99 — When you are blocked on a human, hunt the REST of the path instead of waiting.** *(S066)*
 The push fix was merged and a build shipped; the only remaining step was the
 founder installing it and tapping Allow, which no session can do. Waiting was the

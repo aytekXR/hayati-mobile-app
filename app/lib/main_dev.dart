@@ -46,8 +46,10 @@ import 'features/entitlements/data/firestore_entitlement_repository.dart';
 import 'features/entitlements/data/rc_purchases_repository.dart';
 import 'features/entitlements/domain/entitlement_repository_provider.dart';
 import 'features/entitlements/domain/purchases_repository_provider.dart';
+import 'features/notifications/data/channel_notification_settings_launcher.dart';
 import 'features/notifications/data/fcm_push_token_source.dart';
 import 'features/notifications/data/functions_push_token_repository.dart';
+import 'features/notifications/domain/notification_settings_launcher.dart';
 import 'features/notifications/domain/push_token_repository_provider.dart';
 import 'features/notifications/domain/push_token_source_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
@@ -222,6 +224,12 @@ Future<void> main() async {
           (ref) => FunctionsPushTokenRepository(),
         ),
         pushTokenSourceProvider.overrideWith((ref) => FcmPushTokenSource()),
+        // ADR-046 D4. The one door out of a declined permission — iOS never
+        // shows its dialog twice. Bound BY VALUE, like the other three
+        // channel-backed seams, so `flutter test` never touches the channel.
+        notificationSettingsLauncherProvider.overrideWithValue(
+          const ChannelNotificationSettingsLauncher(),
+        ),
         // The three device-privacy seams (ADR-018 D2/D1/D6). Bound BY VALUE here
         // and nowhere else, so `flutter test` never touches the Keychain,
         // local_auth, or the hayati/device_privacy channel.
