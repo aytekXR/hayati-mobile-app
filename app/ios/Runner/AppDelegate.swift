@@ -1,4 +1,11 @@
-import Firebase
+// `FirebaseCore` and `FirebaseMessaging`, NOT the `Firebase` umbrella: this
+// project has no Podfile at all — plugins come through
+// `FlutterGeneratedPluginSwiftPackage` (SPM) — and firebase-ios-sdk's
+// `Package.swift` vends no `Firebase` umbrella product, so `import Firebase`
+// does not resolve here even though it is the line every CocoaPods example
+// shows. `ios-build-smoke` compiles this file on every PR, which is the only
+// reason a Swift change is safe to make from a Linux box (ADR-046 D6).
+import FirebaseCore
 import FirebaseMessaging
 import Flutter
 import LocalAuthentication
