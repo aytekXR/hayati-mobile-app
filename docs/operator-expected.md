@@ -280,12 +280,101 @@ no Turkish screenshots was never that nobody clicked the button.
 3. **Claim the name from Apple** (their message offers this if you have
    trademark rights). Slow, and yours alone.
 
-Tracked as **#204**, which also fixes the real defect underneath: a release that
-fails to publish store metadata should not look green and silent.
+Tracked as **#204**, whose engineering half **shipped on 2026-08-16**: a release
+that fails to publish store metadata no longer looks green and silent.
+
+### 🔴 And the audit that built found something bigger — it is not just Turkish
+
+The new check asks App Store Connect what it actually holds and compares it with
+what this repo committed. Run against your live listing on **2026-08-16**:
+
+```
+expected locales (fastlane/metadata): en-US, tr
+published locales (App Store Connect): en-US
+
+FINDING: 8 problem(s) with the published copy.
+  - en-US: description differs        - en-US: promotionalText differs
+  - en-US: keywords differs           - en-US: whatsNew differs
+  - en-US: privacyPolicyUrl differs   - en-US: subtitle differs
+  - en-US: supportUrl differs
+  - tr: NOT PUBLISHED
+```
+
+**Nothing we have written has ever reached your App Store page.** Apple's
+refusal happens *before* the upload step, so the whole upload is abandoned — not
+just the Turkish part. Your English listing is still whatever was typed in by
+hand months ago, and **seven of its nine fields disagree with the copy in the
+repo**. Only the app name and the marketing URL happen to match.
+
+**This does not block anything and nothing is broken for your users** — it is the
+store *page*, not the app. But it means the App Store description, keywords,
+subtitle, support URL, privacy URL and "what's new" that a visitor reads today
+are not the ones we have been maintaining.
+
+**And it resolves itself the moment you pick a Turkish name** (option 1 above):
+once Apple stops refusing, deliver gets past that check and publishes *both*
+locales in full on the next release. One decision fixes all eight lines.
+
+You can re-read this yourself at any time, read-only, no release involved:
+
+```sh
+gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=true
+```
 
 ---
 
-# 🟡 4(a). Push — **install build 119 and tap Allow. That is the whole gap.**
+# 🟡 4(a). Push — **install the next build and tap Allow. If no prompt appears, the app now tells you why.**
+
+> ### ⚠️ Re-measured 2026-08-16 — and the instruction above may have been unfollowable
+>
+> Everything on the server is verified working, to the last inch, today:
+>
+> | | |
+> |---|---|
+> | the daily loop is running | `prod_pulse.py` exit 0, last sweep 26 minutes ago |
+> | the sweep finds you both | 06:00Z today — `checked:1  skippedNoToken:2  sent:0` |
+> | the app is allowed to call in | `registerpushtoken` grants public invoke — this is **not** the #115 problem |
+> | the build is entitled to push | `aps-environment=production`, wired to every build config since 2026-08-07 |
+> | build 119 carries both fixes | confirmed against the release tag, not the changelog |
+>
+> **And no phone has ever called in.** Four accounts, none with a notification
+> address, and Google's request log shows **zero** attempts ever reaching us.
+>
+> ### The reason that sat unfixable for five sessions
+>
+> There are four different ways this can fail on your phone, and **until today
+> all four looked exactly the same — like nothing happening**:
+>
+> 1. build 119 was never installed;
+> 2. **the prompt was declined** — on 115, 116, 117 or 119. iOS shows that dialog
+>    **once per install and never again**, so if *Don't Allow* was ever tapped, no
+>    new build can fix it and no prompt will appear. Only the Settings app can;
+> 3. permission was granted but the phone never handed over its address;
+> 4. the address was captured and the call to us failed.
+>
+> None of those printed anything you or we could read. That is the bug that was
+> fixed, and it is the one that mattered.
+>
+> ### What is different in the next build
+>
+> **Settings now has a Notifications row that tells you which of the four you are
+> in, and gives you the one button that can fix it.** If notifications were
+> declined it says so plainly — *"the system will not ask again"* — and takes you
+> straight to the iOS Settings page. If they are on, it says that too, out loud,
+> instead of leaving you to guess.
+>
+> **You can also fix it right now, without waiting for a build:**
+> **iOS Settings → Notifications → ikimiz → Allow Notifications ON**, then open
+> the app. That works on 119 as it stands.
+>
+> ### Nothing else is needed from you, and we can check without asking
+>
+> ```sh
+> python3 tool/ci/push_delivery_probe.py --from-firebase-cli
+> ```
+>
+> Today: `0/4 account(s) have registered a device`. The moment one does, that
+> line changes and the 09:00 sweep goes from `skippedNoToken` to `sent`.
 
 > ### ✅ Your new hours are LIVE on the server (2026-08-11)
 >
@@ -299,6 +388,11 @@ fails to publish store metadata should not look green and silent.
 > `main` before this deploy.
 >
 > ### What is left is one thing, and only your phone can do it
+>
+> ⚠️ **Written 2026-08-11 and left here for the history — read the 2026-08-16
+> block above first.** "Tap Allow when iOS asks" is only actionable if iOS still
+> asks, and if the dialog was ever declined it does not. That is the gap the
+> next build closes.
 >
 > **Open the app and accept the notification prompt.** Install **build 119** from
 > TestFlight, open it to the paired home screen, and tap **Allow** when iOS asks

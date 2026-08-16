@@ -144,6 +144,18 @@ jobs:
         run: |
           pip install --quiet 'pyjwt[crypto]==2.10.1'
           python3 tool/ci/testflight_testers_test.py
+      # #204. `store_metadata_audit.py` imports testflight_testers for the ASC
+      # credential path, so it rides the same pyjwt install and must come after
+      # it. Hermetic — a scripted transport, no Apple, no secret.
+      #
+      # The property it pins is the one nine green releases lacked: a locale
+      # committed to `fastlane/metadata/` and ABSENT from App Store Connect is a
+      # FINDING, and an unreadable API is exit 2 "could not measure", never
+      # exit 1 "the copy did not land". Collapsing those two is how a signal that
+      # measured nothing reads as a pass — and how `deliver` failed identically
+      # on builds 112 through 119 with Slack silent every time (lesson 69).
+      - name: store metadata audit self-tests
+        run: python3 tool/ci/store_metadata_audit_test.py
       # tool/ci/appid_capabilities.py shares that credential path (it imports
       # testflight_testers._token rather than growing a second copy), so it rides
       # the same pyjwt install. Its self-tests are hermetic — no network, no

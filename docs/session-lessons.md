@@ -38,6 +38,44 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**104 — A confident wrong state is worse than the missing one it replaced.** *(S069, ADR-046)*
+The whole point of ADR-046 was that four device-side notification failures were
+indistinguishable, so `PushTokenSync` gained five named states. The first
+implementation then emitted `awaitingDeviceToken` at the end of an exhausted
+capture **unconditionally** — which labels a phone whose owner tapped *Don't
+Allow* as *"allowed, just not finished registering yet"* and hands it a **Try
+again** button that can never work. The loop genuinely cannot tell the two apart:
+its own log line says so in one sentence (*"no APNs registration yet, OR
+permission was declined"*). The fix is one call — ask the OS — and it also made
+the settled state independent of ordering, because a concurrent `refresh()` that
+had already written `denied` was being overwritten by the loop finishing a moment
+later. **When you replace a silence with a label, check that the code can
+actually distinguish what the label claims;** a guess with a confident name is
+harder to doubt than the silence was.
+
+**103 — There is no positive fixture when the thing has never once succeeded.** *(S069, #204, ADR-047)*
+The plan for #204 was to parse `deliver`'s per-locale success lines out of the
+nine release logs. There are none: deliver aborts inside
+`verify_available_version_languages!`, which runs **before** the upload phase, so
+every one of the nine logs contains only the failure. A parser written against a
+guess at the success format would have been a test whose fixture came from its
+own subject (recurring shape 4) — green forever, guarding nothing. **Before
+designing a log parser, confirm the log contains the line you intend to key on.**
+The instrument moved to asking App Store Connect what it actually holds, which
+needs no fixture at all — and that read immediately found seven `en-US` fields
+drifted, which the intended parser could never have seen.
+
+**102 — A shared lock over two paths that must not block each other is a tidiness bug with teeth.** *(S069, ADR-046)*
+Merging `PushTokenSync`'s prompt guard and its capture guard into one
+`_attemptInFlight` looked like a simplification and would have shipped a device
+that **never shows the permission dialog**: the boot capture runs for up to ~7.5s
+(ADR-044 D2), the paired home mounts inside that window, and the shared lock
+would have made `promptForPermissionAndRegister()` return early every cold start.
+Two concurrent captures are merely wasteful; a skipped prompt is the entire
+feature. The guards are back apart, with the reason written where the next person
+will try to merge them again. **Before unifying two guards, ask what each one
+would BLOCK, not what each one protects.**
+
 **101 — "The absence of `gcloud`" is not "the absence of the credential."** *(S068)*
 `session-context.md` stated for months that *"Cloud Scheduler and Eventarc state
 cannot be verified from here"* because `gcloud` is not installed and there is no

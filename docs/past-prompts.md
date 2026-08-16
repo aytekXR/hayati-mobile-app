@@ -2897,3 +2897,130 @@ Three tests failed on the first run, all mine, all consequences of the retime: a
 ### Operator dependencies
 
 **Two, both stated on the page.** The founder's install-and-tap for build 119 (unchanged), and a **prod Functions redeploy** for the new hours to take effect — production announces at 08:00 and nudges at 16:00 until then, which is exactly the merged-vs-running gap ADR-043's checker exists to make visible.
+
+---
+
+## Session 068 — 2026-08-11 — **production was down for 37 hours and every instrument said healthy** *(entry NOT written by that session; noted here by S069)*
+
+S068's work is on this branch — five commits, `prod_pulse.py`, `push_delivery_probe.py`, the
+`rules_drift.py` nvm fix, lessons **100** and **101**, issue **#219** — and it never
+appended its own entry (`session-rules.md` §3.1). Recorded as a gap rather than
+reconstructed: only that session can write its own narrative, and inventing one
+here would be exactly the inherited-premise shape lesson 101 is about.
+
+---
+
+## Session 069 — 2026-08-16 — **"no one gets notifications" — every server layer verified working, the last link never once attempted, and the four ways it dies on a phone all looked like nothing** *(first-hand)*
+
+Two objectives, both delivered: the founder's live directive (notifications), then
+`resume-prompt.md`'s standing one (#204, deferred by S066 and S067).
+
+### The measurement came first, and it refuted every server-side hypothesis
+
+Five lenses over the whole chain, every blocker/major finding adversarially
+verified (20 agents, 0 errors, 0 empty — §5.5 checked before trusting the
+distribution). Measured, not inherited:
+
+| | |
+|---|---|
+| daily loop | `prod_pulse.py` exit 0, last sweep 26m ago, billing enabled |
+| the sweep | 06:00Z — `checked:1  skippedNoToken:2  sent:0`, both uids named |
+| **Cloud Run IAM** | `registerpushtoken` AND `unregisterpushtoken` grant `roles/run.invoker` to `allUsers` |
+| entitlement | `aps-environment=production`, wired to Debug/Release/Profile |
+| build 119 | carries both 16be0e4 (ADR-044) and 3550368 (#215) |
+| payload | `notification:{title,body}` — not data-only, so iOS will display it |
+| quiet window | `>=23 \|\| <8` — 09:00 and 22:00 are both legal |
+
+The strongest hypothesis going in was the **#115 shape** — a callable unreachable
+at the Cloud Run serving layer, which refuses before the container starts and
+therefore logs *nothing*, exactly matching "zero invocations". It was **refuted by
+reading the IAM policy** rather than by reasoning. (`revenuecatWebhook` really
+does have that defect, still, and it is still #115.)
+
+### So the defect was not that the device fails. It is that it fails invisibly, four ways
+
+`users/*` is four docs with no `fcmTokens` on any of them, and Cloud Logging shows
+**zero HTTP requests ever reaching the function**. Never installed / prompt
+declined / granted-but-no-token / callable threw — all four end in a `debugPrint`
+that a TestFlight build routes nowhere, and **iOS shows its permission dialog once
+per install**, so a decline on 115/116/117 is permanent and no rebuild recovers
+it. Five sessions told the founder "one tap is all that stands in the way" with no
+way to check whether the tap had happened or what it did.
+
+**ADR-046**: `permissionStatus()` as a READ that never spends the dialog · a
+five-state `PushRegistration` · a Settings row that names the state and offers the
+one button that can resolve it · `openNotificationSettings` on the app's ONE
+channel rather than a fourth package · the ADR-044 retry made repeatable on resume
+and on tap · and `AppDelegate` forwarding the APNs token explicitly, because
+method swizzling against a Dart-configured `FirebaseApp` on a scene-based delegate
+is the one runtime link ADR-042 marked UNVERIFIED and its only failure mode is
+silence.
+
+### Three defects found while building it, all live, all mine
+
+* **the exhausted capture claimed `awaitingDeviceToken` unconditionally** — which
+  labels a DECLINED phone *"allowed, just not finished yet"* and hands it a **Try
+  again** button that can never work. Its own log line admits the loop cannot tell
+  the two apart. It now asks the OS (lesson **104**);
+* **`state =` was gated on an `initial` flag threaded from `build()`**, so a warm
+  start registered a token and never published it — invisible while nothing read
+  the value, a permanently blank row now that something does;
+* **a single shared guard over the prompt and the capture** would have shipped a
+  phone that never shows the dialog at all: the boot capture runs ~7.5s, the paired
+  home mounts inside that window (lesson **102**).
+
+### Then #204 — and it is bigger than the issue title
+
+The plan was to parse `deliver`'s per-locale success lines out of the nine release
+logs. **There are none**: deliver aborts inside
+`verify_available_version_languages!`, *before* the upload phase. A parser written
+against a guess at that format would have been a fixture from its own subject
+(lesson **103**). So the instrument asks App Store Connect what it holds —
+expected from `fastlane/metadata/`, actual from `appStoreVersionLocalizations`
+**and** `appInfoLocalizations`, the second because `name` (the field Apple
+refuses) lives only there.
+
+`session-context.md` §7 forbids dispatching the release lane, so it also got a
+read-only input on `testflight-testers.yml` — **and was run against the live
+listing** (run 31949645300):
+
+```
+FINDING: 8 problem(s) with the published copy.
+  - en-US: description / keywords / privacyPolicyUrl / promotionalText
+           / whatsNew / subtitle / supportUrl all differ
+  - tr: NOT PUBLISHED
+```
+
+**Nothing in `fastlane/metadata/` has ever been published.** Because deliver dies
+before the upload phase, the English listing is still hand-typed and seven of its
+nine fields disagree with this ref; only `name` and `marketingUrl` match. A
+presence-only check would have called `en-US` green — which is precisely why
+ADR-047 D2 compares the text.
+
+Carried to Slack the only way that crosses a step→job boundary: a job output, read
+by `slack_notify.sh` as `EXTRA_FINDINGS`, with **all** the policy in the script
+(ADR-024 D1) — headline qualified to `⚠️ CI passed, with findings`, exempt from the
+PR noise policy, escaped, whitespace-only treated as none, and a red run still red.
+**Five mutations applied to those five properties; all five killed.**
+
+### Proven
+
+`flutter analyze` clean · **1691** app tests green · 18 settings goldens
+regenerated intentionally (the row renders above the discreet switch in all three
+locales, verified by eye) · `store_metadata_audit_test.py` 18 groups green ·
+`slack_notify_test.sh` **23** passed · `release_lane_lint.dart` 12 checks PASS ·
+`dart format --set-exit-if-changed` exit 0.
+
+### Operator dependencies
+
+**Unchanged in number, changed in kind.** The founder still has to grant
+notification permission — but if the dialog was already declined, the instruction
+they were given for five sessions was unfollowable, and the app now says so and
+opens the right Settings page. The Turkish display name is still theirs alone, and
+picking one now fixes eight findings rather than one.
+
+### Deferred, filed rather than left in prose
+
+**#221** — the device now knows *why* it has no token, and a session still cannot
+read it. Needs a client-writable diagnostic field, a rules change and an ADR-019
+cascade review; Crashlytics was considered and rejected (no read API).
