@@ -3216,3 +3216,57 @@ it can trust. Useful field, unenforced shape, until it lands.
 **The ceiling, stated first and not buried:** this reports nothing until a build ships. The last `release.yml` run is **2026-08-09, build 119**; ADR-046's Settings row and now ADR-049's field are both on nobody's phone. The probe says so in those words rather than letting a session read four silent accounts as a negative.
 
 **Next objective written to resume-prompt.md:** #223 — `deploy-rules.yml` can publish a BRANCH's rules to prod (it checks the typed project id and never the ref), and neither it nor `deploy-site.yml` declares `concurrency`.
+
+## Session 072 — 2026-08-17 — #223: the two oldest deploy lanes learn the guards the newest one already had (ADR-050)
+
+**Objective (from resume-prompt.md):** #223 — `deploy-rules.yml` can publish a BRANCH's rules to production (it checks the typed project id and never the ref), and neither it nor `deploy-site.yml` declares `concurrency`. Settle the two judgement calls the issue leaves open, and say which instrument was actually used, since none of these lanes can be run.
+
+**Outcome:** done.
+
+### The defect is between the lanes, not inside any one of them
+
+Three workflows deploy something a session must not deploy casually, and the guards ran the wrong way round:
+
+| lane | since | ref pin | `concurrency` |
+|---|---|---|---|
+| `deploy-site.yml` | S040 | none | none |
+| `deploy-rules.yml` | S058 | none | none |
+| `deploy-functions.yml` | S070 | prod → `main` | per project, no-cancel |
+
+**The oldest lane guarded the least and published the most irreversible thing.** Not bad luck: each was reviewed against the state of the art when it was written, and nothing ever went back. `gh workflow run deploy-rules.yml --ref some-branch -f project=prod -f confirm_prod=hayatiapp-prod` deploys a branch's authorization boundary to production, and the typed confirmation cannot help — **it confirms which project, never which code.**
+
+### The judgement call the issue got backwards
+
+#223 filed the `deploy-site` half as *"arguably weaker — the site is regenerated from `docs/legal/` and there is no drift checker to confuse"*. Both clauses are true and the conclusion does not follow. What a live publish serves is the **privacy policy and terms** that ADR-023 byte-syncs into `app/assets/legal/` under a drift test, precisely so the app and the repo can never disagree about what the policy says. A branch publish puts a **third** version into the world — the public page Apple's listing points at, saying something the shipped app does not — which is ADR-023's sync test routed *around* rather than through, and worse than rules drift in one respect: a rules deploy is corrected by another deploy, a published legal text has already been fetched.
+
+**Measured qualification, not assumed:** `invite_only: true` is deliberately allowed on `live` and carries **no legal text at all** — that is what makes a shared invite link resolve today. The guard still holds, because a branch's `apple-app-site-association` is still the file Apple fetches to decide whether an invite link opens the app.
+
+### Two edits close the issue and do nothing about the fourth lane
+
+So `tool/deploy_lane_lint.dart`, on the `release_lane_lint.dart` mold: dependency-free `dart:io`, in `quality` before `pub get`, over a **derived** `deploy-*.yml` glob so a fourth lane is guarded the day it is added. An empty derived set is **exit 64** — a sentinel over nothing is the greenest thing in this repo.
+
+### The review's blocker was a hole I had actually written
+
+The lint's first ref-guard rule matched the four *words* — the input, `'prod'`, `github.ref`, `refs/heads/main`. So does this:
+
+```yaml
+if: ${{ inputs.project != 'prod' && github.ref != 'refs/heads/main' }}
+```
+
+**Dev blocked from a branch, prod admitted from anywhere — the guard inverted into precisely the hole it was added to close, passing a lint that only looked for vocabulary.** The rule now asserts the **operators**, and the test covering it was *confirmed red against the old form* rather than merely added. Two more from the same review: the concurrency group must key on the input that selects the **target** (one keyed on `confirm_prod` interpolates faithfully and serializes the wrong pairs), and **comments are stripped before scanning** — every lane now carries a header quoting the guard, so a lint reading prose would go green on the remediation note somebody leaves when they *delete* it.
+
+**Commits:** `49198fe` (ADR + the two lanes + the lint), `0c73b7f` (docs) — PR **#230**.
+**CI:** green (PR + post-merge `main`).
+**Docs touched:** `docs/adr/050-*` (new), `architecture.md` §9, `test-suite.md`, `resume-prompt.md`, `past-prompts.md`.
+
+**Verification, and the honest bound on it.** The lint is red on the real tree before the fixes (4 violations) and green after, with `deploy-functions.yml` green throughout as the positive control. **15 mutants, each reddening a named check**, anchors asserted present-and-unique before every edit and the file diffed byte-identical against a pre-mutation copy afterwards. One mutant survived and was **wrong** — "break after the first violation" loses nothing when the first lane is clean — and was replaced with `lanes.take(1)`, which the lane-coverage check catches.
+
+**The review's skeptic found two more, in code I had already written**, and both are the same shape as the blocker: (a) my operator fix caught `!=` on the input but **not `||` vs `&&`** — `inputs.project == 'prod' || github.ref != 'refs/heads/main'` contains both required substrings and fires on *every* dev dispatch from a branch, so the conjunction itself is now asserted; (b) the vocabulary's own doc comment claimed a lane it could not classify would be **failed**, naming a function `checkEveryLaneIsClassified` — **which did not exist**. A future `environment: [staging, production]` lane would have passed the whole lint with no ref guard while the header promised the opposite. The check now exists, the comment names the function that does, and a mutant removing it reddens a named test.
+
+⚠️ **What could NOT be verified, stated rather than glossed:** that GitHub honours any of these guards. That needs a dispatch, which needs `FIREBASE_SERVICE_ACCOUNT` (operator 2(e)(iii)); `actionlint` is not installed and was not added for one rule. A green lint means *the guard is written correctly*, never *the guard was tested* — said in the ADR, the lint header, the `ci.yml` step and here.
+
+**Measured, and it corrected an inherited premise:** `gh run list` returns **nothing** for all three lanes — none has ever executed. That is **not** the same as "none of them has ever happened": the invite URL answers **200**, so the live site was published by hand, and the first real dispatch of `deploy-site.yml` will *overwrite* a hand-deployed site rather than create one.
+
+**Notes / debt logged:** none new. No operator dependency added or removed.
+
+**Next objective written to resume-prompt.md:** #222 — the handoff documents' 10 verified stale claims, two of which S071 already served in passing.

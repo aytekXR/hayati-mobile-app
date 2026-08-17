@@ -49,6 +49,20 @@ on:
 permissions:
   contents: read
 
+# Two dispatches against one project would be two clients racing over the one
+# artifact that is this app's authorization boundary. Queue, never cancel: a
+# deploy killed mid-flight is strictly worse than one that waits. Per project,
+# because a dev deploy has no reason to wait behind a prod one (ADR-050 D3).
+#
+# `github.event.inputs`, not `inputs`, and deliberately. Both resolve here, but
+# workflow-level `concurrency` is evaluated BEFORE any job starts, so a bad
+# expression there is a PARSE error — and this lane is dispatch-only, so its
+# first real parse happens the first time someone dispatches it, on a live
+# project. This is not the place to be 85% sure (ADR-048 D10).
+concurrency:
+  group: deploy-rules-${{ github.event.inputs.project }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: deploy-rules
@@ -68,6 +82,28 @@ jobs:
           else
             echo "id=hayatiapp-dev" >> "$GITHUB_OUTPUT"
           fi
+
+      # ADR-050 D1. Checked BEFORE the typed confirmation, because a prod dispatch
+      # from a branch is wrong for a reason that has nothing to do with whether
+      # the operator typed the id correctly — and failing on the cheaper, more
+      # specific reason is what sends the reader to the right fix.
+      #
+      # The typed confirmation below cannot cover this: it confirms which
+      # PROJECT, never which CODE. `gh workflow run deploy-rules.yml --ref
+      # some-branch -f project=prod -f confirm_prod=hayatiapp-prod` would deploy
+      # a branch's rules to production, and the operator who typed the id
+      # correctly would have no way to know.
+      - name: prod deploys only from main
+        if: ${{ inputs.project == 'prod' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::A PROD rules deploy must run on refs/heads/main. This run is on"
+          echo "::error::${{ github.ref }}. Deploying a branch's firestore.rules to production"
+          echo "::error::would put an authorization boundary there that is not on main, and"
+          echo "::error::ci.yml's rules-drift job would then correctly report production as"
+          echo "::error::serving a ruleset that is NOT this ref — manufacturing the exact"
+          echo "::error::drift that check exists to report."
+          echo "::error::Merge first, then dispatch from main. (dev accepts any ref, by design.)"
+          exit 1
 
       # Typing the id IS the confirmation. Checked before the secrets gate so a
       # mistyped prod dispatch fails on the cheap, obvious reason rather than on
