@@ -1,4 +1,4 @@
-# Resume Prompt — Session 074
+# Resume Prompt — Session 075
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -7,37 +7,33 @@
 > never-without-asking list) and `session-lessons.md` (numbered to **109**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #174 — the reveal is felt and seen but never ANNOUNCED. There is
-no `liveRegion` anywhere in `lib/`.**
+**Objective: #175 — 10 of 14 raised cards render FLAT, because the card
+decoration is copy-pasted per screen instead of coming off the theme.**
 
-`RevealChoreography` runs its three-beat sequence and fires a haptic — the
-product's signature moment. A VoiceOver user gets the haptic and **nothing
-else**: `grep -rn "liveRegion\|SemanticsService" app/lib` returns zero hits. The
-partner's answer arrives in the tree silently, so the one moment the whole
-product is built around passes unremarked for a screen-reader user.
+A design-system defect with a design-system fix: the elevation exists in the
+tokens and in four places that render it, and ten surfaces re-declare their own
+`BoxDecoration` without it. The visible result is that the product looks
+inconsistent in a way no single screen looks wrong.
 
-**This is not "add a label."** The card's text is already reachable by
-exploration; what the choreography communicates is an *event* — *this just
-unlocked* — and events need `SemanticsService.announce` or a `liveRegion: true`
-node. And the failure in the other direction is **worse than silence**: an
-announcement that fires on every rebuild interrupts the user mid-sentence,
-repeatedly.
+Read the issue for the list. What makes it a session rather than ten edits:
 
-Acceptance is in the issue. The two things that make it a session rather than a
-one-liner:
+* **The fix is a theme extension, not ten copies of the right decoration.**
+  Ten correct copies is the same defect with a better value in it — the
+  eleventh screen still copies whatever it finds. `hayatiTheme` is **memoized**
+  (ADR-039 D7: same `ThemeData` instance per language code), so a card
+  decoration that comes off the theme costs nothing per build.
+* **Goldens will move, and that is the point** — but it is also W4's declared
+  golden-set discipline (`agent-workflows.md`): declare the expected file set in
+  the PR *before* running `--update-goldens`, then paste the resulting
+  `git status --porcelain -- 'app/test/**/*.png'` beside it. A golden that
+  changes outside the declared set is a defect to explain, not churn to accept.
+* **Assert the mechanism.** A test that says "this screen has elevation" passes
+  for ten hand-copied decorations too. What wants asserting is that the card
+  surfaces read their decoration from ONE source — the shape
+  `brandkit_token_parity_test.dart` already uses for the palette.
 
-* **the fire-point is a real decision** — choreography beat 2, or the card's own
-  mount? #173 filed this rather than fixing it precisely because that choice
-  deserves its own review pass. It interacts with reduce-motion, which collapses
-  the visuals but **keeps** the haptic (so it must keep the announcement too);
-* **assert the MECHANISM, not the outcome.** "A `liveRegion` node exists" is the
-  vacuous version — this repo has lesson **108** for exactly that. The test must
-  prove it announces **once per reveal across a rebuild**, which means the guard
-  needs somewhere to live that survives re-renders.
-
-Related and worth reading first: **#175** (10 of 14 raised cards render flat —
-the card decoration is copy-pasted per screen instead of coming off the theme).
-They touch the same surfaces; they are not the same slice.
+⚠️ It touches the same screens as **#174** (just shipped) — re-read
+`paired_home_screen.dart` rather than working from memory of it.
 
 ## 1. Where things actually stand *(measured 2026-08-17 — re-measure, do not inherit)*
 
