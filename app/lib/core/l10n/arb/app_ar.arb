@@ -78,6 +78,7 @@
   "pairedPartnerLocked": "تنكشف إجابة شريكك عندما تجيب.",
   "pairedPartnerWaiting": "أجبت — في انتظار إجابة شريكك.",
   "pairedPartnerAnswerLabel": "إجابة شريكك",
+  "pairedRevealAnnouncement": "إجابة شريكك ظاهرة.",
   "pairedRevealedCaption": "أجبتما كلاكما اليوم.",
   "pairedNoDayTitle": "سؤال اليوم لم يصل بعد",
   "pairedNoDayBody": "سؤال اليوم في الطريق — يصل بُعيد منتصف ليلكما.",

@@ -198,9 +198,15 @@ class _RevealChoreographyState extends State<RevealChoreography>
 /// feelable). At rest: [Opacity] 1 (no-op fast path) and the translate is
 /// retired — pixel-neutral.
 ///
-/// `alwaysIncludeSemantics` keeps both answers in the semantics tree from the
-/// first frame (ui-ux §8 VoiceOver: the reveal announces as one event — a
-/// screen reader must never lose it mid-unfold).
+/// `alwaysIncludeSemantics` keeps both answers REACHABLE in the semantics tree
+/// from the first frame, so a screen reader never loses them mid-unfold.
+///
+/// ⚠️ This comment used to add "the reveal announces as one event", and until
+/// ADR-051 **nothing announced anything** — `grep -rn "liveRegion\|SemanticsService"
+/// app/lib` returned zero hits (issue #174). Reachability and announcement are
+/// different guarantees, and only the first was ever built here. The second now
+/// lives where the haptic does: `PairedHomeScreen._signalReveal`, fired by
+/// [RevealChoreography.onSettle] at beat 2, once per reveal.
 class RevealPairGroup extends StatelessWidget {
   const RevealPairGroup({
     super.key,

@@ -78,6 +78,7 @@
   "pairedPartnerLocked": "Cevapladığında partnerinin cevabı açılır.",
   "pairedPartnerWaiting": "Cevapladın — partnerinin cevabı bekleniyor.",
   "pairedPartnerAnswerLabel": "Partnerinin cevabı",
+  "pairedRevealAnnouncement": "Partnerinin cevabı görünüyor.",
   "pairedRevealedCaption": "Bugün ikiniz de cevapladınız.",
   "pairedNoDayTitle": "Bugünün sorusu henüz gelmedi",
   "pairedNoDayBody": "Bugünün sorusu yolda — gece yarınızdan kısa süre sonra gelir.",

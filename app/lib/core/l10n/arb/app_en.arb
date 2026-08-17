@@ -341,6 +341,10 @@
   "@pairedPartnerAnswerLabel": {
     "description": "Label above the revealed partner answer text"
   },
+  "pairedRevealAnnouncement": "Your partner's answer is shown.",
+  "@pairedRevealAnnouncement": {
+    "description": "VoiceOver announcement fired once at the reveal's beat-2 settle (ADR-051), alongside the haptic. Names the EVENT \u2014 the answer text itself is already reachable and labelled by pairedPartnerAnswerLabel, and re-reading it would be noise. Carries no answer content: an announcement is spoken ALOUD and the room may contain someone other than the couple. Deliberately NOT 'is now shown': the choreography also runs on cold-open-into-revealed and no cheap client signal separates that from a live reveal, so a transition claim would be false there."
+  },
   "pairedRevealedCaption": "You both answered today.",
   "@pairedRevealedCaption": {
     "description": "Caption of the revealed state — both answers exist, the day is complete (answers frozen)"

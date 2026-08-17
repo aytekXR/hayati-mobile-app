@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter/services.dart'
     show HapticFeedback, LengthLimitingTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -310,17 +311,31 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
     super.dispose();
   }
 
-  /// At-most-once-per-instance guard for the reveal haptic. Reset with the
-  /// State — and the State is re-keyed per dayKey (parent's ValueKey), so a new
-  /// day can buzz again.
-  bool _revealHapticFired = false;
+  /// At-most-once-per-instance guard for the reveal SIGNAL — the haptic and the
+  /// screen-reader announcement, which are one event on two channels (ADR-051).
+  /// Reset with the State — and the State is re-keyed per dayKey (parent's
+  /// ValueKey), so a new day can signal again.
+  bool _revealSignalFired = false;
 
-  /// The signature reveal haptic (brandkit §6, "gentle haptic" — kept,
-  /// sacred), now fired by [RevealChoreography.onSettle] the moment beat 2's
-  /// settle-pair lands (redesign ui-ux §11: "the light haptic fires at Beat 2
-  /// settle") rather than the instant the slot flips. Under reduce-motion the
-  /// choreography collapses but still calls this immediately — the haptic is
-  /// preserved without the animation.
+  /// The reveal, delivered on both channels it has: **felt** (the signature
+  /// haptic — brandkit §6, "gentle haptic", kept, sacred) and **heard** (the
+  /// screen-reader announcement — ADR-051, issue #174).
+  ///
+  /// Fired by [RevealChoreography.onSettle] the moment beat 2's settle-pair
+  /// lands (redesign ui-ux §11: "the light haptic fires at Beat 2 settle")
+  /// rather than the instant the slot flips. Under reduce-motion the
+  /// choreography collapses but still calls this immediately — **both** signals
+  /// are preserved without the animation, which matters more for the
+  /// announcement than for the buzz: a user who turned motion off is
+  /// disproportionately likely to be the one listening.
+  ///
+  /// **One guard, not two.** Until ADR-051 this method existed for the haptic
+  /// alone, and every property the announcement needs was already true here for
+  /// its own independent reason — at-most-once, re-keyed per day, preserved
+  /// under reduce-motion, surviving resume. A second guard beside this one would
+  /// be a second answer to "has this reveal already happened?", and the failure
+  /// is not that they disagree today but that a later change teaches one of them
+  /// about a case and not the other.
   ///
   /// Honest bound (kept from the pre-choreography guard): the choreography —
   /// and so this hook — also runs on cold-open-into-revealed, not only on the
@@ -332,10 +347,43 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
   /// replays, its onSettle calls again — but the flag here is already set, so
   /// the buzz stays at-most-once per instance and therefore once per dayKey
   /// per app session.
-  void _fireRevealHaptic() {
-    if (_revealHapticFired) return;
-    _revealHapticFired = true;
+  void _signalReveal() {
+    if (_revealSignalFired) return;
+    _revealSignalFired = true;
     HapticFeedback.lightImpact();
+    _announceReveal();
+  }
+
+  /// The heard half of [_signalReveal] (ADR-051 D2).
+  ///
+  /// `sendAnnouncement`, **not** the `announce` that reads more naturally: that
+  /// one is `@Deprecated` after Flutter v3.35.0 and this repo is on 3.44.5, so
+  /// writing it here would ship a deprecation warning in a feature that has not
+  /// shipped at all.
+  ///
+  /// Gated on [MediaQuery.supportsAnnounceOf] because the SDK's own doc says to
+  /// — a platform that cannot announce must get the haptic and no attempted
+  /// call, rather than a dropped one nobody notices.
+  ///
+  /// The direction is read from the ambient [Directionality], never assumed: the
+  /// Arabic build is RTL, and an announcement queued with the wrong direction is
+  /// the one bidi failure (ADR-033) no golden can catch, because it is never
+  /// drawn.
+  ///
+  /// ⚠️ **A one-shot event, deliberately not `liveRegion: true`.** A live region
+  /// re-announces whenever its subtree changes — and this subtree holds the
+  /// streak strip plus an [AnimatedBuilder] rebuilding every frame, so it would
+  /// interrupt the listener repeatedly. That is #174's stated worse-than-silence
+  /// failure, reached through the widget's own semantics instead of a missing
+  /// guard.
+  void _announceReveal() {
+    if (!mounted) return;
+    if (!MediaQuery.supportsAnnounceOf(context)) return;
+    SemanticsService.sendAnnouncement(
+      View.of(context),
+      AppLocalizations.of(context).pairedRevealAnnouncement,
+      Directionality.of(context),
+    );
   }
 
   String get _entry => _controller.text.trim();
@@ -380,7 +428,7 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
             // pre-reveal); only the answer pair crossfades in.
             child: revealed
                 ? RevealChoreography(
-                    onSettle: _fireRevealHaptic,
+                    onSettle: _signalReveal,
                     builder: (context, beats) =>
                         _questionColumn(context, beats: beats),
                   )

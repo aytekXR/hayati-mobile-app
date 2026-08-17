@@ -106,6 +106,10 @@ FakeEntitlementRepository premiumMirror() => FakeEntitlementRepository(
 
 void main() {
   final en = l10nFor(const Locale('en'));
+  // ADR-051's announcement is asserted in Arabic too: the direction it carries
+  // is the one bidi property (ADR-033) no golden can see, because an
+  // announcement is never drawn.
+  final ar = l10nFor(const Locale('ar'));
 
   Future<
     ({
@@ -904,6 +908,37 @@ void main() {
       return haptics;
     }
 
+    // The HEARD half of the reveal (ADR-051, #174). `SemanticsService`
+    // .sendAnnouncement posts an AnnounceSemanticsEvent to
+    // SystemChannels.accessibility — a BasicMessageChannel, so it needs the
+    // DECODED-message mock, not the method-call one `spyHaptics` uses.
+    //
+    // ⚠️ Asserting "a liveRegion node exists" would be the vacuous version of
+    // this test, and #174 says so in those words. What is asserted here is the
+    // EVENT: that it is dispatched, once, with the right text and the right
+    // direction.
+    List<Map<Object?, Object?>> spyAnnouncements(WidgetTester tester) {
+      final announcements = <Map<Object?, Object?>>[];
+      tester.binding.defaultBinaryMessenger
+          .setMockDecodedMessageHandler<Object?>(SystemChannels.accessibility, (
+            message,
+          ) async {
+            final map = message! as Map<Object?, Object?>;
+            if (map['type'] == 'announce') {
+              announcements.add(map['data']! as Map<Object?, Object?>);
+            }
+            return null;
+          });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger
+            .setMockDecodedMessageHandler<Object?>(
+              SystemChannels.accessibility,
+              null,
+            ),
+      );
+      return announcements;
+    }
+
     // Pumps a bounded number of frames until [finder] matches — the read chain
     // (answer stream → partnerSlotProvider → rebuild) settles over a few
     // microtask hops. Bare pump()s elapse zero fake time, so a mounted unfold
@@ -1091,6 +1126,117 @@ void main() {
       // animation" — the settle hook still buzzed exactly once, instantly.
       expect(haptics, hasLength(1));
       expect(haptics.single.arguments, 'HapticFeedbackType.lightImpact');
+    });
+
+    // ADR-051 / #174 — the HEARD half. Every case below mirrors a haptic case
+    // above, because the two are one event on two channels and a divergence
+    // between them is the defect the single guard exists to prevent.
+    group('the reveal ANNOUNCES, exactly once (ADR-051, #174)', () {
+      testWidgets('a live reveal announces once at the settle, and a rebuild '
+          'does not repeat it', (tester) async {
+        final announcements = spyAnnouncements(tester);
+        final fakes = await pumpPaired(tester, initialAnswers: ownOnly());
+        await tester.pumpAndSettle();
+        expect(announcements, isEmpty);
+
+        fakes.answers.emitAnswer(
+          coupleId,
+          todayKey,
+          partnerUid,
+          ackedAnswer('Partner reply here.'),
+        );
+        await pumpUntil(tester, find.text(en.pairedRevealedCaption));
+        // Beat 2 carries it, exactly as it carries the haptic — not the mount.
+        expect(announcements, isEmpty);
+
+        await pumpPastSettle(tester);
+        expect(announcements, hasLength(1));
+        expect(announcements.single['message'], en.pairedRevealAnnouncement);
+
+        // THE ASSERTION #174 ASKS FOR IN ITS OWN WORDS: not that a node exists,
+        // but that a rebuild does not speak again. An announcement that repeats
+        // interrupts the listener mid-sentence — worse than silence.
+        await settleUnfold(tester);
+        await tester.pump();
+        expect(announcements, hasLength(1));
+      });
+
+      testWidgets('reduce-motion keeps the announcement, as it keeps the '
+          'haptic', (tester) async {
+        // The user who turned motion off is disproportionately likely to be the
+        // one listening, so this is the case that matters most.
+        final announcements = spyAnnouncements(tester);
+        final fakes = await pumpPaired(
+          tester,
+          reduceMotion: true,
+          initialAnswers: ownOnly(),
+        );
+        await tester.pumpAndSettle();
+        expect(announcements, isEmpty);
+
+        fakes.answers.emitAnswer(
+          coupleId,
+          todayKey,
+          partnerUid,
+          ackedAnswer('Partner reply here.'),
+        );
+        await pumpUntil(tester, find.text(en.pairedRevealedCaption));
+        expect(announcements, hasLength(1));
+        expect(announcements.single['message'], en.pairedRevealAnnouncement);
+      });
+
+      // locked and waiting both mount a partner card. If the announcement rode a
+      // MOUNT rather than the settle, they would speak — which is exactly why
+      // ADR-051 D1 rejects the card's own mount as the fire point. One test per
+      // state: a second pumpPaired in the same test rebuilds over the first
+      // tree rather than replacing it, and the assertion would then be about a
+      // screen that is not the one named.
+      testWidgets('the LOCKED state stays silent', (tester) async {
+        final announcements = spyAnnouncements(tester);
+        await pumpPaired(tester);
+        await tester.pumpAndSettle();
+        expect(find.text(en.pairedPartnerLocked), findsOneWidget);
+        expect(announcements, isEmpty);
+      });
+
+      testWidgets('the WAITING state stays silent', (tester) async {
+        final announcements = spyAnnouncements(tester);
+        await pumpPaired(tester, initialAnswers: ownOnly());
+        await tester.pumpAndSettle();
+        expect(find.text(en.pairedPartnerWaiting), findsOneWidget);
+        expect(announcements, isEmpty);
+      });
+
+      testWidgets('the announcement carries the AMBIENT direction — LTR', (
+        tester,
+      ) async {
+        final announcements = spyAnnouncements(tester);
+        await pumpPaired(tester, initialAnswers: bothAnswered());
+        await pumpUntil(tester, find.text(en.pairedRevealedCaption));
+        await pumpPastSettle(tester);
+
+        expect(announcements, hasLength(1));
+        expect(announcements.single['textDirection'], TextDirection.ltr.index);
+      });
+
+      testWidgets('...and RTL in Arabic, with the Arabic string', (
+        tester,
+      ) async {
+        // An announcement queued with the wrong direction is the one bidi
+        // failure (ADR-033) no golden can catch, because it is never drawn.
+        final announcements = spyAnnouncements(tester);
+        await pumpPaired(
+          tester,
+          locale: const Locale('ar'),
+          initialAnswers: bothAnswered(),
+        );
+        await pumpUntil(tester, find.text(ar.pairedRevealedCaption));
+        await pumpPastSettle(tester);
+
+        expect(announcements, hasLength(1));
+        expect(announcements.single['message'], ar.pairedRevealAnnouncement);
+        expect(announcements.single['textDirection'], TextDirection.rtl.index);
+      });
     });
   });
 }
