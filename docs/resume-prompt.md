@@ -1,78 +1,85 @@
-# Resume Prompt — Session 071
+# Resume Prompt — Session 072
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **107**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **109**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #221 — the device now KNOWS why it has no push token, and a session
-still cannot read it.**
+**Objective: #223 — `deploy-rules.yml` can publish a BRANCH's rules to production,
+and neither it nor `deploy-site.yml` declares `concurrency`.**
 
-> ⚠️ **Read the objective's own ceiling before you start.** This slice writes a
-> diagnostic the *server* can see. It becomes readable only on a device running a
-> build that contains it — and **no build has been cut since 2026-08-09**
-> (`release.yml`, sha `3550368`, build 119). ADR-046's Settings row, merged
-> 2026-08-16, is on **nobody's phone**. So finish this slice, and then say
-> plainly in the handoff that it — like ADR-046 before it — is waiting on a
-> release the founder must authorise (`session-context.md` §7).
+Filed at S070 while building `deploy-functions.yml`, and deliberately not fixed in
+that diff: changing an existing lane's safety posture is its own decision, and
+`deploy-rules.yml` is ADR-041 D5's artifact.
 
-ADR-046 turned four indistinguishable device-side failures into five named states
-and made them actionable **on the phone**. It deliberately added no server-visible
-breadcrumb, so a session can still only answer *"did a device register"*, never
-*"did the tap happen, and what did it do?"*.
-
-Acceptance is in the issue and is not restated here. The four constraints that
-shape it:
-
-* a **client-writable** diagnostic field on `users/{uid}` — `fcmTokens` is
-  server-owned and frozen in both directions (ADR-042 D1) and **must stay that
-  way**, so this cannot ride on it;
-* a `firestore.rules` change **plus** the rules tests that prove the freeze still
-  holds and the new field cannot widen anything;
-* an **ADR-019 cascade** review — the field is inside `users/{uid}` so it
-  cascades today, and that needs asserting, not assuming;
-* a `push_delivery_probe.py` mode that reads and names it.
-
-**Crashlytics was considered and rejected** — breadcrumbs upload only attached to
-a crash, non-fatals need the next launch, and neither has a read API a session
-can call. It would move the signal from one place a session cannot read to
-another.
+The exposure, in one command:
 
 ```sh
-python3 tool/ci/push_delivery_probe.py --from-firebase-cli
+gh workflow run deploy-rules.yml --ref some-branch \
+  -f project=prod -f confirm_prod=hayatiapp-prod
 ```
+
+The typed confirmation says *which project*, never *which code*. Worse than
+untidy: `rules-drift` compares the released ruleset against `main` post-merge, so
+a branch deploy **manufactures** drift and sends the next reader hunting a
+discrepancy a dispatch box created on purpose.
+
+`deploy-functions.yml` already closes it for its own lane (ADR-048 D1), and that
+guard is the shape to copy — including the part where **dev stays free**, because
+exercising a branch on dev is what dev is for.
+
+Acceptance is in the issue. Two judgement calls it leaves open and you must
+settle, in the diff or in an ADR:
+
+* whether `deploy-site.yml` wants the same ref guard (weaker case — the site is
+  regenerated from `docs/legal/` and no drift checker is confused by it, but
+  publishing a branch's marketing site to a live domain is still not obviously
+  wanted);
+* `cancel-in-progress: false` is the load-bearing half of the concurrency group —
+  a deploy killed mid-flight is worse than one that waits.
+
+**Neither lane has ever executed.** Both are unarmed until operator **2(e)(iii)**,
+so this is a fix to make *before* the first real dispatch, not a live exposure —
+which also means **you cannot prove it by running it.** Say which instrument you
+actually used (§5.7): a workflow-lint test in the `release_lane_lint.dart` /
+`functions_drift_test.py` mold is the honest option, and `actionlint` is not
+installed.
 
 ## 1. Where things actually stand *(measured 2026-08-17 — re-measure, do not inherit)*
 
 | | State |
 |---|---|
-| **Notifications, server side** | **RUNNING, re-measured.** `prod_pulse.py --from-firebase-cli` exit **0** — billing enabled, scheduler ENABLED, last completed sweep 51m before measurement (`2026-08-16T23:00:05Z`), summary `assigned=0 buckets=1 existing=1 failed=0`. ADR-045's hours are live server-side (the Functions were deployed 2026-08-11, after #217). |
-| **Notifications, device side** | **STILL ZERO.** `push_delivery_probe.py` exit 1 — **0 of 4** accounts have ever registered. Unchanged since S063. |
-| **Why it is still zero, and the thing to say first** | **ADR-046's fix has never shipped.** The last `release.yml` run is **2026-08-09, sha `3550368`** — build 119. ADR-046 merged 2026-08-16 in `482f92f`. The Settings row that names which of the five states a phone is in, and the button that fixes it, exist only in `main`. **Cutting a build is a §7 founder ask** — ask for one early, then work the rest of the path (lesson **99**). |
-| **The remaining notification unknown** | Whether the **APNs `.p8`** ever reached Firebase. Unreadable from any Google API (six endpoints tried). It surfaces only at the first real send, and `push_delivery_probe.py --send-test --confirm SEND` names it when it does. |
-| **`hayatiapp-prod` Functions** | **CLEAN, and this is a CORRECTION.** `functions_drift.py` exit **0** — 13 deployed, reference `c250c5c25611e2fa…` over 213 files, **0 foreign**. ADR-043's 62 gitignored debris files are gone; the 2026-08-11T10:51Z redeploy was made from a clean tree and `functions/` has not changed since `52d8065`. The prediction in `operator-expected.md` that the first armed `functions-drift` run would report prod drifted has been **withdrawn**. |
-| **`hayatiapp-dev` Functions** | **In sync except one.** S070 deployed 12 of 13 through the lane's own command sequence; `revenueCatWebhook` is absent and cannot deploy there until **0(c)** puts `RC_WEBHOOK_TOKEN` on dev. Unscoped the checker is therefore exit 1, for a named and filed reason. |
-| **Deployed rules** | Both projects matched `main` at the last measurement (2026-08-16). **Not re-measured at S070** — run `rules_drift.py --from-firebase-cli` before relying on it. |
+| **Notifications, server side** | **RUNNING** at the last measurement (S070): `prod_pulse.py --from-firebase-cli` exit 0, scheduler ENABLED, sweep summary `assigned=0 buckets=1 existing=1 failed=0`. **Not re-measured at S071** — run it before relying on it. |
+| **Notifications, device side** | **STILL ZERO, re-measured 2026-08-17.** `push_delivery_probe.py` exit 1 — 0 of 4 accounts have ever registered. Unchanged since S063. |
+| **What is NEW, and its ceiling** | **ADR-049 shipped**: `users/{uid}.pushDiagnostic` — the device's own report of *why* it has no token (state + detail + server-stamped time), read and named by `push_delivery_probe.py`. It reports **nothing until a build ships**: the last `release.yml` run is **2026-08-09, build 119**, and ADR-046's Settings row **and** this field are both on nobody's phone. The probe says so in those words rather than letting four silent accounts read as a negative. |
+| **`fcmTokens`** | Untouched and re-proven: server-owned, frozen at create and update, and a valid diagnostic in the same write as a token mint is still denied. |
+| **The remaining notification unknown** | Whether the **APNs `.p8`** ever reached Firebase. Unreadable from any Google API (six endpoints tried). It surfaces only at the first real send, and `push_delivery_probe.py --send-test --confirm SEND` names it when it does — which needs a registered device first. |
+| **Deployed rules vs `main`** | **Now one commit behind by construction** — S071 changed `firestore.rules`. Run `rules_drift.py --from-firebase-cli --project hayatiapp-prod --project hayatiapp-dev` and expect **exit 1**; deploying is a **§7 founder ask**. The new predicate is additive and the old ruleset simply validates nothing, so nothing is broken meanwhile. |
+| **`hayatiapp-prod` Functions** | CLEAN at S070 (`functions_drift.py` exit 0, 13 deployed, 0 foreign). `functions/` **source** is unchanged by S071 — only its tests moved — so no redeploy is implied. |
+| **`hayatiapp-dev` Functions** | 12 of 13; `revenueCatWebhook` cannot deploy there until **0(c)** puts `RC_WEBHOOK_TOKEN` on dev. Unscoped the checker is exit 1, for a named and filed reason. |
 | **`functions-drift` / `rules-drift` in CI** | Both **visibly SKIPPED** by design — one absent secret (operator **2(e)(iv)**). |
-| **#206** | **CLOSED (ADR-048).** `deploy-functions.yml` exists: dispatch-only, prod pinned to `main` **and** behind a typed project id, measure → deploy → read back. **Unarmed** until **2(e)(iii)** — like `deploy-rules.yml`, which has also never run. |
-| **#219** | Cause fixed, detection instrumented. Residual: the **budget alert** (operator 2(a)) is still unset, and `prod_pulse` has no scheduled lane. |
+| **#221** | **CLOSED (ADR-049).** |
 
 ---
 
 ## 2. Then, in priority order
 
-**1 — #222**, this session's filed audit: 10 verified stale claims across the
-handoff documents, including a false *"nothing writes `fcmTokens` yet"* in
-`architecture.md` and two contradictions inside the notifications section of
-`operator-expected.md`. Cheap, and it is the class of defect that gets *executed*
+**1 — #222**, S071's filed stale-claims audit: 10 verified stale claims across the
+handoff documents. **Two were served in passing** by S071 (the false *"nothing
+writes `fcmTokens` yet"* in `architecture.md` §3 and its twin in
+`dpa-inventory.md`) because that diff touched those exact lines — the other eight
+are open, including the two contradictions inside `operator-expected.md`'s
+notifications section. Cheap, and it is the class of defect that gets *executed*
 (lesson **64**).
 
-**2 — #223** (`deploy-rules.yml` can publish a **branch's** rules to prod — it
-checks the typed project id and never the ref — and neither it nor
-`deploy-site.yml` declares `concurrency`; `deploy-functions.yml` closes both for
-its own lane and #223 is the argument for doing the same there).
+**2 — #226 / #227**, both filed by S071 and both needing a decision rather than
+code: the privacy policy says *"ikimiz does not send push notifications today"*
+and names none of the device data we store (**#226** — a fix bumps
+`CURRENT_LEGAL_VERSION` and **re-gates consent for every user**, so it is a
+founder/lawyer call), and the export whitelist omits `fcmTokens` and
+`pushDiagnostic` (**#227**).
 
 **3 — #208** (`integration-emulator` hung silently and burned its whole 50-minute
 budget; second blow-out, and raising the ceiling again is not a fix) · **#175**
@@ -89,15 +96,17 @@ first. Token capture needs none of it; only background *delivery* does.
 
 | What | Blocked on | Why a session cannot take it alone |
 |---|---|---|
-| **A build carrying ADR-046** | founder | `release.yml` uploads a real binary to TestFlight — **§7**. The last build is **119, 2026-08-09**; everything client-side merged since is on no device. This gates M3.4's last inch *and* #221's payoff |
+| **A build carrying ADR-046 + ADR-049** | founder | `release.yml` uploads a real binary to TestFlight — **§7**. Last build **119, 2026-08-09**. Everything client-side merged since is on no device, and **ADR-049's whole payoff is behind it** |
 | **M3.4's last inch** | the founder's phone | One permission grant, on a build that has the fix. **If the prompt was ever declined, iOS will not show it again** — 119's only remedy is iOS Settings → Notifications → ikimiz, which works today |
+| **Deploying S071's rules** | founder | §7. Additive, so nothing is broken until it lands — but `rules-drift` will report prod behind `main` |
 | **`tr` App Store localization** | founder | Apple refuses the **name**, not the locale. Needs a different Turkish display name; picking one fixes **eight** audit findings |
 | **operator 2(d)** — Associated Domains | founder | Measured absent. Same portal page as the push tick |
-| **operator 2(e)(iii)** | founder | `FIREBASE_SERVICE_ACCOUNT`. Now arms **three** lanes, and its role list **changed at S070** — four roles, measured against the IAM API. Gates arming `deploy-functions.yml` |
+| **operator 2(e)(iii)** | founder | `FIREBASE_SERVICE_ACCOUNT`. Arms **three** lanes — and is what makes #223's fix testable by dispatch rather than by reading |
 | **operator 2(e)(iv) / #165** | founder | One read-only SA, two roles. Until then `rules-drift` **and** `functions-drift` are SKIPPED by design |
 | **operator 2(a)** | founder | The budget alert — the one control that would have caught #219's cause rather than its symptom |
-| **operator 0(c)** | founder | `RC_WEBHOOK_TOKEN` on dev. Measured absent again at S070; it is why dev runs 12 of 13 functions |
+| **operator 0(c)** | founder | `RC_WEBHOOK_TOKEN` on dev. Why dev runs 12 of 13 functions |
 | **operator 2(e)(ii)** | founder | The controller's legal name. Blocks `/privacy`, `/terms`, the listing |
+| **#226** | founder/lawyer | Changing the legal texts re-gates consent for every existing user |
 | **#115** | founder | Making a prod endpoint world-reachable is a security decision on a live system |
 | **#41** | founder | Live billing identity — *clean change* vs *migration* |
 | **#48**, **#15**, **#136** | the device | On-device observation nobody has made |
@@ -112,16 +121,21 @@ Append to `past-prompts.md` → regenerate this file (one objective) → refresh
 `operator-expected.md` → commit + push → verify CI → **watch the post-merge `main` run**
 (`integration-emulator` is main-only) → `codegraph sync`.
 
-> ⚠️ **S068 did not append its entry.** S070 did. Step 1 is not optional and it is
-> the one that gets skipped.
+> ⚠️ **A mutation run that applies nothing prints the same green as a guard that
+> works** (lesson **109**). S071's first parity mutation run edited *nothing* — a
+> `cd` inside the runner left the script opening a relative path that did not
+> exist — and reported three passes with the traceback two lines above them.
+> Assert the anchor and the landed edit **before** running the test, and use
+> absolute paths.
 
-> ⚠️ **A harness that mutates tracked files is a write tool** (lesson **96**).
-> S070 ran five mutations against `functions_drift.py` inline, each with an
-> explicit restore and a `diff` against a pre-mutation copy — and note the trap it
-> hit: `git diff --stat` was the *wrong* baseline, because the session's own
-> uncommitted work is legitimately in that diff. Compare against a copy, not
-> against HEAD.
+> ⚠️ **When a mutant survives, suspect the test's NAME first** (lesson **108**).
+> S071 found a guard whose test proved a different guard entirely. The three
+> honest resolutions are delete it, make it reachable, or rename the test to what
+> it measures and record that the guard is unfalsifiable there. "Leave it" is not
+> one of them.
 
-> ⚠️ **Aggregation reduces what you read; it does not decide what is true**
-> (lesson **107**). S070's built-diff review had both verifiers refute a finding
-> that was real — a two-minute mutant proved it. Read the raw findings list.
+> ⚠️ **An empty lens is UNVERIFIED, never a clean bill** (§5.5). Two of S071's five
+> design lenses returned zero findings, and the `data-rights` silence was a false
+> negative — the legal gap now filed as #226 was found by hand afterwards, in the
+> files that lens had been pointed at. Read the raw findings list (lesson **107**),
+> and when a lens is quiet on a subject you have not checked yourself, check it.

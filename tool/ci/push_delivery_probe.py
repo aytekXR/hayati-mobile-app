@@ -275,7 +275,11 @@ def main(argv: list[str] | None = None) -> int:
             # filtering would print a confident "no diagnostic" for an account
             # this tool never looked at — an absence manufactured by pagination,
             # which is lesson 65's failure with an extra step.
-            named_status, named_doc = api.call(f"{docs}/users/{urllib.parse.quote(args.uid)}")
+            # safe='' — a uid is ONE path segment. The default `safe='/'` would
+            # let a slash through and turn a uid into a path traversal on the
+            # documents endpoint.
+            named_status, named_doc = api.call(
+                f"{docs}/users/{urllib.parse.quote(args.uid, safe='')}")
             if named_status == 404:
                 print(f"could not measure: no account {args.uid!r} in {args.project}",
                       file=sys.stderr)
@@ -302,6 +306,13 @@ def main(argv: list[str] | None = None) -> int:
     # a lane greps the exit and a human reads the report.
     reports = device_reports([named_doc] if named_doc is not None else all_docs)
     scope = f" for {args.uid}" if args.uid else ""
+    # Whether a REPORTED account holds tokens must come from the same document
+    # the report came from. With --uid that is the direct read: deriving it from
+    # the 100-row listing would print a false DISAGREEMENT for a named account
+    # beyond the first page — the tool inventing a contradiction out of its own
+    # pagination, which is the failure the direct read exists to prevent.
+    holder_uids = {u for u, _ in (
+        registered_accounts([named_doc]) if named_doc is not None else holders)}
     print(f"\nwhat the device says about itself{scope} "
           "(ADR-049 — a CLAIM; fcmTokens above is the evidence):")
     for uid, state, detail, at in reports:
@@ -316,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
         reports = []
     for uid, state, detail, at in reports:
         print(f"\n  {uid}:\n       {diagnose_device(state, detail)}")
-        if state == "registered" and uid not in {u for u, _ in holders}:
+        if state == "registered" and uid not in holder_uids:
             print("       ⚠️  DISAGREEMENT: this phone claims it registered and the "
                   "server holds\n"
                   "       no token for this account. Usually legitimate — a phone that "
@@ -344,7 +355,14 @@ def main(argv: list[str] | None = None) -> int:
               "Pass --confirm SEND.", file=sys.stderr)
         return EXIT_CANNOT_MEASURE
 
-    targets = [h for h in holders if h[0] == args.uid] if args.uid else holders
+    # The SEND target comes from the same document the report came from, for the
+    # same reason the holder set does: filtering the 100-row listing would refuse
+    # to send to a named account beyond the first page whose tokens this tool had
+    # already fetched and thrown away — "holds no tokens" about tokens it read.
+    if args.uid:
+        targets = registered_accounts([named_doc]) if named_doc is not None else []
+    else:
+        targets = holders
     if not targets:
         print(f"\nrefusing: --uid {args.uid!r} holds no tokens.", file=sys.stderr)
         return EXIT_CANNOT_MEASURE

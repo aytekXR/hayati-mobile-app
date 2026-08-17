@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-17** (Session 070)._
+_Last refreshed: **2026-08-17** (Session 071)._
 
 > ### ✅ RESOLVED — billing is back, and your question is arriving again
 >
@@ -380,8 +380,33 @@ gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=
 > python3 tool/ci/push_delivery_probe.py --from-firebase-cli
 > ```
 >
-> Today: `0/4 account(s) have registered a device`. The moment one does, that
-> line changes and the 09:00 sweep goes from `skippedNoToken` to `sent`.
+> Re-measured **2026-08-17**: `0/4 account(s) have registered a device`. The moment
+> one does, that line changes and the 09:00 sweep goes from `skippedNoToken` to
+> `sent`.
+>
+> ### 🆕 2026-08-17 — the next build will also tell us WHICH of the four it is
+>
+> Until today the tool could answer one question: *did a device register?* It
+> could not answer the one that mattered — *did the app ever get as far as asking,
+> and what happened when it did?* So five sessions running, the honest answer to
+> "why is it still zero" was **we cannot tell**.
+>
+> The app now writes that down where we can read it. On the next build, each
+> phone records one line on its own account saying where it stands — never
+> prompted · asked and refused · allowed but the phone never produced an address ·
+> address obtained and the call to us failed · working — and, where it matters,
+> **which** of two very different things went wrong behind the same symptom.
+>
+> It costs you nothing and asks you nothing. It is a few dozen bytes on your own
+> account, it holds no message text and no notification content, and it can be
+> read only by you and by us.
+>
+> **⚠️ And it says nothing at all until a build ships.** The field only exists on a
+> phone running a build that contains it, and the last one we shipped is **119,
+> from 2026-08-09**. Right now the tool reports *"no report"* for all four
+> accounts and says, in those words, that this is **not evidence of anything** —
+> it cannot tell "no build has it" from "the app never got that far". Both of the
+> last two fixes are waiting on the same thing: **one release you authorise.**
 
 > ### ✅ Your new hours are LIVE on the server (2026-08-11)
 >

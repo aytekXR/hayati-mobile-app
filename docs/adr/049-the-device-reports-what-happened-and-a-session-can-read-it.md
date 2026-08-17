@@ -97,7 +97,7 @@ app did* rather than what the user meant:
 | `detail` | the app did this | the link it indicts |
 |---|---|---|
 | `permissionRequestRefused` | called `requestPermission()` and was not granted | the prompt path RAN — iOS Settings is now the only door (ADR-046 D3) |
-| `captureExhausted` | ran ADR-044's bounded loop to its end without a token | APNs never answered; ADR-046 D6's forward, or the `.p8` |
+| `captureExhausted` | ran ADR-044's bounded loop to its end **with permission held** and no token | APNs never answered; ADR-046 D6's forward, or the `.p8` |
 | `registerFailed` | held a token and `registerPushToken` threw | the callable / the network — the #219 shape |
 | `permissionUnreadable` | asked the OS for its permission state and the call threw | the plugin seam itself |
 
@@ -236,9 +236,39 @@ requirements, not suggestions (lesson **106**):
    sharper statement than a loop that ended.
 2. `refresh()`'s own `permissionStatus()` catch currently returns `_current` and
    **emits nothing at all**, so that failure is invisible even to the phone. It
-   must record `awaitingDeviceToken + permissionUnreadable` through the same
-   guard (`_emitUnlessRegistered`), so a device whose messaging seam is broken
-   says so instead of looking like a device that was never asked.
+   must **record without emitting** — the state stays where the last *successful*
+   measurement left it, because a read that failed is not evidence that a known
+   `denied` has become "waiting", and the point of the detail is to name the
+   broken seam, not to relabel the device.
+
+### Two rules the built-diff review forced, recorded because they are decisions
+
+**(a) `captureExhausted` is attached ONLY when permission is held.** It means
+*"permission is held and the bounded loop still produced nothing"* — the sentence
+that indicts APNs. Attached to a phone that refused, the loop ending merely
+restates the refusal, and restating is not harmless: a boot capture finishing a
+second after the user tapped *Don't Allow* would overwrite the stored
+`denied + permissionRequestRefused` — the most valuable fact this field can hold —
+with a detail that says nothing new. `denied` and `notDetermined` therefore settle
+with **no detail**, exactly like the direct OS reads on the `refresh()` path.
+
+**(b) An observation belongs to the account that was signed in when it was made.**
+A capture runs up to ~7.5s and a `permissionStatus()` read is an await; an account
+switch waits for neither. Each async path captures `observedUid` at entry and
+every emit site compares against it. Two consequences, and the second is the one
+that made this a defect rather than a tidiness point:
+
+* filing A's `registered` under B claims a reachability B does not have — which is
+  precisely the claim/evidence disagreement Decision 8 prints;
+* it would **re-arm the suppression** that the uid-change reset exists to clear.
+  ADR-046 D2(b)'s *late failure never demotes a success* guard keys on the
+  registered **token**, and a token belongs to an account. Carried across
+  `AuthSignedIn(A) → AuthSignedIn(B)` — a transition that never passes through the
+  sign-out branch — it silences everything B would have said. **Measured: B
+  recorded exactly zero diagnostics before the reset existed.** That is a
+  pre-existing ADR-046 defect this slice had to fix to be correct at all, not a
+  drive-by: without it, per-account reporting reports nothing for the second
+  account.
 * **`unawaited`, and it catches everything** (ADR-039 D1/D2, ADR-022): a
   diagnostic that costs a frame, or that can throw into the boot path, is a worse
   bug than the blindness it cures.
@@ -377,6 +407,21 @@ reset across a uid change, and this checklist.
 recorded rather than reported as a clean bill.** An empty result is *unverified*
 (§5.5). The `data-rights` silence was demonstrably a false negative: the legal-text
 gap in D7 was found by hand afterwards, in the same files that lens was pointed at.
+
+The review then ran a **second time, against the built diff** (§5.3), with four
+lenses and the same two verifiers: **6 findings, 3 surfaced**, and all three were
+real defects in code that already had green tests —
+
+* the `--uid` path read tokens from the **100-row listing** rather than from the
+  document it had just fetched directly, so a named account beyond the first page
+  would be refused a test send using tokens the tool had already read and thrown
+  away (the same pagination-manufactured absence Decision 8 exists to prevent,
+  reached by another route);
+* the detail-overwrite race that produced rule **(a)** above;
+* the wrong-account attribution that produced rule **(b)**, whose investigation
+  surfaced the ADR-046 suppression bug.
+
+The `rules` lens returned zero findings on this pass too — recorded, not banked.
 
 ## Consequences
 
