@@ -3177,8 +3177,11 @@ Two guards remain unfalsifiable by this suite even so (the same rule at the two
 other emit sites), and the code says so at the site rather than leaving a green
 tick to imply otherwise.
 
-**Commits:** `28a9d84` (ADR, before the code), `d586b70` (implementation + docs),
-`0bf4c5d` (the built-diff review's three fixes) — PR #228.
+**Commits:** `28a9d84` (ADR, written and committed before the code), `d586b70`
+(implementation + docs), and a third carrying the built-diff review's three fixes
+— all on PR **#228**. (A hash is not quoted for the last one: it names the commit
+that contains this sentence, so any amend invalidates it. The branch is
+`feat/221-push-diagnostic-field`.)
 **CI:** green (PR + post-merge `main`, `integration-emulator` included).
 **Docs touched:** `docs/adr/049-*` (new), `architecture.md` §3, `test-suite.md`, `dpa-inventory.md`, `operator-expected.md`, `resume-prompt.md`, `session-lessons.md`, `past-prompts.md`.
 
