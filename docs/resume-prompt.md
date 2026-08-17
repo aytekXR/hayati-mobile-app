@@ -4,7 +4,7 @@
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **115**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **116**) first.
 > Re-derive the session number from `git log`.
 
 **Objective: #129 (with #121) — the release lane's `bundle install` comment is

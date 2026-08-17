@@ -572,33 +572,31 @@ jobs:
     # 18.6 suites, of which 9.3 min is Xcode.
     timeout-minutes: 50
     env:
-      # ADR-055 D2. The bounds are DERIVED from measurement, not guessed: the
-      # first suite carries the cold Xcode build (262.9s vs 67-85s for the rest)
-      # and legitimately takes ~4x the others, so it gets its own bound.
+      # ADR-055 D2 (REVISED the same day, by the first post-merge run).
       #
-      # SIZED AGAINST THE WORST OBSERVED RUN, NOT THE MEDIAN, and against S024's
-      # documented +55% slow runner — because that is the OTHER failure mode and
-      # a bound that only fits a healthy runner turns it into a false timeout.
-      # Three runs, and the spread is wide enough that this matters:
+      # THE GUARD IS SILENCE. A wedge is defined by producing nothing; a slow
+      # runner still prints. Measured: the longest gap between log lines in a
+      # healthy run is 299s (the cold Xcode build), and #208's incident was
+      # silent for 2280s — a 7.6x separation. Total DURATION separates the same
+      # two cases by only 1.82x, because runner speed varies that much by
+      # itself: auth has been observed at 513, 540, 640 and 936 seconds. The
+      # first wall-clock bound was sized at 960s against a 540s run, then raised
+      # to 1080s against a 640s run, and the very next run took 936s. Chasing it
+      # does not converge — which is #208's own criticism of raising
+      # `timeout-minutes`, one level down. The INSTRUMENT was wrong.
+      WATCHDOG_SILENCE_SECONDS: 600
       #
-      #   run 32062696199 (healthy)   auth 513s   others 122-188s
-      #   run 32067814813 (dispatch)  auth 540s   others  90-113s
-      #   run 32071907287 (dispatch)  auth 640s   others 189-203s
-      #
-      # Worst observed: 640s / 203s. At +55% that is 992s / 315s. The first
-      # bound was 960s on the strength of the 540s run alone and would have
-      # FAILED that check — caught by re-measuring the third dispatch instead of
-      # reusing the number already written down. 1080 and 360 hold.
-      #
-      # Worst case 18 + 4x6 = 42 min + 4 setup = 46, inside timeout-minutes: 50.
-      #
-      # ⚠️ integration_watchdog_test.sh ASSERTS that arithmetic against these
-      # exact values and the suite count on disk. If the sum ever passes the
-      # ceiling the watchdog can no longer fire first, the job goes back to
-      # being CANCELLED, and slack_notify.sh goes back to saying nothing — a
-      # dead guard behind green tooling. Change these and the test tells you.
-      WATCHDOG_FIRST_SUITE_SECONDS: 1080
-      WATCHDOG_LATER_SUITE_SECONDS: 360
+      # The wall-clock bounds remain as BACKSTOPS and are deliberately loose,
+      # because they no longer have to discriminate. They exist for a failure
+      # this repo has never observed — a suite that runs forever while still
+      # printing — and a backstop tight enough to always fire before
+      # `timeout-minutes` would reintroduce the false timeouts that silence
+      # bounding just removed. That trade is stated in ADR-055 rather than
+      # hidden: their sum MAY exceed the ceiling, and when it does the ceiling
+      # wins, which is exactly the pre-ADR-055 behaviour for a case that has
+      # never happened.
+      WATCHDOG_FIRST_SUITE_SECONDS: 1800
+      WATCHDOG_LATER_SUITE_SECONDS: 900
       WATCHDOG_SETUP_ALLOWANCE_MINUTES: 4
     permissions:
       contents: read

@@ -216,6 +216,71 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 5d. SILENCE IS THE GUARD (ADR-055 D2 revised).
+#
+# The wall-clock bound could not discriminate: runner speed alone moved the auth
+# suite across 513/540/640/936 seconds — a 1.82x spread — while the incident
+# differed from a healthy run by 7.6x on SILENCE (2280s vs 299s). These three
+# assertions are the whole revision, and the middle one is the point: a slow
+# runner must never be killed, however slow, as long as it is still printing.
+# ---------------------------------------------------------------------------
+OUT="$TMP/out"
+WATCHDOG_HEARTBEAT_SECONDS=1 WATCHDOG_SILENCE_SECONDS=3 \
+  bash "$SCRIPT" 9999 silent-suite bash -c 'echo starting; sleep 300' >"$OUT" 2>&1
+CODE=$?
+if [ "$CODE" -ne 124 ]; then
+  bad "silence: a SILENT child is caught even with a huge wall-clock bound" "code=$CODE"
+else
+  ok "silence: a silent child is caught even with a huge wall-clock bound"
+fi
+if ! grep -q 'SILENT for' "$OUT"; then
+  bad "silence: the report says SILENT, not 'exceeded its bound'" "$(tail -3 "$OUT")"
+else
+  ok "silence: the report distinguishes SILENT from a wall-clock overrun"
+fi
+
+# ⚠️ THE FALSE POSITIVE THAT MOTIVATED THE REVISION. This child runs far longer
+# than the silence bound but never goes quiet. Under the old wall-clock guard a
+# slow runner was reported as wedged; under this one it must survive.
+OUT="$TMP/out"
+WATCHDOG_HEARTBEAT_SECONDS=1 WATCHDOG_SILENCE_SECONDS=3 \
+  bash "$SCRIPT" 9999 slow-suite bash -c 'for i in 1 2 3 4 5 6 7 8; do echo tick $i; sleep 1; done' >"$OUT" 2>&1
+CODE=$?
+if [ "$CODE" -ne 0 ]; then
+  bad "silence: a SLOW but chatty child is NOT killed" "code=$CODE"
+else
+  ok "silence: a slow but chatty child is not killed (8s run, 3s silence bound)"
+fi
+
+# The wall-clock backstop must still exist — silence-only would let a suite that
+# prints forever run to the ceiling and be CANCELLED, the original defect.
+OUT="$TMP/out"
+WATCHDOG_HEARTBEAT_SECONDS=1 WATCHDOG_SILENCE_SECONDS=9999 \
+  bash "$SCRIPT" 3 backstop-suite bash -c 'while true; do echo tick; sleep 1; done' >"$OUT" 2>&1
+CODE=$?
+if [ "$CODE" -ne 124 ]; then
+  bad "backstop: a forever-chatty child still hits the wall-clock bound" "code=$CODE"
+else
+  ok "backstop: a forever-chatty child still hits the wall-clock bound"
+fi
+if ! grep -q 'wall-clock backstop' "$OUT"; then
+  bad "backstop: names itself as the backstop, not as silence" "$(tail -3 "$OUT")"
+else
+  ok "backstop: names itself as the backstop, not as silence"
+fi
+
+for sv in 0 abc; do
+  OUT="$TMP/out"
+  WATCHDOG_SILENCE_SECONDS="$sv" timeout 8 bash "$SCRIPT" 10 s bash -c 'sleep 1' >"$OUT" 2>&1
+  CODE=$?
+  if [ "$CODE" -ne 2 ]; then
+    bad "silence: WATCHDOG_SILENCE_SECONDS='$sv' is rejected with 2" "got $CODE"
+  else
+    ok "silence: WATCHDOG_SILENCE_SECONDS='$sv' is rejected with 2"
+  fi
+done
+
+# ---------------------------------------------------------------------------
 # 6. ⚠️ THE ARITHMETIC GUARD (ADR-055 D2).
 #
 #    The watchdog can only convert `cancelled` into `failure` if its bounds fire
@@ -223,61 +288,65 @@ fi
 #    workflow is the source of truth, not a constant restated here, or the guard
 #    would pass while the workflow drifted underneath it.
 # ---------------------------------------------------------------------------
-guard_out="$(python3 - "$WORKFLOW" <<'PY'
-import re, sys
+guard_out="$(python3 - "$WORKFLOW" <<'PYEOF'
+import re, sys, os, glob
 
 text = open(sys.argv[1]).read()
-
 job = text.split('\n  integration-emulator:\n', 1)
 if len(job) != 2:
     print('FAIL could not locate the integration-emulator job in ci.yml')
     raise SystemExit(0)
 body = re.split(r'\n  [a-z0-9-]+:\n', job[1])[0]
 
-tmo = re.search(r'timeout-minutes:\s*(\d+)', body)
-first = re.search(r'WATCHDOG_FIRST_SUITE_SECONDS:\s*(\d+)', body)
-later = re.search(r'WATCHDOG_LATER_SUITE_SECONDS:\s*(\d+)', body)
-setup = re.search(r'WATCHDOG_SETUP_ALLOWANCE_MINUTES:\s*(\d+)', body)
-if not (tmo and first and later and setup):
-    missing = [n for n, m in (('timeout-minutes', tmo),
-                              ('WATCHDOG_FIRST_SUITE_SECONDS', first),
-                              ('WATCHDOG_LATER_SUITE_SECONDS', later),
-                              ('WATCHDOG_SETUP_ALLOWANCE_MINUTES', setup)) if not m]
+def num(name):
+    m = re.search(name + r':\s*(\d+)', body)
+    return int(m.group(1)) if m else None
+
+tmo, silence = num('timeout-minutes'), num('WATCHDOG_SILENCE_SECONDS')
+first, later = num('WATCHDOG_FIRST_SUITE_SECONDS'), num('WATCHDOG_LATER_SUITE_SECONDS')
+setup = num('WATCHDOG_SETUP_ALLOWANCE_MINUTES')
+missing = [n for n, v in (('timeout-minutes', tmo), ('WATCHDOG_SILENCE_SECONDS', silence),
+                          ('WATCHDOG_FIRST_SUITE_SECONDS', first),
+                          ('WATCHDOG_LATER_SUITE_SECONDS', later),
+                          ('WATCHDOG_SETUP_ALLOWANCE_MINUTES', setup)) if v is None]
+if missing:
     print('FAIL ci.yml is missing: ' + ', '.join(missing))
     raise SystemExit(0)
 
-# The suite count is DERIVED from the tree, not hardcoded: adding a sixth suite
-# must move this arithmetic, and the comment in ci.yml claimed "four" while five
-# were running (ADR-055 context).
-import glob, os
-repo = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[1])))
-repo = os.path.dirname(repo)  # .github/workflows -> repo root
-suites = sorted(glob.glob(os.path.join(repo, 'app/integration_test/*_test.dart')))
-running = [s for s in suites if 'phone_auth' not in os.path.basename(s)]
+repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[1]))))
+running = [x for x in sorted(glob.glob(os.path.join(repo, 'app/integration_test/*_test.dart')))
+           if 'phone_auth' not in os.path.basename(x)]
 if len(running) < 2:
-    print(f'FAIL found only {len(running)} integration suites — the glob is broken, not the tree empty')
+    print('FAIL found only %d integration suites - the glob is broken, not the tree empty'
+          % len(running))
     raise SystemExit(0)
 
-worst = int(first.group(1)) + (len(running) - 1) * int(later.group(1))
-worst_min = worst / 60 + int(setup.group(1))
-budget = int(tmo.group(1))
-print(f'INFO suites={len(running)} first={first.group(1)}s later={later.group(1)}s '
-      f'setup={setup.group(1)}m worst={worst_min:.1f}m budget={budget}m')
-if worst_min >= budget:
-    print(f'FAIL worst-case {worst_min:.1f}m >= timeout-minutes {budget} — the watchdog '
-          f'cannot fire before the job is CANCELLED, so it guards nothing')
+# THE GUARANTEE, restated for ADR-055 D2 REVISED. What must hold is that a WEDGE
+# is detected before `timeout-minutes` can cancel the job, because a cancelled
+# job sends no Slack notification and a failed one does. SILENCE is what detects
+# a wedge, so the assertion is about silence - not about the sum of the
+# wall-clock backstops, which are deliberately loose and may exceed the ceiling.
+budget_s = (tmo - setup) * 60
+print('INFO suites=%d silence=%ds first=%ds later=%ds setup=%dm ceiling=%dm'
+      % (len(running), silence, first, later, setup, tmo))
+if silence >= budget_s:
+    print('FAIL silence bound %ds >= usable budget %ds (ceiling %dm minus setup %dm) - a wedge '
+          'could not be detected before the job is CANCELLED' % (silence, budget_s, tmo, setup))
+elif silence * 2 >= budget_s:
+    print('FAIL silence bound %ds leaves under 2x margin inside the usable budget %ds - a wedge '
+          'in a later suite may not be caught in time' % (silence, budget_s))
 else:
-    print(f'OK worst case {worst_min:.1f}m fits inside timeout-minutes {budget} '
-          f'({budget - worst_min:.1f}m slack)')
-PY
+    print('OK a wedge is detected in %ds, inside the %ds usable budget (%.1fx margin)'
+          % (silence, budget_s, budget_s / silence))
+PYEOF
 )"
 printf '       %s\n' "$guard_out"
 if grep -q '^FAIL' <<<"$guard_out"; then
-  bad "arithmetic: the bounds fit inside timeout-minutes" "$(grep '^FAIL' <<<"$guard_out")"
+  bad "arithmetic: a wedge is detected before the ceiling can cancel" "$(grep '^FAIL' <<<"$guard_out")"
 elif ! grep -q '^OK' <<<"$guard_out"; then
   bad "arithmetic: the guard produced no verdict" "$guard_out"
 else
-  ok "arithmetic: the bounds fit inside timeout-minutes, so the watchdog can fire"
+  ok "arithmetic: a wedge is detected before the ceiling can cancel the job"
 fi
 
 # ---------------------------------------------------------------------------

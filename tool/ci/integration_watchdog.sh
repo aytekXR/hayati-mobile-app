@@ -17,6 +17,16 @@
 # change to the notifier's supersede policy. Catching the hang ~34 minutes
 # earlier is the side effect, not the goal.
 #
+# ⚠️ THE BOUND THAT DISCRIMINATES IS SILENCE, NOT ELAPSED TIME (ADR-055 D2
+# revised). Measured: a healthy run's longest gap between log lines is 299s (the
+# cold Xcode build); the #208 incident was silent for 2280s — a 7.6x separation.
+# Total duration separates the same two cases by only 1.82x, because runner speed
+# varies that much on its own (auth has been observed at 513, 540, 640 and 936
+# seconds). A slow runner still PRINTS; a wedged one does not.
+#
+# So WATCHDOG_SILENCE_SECONDS is the real guard and the wall-clock bound is a
+# loose backstop — it no longer has to be tight, so it can be safe.
+#
 # Usage:
 #   integration_watchdog.sh <timeout-seconds> <label> <command> [args...]
 #
@@ -30,6 +40,7 @@
 set -uo pipefail
 
 HEARTBEAT_SECONDS="${WATCHDOG_HEARTBEAT_SECONDS:-30}"
+SILENCE_SECONDS="${WATCHDOG_SILENCE_SECONDS:-600}"
 
 # VALIDATED, because the timeout argument is. An unvalidated 0 here is not a
 # cosmetic hole: the next-beat loop below advances by this value, so 0 never
@@ -45,6 +56,17 @@ case "$HEARTBEAT_SECONDS" in
 esac
 if [ "$HEARTBEAT_SECONDS" -le 0 ]; then
   echo "watchdog: WATCHDOG_HEARTBEAT_SECONDS must be > 0, got '$HEARTBEAT_SECONDS'" >&2
+  exit 2
+fi
+
+case "$SILENCE_SECONDS" in
+  '' | *[!0-9]*)
+    echo "watchdog: WATCHDOG_SILENCE_SECONDS must be whole seconds, got '$SILENCE_SECONDS'" >&2
+    exit 2
+    ;;
+esac
+if [ "$SILENCE_SECONDS" -le 0 ]; then
+  echo "watchdog: WATCHDOG_SILENCE_SECONDS must be > 0, got '$SILENCE_SECONDS'" >&2
   exit 2
 fi
 
@@ -126,13 +148,24 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
     break
   fi
 
-  if [ "$timeout_s" -gt 0 ] && [ "$elapsed" -ge "$timeout_s" ]; then
-    silent_for=$((now - last_change))
+  silent_for=$((now - last_change))
+
+  # SILENCE first — it is the guard that discriminates. Elapsed time is the
+  # backstop behind it, deliberately loose (ADR-055 D2 revised).
+  reason=""
+  if [ "$silent_for" -ge "$SILENCE_SECONDS" ]; then
+    reason="SILENT for ${silent_for}s (bound ${SILENCE_SECONDS}s)"
+  elif [ "$timeout_s" -gt 0 ] && [ "$elapsed" -ge "$timeout_s" ]; then
+    reason="exceeded its ${timeout_s}s wall-clock backstop"
+  fi
+
+  if [ -n "$reason" ]; then
     {
-      echo "::error title=integration suite wedged::$label exceeded ${timeout_s}s"
-      echo "WATCHDOG: '$label' exceeded its ${timeout_s}s bound (ADR-055, #208)."
+      echo "::error title=integration suite wedged::$label $reason"
+      echo "WATCHDOG: '$label' $reason (ADR-055, #208)."
       echo "  elapsed          : ${elapsed}s"
       echo "  silent for       : ${silent_for}s   <- 'slow' and 'wedged' differ HERE"
+      echo "  silence bound    : ${SILENCE_SECONDS}s"
       echo "  bytes of output  : ${size}"
       echo "  last output line : $(tail -n 1 "$out_file" 2>/dev/null || echo '(none)')"
       echo ""

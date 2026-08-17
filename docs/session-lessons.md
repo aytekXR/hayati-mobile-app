@@ -38,6 +38,26 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**116 — When a threshold needs re-tuning twice, the INSTRUMENT is wrong, not the number.** *(S078/S079, ADR-055 D2 revised)*
+The integration watchdog bounded each suite by wall-clock time. 960s was sized
+against a 540s run; a later run took 640s, so it went to 1080s; **the very next
+run took 936s.** Three sizings in one day, each against whatever the most recent
+run happened to be, each looking reasonable in isolation. The tell was already
+visible in the data: the auth suite spans **513–936s across four runs — a 1.82x
+spread from runner speed alone**, which is wider than the ±55% stress factor the
+bounds were being checked against. No wall-clock number can be tight enough to be
+useful and loose enough to be safe when the quantity varies by more than the
+margin you are defending. **Chasing it does not converge — which is precisely
+#208's own criticism of raising `timeout-minutes`, arriving one level down and
+made by the fix for it.** The right question was never "what number", it was
+"what quantity": a wedge is defined by producing NOTHING, and a slow runner still
+prints. Measured, the discriminator is overwhelming — healthy runs go quiet for
+at most **299s** (the cold Xcode build), the incident for **2280s**, a **7.6x**
+separation that is structurally stable rather than a lucky gap. The watchdog was
+already computing and printing `silent for …s` in its heartbeat and simply was
+not deciding on it. **A second re-tune is a signal to change the measurement, and
+the right measurement is often one you are already displaying.**
+
 **115 — A rule cited by number is a claim. Open it.** *(S079, found auditing S076-S078)*
 Three ADRs, several commit messages, a numbered lesson and the handoff all said
 *"`session-rules` §5.1 requires the ADR before the code."* **`session-rules.md`

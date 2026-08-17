@@ -132,6 +132,45 @@ entire mechanism silently reverts to the behaviour it was built to fix: a
 guard that is present, green, and structurally unable to act — so it is pinned
 rather than trusted.
 
+## Decision 2 REVISED (same day) — bound the SILENCE, not the wall clock
+
+**The first post-merge run falsified D2 within an hour of merging it.** `auth`
+took **936s** against the freshly-raised 1080s bound — 1.15× headroom. Four
+observations now exist and they span **1.82×**:
+
+```
+auth: 513s (healthy) · 540s (dispatch) · 640s (dispatch) · 936s (post-merge main)
+```
+
+The runner-to-runner spread is **wider than the ±55% factor** the bounds were
+being stress-tested against, so no wall-clock number is both tight enough to be
+useful and loose enough to be safe. Raising it again does not converge — which is
+the very criticism #208 makes of raising `timeout-minutes`, arriving one level
+down. **The instrument was wrong, not the number.**
+
+**Silence separates the two failure modes; duration does not.** Measured from the
+logs:
+
+| | longest gap between log lines |
+|---|---|
+| healthy run (cold Xcode build is the worst case) | **299s** |
+| the #208 incident | **2280s** |
+
+That is a **7.6× separation**, against 1.82× for total duration — and it is
+*structurally* stable, because a slow runner still prints while a wedged one does
+not. This is the distinction the heartbeat was already reporting
+(`silent for …s`) and the decision was not using.
+
+So the bound becomes **time since the child last produced output**, set at
+**600s** (2.0× the worst healthy silence, catching the incident in 10 minutes
+rather than 50). The wall-clock bound stays as a **generous backstop** — it is no
+longer the thing that discriminates, so it can be loose without being useless.
+
+*This is the same error as the one two paragraphs above, made again in the same
+session: sizing a threshold from a quantity whose spread I had not measured.
+Recorded rather than quietly re-tuned, because the second occurrence is the
+evidence that the fix was the wrong shape rather than the wrong value.*
+
 ## Decision 3 — Log during the silence, and name the phase
 
 The incident produced **nothing to debug from**: no evidence whether the app
