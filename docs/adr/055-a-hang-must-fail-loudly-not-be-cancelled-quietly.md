@@ -96,26 +96,33 @@ A single per-suite bound cannot work: the first suite carries the cold Xcode bui
 **Worst case `16 + 4×6 = 40` min, plus 3.9 min measured setup = 43.9 min, inside
 `timeout-minutes: 50` with ~6 min of slack.** The ceiling is **not** raised.
 
-### Validated on a real runner, against the OTHER known failure mode
+### Validated on a real runner — and the first sizing was WRONG
 
-The bounds were chosen from the healthy run and then **verified by dispatching
-this branch** (`gh workflow run ci.yml --ref …`, run `32067814813`), because
-`integration-emulator` never runs on a PR and merging an untested change to it
-would be exactly the gap this repo distrusts. The watchdog wrapped all five
-suites and reported its own timings:
+`integration-emulator` never runs on a PR, so a change to it is proven by
+`gh workflow run ci.yml --ref …` or not at all. Three runs, and **the spread is
+the finding**:
 
-| suite | actual | bound | headroom | at S024's +55% runner |
-|---|---|---|---|---|
-| `auth` | 540s | 960s | 1.78× | 837s ✓ |
-| `daily_question` | 113s | 360s | 3.19× | 175s ✓ |
-| `pairing` | 104s | 360s | 3.46× | 161s ✓ |
-| `profile` | 97s | 360s | 3.71× | 150s ✓ |
-| `startup_timing` | 90s | 360s | 4.00× | 140s ✓ |
+| run | `auth` | others |
+|---|---|---|
+| `32062696199` (healthy, pre-watchdog) | 513s | 122–188s |
+| `32067814813` (dispatch) | 540s | 90–113s |
+| `32071907287` (dispatch, after the review fixes) | **640s** | **189–203s** |
 
-The last column is the check that matters: S024's blow-out was a runner that ran
-the same work **~55% longer**, and every bound still holds at that speed. A bound
-that only fits a healthy runner would have converted the *first* failure mode
-into a false positive while fixing the second.
+The first bound — 960s — was sized against the 540s run and looked comfortable
+at 1.78×. **Against the worst observed run it fails the check that matters:**
+640 × 1.55 = **992s > 960s**, so a runner as slow as S024's would have been
+reported as *wedged* while working correctly. The bound is now **1080s** (and
+the later suites' 360s holds: 203 × 1.55 = 315s).
+
+**This is the ADR's own trap, sprung on the ADR.** The +55% column was added
+precisely because a bound that only fits a healthy runner converts S024's failure
+mode into a false positive — and then the number was sized against a single
+favourable run anyway. It was caught only by re-measuring the third dispatch
+instead of reusing the figure already written down. *Worst observed, not median,
+and re-derive it every time a new run exists.*
+
+Worst case is now 18 + 4×6 = 42 min + 4 setup = **46 min**, inside the unchanged
+50-minute ceiling with 4 minutes of slack.
 
 ⚠️ **This arithmetic is the design, so a self-test asserts it** — that the sum of
 the configured bounds plus a setup allowance fits inside the job timeout. If it

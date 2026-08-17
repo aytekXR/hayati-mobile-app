@@ -3557,13 +3557,13 @@ The watchdog only works if it can fire **before** the ceiling cancels the job. I
 
 `gh workflow run ci.yml --ref …` (run `32067814813`) — the watchdog wrapped all five suites, emitted 35 heartbeats, and reported its own timings. The column that matters is the last one, because S024's blow-out was the *other* failure mode:
 
-| suite | actual | bound | at S024's +55% runner |
-|---|---|---|---|
-| `auth` | 540s | 960s | 837s ✓ |
-| `daily_question` | 113s | 360s | 175s ✓ |
-| others | ≤104s | 360s | ≤161s ✓ |
+| run | `auth` | others |
+|---|---|---|
+| `32062696199` (healthy) | 513s | 122–188s |
+| `32067814813` (dispatch) | 540s | 90–113s |
+| `32071907287` (dispatch, post-review) | **640s** | **189–203s** |
 
-A bound that only fit a healthy runner would have turned the first failure mode into a false positive while fixing the second.
+A bound that only fit a healthy runner would have turned the first failure mode into a false positive while fixing the second — **and the first sizing did exactly that.** 960s was chosen against the 540s run and looked like 1.78× headroom; against the worst observed run, 640 × 1.55 = **992s > 960s**. Raised to **1080s**, caught only by re-measuring the third dispatch instead of reusing the number already written down. The ADR's own trap, sprung on the ADR.
 
 ### A real main-red arrived mid-session, and produced the second half of the slice
 
