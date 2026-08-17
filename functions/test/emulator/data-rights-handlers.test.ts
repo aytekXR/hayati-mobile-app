@@ -105,13 +105,13 @@ describe('exportData handler', () => {
     expect((await db.collection('users').doc(UID).get()).exists).toBe(false);
   });
 
-  it('returns a formatVersion-2 envelope for a live profile', async () => {
+  it('returns a formatVersion-3 envelope for a live profile', async () => {
     await seedProfile(UID);
     const handler = makeExportDataHandler({
       authLookup: async () => ({ displayName: 'Aytek', email: 'a@x.com', photoURL: null }),
     });
     const doc = await handler(req(UID, {}));
-    expect(doc.formatVersion).toBe(2);
+    expect(doc.formatVersion).toBe(3); // ADR-054, the device lane
     expect(doc.uid).toBe(UID);
     expect(doc.data.profile.displayName).toBe('Aytek');
   });

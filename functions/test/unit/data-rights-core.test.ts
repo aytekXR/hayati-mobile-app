@@ -119,28 +119,111 @@ describe('projectProfile', () => {
     });
   });
 
-  // ADR-049 D7. The export lane is a WHITELIST, and it already omitted fcmTokens
-  // long before this field existed — device-registration technical state has
-  // never been exported. So pushDiagnostic stays out too, for consistency rather
-  // than for a reason anyone has argued on the merits.
+  // ADR-054 (issue #227), REPLACING the ADR-049 D7 assertion that stood here.
   //
-  // This test exists so that omission is a DECISION rather than a property of
-  // whichever fields someone remembered to list: it goes red the moment a future
-  // change starts exporting either field, which is the moment the question in
-  // issue #227 has to be answered rather than inherited.
-  it('does NOT export device-registration state — neither fcmTokens nor pushDiagnostic (#227)', () => {
+  // The test that was here asserted that NEITHER field is exported, and its own
+  // comment said it existed so the omission "goes red the moment a future change
+  // starts exporting either field, which is the moment the question in issue
+  // #227 has to be answered rather than inherited." It did exactly that. It is
+  // rewritten rather than deleted, because one half of it still holds and is the
+  // only assertion in this file guarding a credential.
+  //
+  // WHAT CHANGED AND WHY. Deletion sweeps users/{A} in full, so both fields are
+  // destroyed on an Art. 17 request — the system was deleting data it would not
+  // show you. The two fields are now treated DIFFERENTLY, on the merits:
+  // pushDiagnostic is carried verbatim (no credential; closed enumerations; a
+  // statement about the subject they never saw us record), while fcmTokens
+  // yields only a COUNT, because a registration token is a live credential that
+  // addresses a phone and this export is delivered by Clipboard.setData.
+  it('exports the device lane: the diagnostic in full, the tokens as a COUNT (#227)', () => {
     const profile = projectProfile(
       {
         status: 'married',
-        fcmTokens: ['alice-phone-token'],
-        pushDiagnostic: { state: 'denied', detail: 'permissionRequestRefused', at: { toMillis: () => 9 } },
+        fcmTokens: ['alice-phone-token', 'alice-tablet-token'],
+        pushDiagnostic: {
+          state: 'denied',
+          detail: 'permissionRequestRefused',
+          at: { toMillis: () => 9 },
+        },
       },
       null,
     );
-    expect(Object.keys(profile)).not.toContain('fcmTokens');
-    expect(Object.keys(profile)).not.toContain('pushDiagnostic');
-    expect(JSON.stringify(profile)).not.toContain('alice-phone-token');
-    expect(JSON.stringify(profile)).not.toContain('permissionRequestRefused');
+
+    expect(profile.device).toEqual({
+      registeredDeviceCount: 2,
+      pushDiagnostic: { state: 'denied', detail: 'permissionRequestRefused', atMs: 9 },
+    });
+  });
+
+  // ⚠️ THE ANTI-LEAK SENTINEL, kept from the assertion this replaced and
+  // WIDENED. It serializes the whole profile rather than inspecting the device
+  // lane, so a future change that carries a token somewhere else in this object
+  // reddens here too. The failure this guards is not hypothetical: the raw
+  // string would land on the system pasteboard, and on Apple be relayed to the
+  // subject's other devices by Universal Clipboard.
+  it('NEVER carries a raw registration token, anywhere in the projection (#227)', () => {
+    const profile = projectProfile(
+      {
+        status: 'married',
+        fcmTokens: ['alice-phone-token', 'alice-tablet-token'],
+        pushDiagnostic: { state: 'registered', at: { toMillis: () => 9 } },
+      },
+      null,
+    );
+
+    const serialized = JSON.stringify(profile);
+    expect(serialized).not.toContain('alice-phone-token');
+    expect(serialized).not.toContain('alice-tablet-token');
+    // The count must still be right — a redaction that also lost the fact would
+    // pass the line above while answering the subject's question with nothing.
+    expect(profile.device?.registeredDeviceCount).toBe(2);
+  });
+
+  it('omits the device lane entirely when the account has neither field (#227)', () => {
+    // Not `{registeredDeviceCount: 0}`: an account that has never opened the app
+    // on a device should not acquire a lane asserting a count about it.
+    const profile = projectProfile({ status: 'dating' }, null);
+    expect(profile.device).toBeUndefined();
+  });
+
+  it('reports a count with no diagnostic, and a diagnostic with no count (#227)', () => {
+    const tokensOnly = projectProfile({ fcmTokens: ['t1'] }, null);
+    expect(tokensOnly.device).toEqual({ registeredDeviceCount: 1 });
+
+    // The pre-ADR-049 fleet: a device that reported but never registered. A lane
+    // keyed on fcmTokens alone would drop this, which is the ONE case the
+    // diagnostic exists to describe.
+    const diagnosticOnly = projectProfile(
+      { pushDiagnostic: { state: 'notDetermined', at: { toMillis: () => 5 } } },
+      null,
+    );
+    expect(diagnosticOnly.device).toEqual({
+      registeredDeviceCount: 0,
+      pushDiagnostic: { state: 'notDetermined', atMs: 5 },
+    });
+  });
+
+  it('is defensive about malformed device state rather than throwing (#227)', () => {
+    // fcmTokens is server-owned (ADR-042), but this projector runs over whatever
+    // the document actually holds. Matches recipients.fcmTokensOf, the reader the
+    // send path already uses: junk collapses to "nothing", never to an exception
+    // inside a data-rights request.
+    expect(projectProfile({ fcmTokens: 'not-an-array' }, null).device).toBeUndefined();
+    expect(projectProfile({ fcmTokens: [42, '', null] }, null).device).toBeUndefined();
+    expect(projectProfile({ fcmTokens: [42, 'real'] }, null).device).toEqual({
+      registeredDeviceCount: 1,
+    });
+    // A diagnostic with no readable state says nothing true about the subject,
+    // so it is omitted rather than exported as a null-shaped record.
+    expect(projectProfile({ pushDiagnostic: { at: { toMillis: () => 1 } } }, null).device)
+      .toBeUndefined();
+    expect(projectProfile({ pushDiagnostic: 'denied' }, null).device).toBeUndefined();
+    // A diagnostic whose timestamp is unreadable still carries its state: WHAT
+    // the device said is the answer to the subject's question; WHEN is context.
+    expect(projectProfile({ pushDiagnostic: { state: 'denied' } }, null).device).toEqual({
+      registeredDeviceCount: 0,
+      pushDiagnostic: { state: 'denied', atMs: null },
+    });
   });
 
   it('omits notificationPrivacy when absent and nulls a missing Auth record', () => {
@@ -307,7 +390,14 @@ describe('projectInvite (counterpart uid scrubbed)', () => {
 describe('projectDailyLane / constants', () => {
   it('projects the daily lane and exposes the format version + note', () => {
     expect(projectDailyLane({ dayKey: '20260712', count: 4 })).toEqual({ dayKey: '20260712', count: 4 });
-    expect(FORMAT_VERSION).toBe(2);
+    // v3 as of ADR-054: the optional device lane. Bumped deliberately, on the
+    // constant's own documented rule ("a shape change bumps this"), and this
+    // assertion is what made the bump a decision rather than a thing that
+    // happened — it went red the moment the lane was added.
+    expect(FORMAT_VERSION).toBe(3);
+    // UNCHANGED, and the two must not be confused: the legal-bundle version
+    // gates CONSENT and re-prompts every user when it moves (ADR-023). Nothing
+    // in ADR-054 touches it — see #226, which is the change that would.
     expect(CURRENT_LEGAL_VERSION).toBe(2);
     expect(EXPORT_QUESTION_NOTE).toContain('questionId');
   });

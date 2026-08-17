@@ -6,12 +6,21 @@
 // notification-privacy-service) drive the Firestore work and call these; this
 // module owns WHAT the rules are: exactly what leaves in an export, and exactly
 // what a deletion event may (never) log.
+//
+// ⚠️ THE ONE IMPORT, and why it does not break the no-I/O contract above:
+// `recipients.ts` is itself a pure module of defensive readers over plain values
+// (its only import is a `type`). So this stays exhaustively unit-testable
+// without the emulator, and the export cannot drift from the send path's own
+// definition of what counts as a registered device.
+import { fcmTokensOf } from '../notifications/recipients';
 
 /**
  * The export document version (Decision 5). A shape change bumps this.
  * v2: added the optional profile consent lane (ADR-023).
+ * v3: added the optional profile device lane (ADR-054) — registered device
+ *     COUNT and the push diagnostic, never the registration tokens themselves.
  */
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 /**
  * The current legal-bundle version the server stamps onto a granted consent
@@ -215,6 +224,40 @@ export interface ExportConsent {
   ageAttested: boolean;
 }
 
+/**
+ * The subject's DEVICE-REGISTRATION state (ADR-054, issue #227), carried iff
+ * `users/{uid}` holds either source field.
+ *
+ * ⚠️ THE RAW `fcmTokens` STRINGS ARE NEVER CARRIED HERE, and that is the whole
+ * decision rather than an omission. An FCM registration token is a **live
+ * credential that addresses a phone**, and this export's delivery mechanism is
+ * the system clipboard — `export_screen.dart` is a single `Clipboard.setData`
+ * of the pretty-printed JSON. A raw token would land on the general pasteboard,
+ * readable by other apps and, on Apple, relayed to the subject's other devices
+ * by Universal Clipboard. The subject would not have to forward it for it to
+ * leave the device, and there is nothing they could do with it if they had it.
+ *
+ * [registeredDeviceCount] is what `fcmTokens` can honestly yield: it is a bare
+ * `string[]` with no per-token metadata, so there is no "last registered at" to
+ * offer without writing a new field to carry one.
+ *
+ * [pushDiagnostic] IS carried in full, and the difference is deliberate. It
+ * holds no credential — `state` and `detail` are closed enumerations pinned in
+ * `firestore.rules` — and it is a statement *about* the subject that the app
+ * recorded without them ever seeing it, which is the paradigm case for a
+ * subject-access request.
+ */
+export interface ExportDevice {
+  registeredDeviceCount: number;
+  pushDiagnostic?: ExportPushDiagnostic;
+}
+
+export interface ExportPushDiagnostic {
+  state: string;
+  detail?: string;
+  atMs: number | null;
+}
+
 export interface ExportProfile {
   status: string | null;
   contentLanguage: string | null;
@@ -222,6 +265,7 @@ export interface ExportProfile {
   createdAtMs: number | null;
   notificationPrivacy?: string;
   consent?: ExportConsent;
+  device?: ExportDevice;
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
@@ -343,8 +387,59 @@ function projectConsent(raw: unknown): ExportConsent | undefined {
 }
 
 /**
+ * The device lane (ADR-054). Returns undefined when the subject has neither
+ * source field, so an account that has never run the app on a device does not
+ * acquire an empty lane claiming a count of zero.
+ *
+ * Defensive in the shape the rest of this file is: a malformed `fcmTokens` — a
+ * string, a number, an object — yields 0 rather than throwing, because it reads
+ * through `recipients.fcmTokensOf`, the reader the send path itself uses.
+ */
+function projectDevice(userData: Record<string, unknown>): ExportDevice | undefined {
+  // `fcmTokensOf`, NOT a local filter. "How many devices are registered" must
+  // have ONE definition, and the send path already owns it: a token this export
+  // counted but `sweep-push` would not send to — or the reverse — is a number
+  // that answers the subject's question wrongly. ADR-052's lesson applied to a
+  // predicate rather than a decoration; the defect is never that two copies
+  // disagree today, it is that a later change teaches one and not the other.
+  const count = fcmTokensOf(userData).length;
+  const diagnostic = projectPushDiagnostic(userData.pushDiagnostic);
+  if (count === 0 && diagnostic === undefined) {
+    return undefined;
+  }
+  const device: ExportDevice = { registeredDeviceCount: count };
+  if (diagnostic !== undefined) {
+    device.pushDiagnostic = diagnostic;
+  }
+  return device;
+}
+
+/**
+ * The device's own report (ADR-049), projected verbatim but shape-checked. A
+ * diagnostic with no readable `state` is not exported at all rather than
+ * exported as null: the field is client-written, and a half-formed record says
+ * nothing true about the subject.
+ */
+function projectPushDiagnostic(raw: unknown): ExportPushDiagnostic | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  if (typeof raw.state !== 'string' || raw.state.length === 0) {
+    return undefined;
+  }
+  const diagnostic: ExportPushDiagnostic = {
+    state: raw.state,
+    atMs: toMillis(raw.at),
+  };
+  if (typeof raw.detail === 'string' && raw.detail.length > 0) {
+    diagnostic.detail = raw.detail;
+  }
+  return diagnostic;
+}
+
+/**
  * users/{A} client fields + the Auth record + notificationPrivacy if set +
- * the consent lane if set (ADR-023 D4).
+ * the consent lane if set (ADR-023 D4) + the device lane if any (ADR-054).
  */
 export function projectProfile(
   userData: Record<string, unknown>,
@@ -365,6 +460,10 @@ export function projectProfile(
   const consent = projectConsent(userData.consent);
   if (consent !== undefined) {
     profile.consent = consent;
+  }
+  const device = projectDevice(userData);
+  if (device !== undefined) {
+    profile.device = device;
   }
   return profile;
 }
