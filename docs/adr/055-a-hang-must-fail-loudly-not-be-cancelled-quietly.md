@@ -176,6 +176,38 @@ real and is the largest single lever. It is deliberately out of scope:
 Recorded here so the next session picks it up with the number in hand rather than
 re-deriving it.
 
+## What the design review found — two defects in the watchdog itself
+
+Both were in the mechanism, not the design, and both are the shape this repo
+names failure **5**: a guard strict in one direction and silent in another.
+
+**1. A passing suite could be reported as wedged (blocker).** `kill -0` was
+tested at the top of the loop, which then slept a second — so a child that
+finished *during* that sleep, at an elapsed time that also crossed the bound,
+fell into the timeout branch. Measured: a command running 1.9s under a 2s bound
+and exiting **42** returned **124**, three times out of three. A watchdog that
+calls a passing suite wedged reddens `main` for no reason and teaches everyone
+to distrust it — strictly worse than not having one. Fixed by re-checking the
+child before declaring a timeout, and pinned by a test that asserts **both**
+halves at the same bound: a near-boundary completion keeps its own status, and a
+genuine hang at that same bound is still 124. Asserting only the first would
+have been satisfied by simply disabling the timeout.
+
+**2. `WATCHDOG_HEARTBEAT_SECONDS=0` span forever (major).** The timeout argument
+was validated; the heartbeat interval, read from the environment, was not. The
+next-beat loop advances by that value, so `0` never passes `elapsed`. The
+resulting job hangs until `timeout-minutes` **cancels** it — *the exact outcome
+this ADR exists to prevent, produced by the tool meant to prevent it.* Now
+validated identically to the timeout, with `0`, `abc` and `-5` rejected. An
+**empty** value is deliberately not an error and is asserted separately: `${VAR:-30}`
+treats empty as unset, so `WATCHDOG_HEARTBEAT_SECONDS=` means "use the default",
+which is the opposite of a `0` the caller actively chose.
+
+Worth recording because neither was reachable by reading the script, and neither
+would have been caught by the suite as first written — the first draft's wedge
+test used a bound far below the child's runtime, so it never approached the
+boundary at all.
+
 ## Consequences
 
 **What this buys.** A hang costs at most ~16 min instead of 50, ends as

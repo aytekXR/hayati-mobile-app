@@ -157,6 +157,65 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 5b. THE BOUNDARY RACE, found by the ADR-055 design review.
+#
+# `kill -0` is tested at the top of the loop and then the loop sleeps a second,
+# so a child that finished DURING that sleep — at an elapsed time that also
+# crosses the bound — was reported as WEDGED. Measured before the fix: a command
+# running 1.9s under a 2s bound and exiting 42 returned 124, three times out of
+# three. A watchdog that calls a PASSING suite wedged reddens main for no reason
+# and teaches everyone to distrust it, which is worse than not having one.
+# ---------------------------------------------------------------------------
+run 2 boundary-suite bash -c 'sleep 1.9; echo done; exit 42'
+if [ "$CODE" -ne 42 ]; then
+  bad "boundary: a child finishing just under the bound keeps ITS status" "want 42, got $CODE"
+else
+  ok "boundary: a child finishing just under the bound keeps its status (42, not 124)"
+fi
+# ...and the wedge must still be caught, or the fix has simply disabled the
+# timeout. Asserted right here so the two can never drift apart.
+run 2 boundary-wedge bash -c 'echo starting; sleep 300'
+if [ "$CODE" -ne 124 ]; then
+  bad "boundary: a genuine hang at the same bound is STILL 124" "got $CODE"
+else
+  ok "boundary: a genuine hang at the same bound is still 124"
+fi
+
+# ---------------------------------------------------------------------------
+# 5c. The heartbeat interval is VALIDATED, like the timeout argument.
+#
+# Also from the review. The next-beat loop advances by this value, so 0 never
+# passes `elapsed` and the watchdog spins forever — a job that hangs until
+# `timeout-minutes` CANCELS it, i.e. exactly the outcome ADR-055 exists to
+# prevent, produced by the tool meant to prevent it. Failure shape 5: a guard
+# strict about one input and silent about another.
+# ---------------------------------------------------------------------------
+for hb in 0 abc -5; do
+  OUT="$TMP/out"
+  WATCHDOG_HEARTBEAT_SECONDS="$hb" timeout 8 bash "$SCRIPT" 10 hb-suite bash -c 'sleep 1' >"$OUT" 2>&1
+  CODE=$?
+  if [ "$CODE" -ne 2 ]; then
+    bad "heartbeat: WATCHDOG_HEARTBEAT_SECONDS='$hb' is rejected with 2" "got $CODE"
+  else
+    ok "heartbeat: WATCHDOG_HEARTBEAT_SECONDS='$hb' is rejected with 2"
+  fi
+done
+
+# EMPTY is NOT an error, and this asserts the distinction rather than leaving it
+# to whichever behaviour the parameter expansion happened to give. `${VAR:-30}`
+# treats empty exactly like unset, so `WATCHDOG_HEARTBEAT_SECONDS=` in a
+# workflow means "use the default" — benign, and the opposite of `0`, which is
+# a value the caller actively chose and which would spin forever.
+OUT="$TMP/out"
+WATCHDOG_HEARTBEAT_SECONDS="" timeout 8 bash "$SCRIPT" 10 hb-empty bash -c 'sleep 1' >"$OUT" 2>&1
+CODE=$?
+if [ "$CODE" -ne 0 ]; then
+  bad "heartbeat: an EMPTY value falls back to the default, it is not an error" "got $CODE"
+else
+  ok "heartbeat: an empty value falls back to the default (unset, not zero)"
+fi
+
+# ---------------------------------------------------------------------------
 # 6. ⚠️ THE ARITHMETIC GUARD (ADR-055 D2).
 #
 #    The watchdog can only convert `cancelled` into `failure` if its bounds fire

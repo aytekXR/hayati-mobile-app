@@ -31,6 +31,23 @@ set -uo pipefail
 
 HEARTBEAT_SECONDS="${WATCHDOG_HEARTBEAT_SECONDS:-30}"
 
+# VALIDATED, because the timeout argument is. An unvalidated 0 here is not a
+# cosmetic hole: the next-beat loop below advances by this value, so 0 never
+# passes `elapsed` and the watchdog spins forever — producing a job that hangs
+# until `timeout-minutes` CANCELS it, which is precisely the outcome this script
+# exists to prevent. A guard that is strict about one input and silent about
+# another is this repo's failure shape 5; found by the ADR-055 design review.
+case "$HEARTBEAT_SECONDS" in
+  '' | *[!0-9]*)
+    echo "watchdog: WATCHDOG_HEARTBEAT_SECONDS must be whole seconds, got '$HEARTBEAT_SECONDS'" >&2
+    exit 2
+    ;;
+esac
+if [ "$HEARTBEAT_SECONDS" -le 0 ]; then
+  echo "watchdog: WATCHDOG_HEARTBEAT_SECONDS must be > 0, got '$HEARTBEAT_SECONDS'" >&2
+  exit 2
+fi
+
 if [ "$#" -lt 3 ]; then
   echo "usage: $0 <timeout-seconds> <label> <command> [args...]" >&2
   exit 2
@@ -96,6 +113,17 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
   if [ "$size" != "$last_size" ]; then
     last_size="$size"
     last_change="$now"
+  fi
+
+  # ⚠️ RE-CHECK THE CHILD BEFORE DECLARING A TIMEOUT. `kill -0` is tested at the
+  # top of the loop, then we sleep a second — so a child that finished DURING
+  # that sleep, at an elapsed time that also crosses the bound, would otherwise
+  # be reported as wedged. Measured before this line existed: a command that ran
+  # 1.9s under a 2s bound and exited 42 was reported as 124, three times out of
+  # three. A watchdog that calls a PASSING suite wedged reddens main for no
+  # reason and teaches everyone to distrust it. Found by the ADR-055 review.
+  if ! kill -0 "$cmd_pid" 2>/dev/null; then
+    break
   fi
 
   if [ "$timeout_s" -gt 0 ] && [ "$elapsed" -ge "$timeout_s" ]; then
