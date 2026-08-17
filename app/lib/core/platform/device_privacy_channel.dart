@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 
 /// The app's FIRST (and only) platform channel — ONE channel for the whole
 /// device-privacy layer (ADR-018 Decision 6): one native registration site, one
-/// seam discipline. It carries the four native methods this layer needs:
+/// seam discipline. It carries the five native methods this layer needs:
 ///
 /// * `supportsAlternateIcons` → `bool`
 /// * `getAlternateIconName` → `String?` (null = the primary icon)
