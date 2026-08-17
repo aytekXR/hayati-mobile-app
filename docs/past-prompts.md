@@ -3033,7 +3033,9 @@ cascade review; Crashlytics was considered and rejected (no read API).
 
 **Commits:** `2fedbfb` (ADR, before code) → `4abd2a1` (design review folded in) → `0e328eb` (lane + tool) → `481de56` (docs) → `b8958ae` (built-diff review fixes) → close.
 
-**CI:** see the close commit.
+**CI:** **green.** PR run `31980611322` — `quality`, `functions-rules`, `ios-build-smoke` all **success**; `rules-drift`/`functions-drift` **skipped** (main-only + no credential). Post-merge `main` run `31981208487` — **all green including `integration-emulator`**, the main-only job a PR never exercises, and both drift **preflights** ran and correctly gated their jobs to skipped. Merged as `56e4399` (PR #224).
+
+> Two earlier runs on the branch were **cancelled by my own subsequent pushes**, and one of them took `ios-build-smoke` with it — the hazard that lets a macOS gate read as covered while never having compiled anything. The per-job conclusions above are quoted from the FINAL run for exactly that reason.
 
 ### Measured first, and TWO inherited facts were stale
 
