@@ -5,7 +5,7 @@
 - **Deciders:** session agent (no operator dependency; CI-only change, no runtime code)
 - **Related:** **ADR-024 D2** (the Slack notifier's outcome policy — this ADR does *not* overturn it), **ADR-029 D6** / issue **#100** (why this job is main-only), issue **#208**, issue **#15** (the quarantined suite)
 
-> Written and committed **before** the implementation, per `session-rules` §5.1.
+> Written and committed **before** the implementation, per `session-context.md` §5.1.
 
 ## Context — the failure, and the compensation that was pointing the wrong way
 

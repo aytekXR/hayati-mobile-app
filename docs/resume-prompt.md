@@ -4,7 +4,7 @@
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **114**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **115**) first.
 > Re-derive the session number from `git log`.
 
 **Objective: #129 (with #121) — the release lane's `bundle install` comment is
@@ -137,7 +137,13 @@ Append to `past-prompts.md` → regenerate this file (one objective) → refresh
 `operator-expected.md` → commit + push → verify CI → **watch the post-merge `main` run**
 (`integration-emulator` is main-only) → `codegraph sync`.
 
-> ⚠️ **WRITE THE ADR FIRST** (§5.1, lesson **111**). S076 inverted it and paid
+> ⚠️ **THE REVIEW RUNS TWICE** — *"once on the design, once on the built diff"*
+> (`session-context.md` §5, item 3). S076, S077 and S078 each ran **one**, on the
+> built diff, while quoting the section by number. Read the whole clause before
+> citing it (lesson **115**): the parts you are not quoting are the parts you
+> have stopped doing.
+
+> ⚠️ **WRITE THE ADR FIRST** (`session-context.md` §5.1, lesson **111**). S076 inverted it and paid
 > three claims for it, including a figure — *"62,408"* — that corresponded to
 > nothing measurable and had reached three files. S077 did it in the right order.
 > An ADR written first must state its numbers while nothing green is lending

@@ -38,6 +38,26 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**115 — A rule cited by number is a claim. Open it.** *(S079, found auditing S076-S078)*
+Three ADRs, several commit messages, a numbered lesson and the handoff all said
+*"`session-rules` §5.1 requires the ADR before the code."* **`session-rules.md`
+has five sections and §5 is "Timebox".** There is no §5.1 in it and no ADR rule
+anywhere in the file. The discipline is real — it is `session-context.md` §5
+*Review discipline*, item 1 — and **ADR-048 already cited it correctly**, so the
+right reference was sitting in the repo while three consecutive sessions copied
+the wrong one from each other. Nothing catches this: the rule exists, the
+practice was followed, every sentence reads as verified, and the only thing wrong
+is the address — which is exactly what a later session follows when it goes
+looking for the authority.
+
+**Opening it cost one grep and immediately found a second thing.** §5 item **3**
+requires *"Run the review twice: once on the design, once on the built diff."*
+S076, S077 and S078 each ran **one** review, on the built diff. Three sessions
+were half-following a procedure they were quoting by number. **Cite a rule only
+after re-reading it in the session you cite it in** — and read the whole clause,
+not the sentence you were looking for, because the parts you are not quoting are
+the parts you have stopped doing.
+
 **114 — A compensating control can be silent for exactly the failure it exists to catch.** *(S078, ADR-055)*
 `integration-emulator` is main-only, and its own comment says so while naming the
 thing that makes that safe: *"the compensation for its post-merge-only verdict
