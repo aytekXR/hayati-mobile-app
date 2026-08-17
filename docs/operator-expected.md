@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-17** (Session 075)._
+_Last refreshed: **2026-08-17** (Session 076)._
 
 > ### ✅ RESOLVED — billing is back, and your question is arriving again
 >
@@ -1276,7 +1276,7 @@ these.
 | ~~**#166**~~ | ✅ **Closed 2026-08-09.** It asked whether the deployed function code can be compared to `main` *at all* — and it can, exactly. The check exists now. This is the gap that cost you the notification feature at S063. |
 | ~~**#206**~~ | **CLOSED 2026-08-17 (ADR-048).** `deploy-functions.yml` exists, so no deploy target is a typed command any more. It is **unarmed** until item 2(e)(iii)'s secret — whose role list grew in the same change. Production re-measured **clean** while building it, which withdrew the drift warning that used to sit in 2(e)(iv). |
 | **#165** | `rules-drift` is built but unarmed — that is item 2(e)(iv) above, which now arms **two** checks. |
-| **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
+| ~~**#137**~~ | **CLOSED 2026-08-17 (ADR-053).** The seam classifies characters against generated Unicode tables now, so it is right by construction rather than by luck. **Nothing was ever wrong for you or the founder's testers** — Turkish and Gulf Arabic always sat inside the covered ranges. Re-measuring it found the filed defect was *understated*: five blocks rather than one, plus a second, separate bug where every astral RTL script and every emoji read as left-to-right. No operator action, then or now. |
 | **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app applies on screen. Latent today — **it stops being latent the moment 4(a) lands and pushes start arriving.** |
 | **#129** | The release lane's `Gemfile.lock` comment is false, the lane installs unfrozen, and no release run has touched the committed lock. |
 | **#121** | Confirm a likely-dead App Store Connect key step in the release lane. Its old blocker (2(d)) is dead; pair it with #129. |
