@@ -3276,3 +3276,45 @@ healthy runs do not disprove an intermittent hang.
 **Notes / debt logged:** none new. No operator dependency added or removed.
 
 **Next objective written to resume-prompt.md:** #222 — the handoff documents' 10 verified stale claims, two of which S071 already served in passing.
+
+## Session 073 — 2026-08-17 — #222: the stale handoff claims, re-measured rather than rewritten
+
+**Objective (from resume-prompt.md):** #222 — the handoff documents carry 10 verified stale claims, two of which S071 already served in passing. Re-measure each before rewriting it; where the operator page contradicts itself, find which side is true rather than splitting the difference.
+
+**Outcome:** done, and the discipline paid twice.
+
+### Every number in the diff came from a command run this session
+
+| claim | measured by | result |
+|---|---|---|
+| `slack_notify_test.sh` = 14 cases | running it | **23 passed** — stale, fixed |
+| `device_privacy` sentinel guards "all four method names" | reading the parity test's list | **five** — stale, fixed |
+| `npm_audit_delta_test.py` = 14 cases | `grep -c '^def test_'` | **exactly 14** — correct, left alone |
+| `fcmTokens` "NOTHING writes it yet" | grep | already corrected at S071 |
+| operator "16:00 pushes" | ADR-045 + seven other lines in the same file | **22:00** — stale, fixed |
+| operator Settings present tense | reading both instances | already future-tense since S071 |
+| operator last-refreshed header | reading it | stamped at S071 and S072 |
+
+### Two findings the issue did not contain
+
+**The source carried the same stale count as the docs.** `device_privacy_channel.dart:5` says *"the four native methods this layer needs"* and then lists **five** bullets — the fifth being ADR-046 D4's `openNotificationSettings`. #222 listed only the `test-suite.md` prose. Re-measuring instead of trusting the list is what found it, and it is the more important of the two: prose about a test is read by a session, a doc comment on the channel is read by whoever adds the sixth method.
+
+**The stale-claims issue carries a stale claim.** It files `architecture.md` as repeating the slack script's 14-case count. It does not — architecture.md's 14 belongs to `npm_audit_delta_test.py`, which has **exactly 14 `def test_` functions**. "Fixing" it would have introduced the very defect the issue exists to remove. That is not irony; it is the expected behaviour of any audit read later than it was written, and it is the argument for re-measuring rather than executing a list.
+
+### And the session made the same mistake once, in-flight
+
+The first draft of the `session-context.md` §8 addition invented a `store-metadata-audit.yml` workflow. **There is no such workflow** — the audit rides `testflight-testers.yml -f store_metadata_audit=true` (ADR-047). It was caught by checking the command before committing, which is the entire content of this session's discipline: a stale claim replaced by a freshly-invented one is the same defect with a newer date, and the second is harder to spot because it is new.
+
+### What the operator page now says
+
+The contradiction is corrected **in place with the old text quoted**, not silently overwritten. It read *"The daily-question and **16:00** pushes you asked for are the next session's work"* — wrong twice, and the boxquote immediately above it already said those pushes were built, deployed and running. The founder was being handed two false premises in one sentence, on the page they read *instead of* the session log.
+
+**Commits:** `e2a4616` — PR **#232**.
+**CI:** green (PR + post-merge `main`).
+**Docs touched:** `test-suite.md`, `session-context.md`, `operator-expected.md`, `app/lib/core/platform/device_privacy_channel.dart`, `resume-prompt.md`, `past-prompts.md`.
+
+**Verification:** `flutter analyze` clean, `dart format` clean, and the `device_privacy_channel_parity_test` re-run green after the source comment change (4 tests). No behavioural code changed — the one source edit is a doc comment whose count was wrong.
+
+**Notes / debt logged:** none new. **#222 is closed**, with the record noting that one of its ten items was itself incorrect and two were already served by S071.
+
+**Next objective written to resume-prompt.md:** #174 — the reveal is felt and seen but never announced; there is no `liveRegion` anywhere in `lib/`.

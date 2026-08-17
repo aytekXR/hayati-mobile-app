@@ -235,6 +235,23 @@ curl -so /dev/null -w '%{http_code}\n' https://ikimiz.web.app/i/9U4VUVRV
 
 # Prod runtime
 firebase functions:list --project hayatiapp-prod
+
+# Is the daily loop actually RUNNING? (not "is it deployed" — keyed on the
+# sweep's own `sweep complete` record, so a punctual scheduler over a dead
+# backend reads RED.) Exit 0/1/2. This is the instrument #219 was missing.
+python3 tool/ci/prod_pulse.py --from-firebase-cli
+
+# Has any device EVER registered a push token — and, since ADR-049, what does
+# each phone say about itself? `--uid <uid>` narrows the report to one account
+# (read directly, so pagination cannot manufacture an absence).
+python3 tool/ci/push_delivery_probe.py --from-firebase-cli
+
+# Did the store listing actually PUBLISH? Positive evidence — the expected
+# locales come from fastlane/metadata and the TEXT is compared, so a locale
+# Apple silently dropped is a finding rather than a green (ADR-047, #204).
+# It rides testflight-testers.yml; there is no store-metadata workflow of its
+# own. Exit 0 published / 1 finding / 2 could not measure.
+gh workflow run testflight-testers.yml -f store_metadata_audit=true
 ```
 
 A transient `HTTP 503 … Policy checks are unavailable` from the rules API is **exit 2,

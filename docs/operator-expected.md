@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-17** (Session 072)._
+_Last refreshed: **2026-08-17** (Session 073)._
 
 > ### ✅ RESOLVED — billing is back, and your question is arriving again
 >
@@ -543,10 +543,29 @@ could edit that list, a modified app could put someone else's phone on it and st
 receiving their notifications. It is now locked in the security rules in both
 directions, and the lock is tested by trying to break it.
 
-**Two things are still missing, and neither is engineering.** The plugin and the
-entitlement (step 4 above) wait on your portal tick. The daily-question and
-16:00 pushes you asked for are the next session's work and are not blocked by
-anything.
+> ### ⚠️ This paragraph was wrong twice, and is corrected in place (S073, #222)
+>
+> It used to read: *"Two things are still missing… The daily-question and **16:00**
+> pushes you asked for are the next session's work and are not blocked by
+> anything."* Two errors in one sentence, and the box above this one already
+> contradicted both:
+>
+> * **the hour is 22:00, not 16:00.** ADR-045 set your two hours at **09:00** for
+>   the question and **22:00** for the unanswered nudge, and this same file says
+>   22:00 in seven other places. 16:00 was never the number you asked for.
+> * **those pushes are not "the next session's work" — they were built, deployed
+>   and have been running since 2026-08-11.** The box above says so.
+>
+> Both halves are the shape that costs this project the most: a plausible
+> sentence, left in a document that is read as instructions, contradicting the
+> paragraph above it. The corrected statement is below.
+
+**What is actually still missing is one thing, and it is not engineering.** The
+Push Notifications plugin and the entitlement (step 4 above) wait on your portal
+tick. **The daily-question 09:00 push and the 22:00 unanswered nudge are built,
+deployed and running** — they have composed a push for both of you every day
+since 2026-08-11. What has never happened is a *device* accepting one, which is
+the section above.
 
 ---
 
