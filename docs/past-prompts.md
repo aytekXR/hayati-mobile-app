@@ -3182,7 +3182,14 @@ tick to imply otherwise.
 — all on PR **#228**. (A hash is not quoted for the last one: it names the commit
 that contains this sentence, so any amend invalidates it. The branch is
 `feat/221-push-diagnostic-field`.)
-**CI:** green (PR + post-merge `main`, `integration-emulator` included).
+**CI:** green, **both runs watched to conclusion**. PR run `32014203739` — all
+jobs green including `ios-build-smoke`. Post-merge `main` run `32015354004` —
+green including **`integration-emulator`**, the main-only job (ADR-006), which
+took **31m37s** of its 50-minute budget (09:32:46→10:04:23Z). That number is
+recorded because **#208** is about this job burning the whole budget twice; it did
+not this time, which is data for that issue rather than a reason to close it.
+`functions-drift` and `rules-drift` were **SKIPPED by design** — one absent secret
+(operator 2(e)(iv)), and the preflights said so out loud.
 **Docs touched:** `docs/adr/049-*` (new), `architecture.md` §3, `test-suite.md`, `dpa-inventory.md`, `operator-expected.md`, `resume-prompt.md`, `session-lessons.md`, `past-prompts.md`.
 
 **Verification:** functions+rules **1097 tests** (was 1071), 54 files, coverage 97.45% (gate 80/85); app **1713 tests**, line coverage 87.53% (gate 68); `flutter analyze` clean; `dart format --set-exit-if-changed` clean. Rules tests were **RED before the rule existed** (10 failures, each "expected request to fail but it succeeded") and green after. The probe was exercised against **live production** read-only in all three modes: default (exit 1), `--uid` on a real account (exit 1, report narrowed), `--uid` on a non-existent account (**exit 2**, never a false "no diagnostic").
@@ -3190,6 +3197,21 @@ that contains this sentence, so any amend invalidates it. The branch is
 **Mutation checks — and one mutant SURVIVED.** Three rules mutants red, three parity mutants red, two of three client mutants red. The third — deleting the `unknown` guard in `_record` — left the suite **green**, because both sites that emit `unknown` already run with a null `_syncedUid`, so the uid check turns them away first. The test claimed to prove "never reports unknown" and actually proved "sign-out records nothing". It was renamed to what it measures, and both the code and the test now say plainly that the guard is a second line of defence this suite cannot falsify (lesson **108**). A separate near-miss: the first parity mutation run applied **nothing at all** — a `cd` inside the runner left the script editing a path that did not exist — and printed three reassuring greens (lesson **109**).
 
 **Notes / debt logged:** #226 (legal texts vs. what push actually does and what we store), #227 (the export whitelist and device-registration state). #222's stale-claims audit was partially served in passing — `architecture.md`'s false *"nothing writes `fcmTokens` yet"* and `dpa-inventory.md`'s twin of it were corrected because this diff touched those exact lines — but #222 stays **open** for the other eight.
+
+**Measured at close, not predicted:** `rules_drift.py --from-firebase-cli` now
+exits **1** for BOTH projects — prod and dev are each serving a ruleset that is
+not this ref, because this session changed `firestore.rules`. That is expected and
+harmless: the new predicate is purely additive, so the deployed ruleset simply
+validates nothing where the new one validates a shape. **Deploying it is a §7
+founder ask** and is written into the next resume prompt rather than assumed.
+
+⚠️ And the obvious wrong inference is worth killing in writing, because a later
+reader will make it: **this does NOT mean the field is inert until the rules
+deploy.** The old ruleset has no `pushDiagnostic` clause and the users update rule
+has no `hasOnly`, so a device's writes land either way — exactly as the deny-tests
+demonstrated when they all passed against the pre-ADR-049 ruleset. What the deploy
+adds is the *validation*: the guarantee that what a session reads there is a shape
+it can trust. Useful field, unenforced shape, until it lands.
 
 **The ceiling, stated first and not buried:** this reports nothing until a build ships. The last `release.yml` run is **2026-08-09, build 119**; ADR-046's Settings row and now ADR-049's field are both on nobody's phone. The probe says so in those words rather than letting a session read four silent accounts as a negative.
 
