@@ -105,8 +105,13 @@ async function seedFull(): Promise<void> {
   await db.collection('invites').doc(INVITE_A_CREATED).set({ creatorUid: A, status: 'pending', expiresAt: Timestamp.fromMillis(Date.now() + 60_000), createdAt: Timestamp.now() });
   await db.collection('invites').doc(INVITE_A_JOINED).set({ creatorUid: 'someone', joinerUid: A, status: 'joined', coupleId: 'old', joinedAt: Timestamp.now(), createdAt: Timestamp.now() });
   await db.collection('invites').doc(INVITE_B_CREATED).set({ creatorUid: B, status: 'pending', expiresAt: Timestamp.fromMillis(Date.now() + 60_000), createdAt: Timestamp.now() });
-  await userRef(A).set({ status: 'married', contentLanguage: 'tr', register: 'respectful', coupleId: CID, createdAt: Timestamp.now() });
-  await userRef(B).set({ status: 'married', contentLanguage: 'ar', register: 'respectful', coupleId: CID, createdAt: Timestamp.now() });
+  // pushDiagnostic (ADR-049) on BOTH members. It is inside users/{uid}, so it is
+  // claimed to ride the cascade for free — and "it rides for free" is exactly the
+  // class of claim this repo has been burned by, so it is seeded and asserted
+  // rather than assumed (ADR-049 D7). B's copy is the collateral check: the
+  // detach transaction WRITES to B's document, and must not disturb it.
+  await userRef(A).set({ status: 'married', contentLanguage: 'tr', register: 'respectful', coupleId: CID, createdAt: Timestamp.now(), pushDiagnostic: { state: 'denied', detail: 'permissionRequestRefused', at: Timestamp.now() } });
+  await userRef(B).set({ status: 'married', contentLanguage: 'ar', register: 'respectful', coupleId: CID, createdAt: Timestamp.now(), pushDiagnostic: { state: 'registered', at: Timestamp.now() } });
   await userRef(A).collection('soloAnswers').doc('20260701').set({ questionId: 'solo_tr_1', text: 'A solo', answeredAt: Timestamp.now() });
   await userRef(B).collection('soloAnswers').doc('20260701').set({ questionId: 'solo_tr_1', text: 'B solo', answeredAt: Timestamp.now() });
   await putAuthUser(A);
@@ -143,6 +148,13 @@ async function assertConverged(): Promise<void> {
   const coupleEnded = bSnap.get('coupleEnded') as { at?: unknown } | undefined;
   expect(coupleEnded).toBeDefined();
   expect(coupleEnded?.at).toBeDefined();
+  // ADR-049 D7, the cascade review, asserted at both ends: A's device report is
+  // gone because A's DOCUMENT is gone (the erasure needs no step of its own), and
+  // B's survives the very transaction that stamped coupleEnded onto B — the
+  // detach must take the couple, not the surviving partner's own device state.
+  expect(await exists(userRef(A))).toBe(false);
+  expect(bSnap.get('pushDiagnostic')).toBeDefined();
+  expect((bSnap.get('pushDiagnostic') as { state?: unknown }).state).toBe('registered');
   expect(await exists(userRef(B).collection('soloAnswers').doc('20260701'))).toBe(true);
   expect(await exists(db.collection('invites').doc(INVITE_B_CREATED))).toBe(true);
   expect(await authExists(B)).toBe(true);

@@ -119,6 +119,30 @@ describe('projectProfile', () => {
     });
   });
 
+  // ADR-049 D7. The export lane is a WHITELIST, and it already omitted fcmTokens
+  // long before this field existed — device-registration technical state has
+  // never been exported. So pushDiagnostic stays out too, for consistency rather
+  // than for a reason anyone has argued on the merits.
+  //
+  // This test exists so that omission is a DECISION rather than a property of
+  // whichever fields someone remembered to list: it goes red the moment a future
+  // change starts exporting either field, which is the moment the question in
+  // issue #227 has to be answered rather than inherited.
+  it('does NOT export device-registration state — neither fcmTokens nor pushDiagnostic (#227)', () => {
+    const profile = projectProfile(
+      {
+        status: 'married',
+        fcmTokens: ['alice-phone-token'],
+        pushDiagnostic: { state: 'denied', detail: 'permissionRequestRefused', at: { toMillis: () => 9 } },
+      },
+      null,
+    );
+    expect(Object.keys(profile)).not.toContain('fcmTokens');
+    expect(Object.keys(profile)).not.toContain('pushDiagnostic');
+    expect(JSON.stringify(profile)).not.toContain('alice-phone-token');
+    expect(JSON.stringify(profile)).not.toContain('permissionRequestRefused');
+  });
+
   it('omits notificationPrivacy when absent and nulls a missing Auth record', () => {
     const profile = projectProfile({ status: 'dating' }, null);
     expect(profile.notificationPrivacy).toBeUndefined();

@@ -48,8 +48,10 @@ import 'features/entitlements/domain/entitlement_repository_provider.dart';
 import 'features/entitlements/domain/purchases_repository_provider.dart';
 import 'features/notifications/data/channel_notification_settings_launcher.dart';
 import 'features/notifications/data/fcm_push_token_source.dart';
+import 'features/notifications/data/firestore_push_diagnostic_recorder.dart';
 import 'features/notifications/data/functions_push_token_repository.dart';
 import 'features/notifications/domain/notification_settings_launcher.dart';
+import 'features/notifications/domain/push_diagnostic_recorder_provider.dart';
 import 'features/notifications/domain/push_token_repository_provider.dart';
 import 'features/notifications/domain/push_token_source_provider.dart';
 import 'features/pairing/data/app_links_deep_link_source.dart';
@@ -224,6 +226,16 @@ Future<void> main() async {
           (ref) => FunctionsPushTokenRepository(),
         ),
         pushTokenSourceProvider.overrideWith((ref) => FcmPushTokenSource()),
+        // ADR-049. The device's own report of WHY it has no token, where a
+        // session can read it — deliberately over Firestore rather than a
+        // callable, because one of the facts it carries is "the callable threw"
+        // and a diagnostic riding the transport it reports on is silent in
+        // exactly the case it exists for.
+        pushDiagnosticRecorderProvider.overrideWith(
+          (ref) => FirestorePushDiagnosticRecorder(
+            firestore: FirebaseFirestore.instance,
+          ),
+        ),
         // ADR-046 D4. The one door out of a declined permission — iOS never
         // shows its dialog twice. Bound BY VALUE, like the other three
         // channel-backed seams, so `flutter test` never touches the channel.

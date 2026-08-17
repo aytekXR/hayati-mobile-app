@@ -38,6 +38,34 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**109 — A mutation run that applies nothing prints exactly the same green as a guard that works.** *(S071, ADR-049)*
+The first mutation check of the vocabulary parity sentinel ran three mutants and
+reported three passes. It had edited **nothing**: the runner did `cd app` before
+calling a script that opened `firestore.rules` by relative path, so every edit
+raised `FileNotFoundError` on stderr while the test that followed ran against the
+**pristine** file and passed. Three greens, three of them meaningless, and the
+traceback was two lines above them in the same output. **A mutation harness must
+assert the anchor is present and the edit landed BEFORE running the test, and it
+must use absolute paths** — a relative path in a harness that changes directory is
+a silent no-op generator. This is lesson **74**'s cousin (an anchor that lands on
+the wrong line tests nothing); here the anchor never landed at all, and the
+failure mode was reassurance rather than error. Redone with absolute paths, all
+three mutants were red.
+
+**108 — When a mutant survives, the guard is not what is wrong — the test's NAME is.** *(S071, ADR-049)*
+`_record` refuses to write the `unknown` state, and a test called *"never reports
+unknown"* passed. Deleting the guard entirely **also** passed: both sites that emit
+`unknown` already run with a null `_syncedUid`, so the uid check turns them away
+first and the `unknown` check is unreachable. The guard is still worth keeping —
+it is defence against an emit-while-signed-in that does not exist yet — but the
+test was measuring the uid check while claiming to measure the vocabulary check,
+which is this file's recurring shape 1 wearing a passing tick. **A surviving
+mutant has three honest resolutions and "leave it" is not among them:** delete the
+guard, make it reachable, or *rename the test to what it actually proves and
+record in both the code and the test that the guard is unfalsifiable here*. The
+third was taken. Do not restructure production code to make a test possible, and
+do not leave a green tick that names a property nothing checks.
+
 **107 — Both verifiers can refute a real finding, and the aggregation rule will not save you.** *(S070, #206)*
 The built-diff review's `python` lens reported *"missing test: scoping TO an
 unmeasurable function"*. The refuting skeptic said no; the governing-docs

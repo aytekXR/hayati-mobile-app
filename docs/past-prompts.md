@@ -3099,3 +3099,98 @@ The mutation run also found a defect in the **harness**: `run_cli` wrapped `D.ma
 * A 10-hour orphaned background `bash` from this session's own pre-`/clear` incarnation was found and killed (`session-context.md` §2). The other claude on this box is in `ai-videos`.
 
 **Next objective written to resume-prompt.md:** #221 — the device knows *why* it has no push token and a session still cannot read it.
+
+## Session 071 — 2026-08-17 — #221: the device now writes down what happened, and a session can finally read it (ADR-049)
+
+**Objective (from resume-prompt.md):** #221 — the device KNOWS why it has no push token (ADR-046) and a session still cannot read it. Add a client-writable diagnostic field on `users/{uid}` with a `firestore.rules` change and its tests, an ADR-019 cascade review (asserted, not assumed), and a `push_delivery_probe.py` mode that reads and names it — without touching the `fcmTokens` freeze.
+
+**Outcome:** done.
+
+**Where things stood, re-measured, not inherited (2026-08-17):** `push_delivery_probe.py --from-firebase-cli` → exit **1**, `0/4 accounts have registered a device`, unchanged since S063. A direct read of the prod `users` collection confirmed the shape this slice had to fit into: 4 documents, no `nextPageToken`, none carrying `fcmTokens`, two carrying a `coupleId`, and maps arriving over the REST API as `{"mapValue": {"fields": {…}}}` — one level deeper than the logical schema suggests, which is what the probe's new reader had to be written against.
+
+### The design, and the one decision the whole slice turns on
+
+**ADR-049** was written and committed **before any code** (`28a9d84`), reviewed, then implemented (`d586b70`).
+
+`users/{uid}.pushDiagnostic` = `{state, detail?, at}`, written by the device about itself. **Over Firestore, never through a callable** — and that is not a stylistic choice. One of the four facts this field exists to carry is *"the callable threw"*; a diagnostic travelling over the same transport as the thing it reports on is silent in exactly the case it was built for. A callable would also have needed a Functions deploy to become readable, and that lane is unarmed.
+
+`state` is ADR-046's five-member vocabulary, unchanged. `detail` is **new** — a four-member `PushDiagnosticDetail`, carrying the resolution the SCREEN deliberately does not have. ADR-046 D2 merged *"granted but no token"* and *"the callable threw"* into one state on purpose, because the person holding the phone gets the same sentence and the same button either way. A session needs them apart: `captureExhausted` indicts APNs, `registerFailed` indicts the callable, and confusing those two is what made #219 take 37 hours.
+
+`permissionRequestRefused` is named for the CALL, not for a tap — after the first install-time dialog iOS answers `requestPermission()` from its standing record without showing anything, so "the user declined" would be a confident wrong label, which is ADR-046 D2(a)'s own defect one level down. What it can honestly assert is that the app **reached the prompt path and was refused**, which is what "did the tap happen" reduces to once you refuse to guess.
+
+**`at` must equal `request.time`.** A client clock cannot forge freshness — and freshness is load-bearing here: *"denied"* with no trustworthy date cannot distinguish a phone that reported this morning from one that reported in July.
+
+### What the rules change actually buys — measured, and not what it looks like
+
+Writing the deny-tests first produced the useful fact: **every one of them PASSED against the pre-ADR-049 ruleset.** The users update rule has no `hasOnly`, so a client could always write anything it liked into an unknown key. This slice does not add a new *capability* to the client; it adds trustworthy **shape** to a field a reader is about to trust. The rule's job is not "may they write it" — they own it — but "is what a reader finds there something the reader can rely on".
+
+`fcmTokens` does not move (ADR-042 D1), and a valid diagnostic **in the same write as an `fcmTokens` mint** is still denied: the freeze is ANDed with the new predicate, not replaced by it. That has its own test.
+
+### The clause that protects nothing and is load-bearing anyway
+
+The predicate is `pushDiagnosticUnchanged() || pushDiagnosticValid()`, at create **and** update. The `unchanged` half guards nothing — it keeps a *legitimate* write legal. Rules see the **post-merge** document, so once a diagnostic is stored, every later `saveProfile` (`set(merge:true)`, which never mentions the field) presents the stored map again with its original `at`. Under the shape predicate alone that old `at != request.time` and **the ordinary profile edit is denied**, on a path that maps `permission-denied` to a `ProfilePermissionException` the onboarding screen shows the user.
+
+A positive control alone cannot tell "the clause works" from "the clause is unnecessary", so it has a **reverse-polarity mutation test** in its own block: strip the clause and that save goes red. The shared mutation harness asserts a mutant *readmits* a denied write, which is the opposite polarity, hence the separate block.
+
+### ADR-019, asserted rather than assumed
+
+The cascade fixture now seeds `pushDiagnostic` on **both** members: A's dies because A's *document* dies (no new cascade step needed — the claim this repo has most often been burned by), and B's **survives the very transaction that stamps `coupleEnded` onto B**. The export omission is pinned by its own test, so the day someone starts exporting device-registration state is the day #227 gets answered rather than inherited.
+
+### The legal gap the review missed and the session found by hand
+
+Two of five design lenses returned **zero findings**, and §5.5 says an empty result is *unverified*, never a clean bill. The `data-rights` silence was demonstrably a false negative: reading the same files by hand afterwards found that the privacy policy says **"ikimiz does not send push notifications today"** (the server has composed and attempted a push daily since 2026-08-11) and that its "what we collect" list names neither `fcmTokens` nor `pushDiagnostic`.
+
+**Not fixed here, and that restraint is the decision.** `docs/legal/` is byte-synced to `app/assets/legal/` under a drift test, and a revision bumps `CURRENT_LEGAL_VERSION` in three places at once — **re-gating consent for every existing user.** That is a founder/lawyer decision, not a side effect a diagnostics slice may cause. Filed as **#226**; the export question as **#227**; `dpa-inventory.md`, an engineering register with no consent consequence, was corrected in the same commit (its note claimed *"nothing writes `fcmTokens`"*, false since ADR-042).
+
+### The built-diff review found three real defects behind green tests
+
+The review ran **twice** (§5.3). The second pass, over the actual diff, is the one
+that earned its keep: **6 findings, 3 surfaced, all three real** — in code whose
+tests were already green.
+
+* **The `--uid` path read tokens from the 100-row LISTING**, not from the document
+  it had just fetched directly. A named account beyond the first page would have
+  been refused a test send using tokens the tool had already read and discarded —
+  the same pagination-manufactured absence the direct read exists to prevent,
+  reached from the other end. Fixed in both places it occurred.
+* **`captureExhausted` was attached to a phone that had REFUSED.** A boot capture
+  finishing a second after *Don't Allow* would have overwritten the stored
+  `denied + permissionRequestRefused` — the most valuable fact this field can hold
+  — with a detail that merely restated the state. It is now attached **only when
+  permission is held**, which is what the word was always supposed to mean.
+* **An observation could be filed under the wrong account.** A capture runs up to
+  ~7.5s and a permission read is an await; an account switch waits for neither.
+  Chasing it surfaced something worse and older: **ADR-046 D2(b)'s "a late failure
+  never demotes a success" guard keys on the registered TOKEN, and a token belongs
+  to an ACCOUNT.** Carried across `AuthSignedIn(A) → AuthSignedIn(B)` — a
+  transition that never passes through the sign-out branch — it silences
+  everything the second account would have said. Measured: **B recorded exactly
+  zero diagnostics.** That is a pre-existing defect this slice had to fix to be
+  correct at all; per-account reporting that reports nothing for the second
+  account is not a feature.
+
+Two of those three needed **new test machinery to be provable at all**: the fake
+source grew one-shot gates so a capture and a permission read can be held open
+while an account switch lands. Before that, `pumpEventQueue()` settled everything
+and the race was unreachable — a guard that cannot be reached cannot be tested.
+Two guards remain unfalsifiable by this suite even so (the same rule at the two
+other emit sites), and the code says so at the site rather than leaving a green
+tick to imply otherwise.
+
+**Commits:** `28a9d84` (ADR, written and committed before the code), `d586b70`
+(implementation + docs), and a third carrying the built-diff review's three fixes
+— all on PR **#228**. (A hash is not quoted for the last one: it names the commit
+that contains this sentence, so any amend invalidates it. The branch is
+`feat/221-push-diagnostic-field`.)
+**CI:** green (PR + post-merge `main`, `integration-emulator` included).
+**Docs touched:** `docs/adr/049-*` (new), `architecture.md` §3, `test-suite.md`, `dpa-inventory.md`, `operator-expected.md`, `resume-prompt.md`, `session-lessons.md`, `past-prompts.md`.
+
+**Verification:** functions+rules **1097 tests** (was 1071), 54 files, coverage 97.45% (gate 80/85); app **1713 tests**, line coverage 87.53% (gate 68); `flutter analyze` clean; `dart format --set-exit-if-changed` clean. Rules tests were **RED before the rule existed** (10 failures, each "expected request to fail but it succeeded") and green after. The probe was exercised against **live production** read-only in all three modes: default (exit 1), `--uid` on a real account (exit 1, report narrowed), `--uid` on a non-existent account (**exit 2**, never a false "no diagnostic").
+
+**Mutation checks — and one mutant SURVIVED.** Three rules mutants red, three parity mutants red, two of three client mutants red. The third — deleting the `unknown` guard in `_record` — left the suite **green**, because both sites that emit `unknown` already run with a null `_syncedUid`, so the uid check turns them away first. The test claimed to prove "never reports unknown" and actually proved "sign-out records nothing". It was renamed to what it measures, and both the code and the test now say plainly that the guard is a second line of defence this suite cannot falsify (lesson **108**). A separate near-miss: the first parity mutation run applied **nothing at all** — a `cd` inside the runner left the script editing a path that did not exist — and printed three reassuring greens (lesson **109**).
+
+**Notes / debt logged:** #226 (legal texts vs. what push actually does and what we store), #227 (the export whitelist and device-registration state). #222's stale-claims audit was partially served in passing — `architecture.md`'s false *"nothing writes `fcmTokens` yet"* and `dpa-inventory.md`'s twin of it were corrected because this diff touched those exact lines — but #222 stays **open** for the other eight.
+
+**The ceiling, stated first and not buried:** this reports nothing until a build ships. The last `release.yml` run is **2026-08-09, build 119**; ADR-046's Settings row and now ADR-049's field are both on nobody's phone. The probe says so in those words rather than letting a session read four silent accounts as a negative.
+
+**Next objective written to resume-prompt.md:** #223 — `deploy-rules.yml` can publish a BRANCH's rules to prod (it checks the typed project id and never the ref), and neither it nor `deploy-site.yml` declares `concurrency`.

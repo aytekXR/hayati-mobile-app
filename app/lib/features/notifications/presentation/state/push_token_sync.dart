@@ -5,6 +5,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../auth/domain/auth_state.dart';
 import '../../../auth/presentation/state/auth_controller.dart';
+import '../../domain/push_diagnostic.dart';
+import '../../domain/push_diagnostic_recorder_provider.dart';
 import '../../domain/push_registration.dart';
 import '../../domain/push_token_repository_provider.dart';
 import '../../domain/push_token_source.dart';
@@ -135,9 +137,81 @@ class PushTokenSync extends _$PushTokenSync {
     return _current;
   }
 
-  void _emit(PushRegistration next) {
+  /// The last `(state, detail)` this PROCESS reported to the server (ADR-049 D6).
+  ///
+  /// **Per process, and reset on every uid change** — not only on sign-out.
+  /// `AuthSignedIn(A) → AuthSignedIn(B)` reaches [_syncFrom] with no
+  /// `AuthSignedOut` between it (a token swap, a credential link), and a baseline
+  /// carried across that boundary would skip B's first report whenever A happened
+  /// to be in the same state. B's document would then say nothing about a device
+  /// that had in fact measured itself, which is the blindness this reporting
+  /// exists to remove.
+  PushDiagnostic? _lastReported;
+
+  void _emit(PushRegistration next, {PushDiagnosticDetail? detail}) {
     _current = next;
     if (!_building) state = next;
+    _record(next.state, detail);
+  }
+
+  /// Tell the SERVER what this device just observed about itself (ADR-049).
+  ///
+  /// Every transition goes through here because it hangs off [_emit] — but two
+  /// classes never reach the wire:
+  ///
+  /// * **`unknown`**, which is the not-measured state and the signed-out state.
+  ///   An absent field says the same thing. ⚠️ This check is a SECOND line of
+  ///   defence and the suite cannot currently falsify it: both sites that emit
+  ///   `unknown` (the sign-out removal, and `refresh` while signed out) already
+  ///   run with a null `_syncedUid`, so the guard above turns them away first —
+  ///   measured by deleting this line and watching the suite stay green. It stays
+  ///   for the emit-while-signed-in that does not exist yet, and the test that
+  ///   covers this path says plainly which half it proves.
+  /// * **an observation already reported**, where the new `detail` adds nothing.
+  ///   A null detail carries no new information about a state already reported; a
+  ///   non-null one always does. Without that asymmetry an ordinary `refresh()`
+  ///   would overwrite `denied + permissionRequestRefused` with a bare `denied`
+  ///   and lose the single most valuable fact this field can hold — that the
+  ///   prompt path actually RAN.
+  ///
+  /// Fire-and-forget and silent on failure: ADR-039 D1 makes the boot fail-open
+  /// and D2 bounds every wait on the launch→paired path. A diagnostic that can
+  /// cost a frame, or throw into the boot, is a worse bug than the blindness it
+  /// cures.
+  void _record(PushRegistrationState next, PushDiagnosticDetail? detail) {
+    final uid = _syncedUid;
+    if (uid == null) return;
+    if (next == PushRegistrationState.unknown) return;
+    final last = _lastReported;
+    if (last != null &&
+        last.state == next &&
+        (detail == null || detail == last.detail)) {
+      return;
+    }
+
+    // Resolving the recorder is guarded for the same reason resolving the source
+    // is: the base provider throws by design, so every widget test that builds
+    // the app without wiring notifications lands here and must get a logged
+    // no-op rather than a failure.
+    final PushDiagnosticRecorder recorder;
+    try {
+      recorder = ref.read(pushDiagnosticRecorderProvider);
+    } catch (failure) {
+      debugPrint('PushTokenSync: no push diagnostic recorder: $failure');
+      return;
+    }
+
+    final diagnostic = PushDiagnostic(state: next, detail: detail);
+    _lastReported = diagnostic;
+    unawaited(
+      Future<void>(() => recorder.record(uid, diagnostic)).catchError((
+        Object failure,
+      ) {
+        // The adapter does not throw; a FAKE in a test can, and an unhandled
+        // async error there is a red test for the wrong reason.
+        debugPrint('PushTokenSync.record failed: ${failure.runtimeType}');
+      }),
+    );
   }
 
   /// Emit a NON-success state, unless a token has already been registered.
@@ -152,21 +226,40 @@ class PushTokenSync extends _$PushTokenSync {
   ///
   /// A late failure never demotes a success: the token is the evidence, and
   /// nothing here produced better evidence than the run that got one.
-  void _emitUnlessRegistered(PushRegistrationState next) {
+  void _emitUnlessRegistered(
+    PushRegistrationState next, {
+    PushDiagnosticDetail? detail,
+  }) {
     if (_registeredToken != null) return;
-    _emit(PushRegistration(state: next));
+    _emit(PushRegistration(state: next), detail: detail);
   }
 
   void _syncFrom(AuthState authState) {
     if (authState is AuthSignedIn) {
       final uid = authState.user.uid;
       if (_syncedUid == uid) return;
+      // A DIFFERENT uid with no sign-out between (a token swap, a credential
+      // link) starts the new account from nothing — ADR-049 D6 for the reporting
+      // baseline, and the registration state for a reason that is not about
+      // reporting at all:
+      //
+      // ⚠️ **ADR-046 D2(b)'s "a late failure never demotes a success" guard keys
+      // on the registered TOKEN, and a token belongs to an ACCOUNT.** Carried
+      // across a uid change it suppresses everything the NEW account would have
+      // said — `promptForPermissionAndRegister` returns true without asking,
+      // every `_emitUnlessRegistered` is swallowed, and B's phone measures itself
+      // and reports nothing because A had a token. Measured: B recorded exactly
+      // zero diagnostics before this reset existed. `AuthSignedOut` cleared it;
+      // a straight A→B transition never passes through that branch.
+      if (_syncedUid != null) _emit(PushRegistration.unknown);
+      _lastReported = null;
       _syncedUid = uid;
       _listenForRefreshes();
       unawaited(_captureAndRegister());
     } else if (authState is AuthSignedOut) {
       if (_syncedUid == null) return;
       _syncedUid = null;
+      _lastReported = null;
       unawaited(_removeRegistered());
     }
     // AuthSigningIn / AuthError are transient and drive no action — the same
@@ -218,7 +311,13 @@ class PushTokenSync extends _$PushTokenSync {
   }
 
   Future<PushRegistration> _refresh() async {
-    if (_syncedUid == null) {
+    // The account this read BELONGS to, for the reason [_capture] captures one:
+    // `permissionStatus()` is an await, an account switch does not wait for it,
+    // and every branch below either emits or records. Filing this account's
+    // answer under the next one attributes a device state to an account that
+    // observed nothing.
+    final observedUid = _syncedUid;
+    if (observedUid == null) {
       _emit(PushRegistration.unknown);
       return _current;
     }
@@ -237,9 +336,23 @@ class PushTokenSync extends _$PushTokenSync {
       permission = await source.permissionStatus();
     } catch (failure) {
       debugPrint('PushTokenSync.refresh failed: ${failure.runtimeType}');
+      if (_syncedUid != observedUid) return _current;
+      // RECORD, but do not emit (ADR-049 D6). Until now this failure was
+      // invisible even to the phone, and a broken messaging seam looked exactly
+      // like a device nobody had asked yet. It is reported to the server as what
+      // it is — a permission read that threw — while the on-screen state stays
+      // where the last SUCCESSFUL measurement left it: a read that failed is not
+      // evidence that a known `denied` has become "waiting".
+      _record(
+        _current.state == PushRegistrationState.unknown
+            ? PushRegistrationState.awaitingDeviceToken
+            : _current.state,
+        PushDiagnosticDetail.permissionUnreadable,
+      );
       return _current;
     }
 
+    if (_syncedUid != observedUid) return _current;
     switch (permission) {
       case PushPermission.denied:
         _emitUnlessRegistered(PushRegistrationState.denied);
@@ -288,7 +401,15 @@ class PushTokenSync extends _$PushTokenSync {
         // works exactly as it did before push existed. It is nevertheless a
         // state worth NAMING, because it is the one no future build can undo.
         debugPrint('PushTokenSync: notification permission not granted');
-        _emitUnlessRegistered(PushRegistrationState.denied);
+        // `permissionRequestRefused`, NOT "the user declined" (ADR-049 D2): after
+        // the first install-time dialog iOS answers this call from its standing
+        // record without showing anything, so a tap cannot be inferred from a
+        // false return. What is certain — and what five sessions could not find
+        // out — is that the app REACHED the prompt path and was refused.
+        _emitUnlessRegistered(
+          PushRegistrationState.denied,
+          detail: PushDiagnosticDetail.permissionRequestRefused,
+        );
         return false;
       }
       // Permission is what was missing; the token can be captured now — but on
@@ -354,6 +475,23 @@ class PushTokenSync extends _$PushTokenSync {
   }
 
   Future<void> _capture() async {
+    // The account this observation BELONGS to. A capture runs for up to ~7.5s
+    // (ADR-044 D2) and an account switch does not wait for it, so every exit
+    // below compares against this rather than merely asking "is anyone signed
+    // in?". Filing A's result under B would attribute one account's device state
+    // — including a `registered` that names a token B never obtained — to an
+    // account that observed nothing. It would also re-arm the suppression the
+    // uid-change reset in [_syncFrom] exists to clear: a `registered` published
+    // under B restores `_registeredToken`, and every non-success B goes on to
+    // observe is swallowed by [_emitUnlessRegistered].
+    //
+    // ⚠️ **The suite proves this RULE on the refresh path, not at this site.**
+    // `a refresh that resolves AFTER an account switch…` reddens when the guard
+    // in [_refresh] is removed; the two guards here are the same rule at the two
+    // other emit sites, and the fake cannot park a capture and a differing
+    // account state at once to reach them. Stated rather than implied by a green
+    // tick (lesson 108).
+    final observedUid = _syncedUid;
     // Resolving the SOURCE is not a transient failure and must not be retried.
     // There is either an implementation wired at bootstrap or there is not, and
     // no amount of backoff conjures one — every widget test that builds the app
@@ -385,9 +523,10 @@ class PushTokenSync extends _$PushTokenSync {
           'PushTokenSync.currentToken attempt $attempt failed: $failure',
         );
       }
-      // A signed-out user mid-retry has nothing left to register to; stop rather
-      // than hold a timer open for an account that is gone.
-      if (_syncedUid == null) return;
+      // A signed-out user mid-retry has nothing left to register to, and a
+      // DIFFERENT user mid-retry has nothing to do with this run; stop rather
+      // than hold a timer open for an account that is gone or superseded.
+      if (_syncedUid != observedUid) return;
       if (attempt < tokenCaptureAttempts - 1) {
         await Future<void>.delayed(tokenCaptureBackoff * (attempt + 1));
       }
@@ -406,35 +545,66 @@ class PushTokenSync extends _$PushTokenSync {
     // It also makes the settled state independent of ORDERING: a concurrent
     // `refresh()` that already wrote `denied` is no longer overwritten by this
     // loop finishing a moment later.
-    _emitUnlessRegistered(await _stateForCurrentPermission(source));
+    final (settled, detail) = await _stateForCurrentPermission(source);
+    if (_syncedUid != observedUid) return;
+    _emitUnlessRegistered(settled, detail: detail);
   }
 
-  /// The honest state for a device that has no token, read from the OS.
-  Future<PushRegistrationState> _stateForCurrentPermission(
-    PushTokenSource source,
-  ) async {
+  /// The honest state for a device that has no token, read from the OS — **and
+  /// which of two different failures put it there** (ADR-049 D6).
+  ///
+  /// The detail is not decoration. Returning a bare state cannot express that
+  /// the permission read itself THREW, so a caller would record
+  /// `awaitingDeviceToken + captureExhausted` and blame APNs for a plugin fault —
+  /// two links apart, and the whole reason this vocabulary exists. Where both
+  /// facts are true the more specific one wins: a read that threw is a sharper
+  /// statement than a loop that merely ended.
+  Future<(PushRegistrationState, PushDiagnosticDetail?)>
+  _stateForCurrentPermission(PushTokenSource source) async {
     try {
+      // ⚠️ `captureExhausted` is attached ONLY to the granted branch, and that is
+      // a correctness rule rather than tidiness. It means *"permission is held
+      // and the bounded loop still produced nothing"* — the statement that
+      // indicts APNs. On a phone that DECLINED, the loop ending is a consequence
+      // of the refusal and says nothing new; attaching it there would let a boot
+      // capture finishing a second late overwrite a stored
+      // `denied + permissionRequestRefused` — the single most valuable fact this
+      // field can hold — with a detail that merely restates the state.
       return switch (await source.permissionStatus()) {
-        PushPermission.denied => PushRegistrationState.denied,
-        PushPermission.notDetermined => PushRegistrationState.notDetermined,
+        PushPermission.denied => (PushRegistrationState.denied, null),
+        PushPermission.notDetermined => (
+          PushRegistrationState.notDetermined,
+          null,
+        ),
         // Permission is held and there is still no address: the ADR-044 window,
         // or the link ADR-046 D6 hardened. A retry is the honest offer.
-        PushPermission.granted => PushRegistrationState.awaitingDeviceToken,
+        PushPermission.granted => (
+          PushRegistrationState.awaitingDeviceToken,
+          PushDiagnosticDetail.captureExhausted,
+        ),
       };
     } catch (failure) {
       debugPrint(
         'PushTokenSync.permissionStatus failed: ${failure.runtimeType}',
       );
-      return PushRegistrationState.awaitingDeviceToken;
+      return (
+        PushRegistrationState.awaitingDeviceToken,
+        PushDiagnosticDetail.permissionUnreadable,
+      );
     }
   }
 
   Future<void> _register(String token) async {
     // A refresh that arrives while signed out must register nothing: the
     // callable would attach the token to whoever happens to be signed in next.
-    if (_syncedUid == null) return;
+    final observedUid = _syncedUid;
+    if (observedUid == null) return;
     try {
       await ref.read(pushTokenRepositoryProvider).register(token);
+      // The callable took time, and the account may have changed while it did.
+      // The registration itself stands — it named this uid server-side — but
+      // publishing it now would claim it for whoever is signed in instead.
+      if (_syncedUid != observedUid) return;
       _emit(
         PushRegistration(state: PushRegistrationState.registered, token: token),
       );
@@ -444,7 +614,16 @@ class PushTokenSync extends _$PushTokenSync {
       // failure from "no address yet", but it has the same remedy — try again —
       // and the same user-facing sentence, so it shares the state rather than
       // inventing a fifth one nobody could act on differently.
-      _emitUnlessRegistered(PushRegistrationState.awaitingDeviceToken);
+      //
+      // A SESSION needs them apart, though: this one indicts the callable and
+      // "no address yet" indicts APNs, and confusing the two is what made #219
+      // take 37 hours. The state stays merged for the screen; the detail keeps
+      // them separate for the server (ADR-049 D2).
+      if (_syncedUid != observedUid) return;
+      _emitUnlessRegistered(
+        PushRegistrationState.awaitingDeviceToken,
+        detail: PushDiagnosticDetail.registerFailed,
+      );
     }
   }
 

@@ -477,6 +477,229 @@ describe('users/{uid}', () => {
       setDoc(doc(alice, `users/${ALICE}`), { register: 'playful' }, { merge: true }),
     );
   });
+
+  // ADR-049: pushDiagnostic is the ONE client-owned field on this document — the
+  // device's own report of why it has no push token. Everything else the client
+  // may write here is an ordinary profile value; this one is read by a session as
+  // a diagnostic, so the rule's job is not "may they write it" (they own it) but
+  // "is what a reader finds there a SHAPE the reader can trust".
+  //
+  // Hence: two closed vocabularies, no free-form string anywhere, and a server
+  // stamp — a client clock must not be able to forge freshness, because "denied"
+  // with no trustworthy date cannot distinguish a phone that reported this
+  // morning from one that reported in July.
+  //
+  // The freeze tests above stay the authority on fcmTokens. The last test in this
+  // block proves this field cannot be used as a side door into it.
+  describe('pushDiagnostic (ADR-049 — client-owned, shape-validated)', () => {
+    const validDiagnostic = (extra: Record<string, unknown> = {}) => ({
+      state: 'denied',
+      at: serverTimestamp(),
+      ...extra,
+    });
+
+    it('accepts the minimal shape: a known state and a SERVER stamp', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(
+        updateDoc(doc(alice, `users/${ALICE}`), {
+          pushDiagnostic: validDiagnostic(),
+        }),
+      );
+    });
+
+    it('accepts a known detail alongside it', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(
+        updateDoc(doc(alice, `users/${ALICE}`), {
+          pushDiagnostic: validDiagnostic({ detail: 'permissionRequestRefused' }),
+        }),
+      );
+    });
+
+    // The whole ADR-046 vocabulary is legal here, including `unknown` — the
+    // client never writes it (absence says the same thing), but rules and enum
+    // stay in exact parity so the Dart-side sentinel is a set comparison.
+    for (const state of [
+      'unknown',
+      'notDetermined',
+      'denied',
+      'awaitingDeviceToken',
+      'registered',
+    ]) {
+      it(`accepts state '${state}' (the closed ADR-046 vocabulary)`, async () => {
+        await seedAliceProfile();
+        const alice = env.authenticatedContext(ALICE).firestore();
+        await assertSucceeds(
+          updateDoc(doc(alice, `users/${ALICE}`), {
+            pushDiagnostic: { state, at: serverTimestamp() },
+          }),
+        );
+      });
+    }
+
+    for (const detail of [
+      'permissionRequestRefused',
+      'captureExhausted',
+      'registerFailed',
+      'permissionUnreadable',
+    ]) {
+      it(`accepts detail '${detail}' (the closed ADR-049 vocabulary)`, async () => {
+        await seedAliceProfile();
+        const alice = env.authenticatedContext(ALICE).firestore();
+        await assertSucceeds(
+          updateDoc(doc(alice, `users/${ALICE}`), {
+            pushDiagnostic: { state: 'awaitingDeviceToken', detail, at: serverTimestamp() },
+          }),
+        );
+      });
+    }
+
+    it('REFUSES a client-clock timestamp — freshness may not be forged', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        updateDoc(doc(alice, `users/${ALICE}`), {
+          pushDiagnostic: { state: 'denied', at: Timestamp.fromMillis(0) },
+        }),
+      );
+    });
+
+    it('refuses a state outside the vocabulary', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        updateDoc(doc(alice, `users/${ALICE}`), {
+          pushDiagnostic: { state: 'probablyFine', at: serverTimestamp() },
+        }),
+      );
+    });
+
+    it('refuses a detail outside the vocabulary', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        updateDoc(doc(alice, `users/${ALICE}`), {
+          pushDiagnostic: {
+            state: 'denied',
+            detail: 'the user seemed annoyed',
+            at: serverTimestamp(),
+          },
+        }),
+      );
+    });
+
+    // The free-form-string vector: an extra key is how a bounded diagnostic turns
+    // into an unbounded log line on a document nothing else bounds.
+    it('refuses an extra key inside the map', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        updateDoc(doc(alice, `users/${ALICE}`), {
+          pushDiagnostic: validDiagnostic({ note: 'x'.repeat(4000) }),
+        }),
+      );
+    });
+
+    it('refuses a map missing state, and a map missing at', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        updateDoc(doc(alice, `users/${ALICE}`), {
+          pushDiagnostic: { at: serverTimestamp() },
+        }),
+      );
+      await assertFails(
+        updateDoc(doc(alice, `users/${ALICE}`), { pushDiagnostic: { state: 'denied' } }),
+      );
+    });
+
+    it('refuses a non-map value', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        updateDoc(doc(alice, `users/${ALICE}`), { pushDiagnostic: 'denied' }),
+      );
+    });
+
+    // Create is validated, not forbidden: the field is client-owned, so the harm
+    // to prevent is a junk shape planted on a fresh (or post-deletion re-created)
+    // document, not an escalation. A guard that spans update only is worthless
+    // against a client that can mint the value at create — the same reasoning the
+    // coupleId/consent/fcmTokens freeze comments carry.
+    it('validates the shape at CREATE too', async () => {
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        setDoc(doc(alice, `users/${ALICE}`), {
+          ...profileData,
+          createdAt: serverTimestamp(),
+          pushDiagnostic: { state: 'registered', at: Timestamp.fromMillis(0) },
+        }),
+      );
+      await assertSucceeds(
+        setDoc(doc(alice, `users/${ALICE}`), {
+          ...profileData,
+          createdAt: serverTimestamp(),
+          pushDiagnostic: { state: 'registered', at: serverTimestamp() },
+        }),
+      );
+    });
+
+    it('is self-only: a stranger may not report on another account', async () => {
+      await seedAliceProfile();
+      const bob = env.authenticatedContext(BOB).firestore();
+      await assertFails(
+        updateDoc(doc(bob, `users/${ALICE}`), { pushDiagnostic: validDiagnostic() }),
+      );
+    });
+
+    it('may be cleared — absence and deletion make the same statement', async () => {
+      await seed(`users/${ALICE}`, {
+        ...profileData,
+        createdAt: Timestamp.now(),
+        pushDiagnostic: { state: 'denied', at: Timestamp.now() },
+      });
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(
+        updateDoc(doc(alice, `users/${ALICE}`), { pushDiagnostic: deleteField() }),
+      );
+    });
+
+    // ⚠️ THE REGRESSION THIS BLOCK EXISTS FOR. Rules see the POST-MERGE document,
+    // so an ordinary profile save — which never mentions pushDiagnostic — still
+    // presents the STORED map, whose `at` is an old timestamp. A bare
+    // `at == request.time` would therefore deny every profile edit made after the
+    // first diagnostic write, on a path that maps permission-denied to a
+    // ProfilePermissionException the onboarding screen shows the user.
+    //
+    // The `unchanged OR valid` structure is what makes this pass, and the mutant
+    // below proves it: strip the unchanged clause and this exact write is denied.
+    it('does NOT break an ordinary profile save made after a diagnostic was stored', async () => {
+      await seed(`users/${ALICE}`, {
+        ...profileData,
+        createdAt: Timestamp.now(),
+        pushDiagnostic: { state: 'denied', at: Timestamp.fromMillis(1_600_000_000_000) },
+      });
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(
+        setDoc(doc(alice, `users/${ALICE}`), { register: 'playful' }, { merge: true }),
+      );
+    });
+
+    // The side-door test: a VALID diagnostic in the same write as an fcmTokens
+    // mint must still be denied. The freeze is ANDed, not replaced.
+    it('cannot be used as a side door into the fcmTokens freeze', async () => {
+      await seedAliceProfile();
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        updateDoc(doc(alice, `users/${ALICE}`), {
+          pushDiagnostic: validDiagnostic(),
+          fcmTokens: ['stolen-device-token'],
+        }),
+      );
+    });
+  });
 });
 
 describe('users/{uid}/soloAnswers/{dayKey}', () => {
@@ -2220,6 +2443,41 @@ const MUTATIONS: Mutation[] = [
       );
     },
   },
+  {
+    // ADR-049: dropping the shape predicate from UPDATE readmits a forged
+    // freshness stamp — a client naming any moment it likes as "when this phone
+    // last looked", which is the one property the probe reads the field for.
+    name: 'dropping the pushDiagnostic update validation readmits a forged timestamp',
+    anchor: '\n        && (pushDiagnosticUnchanged() || pushDiagnosticValid())',
+    replacement: '',
+    demonstrate: async (mutant) => {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+        });
+      });
+      return updateDoc(
+        doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+        { pushDiagnostic: { state: 'registered', at: Timestamp.fromMillis(0), note: 'junk' } },
+      );
+    },
+  },
+  {
+    // ADR-049: and dropping it from CREATE readmits the same junk planted on a
+    // fresh self-create — the mint-at-create gap that the coupleId, consent and
+    // fcmTokens comments all name, in the one place where the field is client-
+    // owned and the guard is therefore a shape check rather than a freeze.
+    name: 'dropping the pushDiagnostic create validation readmits a junk-shaped diagnostic at create',
+    anchor: '\n        && pushDiagnosticValid();',
+    replacement: ';',
+    demonstrate: (mutant) =>
+      setDoc(doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`), {
+        ...profileData,
+        createdAt: serverTimestamp(),
+        pushDiagnostic: { state: 'registered', at: Timestamp.fromMillis(0) },
+      }),
+  },
 ];
 
 describe('mutation tests — the suite goes red if a protecting rule is weakened', () => {
@@ -2240,5 +2498,50 @@ describe('mutation tests — the suite goes red if a protecting rule is weakened
         await mutant.cleanup();
       }
     });
+  });
+});
+
+// A mutation test of the OPPOSITE polarity, and it needs its own block because
+// the harness above asserts that a mutant READMITS a denied write.
+//
+// The `pushDiagnosticUnchanged() ||` half of the users update rule (ADR-049 D4)
+// does not protect anything — it keeps a legitimate write legal. Rules see the
+// POST-MERGE document, so once a diagnostic is stored, every later profile save
+// presents it again with its original `at`; without this clause the shape
+// predicate's `at == request.time` denies that save, and the app surfaces a
+// ProfilePermissionException on the onboarding path.
+//
+// A positive control alone cannot tell "the clause works" from "the clause is
+// unnecessary". This proves it is load-bearing: strip it, and the ordinary save
+// is denied.
+describe('mutation test (reverse polarity) — the unchanged-clause is load-bearing', () => {
+  it('stripping pushDiagnosticUnchanged() DENIES an ordinary profile save made after a diagnostic exists', async () => {
+    const anchor = 'pushDiagnosticUnchanged() || ';
+    expect(rules).toContain(anchor);
+    const mutant = await initializeTestEnvironment({
+      projectId: 'demo-hayati-mutant-unchanged',
+      firestore: { rules: rules.replace(anchor, '') },
+    });
+    try {
+      await mutant.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `users/${ALICE}`), {
+          ...profileData,
+          createdAt: Timestamp.now(),
+          pushDiagnostic: {
+            state: 'denied',
+            at: Timestamp.fromMillis(1_600_000_000_000),
+          },
+        });
+      });
+      await assertFails(
+        setDoc(
+          doc(mutant.authenticatedContext(ALICE).firestore(), `users/${ALICE}`),
+          { register: 'playful' },
+          { merge: true },
+        ),
+      );
+    } finally {
+      await mutant.cleanup();
+    }
   });
 });
