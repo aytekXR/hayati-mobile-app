@@ -3412,3 +3412,62 @@ ADR-025 D1 refused a `CardThemeData` because *"`grep` finds zero `Card(`"*. Re-m
 **Notes / debt logged:** none new.
 
 **Next objective written to resume-prompt.md:** #137 — the bidi seam's first-strong scan misses Arabic Extended-A, so isolation silently no-ops for it.
+
+---
+
+## Session 076 — 2026-08-17 — #137: the bidi seam stops asking `intl` which way a string leans (ADR-053)
+
+**Objective (from resume-prompt.md):** #137 — `isolateWithin` gets first-strong from `intl`, whose RTL character class misses Arabic Extended-A while its LTR class *matches* it, so isolation silently no-ops in LTR chrome. Replace the classification without widening *where* isolation happens.
+
+**Outcome:** done. Zero goldens moved, as declared.
+
+### The issue was right, and understated itself twice
+
+Measured over all 1,114,112 code points against Unicode 15.0.0:
+
+```
+150    intl calls strong-LTR, are strong-RTL   <- the filed issue
+1,783  strong-RTL its RTL class never reaches
+322    in its RTL class, not strong-RTL
+3,308  in its LTR class, not strong-LTR
+```
+
+* **The region is five blocks, not one.** The 150 lie in one stretch, `U+0800–U+08C9` — Samaritan, Mandaic, Syriac Supplement, Arabic Extended-B, and Arabic Extended-A *last* of the five.
+* **`intl` calls Adlam LTR, and #137's own table says it doesn't.** The issue records `U+1E900` as matching *neither* class. True of the code point, false of the behaviour: `intl` matches a **UTF-16 regex**, and all **1,024** high surrogates sit inside its LTR class. So `startsWithLtr` returns true for every astral RTL script — **1,632** of the 2,962 strong-RTL code points, more than half — and for emoji.
+
+That second one is a **separate defect with the same symptom**, and the first version of this fix widened the ranges and carried it forward untouched. A range table does not fix an iteration unit. Iterating runes does.
+
+### Both of `intl`'s classes are loose, so the decision was "stop asking"
+
+Not "widen the RTL table". The seam needs a **three-way** answer — RTL, LTR, or *no direction at all* — and with both classes loose, the third was decided by whichever loose test fired first. Two generated tables (`Bidi_Class R|AL`, and `L`) replace both; `intl` leaves the seam. It stays a `pubspec` dependency because Flutter's generated localizations import it, but no hand-written file under `app/lib/` does any more.
+
+### Three claims that were already typed before arithmetic caught them
+
+| written during implementation | re-measured |
+|---|---|
+| "62,408 code points `intl` calls RTL are not strong-RTL" | **322**. The figure corresponded to nothing; it was never a measurement. |
+| the table is "a strict superset of `intl`'s RTL class" | **false by 322** — and it had reached both the generator docstring *and* a test assertion, where it would have forced a correct table to stay wrong |
+| the generator writes `strong_rtl_ranges.dart` | stale filename, superseded mid-session |
+
+All three sat beside code that compiled and tests that passed. **§5.1's ADR-before-code is not ceremony** — an ADR written first has to state its numbers while there is nothing green lending them authority. This session inverted the order and paid exactly that price; the inversion is recorded in ADR-053's own text rather than tidied away. Lesson **111**.
+
+### The scan that lied, and the mutant that overstated itself
+
+* **W4's golden declaration** rested on classifying every app string under old and new logic. The first run said *"200 strings, 0 changes"* — believable and useless: its ARB glob pointed at `app/lib/l10n/` while the files live in `app/lib/core/l10n/arb/`, so it had examined **no localized string at all**. Rerun with a floor assertion: **894** strings, still 0 changes. Lesson **110**.
+* **The third mutant** was described as *"delete the ranges covering `U+0800–U+08C9`, reintroducing `intl`'s exact gap"*. It deleted nine ranges and both tests went red — but the table contains `0x07FE, 0x0815`, **one range spanning `intl`'s class boundary**, so a filter keyed on range starts left **22 of the 150** covered and the gap was never reproduced. Rebuilt to split at `U+07FF` first, verified **0** remaining coverage, both tests red. Lesson **112**.
+
+### A CI deadlock avoided by one measurement
+
+The table is generated, so `--check` gates it. But `dart format --set-exit-if-changed` reads the same file, and while the generator emitted anything the formatter would reflow — a 90-character Unicode name, and every uncommented pair, which `dart format` splits one-per-line — **the two gates contradicted each other permanently**: format rewrites the file, `--check` calls the rewrite stale, and no edit satisfies both. Two correct tools, each reporting the other's output as wrong. The generator now reproduces `dart format`'s own choices, and a self-test pins it.
+
+`--check`'s two failure modes also print **different sentences**, because the first time it fires will be a runner-image bump nobody expected: a stale table is somebody's mistake, a Unicode version move is news.
+
+### Verification
+
+Red-first at the render seam **in the issue's own words** (#137 asks for "a red-first test for a `U+08A0`-leading string in LTR chrome" using the existing geometry harness) — it reads `RenderParagraph` box positions, not the string, so the fix's own output cannot satisfy it. Three mutants, all caught. The unit suite asserts **disjointness over all 1,114,112 code points** rather than agreement with a known-wrong oracle. `flutter test`: **1,743 tests pass**. `git status --porcelain -- 'app/test/**/*.png'`: **empty**.
+
+**Commits:** `c455d09` (ADR, ahead of the code but written after it — see above), `2df5a2d` (implementation), and the `docs(s076)` commit this entry arrives in — PR **#235**.
+
+**Notes / debt logged:** none new.
+
+**Next objective written to resume-prompt.md:** see the file.

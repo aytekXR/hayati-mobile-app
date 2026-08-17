@@ -38,6 +38,51 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**112 — A mutation described by its INTENT is a claim about a test that was never made.** *(S076, ADR-053)*
+The third mutant for the bidi table was written as *"delete the ranges covering
+`U+0800–U+08C9`, reintroducing `intl`'s exact gap"*, it deleted nine ranges, both
+tests went red, and the sentence went into the ADR and the commit message. The
+sentence was false. The generated table contains `0x07FE, 0x0815` — **one range
+that spans `intl`'s class boundary**, because `U+07FE`–`U+07FF` (NKO) are inside
+`intl`'s RTL class and `U+0800`–`U+0815` (Samaritan) are not, while Unicode gives
+them all `R` and the coalescer emits them as one. A filter keyed on each range's
+**start** skipped it, so **22 of the 150 code points stayed covered** and the gap
+was never reproduced. The tests reddened anyway — their fixtures live in Arabic
+Extended-A, which *was* removed — so nothing pushed back. **State a mutant by its
+measured post-condition, not its intent**: here, *"0 strong-RTL code points remain
+covered in `U+0800–U+08C9`"*, which is one assertion the harness can make and the
+first version would have failed. Cousin of **109**: there the edit did not land,
+here it landed somewhere smaller than the sentence claimed.
+
+**111 — A number typed next to working code inherits the code's credibility.** *(S076, ADR-053)*
+*"62,408 code points `intl` calls RTL are not strong-RTL"* appeared in a source
+doc comment, in the generator's own docstring, and in the emitted file's header.
+It was re-derived only because writing the ADR forced it: the real figure is
+**322**, and 62,408 corresponds to **nothing measurable** — it was never a
+measurement of anything, not even of the wrong thing. Alongside it, the same
+drafting session wrote that the new table is *"a strict superset of `intl`'s RTL
+class"* — **false by those same 322 code points** — into both the docstring and a
+test assertion, where it would have forced a correct table to stay wrong. Both
+survived because they sat beside code that compiled and tests that passed.
+**§5.1's ADR-before-code is not ceremony**: an ADR written first has to state its
+numbers while there is nothing green to lend them authority. This session
+inverted the order and paid exactly that price, which is why the inversion is
+recorded in ADR-053's own text rather than tidied away.
+
+**110 — A scan whose glob matches nothing reports the same clean zero as a scan that passed.** *(S076, ADR-053)*
+The W4 golden declaration rested on classifying every string in the app under the
+old and new logic. The first run reported *"200 strings examined, 0 changes"* — a
+believable, reassuring, useless result. Its ARB glob pointed at `app/lib/l10n/`
+and the files are in `app/lib/core/l10n/arb/`, so it had examined **no localized
+string at all**; the 200 were content-pack entries alone. The rerun asserts a
+**floor on the corpus before believing the result** (`assert len(arbs)==3`,
+`assert n_arb > 300`) and found 894 strings, still 0 changes — the same
+conclusion, now actually measured. This is the *sentinel-of-the-sentinel* shape
+ADR-052 built into `card_surface_sentinel_test.dart`, and it is needed in
+throwaway probes for exactly the same reason: **a scan over an empty set is this
+repo's most familiar green.** Assert the input is non-empty before trusting the
+output, in one-off scripts as much as in committed tests.
+
 **109 — A mutation run that applies nothing prints exactly the same green as a guard that works.** *(S071, ADR-049)*
 The first mutation check of the vocabulary parity sentinel ran three mutants and
 reported three passes. It had edited **nothing**: the runner did `cd app` before
