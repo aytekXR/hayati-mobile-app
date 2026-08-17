@@ -21,10 +21,14 @@ from __future__ import annotations
 import sys
 
 from push_delivery_probe import (
+    DETAIL_DIAGNOSIS,
+    DEVICE_DIAGNOSIS,
     EXIT_CANNOT_MEASURE,
     EXIT_FINDING,
     EXIT_OK,
+    device_reports,
     diagnose,
+    diagnose_device,
     fcm_error_code,
     registered_accounts,
 )
@@ -102,6 +106,105 @@ def test_registered_accounts_reader() -> None:
           f"got {[u for u, _ in found]} — absent/empty/malformed must not count as registered")
     check("reader/tokens", found and found[0][1] == ["t1", "t2"])
     check("reader/empty-input", registered_accounts([]) == [])
+
+
+def test_device_report_reader() -> None:
+    """The ADR-049 field, read out of the Firestore REST v1 shape.
+
+    The wire shape is MEASURED (hayatiapp-prod, 2026-08-17) rather than guessed:
+    a map field arrives as mapValue.fields.<key>.<typedValue>, one level deeper
+    than the logical schema suggests. Every junk case below must read as absent
+    rather than crash — a device SELF-REPORT must never be able to take down the
+    instrument that reads it, because the account writing it is the account being
+    diagnosed.
+    """
+    docs = [
+        {"name": "…/users/full", "fields": {"pushDiagnostic": {"mapValue": {"fields": {
+            "state": {"stringValue": "denied"},
+            "detail": {"stringValue": "permissionRequestRefused"},
+            "at": {"timestampValue": "2026-08-18T09:12:03.123Z"}}}}}},
+        {"name": "…/users/minimal", "fields": {"pushDiagnostic": {"mapValue": {"fields": {
+            "state": {"stringValue": "registered"},
+            "at": {"timestampValue": "2026-08-18T10:00:00Z"}}}}}},
+        {"name": "…/users/absent", "fields": {"contentLanguage": {"stringValue": "tr"}}},
+        {"name": "…/users/notAMap", "fields": {"pushDiagnostic": {"stringValue": "denied"}}},
+        {"name": "…/users/emptyMap", "fields": {"pushDiagnostic": {"mapValue": {}}}},
+        {"name": "…/users/wrongTypes", "fields": {"pushDiagnostic": {"mapValue": {"fields": {
+            "state": {"integerValue": "3"}, "at": {"stringValue": "yesterday"}}}}}},
+    ]
+    got = {uid: (state, detail, at) for uid, state, detail, at in device_reports(docs)}
+    check("device/full", got["full"] == ("denied", "permissionRequestRefused",
+                                         "2026-08-18T09:12:03.123Z"), f"got {got.get('full')}")
+    check("device/minimal", got["minimal"] == ("registered", None, "2026-08-18T10:00:00Z"))
+    check("device/absent", got["absent"] == (None, None, None))
+    check("device/not-a-map", got["notAMap"] == (None, None, None),
+          "a non-map value must read as no report, never as a state")
+    check("device/empty-map", got["emptyMap"] == (None, None, None))
+    check("device/wrong-types", got["wrongTypes"] == (None, None, None),
+          "an integer state and a string timestamp are junk, not a diagnosis")
+    check("device/every-account-listed", len(device_reports(docs)) == len(docs),
+          "an account with no report must still appear — silence is a finding too")
+    check("device/empty-input", device_reports([]) == [])
+
+
+def test_absence_is_not_a_negative() -> None:
+    """Lesson 65, at the one place this tool will spend most of its life.
+
+    Until a build carrying ADR-049 ships, EVERY account reads as no-report, and a
+    message that lets a session conclude 'the feature is broken' — or 'nobody
+    tapped' — from that is worse than no message.
+    """
+    text = diagnose_device(None, None)
+    check("absence/names-both-causes", "build" in text.lower() and "measur" in text.lower(),
+          "must name BOTH the no-build cause and the never-got-that-far cause")
+    check("absence/refuses-to-choose",
+          "not distinguishable" in text.lower() or "cannot tell" in text.lower())
+    check("absence/not-evidence", "evidence" in text.lower(),
+          "must say plainly that this is not evidence of anything")
+
+
+def test_each_device_state_names_a_different_link() -> None:
+    states = ["notDetermined", "denied", "awaitingDeviceToken", "registered"]
+    texts = [diagnose_device(s, None) for s in states]
+    check("device-taxonomy/distinct", len(set(texts)) == len(texts),
+          "two device states produced the same explanation — the ambiguity is back")
+    for state, text in zip(states, texts):
+        check(f"device-taxonomy/nonempty({state})", len(text) > 40)
+    check("device-taxonomy/denied-names-settings",
+          "Settings" in diagnose_device("denied", None),
+          "denied is the ONE state no build can fix — the fix must be named")
+    check("device-taxonomy/registered-defers-to-evidence",
+          "claim" in diagnose_device("registered", None).lower(),
+          "a self-reported 'registered' must defer to the server-owned token count")
+
+
+def test_detail_sharpens_rather_than_replaces() -> None:
+    for detail in DETAIL_DIAGNOSIS:
+        text = diagnose_device("awaitingDeviceToken", detail)
+        check(f"detail/kept({detail})", DEVICE_DIAGNOSIS["awaitingDeviceToken"][:30] in text,
+              "the detail must SHARPEN the state, not replace its explanation")
+        check(f"detail/present({detail})", DETAIL_DIAGNOSIS[detail][:20] in text)
+    apns = diagnose_device("awaitingDeviceToken", "captureExhausted")
+    server = diagnose_device("awaitingDeviceToken", "registerFailed")
+    check("detail/the-219-discrimination", apns != server,
+          "'APNs never answered' and 'the callable threw' share a state and MUST "
+          "not share an explanation — telling them apart is the whole feature")
+
+
+def test_unknown_vocabulary_degrades_honestly() -> None:
+    """A newer build than this tool is a real case: the app ships on its own clock.
+
+    An unrecognised word must be neither a crash nor a silent 'no report' — it is
+    a report this tool cannot read, and it has to say so.
+    """
+    text = diagnose_device("provisionallyGranted", None)
+    check("unknown-state/named", "provisionallyGranted" in text)
+    check("unknown-state/not-absence", "no report" not in text.lower(),
+          "an unreadable report must not be reported as no report at all")
+    detail_text = diagnose_device("denied", "somethingNewer")
+    check("unknown-detail/named", "somethingNewer" in detail_text)
+    check("unknown-detail/keeps-state", "Settings" in detail_text,
+          "an unknown detail must not cost the KNOWN state its explanation")
 
 
 def test_exit_taxonomy() -> None:

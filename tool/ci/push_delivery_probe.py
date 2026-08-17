@@ -76,6 +76,124 @@ FCM_DIAGNOSIS = {
 }
 
 
+# What the DEVICE says about itself (ADR-049), mapped onto the link each state
+# indicts — the same discipline as FCM_DIAGNOSIS above, applied to the half of
+# the chain no server-side API can see.
+#
+# ⚠️ THIS IS A CLAIM, NOT EVIDENCE. `fcmTokens` is server-owned, written from a
+# token the server verified, and is the only thing that proves reachability. This
+# field is written by the device, about the device. It is the one instrument for
+# "did the app ever reach the prompt, and what did it do?", and it is worth
+# exactly that and nothing more.
+DEVICE_DIAGNOSIS = {
+    "notDetermined": (
+        "THE PROMPT NEVER RAN on this install. iOS has never shown its "
+        "notification dialog, so there is nothing to decline and no address to "
+        "capture.\n"
+        "       FIX: open the app to the PAIRED HOME screen — that is where it "
+        "asks (ADR-042 D6) — or use the Notifications row in Settings."),
+    "denied": (
+        "PERMISSION IS OFF, AND NO BUILD FIXES IT. iOS shows its dialog once per "
+        "install and answers from its standing record thereafter, without showing "
+        "anything.\n"
+        "       FIX: iOS Settings -> Notifications -> ikimiz -> Allow "
+        "Notifications ON, then reopen the app. Nothing else works."),
+    "awaitingDeviceToken": (
+        "PERMISSION IS HELD AND THE DEVICE HAS NO ADDRESS. Either APNs has not "
+        "answered yet (ordinary and transient) or it never will. Read the DETAIL "
+        "line: it names which of two very different links this is."),
+    "registered": (
+        "THE DEVICE BELIEVES IT REGISTERED. Cross-check the token count above — "
+        "that is the server-owned evidence; this line is only the phone's claim. "
+        "They disagree legitimately when the phone later signed into another "
+        "account (ADR-042 D1 evicts a token from every other user document)."),
+    "unknown": (
+        "NOTHING MEASURED. The app reached no conclusion — signed out, or no push "
+        "source wired. Not a failure, and the client is not supposed to write it."),
+}
+
+# The resolution the SCREEN deliberately does not have (ADR-046 D2 merged two of
+# these into one state on purpose: the person holding the phone gets the same
+# remedy either way). A session needs them apart — one indicts APNs and one
+# indicts the callable, and confusing those two is what made #219 take 37 hours.
+DETAIL_DIAGNOSIS = {
+    "permissionRequestRefused": (
+        "the app CALLED requestPermission() and was not granted — so the prompt "
+        "path RAN. (Not 'the user tapped no': after the first dialog iOS answers "
+        "from its standing record without showing anything.)"),
+    "captureExhausted": (
+        "ADR-044's bounded capture ran to its END with no token — APNs never "
+        "answered. Suspect the .p8 upload or the swizzling ADR-046 D6 hardened."),
+    "registerFailed": (
+        "a token EXISTED and the registerPushToken callable THREW. The device is "
+        "fine; the server leg is not. This is the #219 shape, and it is invisible "
+        "in fcmTokens precisely because the write that would record it failed."),
+    "permissionUnreadable": (
+        "reading the OS permission state ITSELF threw. Suspect the messaging "
+        "plugin seam rather than any link beyond it."),
+}
+
+
+def device_reports(documents: list) -> list[tuple[str, str | None, str | None, str | None]]:
+    """(uid, state, detail, at) for EVERY account — including the silent ones.
+
+    Junk-safe by construction: a missing key, a non-map, a non-string state or a
+    non-string timestamp all read as absent. The account writing this field is
+    the account being diagnosed, so a malformed self-report must never be able to
+    crash the instrument that reads it — and must never read as a diagnosis.
+
+    Pure: the wire shape (measured 2026-08-17) is
+    `{"mapValue": {"fields": {"state": {"stringValue": ...}, ...}}}`.
+    """
+    out = []
+    for doc in documents:
+        uid = str(doc.get("name", "")).rsplit("/", 1)[-1]
+        field = (doc.get("fields") or {}).get("pushDiagnostic") or {}
+        fields = ((field.get("mapValue") or {}).get("fields") or {})
+
+        def typed(key: str, wire: str) -> str | None:
+            raw = fields.get(key)
+            if not isinstance(raw, dict):
+                return None
+            value = raw.get(wire)
+            return value if isinstance(value, str) else None
+
+        state = typed("state", "stringValue")
+        at = typed("at", "timestampValue")
+        # A report with no state, or no trustworthy time, is not a report. The
+        # rules make both mandatory, so this only fires on pre-rule residue or a
+        # deliberately malformed write — either way it is unreadable, not a
+        # diagnosis.
+        if state is None or at is None:
+            out.append((uid, None, None, None))
+            continue
+        out.append((uid, state, typed("detail", "stringValue"), at))
+    return out
+
+
+def diagnose_device(state: str | None, detail: str | None) -> str:
+    """What the device's self-report means. Unknown vocabulary stays unknown."""
+    if state is None:
+        return (
+            "NO REPORT. Either no build carrying the diagnostic has ever run on "
+            "this account's phone, or the app has never reached the point of "
+            "measuring itself. THOSE ARE NOT DISTINGUISHABLE from here, and "
+            "neither one is evidence of anything (lesson 65). The last build was "
+            "cut 2026-08-09; ADR-049 merged after it.")
+    text = DEVICE_DIAGNOSIS.get(state)
+    if text is None:
+        text = (f"UNMAPPED state {state!r} — the phone is running a build whose "
+                "vocabulary this tool does not know. Read firestore.rules and the "
+                "PushRegistrationState enum; do NOT read this as an absence.")
+    if detail is not None:
+        sharper = DETAIL_DIAGNOSIS.get(
+            detail,
+            f"UNMAPPED detail {detail!r} — a newer build than this tool. The "
+            "state above still stands.")
+        text = f"{text}\n       DETAIL: {sharper}"
+    return text
+
+
 def diagnose(error_code: str | None, project: str) -> str:
     """Map an FCM errorCode onto the broken link. Unknown codes stay unknown."""
     if error_code is None:
@@ -138,7 +256,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="deliver ONE real notification to a registered token")
     parser.add_argument("--confirm", default="",
                         help="must be the literal SEND when --send-test is used")
-    parser.add_argument("--uid", default="", help="which account to send to")
+    parser.add_argument("--uid", default="",
+                        help="narrow the device report to one account (and, with "
+                             "--send-test, the account to send to)")
     parser.add_argument("--from-firebase-cli", action="store_true", required=True)
     args = parser.parse_args(argv)
 
@@ -148,6 +268,20 @@ def main(argv: list[str] | None = None) -> int:
         status, body = api.call(f"{docs}/users?pageSize=100")
         if status != 200:
             raise MeasurementError(f"users read returned HTTP {status}")
+        named_doc = None
+        if args.uid:
+            # A NAMED uid is fetched DIRECTLY rather than filtered out of the
+            # listing above. The listing is capped at 100 with no pagination, so
+            # filtering would print a confident "no diagnostic" for an account
+            # this tool never looked at — an absence manufactured by pagination,
+            # which is lesson 65's failure with an extra step.
+            named_status, named_doc = api.call(f"{docs}/users/{urllib.parse.quote(args.uid)}")
+            if named_status == 404:
+                print(f"could not measure: no account {args.uid!r} in {args.project}",
+                      file=sys.stderr)
+                return EXIT_CANNOT_MEASURE
+            if named_status != 200:
+                raise MeasurementError(f"users/{args.uid} read returned HTTP {named_status}")
     except MeasurementError as exc:
         print(f"could not measure: {exc}", file=sys.stderr)
         return EXIT_CANNOT_MEASURE
@@ -157,11 +291,47 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{args.project}: {len(holders)}/{len(all_docs)} account(s) have registered a device")
     for uid, tokens in holders:
         print(f"  {uid}: {len(tokens)} token(s)")
+    if body.get("nextPageToken"):
+        print("\n  NOTE: more than 100 accounts exist and only the first page was read.\n"
+              "  The verdict below covers that page only. A named --uid is read directly\n"
+              "  and is therefore unaffected.")
+
+    # ADR-049. What each phone says about ITSELF — the half of the chain no
+    # server-side API can see. `--uid` narrows what is PRINTED and never what is
+    # judged: the exit code keeps answering "has any device registered?", because
+    # a lane greps the exit and a human reads the report.
+    reports = device_reports([named_doc] if named_doc is not None else all_docs)
+    scope = f" for {args.uid}" if args.uid else ""
+    print(f"\nwhat the device says about itself{scope} "
+          "(ADR-049 — a CLAIM; fcmTokens above is the evidence):")
+    for uid, state, detail, at in reports:
+        headline = "no report" if state is None else (
+            f"{state}{'' if detail is None else ' / ' + detail}  —  {at}")
+        print(f"  {uid}: {headline}")
+    # When NOTHING has reported — today's state, and the state until a build
+    # carrying ADR-049 ships — the explanation is the same for every account, so
+    # it is said once. Four identical paragraphs read as four findings.
+    if all(state is None for _, state, _, _ in reports):
+        print(f"\n  {diagnose_device(None, None)}")
+        reports = []
+    for uid, state, detail, at in reports:
+        print(f"\n  {uid}:\n       {diagnose_device(state, detail)}")
+        if state == "registered" and uid not in {u for u, _ in holders}:
+            print("       ⚠️  DISAGREEMENT: this phone claims it registered and the "
+                  "server holds\n"
+                  "       no token for this account. Usually legitimate — a phone that "
+                  "later signed\n"
+                  "       into another account has its token evicted from this one "
+                  "(ADR-042 D1).\n"
+                  "       Printed, not scored: a red nobody can ever clear is a red "
+                  "nobody reads.")
 
     if not holders:
         print("\nFINDING: no device has ever registered. The chain cannot be exercised —\n"
               "  install the current TestFlight build, open it to the paired home screen,\n"
-              "  and accept the notification prompt. Then re-run this.")
+              "  and accept the notification prompt. Then re-run this.\n"
+              "  Read the device reports above FIRST: since ADR-049 they can say whether\n"
+              "  the prompt path ever ran, and which link broke if it did.")
         return EXIT_FINDING
 
     if not args.send_test:

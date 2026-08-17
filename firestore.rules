@@ -17,6 +17,54 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    // ADR-049: the ONE client-owned field on users/{uid} — the device's own
+    // report of why it has no push token (state + optional detail + when).
+    // Everything else a client writes here is an ordinary profile value; this one
+    // is READ BY A SESSION as a diagnostic, which is a different obligation.
+    //
+    // So the question this rule answers is NOT "may the client write it" (they
+    // own it, and before this rule existed they could already write anything they
+    // liked into this key — measured: every deny-case below passed against the
+    // pre-ADR-049 ruleset). It is "is what a reader finds there a SHAPE the
+    // reader can trust". Two CLOSED vocabularies, no free-form string anywhere —
+    // so there is no unbounded-storage vector and nothing attacker-chosen to
+    // render — and `at == request.time`, because a client clock must not be able
+    // to forge freshness: "denied" with no trustworthy date cannot tell a phone
+    // that reported this morning from one that reported in July.
+    //
+    // The state vocabulary is ADR-046's PushRegistrationState and the detail
+    // vocabulary is ADR-049's PushDiagnosticDetail; both are Dart enums, and a
+    // Dart source-sentinel test reads THIS FILE and asserts set equality in both
+    // directions for both lists. A sixth member added on either side without the
+    // other is a red test, not a silently-rejected write (ADR-049 D9).
+    function pushDiagnosticValid() {
+      return !('pushDiagnostic' in request.resource.data)
+        || (request.resource.data.pushDiagnostic is map
+          && request.resource.data.pushDiagnostic.keys().hasOnly(['state', 'detail', 'at'])
+          && request.resource.data.pushDiagnostic.keys().hasAll(['state', 'at'])
+          && request.resource.data.pushDiagnostic.state in
+            ['unknown', 'notDetermined', 'denied', 'awaitingDeviceToken', 'registered']
+          && request.resource.data.pushDiagnostic.at == request.time
+          && (!('detail' in request.resource.data.pushDiagnostic)
+            || request.resource.data.pushDiagnostic.detail in
+              ['permissionRequestRefused', 'captureExhausted', 'registerFailed', 'permissionUnreadable']));
+    }
+
+    // ⚠️ Load-bearing, and it protects NOTHING — it keeps a legitimate write
+    // legal. Rules see the POST-MERGE document, so once a diagnostic is stored,
+    // every later profile save (saveProfile's set(merge:true), which never
+    // mentions this field) presents the STORED map again, `at` and all. Under
+    // the shape predicate alone that old `at != request.time` and the ordinary
+    // profile edit is DENIED — on a path that maps permission-denied to a
+    // ProfilePermissionException the onboarding screen shows the user.
+    //
+    // Proven by a reverse-polarity mutation test: strip this clause and that save
+    // goes red (firestore-rules.test.ts, "the unchanged-clause is load-bearing").
+    function pushDiagnosticUnchanged() {
+      return request.resource.data.get('pushDiagnostic', null)
+        == resource.data.get('pushDiagnostic', null);
+    }
+
     match /users/{uid} {
       allow read: if isSelf(uid);
       // createdAt is create-once and server-stamped: the client transaction
@@ -48,7 +96,14 @@ service cloud.firestore {
         && !('coupleEnded' in request.resource.data)
         && !('notificationPrivacy' in request.resource.data)
         && !('consent' in request.resource.data)
-        && !('fcmTokens' in request.resource.data);
+        && !('fcmTokens' in request.resource.data)
+        // ADR-049: pushDiagnostic is VALIDATED at create rather than forbidden —
+        // it is client-owned, so the harm to prevent is a junk shape a reader
+        // would misread, not an escalation. A shape guard that spans update only
+        // is worthless against a client that can mint the value on a fresh (or
+        // post-deletion re-created) self-doc, which is the same gap the four
+        // freezes above each had to close in both directions.
+        && pushDiagnosticValid();
       // Updates may never move createdAt, nor set/change/delete coupleId: a
       // client must not pair (or re-pair) itself by writing the field the join
       // Function owns. Since M6.2 (ADR-019) notificationPrivacy (the discreet
@@ -72,7 +127,15 @@ service cloud.firestore {
         && request.resource.data.get('notificationPrivacy', null) == resource.data.get('notificationPrivacy', null)
         && request.resource.data.get('coupleEnded', null) == resource.data.get('coupleEnded', null)
         && request.resource.data.get('consent', null) == resource.data.get('consent', null)
-        && request.resource.data.get('fcmTokens', null) == resource.data.get('fcmTokens', null);
+        && request.resource.data.get('fcmTokens', null) == resource.data.get('fcmTokens', null)
+        // ADR-049. Note the shape: UNCHANGED **or** VALID, not a bare validation.
+        // Untouched (any ordinary profile save) passes on the first half; a fresh
+        // report passes on the second; a forged stamp or an unknown vocabulary
+        // word passes on neither. Deleting the field passes the second half too —
+        // absence and deletion make the same statement, and nothing depends on
+        // this field persisting. The freezes above are ANDed with it, so a valid
+        // diagnostic in the same write as an fcmTokens mint is still denied.
+        && (pushDiagnosticUnchanged() || pushDiagnosticValid());
       // Hard delete is the M6.2 KVKK/PDPL cascade Function's job (admin SDK,
       // bypasses rules); clients never delete profile documents (ADR-019).
       allow delete: if false;

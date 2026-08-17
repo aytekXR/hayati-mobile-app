@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_user.dart';
+import 'package:hayati_app/features/notifications/domain/push_diagnostic.dart';
+import 'package:hayati_app/features/notifications/domain/push_diagnostic_recorder_provider.dart';
 import 'package:hayati_app/features/notifications/domain/push_registration.dart';
 import 'package:hayati_app/features/notifications/domain/push_token_repository.dart';
 import 'package:hayati_app/features/notifications/domain/push_token_repository_provider.dart';
@@ -119,6 +121,21 @@ class _FakeSource implements PushTokenSource {
   Stream<String> tokenRefreshes() => refreshes.stream;
 }
 
+/// Captures what the device would have told the SERVER about itself (ADR-049).
+class _FakeRecorder implements PushDiagnosticRecorder {
+  final List<(String, PushDiagnostic)> recorded = [];
+  Exception? failWith;
+
+  @override
+  Future<void> record(String uid, PushDiagnostic diagnostic) async {
+    if (failWith != null) throw failWith!;
+    recorded.add((uid, diagnostic));
+  }
+
+  List<PushDiagnostic> get diagnostics => [for (final r in recorded) r.$2];
+  List<String> get uids => [for (final r in recorded) r.$1];
+}
+
 void main() {
   const uid = 'uid-1';
   const user = AuthUser(uid: uid);
@@ -126,13 +143,22 @@ void main() {
 
   late _FakeRepository repository;
   late _FakeSource source;
+  late _FakeRecorder recorder;
 
-  ProviderContainer containerFor(FakeAuthRepository auth) {
+  ProviderContainer containerFor(
+    FakeAuthRepository auth, {
+    bool wireRecorder = true,
+  }) {
     final container = ProviderContainer(
       overrides: [
         authRepositoryProvider.overrideWith((ref) => auth),
         pushTokenRepositoryProvider.overrideWith((ref) => repository),
         pushTokenSourceProvider.overrideWith((ref) => source),
+        // Left UNOVERRIDDEN by the `wireRecorder: false` cases on purpose: the
+        // base provider throws, which is what every widget test that builds the
+        // app without wiring notifications sees.
+        if (wireRecorder)
+          pushDiagnosticRecorderProvider.overrideWith((ref) => recorder),
       ],
     );
     addTearDown(container.dispose);
@@ -143,6 +169,7 @@ void main() {
   setUp(() {
     repository = _FakeRepository();
     source = _FakeSource();
+    recorder = _FakeRecorder();
     // The retry is PROVEN, not asserted — so it must run in milliseconds. The
     // attempt COUNT is left at its shipped value on purpose: a test that also
     // shrank that would stop guarding the bound it exists to guard.
@@ -827,6 +854,280 @@ void main() {
       final before = container.read(pushTokenSyncProvider);
 
       expect(await sync.refresh(), before);
+    });
+  });
+
+  // ADR-049. The four device-side failures ADR-046 named on the PHONE, reported
+  // where a session can read them. What is under test is the DISCRIMINATION — a
+  // report that cannot tell "the callable threw" from "APNs never answered" is
+  // the ambiguity this whole field exists to end — and the three rules that stop
+  // the field from lying: no `unknown`, no overwrite of a specific fact by a
+  // vague one, and no report attributed to the wrong account.
+  group('the device reports what happened (ADR-049)', () {
+    test('success is stated out loud, not implied', () async {
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
+
+      expect(recorder.uids, [uid]);
+      expect(recorder.diagnostics, [
+        const PushDiagnostic(state: PushRegistrationState.registered),
+      ]);
+    });
+
+    test(
+      'a refused permission request records that the prompt path RAN',
+      () async {
+        source
+          ..tokenOnlyAfterPermission = true
+          ..permissionGranted = false;
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        final sync = container.read(pushTokenSyncProvider.notifier);
+        await pumpEventQueue();
+        recorder.recorded.clear();
+
+        await sync.promptForPermissionAndRegister();
+        await pumpEventQueue();
+
+        // `permissionRequestRefused`, not "the user declined": iOS answers from its
+        // standing record after the first dialog, so a tap cannot be inferred.
+        expect(recorder.diagnostics, [
+          const PushDiagnostic(
+            state: PushRegistrationState.denied,
+            detail: PushDiagnosticDetail.permissionRequestRefused,
+          ),
+        ]);
+      },
+    );
+
+    // THE #219 DISCRIMINATION. Both of these settle the SCREEN on
+    // awaitingDeviceToken — ADR-046 D2 merged them deliberately, because the
+    // remedy and the sentence are identical for the person holding the phone.
+    // For a session they are two different broken links, and telling them apart
+    // is what cost 37 hours.
+    test(
+      'a failed callable is recorded as registerFailed, not as an APNs stall',
+      () async {
+        repository.failWith = Exception('callable unreachable');
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        expect(recorder.diagnostics, [
+          const PushDiagnostic(
+            state: PushRegistrationState.awaitingDeviceToken,
+            detail: PushDiagnosticDetail.registerFailed,
+          ),
+        ]);
+      },
+    );
+
+    test(
+      'an exhausted capture with permission held is recorded as captureExhausted',
+      () async {
+        source
+          ..tokenOnlyAfterPermission = true
+          ..statusOverride = PushPermission.granted;
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        expect(recorder.diagnostics, [
+          const PushDiagnostic(
+            state: PushRegistrationState.awaitingDeviceToken,
+            detail: PushDiagnosticDetail.captureExhausted,
+          ),
+        ]);
+      },
+    );
+
+    // A permission read that THREW is two links away from an APNs stall, and the
+    // capture loop settles on the same state for both. Without a distinct detail
+    // the report would blame APNs for a broken plugin seam — the ADR's own defect
+    // reintroduced one level down.
+    test('a THROWING permission read outranks captureExhausted', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusThrows = Exception('no notification centre');
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
+
+      expect(recorder.diagnostics, [
+        const PushDiagnostic(
+          state: PushRegistrationState.awaitingDeviceToken,
+          detail: PushDiagnosticDetail.permissionUnreadable,
+        ),
+      ]);
+    });
+
+    // refresh()'s own catch used to emit NOTHING, so a broken messaging seam was
+    // invisible even on the phone. It now reports — without demoting the last
+    // successful measurement, because a read that failed is not evidence that a
+    // known `denied` has become "waiting".
+    test(
+      'a throwing refresh reports the seam WITHOUT demoting a known denial',
+      () async {
+        source
+          ..tokenOnlyAfterPermission = true
+          ..statusOverride = PushPermission.denied;
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        final sync = container.read(pushTokenSyncProvider.notifier);
+        await pumpEventQueue();
+        expect(
+          container.read(pushTokenSyncProvider).state,
+          PushRegistrationState.denied,
+        );
+        recorder.recorded.clear();
+
+        source.statusThrows = Exception('no notification centre');
+        await sync.refresh();
+        await pumpEventQueue();
+
+        expect(recorder.diagnostics, [
+          const PushDiagnostic(
+            state: PushRegistrationState.denied,
+            detail: PushDiagnosticDetail.permissionUnreadable,
+          ),
+        ]);
+        expect(
+          container.read(pushTokenSyncProvider).state,
+          PushRegistrationState.denied,
+        );
+      },
+    );
+
+    // ⚠️ WHAT THIS PROVES, AND WHAT IT DOES NOT. It proves the SIGN-OUT half:
+    // once the account is gone there is nothing to annotate, and the write is not
+    // attempted — a write there could only earn a permission-denied to swallow.
+    //
+    // It does NOT prove the `unknown` guard in `_record`. A mutation run deleted
+    // that line and this suite stayed green, because both sites that emit
+    // `unknown` (the sign-out removal and the signed-out `refresh`) already run
+    // with a null uid, so the uid check turns them away first. The guard is a
+    // second line of defence against a future emit of `unknown` while signed in,
+    // and this suite cannot falsify it — said here rather than left as a green
+    // tick that measures nothing.
+    test(
+      'sign-out records NOTHING — there is no account left to annotate',
+      () async {
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+        final afterSignIn = recorder.recorded.length;
+
+        auth.emit(null);
+        await pumpEventQueue();
+
+        expect(recorder.recorded, hasLength(afterSignIn));
+        expect(
+          recorder.diagnostics.map((d) => d.state),
+          everyElement(isNot(PushRegistrationState.unknown)),
+        );
+      },
+    );
+
+    test('reports once per observation, not once per resume', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusOverride = PushPermission.denied;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+      final afterBoot = recorder.recorded.length;
+
+      await sync.refresh();
+      await sync.refresh();
+      await pumpEventQueue();
+
+      expect(recorder.recorded, hasLength(afterBoot));
+    });
+
+    // The rule that keeps the single most valuable fact alive: a later, vaguer
+    // observation of the SAME state must not erase the one that named how the
+    // device got there.
+    test('a vague repeat never overwrites a specific report', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..permissionGranted = false
+        ..statusOverride = PushPermission.denied;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      final sync = container.read(pushTokenSyncProvider.notifier);
+      await pumpEventQueue();
+      await sync.promptForPermissionAndRegister();
+      await pumpEventQueue();
+      expect(
+        recorder.diagnostics.last.detail,
+        PushDiagnosticDetail.permissionRequestRefused,
+      );
+
+      await sync.refresh();
+      await pumpEventQueue();
+
+      expect(
+        recorder.diagnostics.last.detail,
+        PushDiagnosticDetail.permissionRequestRefused,
+      );
+    });
+
+    // A uid change with no sign-out between it (a token swap, a credential link)
+    // still starts B's reporting from nothing — otherwise B's document stays
+    // silent about a device that measured itself, purely because A happened to be
+    // in the same state.
+    test(
+      'a second account reports for itself even in the same state',
+      () async {
+        repository.failWith = Exception('callable unreachable');
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        auth.emit(other);
+        await pumpEventQueue();
+
+        expect(recorder.uids, [uid, other.uid]);
+        expect(
+          recorder.diagnostics.map((d) => d.detail),
+          everyElement(PushDiagnosticDetail.registerFailed),
+        );
+      },
+    );
+
+    test(
+      'a THROWING recorder never escapes and never costs a registration',
+      () async {
+        recorder.failWith = Exception('firestore unreachable');
+        final auth = FakeAuthRepository(initialUser: user);
+        final container = containerFor(auth);
+        container.read(pushTokenSyncProvider);
+        await pumpEventQueue();
+
+        expect(repository.registered, ['device-token']);
+        expect(container.read(pushTokenSyncProvider).isRegistered, isTrue);
+      },
+    );
+
+    // The 60-widget-test trap, in the one place it would have been reintroduced:
+    // the base provider throws by design, and an unguarded resolve here would
+    // take every container that builds the app without wiring notifications red.
+    test('an UNWIRED recorder is a logged no-op, not a failure', () async {
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth, wireRecorder: false);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
+
+      expect(repository.registered, ['device-token']);
+      expect(container.read(pushTokenSyncProvider).isRegistered, isTrue);
     });
   });
 
