@@ -3318,3 +3318,46 @@ The contradiction is corrected **in place with the old text quoted**, not silent
 **Notes / debt logged:** none new. **#222 is closed**, with the record noting that one of its ten items was itself incorrect and two were already served by S071.
 
 **Next objective written to resume-prompt.md:** #174 — the reveal is felt and seen but never announced; there is no `liveRegion` anywhere in `lib/`.
+
+## Session 074 — 2026-08-17 — #174: the reveal announces once, and the guard it needed already existed
+
+**Objective (from resume-prompt.md):** #174 — the reveal is felt and seen but never announced; `grep -rn "liveRegion\|SemanticsService" app/lib` returns zero. Settle the fire-point decision #173 deferred, and assert the MECHANISM rather than the presence of a node.
+
+**Outcome:** done.
+
+### The fire-point question was already answered by code written for something else
+
+`RevealChoreography.onSettle` → `PairedHomeScreen._fireRevealHaptic` already fired **at most once per State**, on a State **re-keyed per dayKey**, **preserved under reduce-motion**, **surviving app resume**. Every property #174's acceptance demands, each true for its own independent reason and none of them written for accessibility.
+
+So the announcement rides that call rather than growing a second guard. Two guards would be two answers to *"has this reveal already happened?"* — and the interesting failure is not that they disagree today but that a later change teaches one of them about a case and not the other. `_fireRevealHaptic` became `_signalReveal`: one event, two channels, felt and heard.
+
+### The review caught a blocker I would have shipped
+
+`SemanticsService.announce` is **`@Deprecated` after Flutter v3.35.0** and this repo is on **3.44.5**. The ADR had named it. The live API is `sendAnnouncement(View.of(context), message, textDirection)`.
+
+Reading the SDK to confirm that turned up two things nobody had asked for:
+
+* **`MediaQuery.supportsAnnounceOf`** — the SDK's own doc says to check it before announcing. A platform that cannot announce should get the haptic and no attempted call, not a dropped one nobody notices.
+* **Android has deprecated announcement events**, because they are disruptive with TalkBack (it clears its speech queue). This repo is iOS-first, so the decision is right for the platform it ships on — and **M6.5 will have to revisit the mechanism**, which is now written down where M6.5 will find it rather than left to be discovered.
+
+### The word that had to come out
+
+The copy says *"Your partner's answer **is shown**"*, not *"is now shown"*. `_fireRevealHaptic`'s own comment records the bound: the choreography *"also runs on cold-open-into-revealed… there is no cheap client signal that separates them."* For a haptic a stray buzz on cold-open was accepted; for an announcement, **"now" would be a false claim about a transition** every time someone opens an already-revealed day. Suppressing it instead would need exactly the signal the source says does not exist, and guessing wrong means silence on a real reveal — the defect being fixed. A redundant sentence is the cheaper error.
+
+**Neither this nor the fire point came from the review**: its `firepoint` lens returned **zero findings**, which §5.5 makes *unverified* rather than clean, so both were worked by hand — the same correction S071 made when its `data-rights` lens went quiet. That is now two sessions in a row where a silent lens hid something real.
+
+### The register was measured, not chosen
+
+TR and AR address the user **informally** (`Cevapladın`, `أجبت`, `Partnerinin`, `شريكك`). The `-nız` in `pairedRevealedCaption` is the **dual "you both"**, not a formality shift — reading it as one would have made this string wrong in a way no test could catch. Each locale reuses the noun phrase already shipped in `pairedPartnerAnswerLabel`, so the announcement speaks vocabulary the screen already uses. **Drafts pending the founder's native review** (operator item 1): announced text, so a slip is heard rather than read.
+
+**Commits:** `1269e6f` (ADR, before the code), `0428160` (implementation + docs) — PR **#233**.
+**CI:** green (PR + post-merge `main`).
+**Docs touched:** `docs/adr/051-*` (new), `architecture.md`, `test-suite.md`, three ARB files, `reveal_choreography.dart`'s comment, `resume-prompt.md`, `past-prompts.md`.
+
+**Verification:** app **1725 tests** (+6), coverage 87.56%; `flutter analyze` and `dart format` clean; the ARB guard suite green. **Three mutants, each caught by a named case** — the once-only guard removed, the announcement removed, and `Directionality.of(context)` hardcoded to `TextDirection.ltr`. The last is the one worth having: a wrong-direction announcement is invisible to every other check in this repo, because an announcement is never drawn.
+
+⚠️ **The honest bound, in the ADR, in `test-suite.md` and here:** these prove the event is *dispatched*, once, with the right text and direction. They do **not** prove VoiceOver speaks it, or that it lands usefully relative to the visual settle. That needs a device and a person — the same on-device observation **#48**, **#15** and **#136** are still waiting for.
+
+**Notes / debt logged:** the Android announcement-deprecation obligation is recorded in ADR-051 and `architecture.md` rather than filed, because M6.5 is where it becomes actionable and ADR-006 gates that on a founder decision.
+
+**Next objective written to resume-prompt.md:** #175 — 10 of 14 raised cards render FLAT; the card decoration is copy-pasted per screen instead of coming off the theme.
