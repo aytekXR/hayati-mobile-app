@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-17** (Session 076)._
+_Last refreshed: **2026-08-17** (Session 077)._
 
 > ### ✅ RESOLVED — billing is back, and your question is arriving again
 >
@@ -1270,11 +1270,12 @@ these.
 
 | Issue | What |
 |---|---|
-| **#176** | The Question text style asks for Rubik **Light**, which is not bundled — so it silently renders at Regular. The cheapest real bug on the list. |
-| **#175** | 10 of 14 raised cards render flat: the card decoration is copy-pasted per screen instead of coming off the theme. |
-| **#174** | Nothing in the app is announced to VoiceOver when the reveal happens — no `liveRegion` anywhere. |
+| ~~**#176**~~ | ✅ **Closed 2026-08-08.** Left listed as open here until S077 re-checked every row against `gh` — the founder's checklist was carrying three finished items. The Question text style asks for Rubik **Light**, which is not bundled — so it silently renders at Regular. The cheapest real bug on the list. |
+| ~~**#175**~~ | ✅ **CLOSED 2026-08-17 (S075, ADR-052).** "Raised" now has one definition instead of fourteen; the ten flat cards get the Level-1 plum shadow the brandkit always assigned them. ⚠️ **Nobody has looked at it on a device** — a golden suite proves the pixels do not change again, never that they were right. Worth a glance on your next build. |
+| ~~**#174**~~ | ✅ **CLOSED 2026-08-17 (S074, ADR-051).** The reveal now announces once to VoiceOver. ⚠️ **Tests prove the event is dispatched with the right text and direction; that VoiceOver actually *speaks* it, usefully, needs a device and a person** — yours. |
 | ~~**#166**~~ | ✅ **Closed 2026-08-09.** It asked whether the deployed function code can be compared to `main` *at all* — and it can, exactly. The check exists now. This is the gap that cost you the notification feature at S063. |
 | ~~**#206**~~ | **CLOSED 2026-08-17 (ADR-048).** `deploy-functions.yml` exists, so no deploy target is a typed command any more. It is **unarmed** until item 2(e)(iii)'s secret — whose role list grew in the same change. Production re-measured **clean** while building it, which withdrew the drift warning that used to sit in 2(e)(iv). |
+| **#226** | ⚠️ **NEEDS YOU, and it was missing from this list until S077.** The privacy policy tells users *"ikimiz does not send push notifications today"* — true of the outcome, **false of the system**: the server has composed and attempted a push on schedule since 2026-08-11. Its *"what we collect"* list also names neither `fcmTokens` nor `pushDiagnostic`, both of which we store about a user's device. **Why a session cannot just fix it:** any revision to the legal texts bumps `CURRENT_LEGAL_VERSION`, which **re-prompts every existing user for consent**. That is your call and a lawyer's, not a side effect of an engineering slice. A session can draft the wording for you. |
 | **#165** | `rules-drift` is built but unarmed — that is item 2(e)(iv) above, which now arms **two** checks. |
 | ~~**#137**~~ | **CLOSED 2026-08-17 (ADR-053).** The seam classifies characters against generated Unicode tables now, so it is right by construction rather than by luck. **Nothing was ever wrong for you or the founder's testers** — Turkish and Gulf Arabic always sat inside the covered ranges. Re-measuring it found the filed defect was *understated*: five blocks rather than one, plus a second, separate bug where every astral RTL script and every emoji read as left-to-right. No operator action, then or now. |
 | **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app applies on screen. Latent today — **it stops being latent the moment 4(a) lands and pushes start arriving.** |

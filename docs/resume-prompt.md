@@ -1,4 +1,4 @@
-# Resume Prompt — Session 077
+# Resume Prompt — Session 078
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -7,110 +7,100 @@
 > never-without-asking list) and `session-lessons.md` (numbered to **113**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #227 — the data-rights export omits every trace of the user's
-devices, and that omission was inherited rather than decided.**
+**Objective: #208 — `integration-emulator` hung SILENTLY for 38 minutes and burned
+its whole budget, and the previous mitigation was to raise the ceiling.**
 
-`projectProfile` in `functions/src/data-rights/data-rights-core.ts` builds the
-export's profile lane as a **whitelist**: `status`, `contentLanguage`,
-`register`, `createdAtMs`, the Auth record fields, plus `notificationPrivacy` and
-`consent` when present. Everything else on `users/{uid}` is silently absent.
+This is blow-out **two**, and the two have **different shapes** — which is the
+part a session must not flatten:
 
-That excludes **`fcmTokens`** (one FCM registration token per physical device,
-ADR-042 — a pseudonymous device identifier tied to an identified person) and
-**`pushDiagnostic`** (the device's self-reported permission state and the
-server-stamped time it reported, ADR-049).
+* **S024's** was uniform slowness. Suites kept printing progress; a slow macOS
+  runner ran the same work ~55% longer and hit `timeout-minutes: 40` exactly. The
+  fix was 40 → 50.
+* **This one emitted nothing at all for 38 minutes**, parked at `00:00 +0`
+  immediately after a clean 49-second Xcode build. A slow runner still prints.
+  That is a **hang** — the app never reaching the emulators, or the simulator
+  wedging — not a budget shortfall.
 
-ADR-049 kept `pushDiagnostic` out **for consistency with `fcmTokens`** and pinned
-that with a test, so it is a recorded decision rather than drift — but the
-consistency argument never asked whether `fcmTokens`' own exclusion was right.
-**That is this session's question, and it is a genuine one with a cost on both
-sides:**
+**So raising 50 → 60 converts a 50-minute hang into a 60-minute hang.** Do not.
 
-* Under KVKK Art. 11 / PDPL / GDPR Arts. 15 & 20 a subject's export should carry
-  the personal data held about them, and device identifiers linked to an
-  identified person qualify — here the document key *is* the uid.
-* But a raw `fcmTokens` value **addresses a phone**. Putting it in a file the
-  user may store, email to themselves, or forward puts a live credential into
-  general circulation. That is the argument for a **redacted device lane**
-  (device count, last-registered timestamp, the diagnostic state) rather than the
-  raw tokens — an answer that serves Art. 15's *"what do you hold about me"*
-  without shipping the thing itself.
+Two facts worth carrying in before measuring anything:
 
-**Decide it in an ADR before writing code (§5.1 — and read S076's ADR to see what
-inverting that order actually costs).** The three defensible answers are: include
-raw, include redacted, or exclude with a written justification. Whichever wins,
-the test ADR-049 left behind must be *changed deliberately*, not deleted.
+1. **GitHub reported the conclusion as `cancelled`, not `failure`.** That reads
+   like a human pressed a button, and `slack_notify.sh` reported everything else
+   as success-shaped. A timeout on the one **main-only** job is exactly ADR-024's
+   founding case — the red that lands after the session's attention has moved on.
+2. **It was checked, not assumed, that this was not a regression.** The merge
+   touched nothing under `app/` or `functions/`, and a re-run of the same job on
+   the same commit passed while genuinely running all four suites. The re-run
+   still took **37m46s**, against the 25–26 min the job's own comment calls
+   healthy.
 
-⚠️ **Check whether the export's own documentation and the privacy policy agree
-with whatever you choose.** #226 is the sibling defect and is founder-blocked;
-do not let this session quietly create a fourth statement of what we hold.
+The issue's own checklist is a good starting shape — a per-suite watchdog that
+**names itself** when it fires, something logged during the silence so there is
+anything at all to debug from, distinct Slack handling for `cancelled`, and a
+re-check of whether four serial Xcode debug builds are still the right trade
+(that is most of the 25–26 min baseline and is what leaves no headroom).
+
+⚠️ **The trap in this one:** a watchdog that fires is easy to build and easy to
+get wrong in the way this repo keeps finding — a timeout that reports "timed out"
+without saying *which suite, at which phase* is the same non-diagnosis in a
+shorter wrapper. And it will be **hard to test**, because the failure is a hang
+you cannot reproduce on demand. Decide before writing code what evidence would
+prove the watchdog works, and note that **the emulator suite cannot run on this
+box without `~/.local/share/java/jdk-21.0.11+10-jre/bin` on PATH** — S077 lost a
+run to `java: command not found` before reading `session-context.md` §"Functions
+/ emulator", which documents it.
 
 ## 1. Where things actually stand *(measured 2026-08-17 — re-measure, do not inherit)*
 
 | | State |
 |---|---|
-| **Notifications, server side** | **RUNNING** as of S070: `prod_pulse.py --from-firebase-cli` exit 0, scheduler ENABLED, sweep summary `assigned=0 buckets=1 existing=1 failed=0`. **Not re-measured since** — run it before relying on it. |
-| **Notifications, device side** | **STILL ZERO** as of S071: `push_delivery_probe.py` exit 1, 0 of 4 accounts have ever registered. Unchanged since S063. |
-| **The build gap that gates it** | Last `release.yml` run is **2026-08-09, build 119**. Everything client-side merged since — ADR-046's Settings row, ADR-049's `pushDiagnostic`, ADR-051's reveal announcement, ADR-052's card surfaces, **and now ADR-053's bidi tables** — is on **nobody's phone**. |
-| **Deployed rules vs `main`** | `rules_drift.py --from-firebase-cli` exited **1 for both projects** at the S071 close; S071 changed `firestore.rules`. Deploying is a **§7 founder ask**. ⚠️ Not "the field does not work until it deploys" — the old ruleset has no `pushDiagnostic` clause, so writes LAND either way; what is missing is the *validation*. Re-measure rather than inherit. |
-| **`hayatiapp-prod` Functions** | CLEAN at S070 (`functions_drift.py` exit 0, 13 deployed, 0 foreign). **S077's objective changes `functions/` source**, so a deploy becomes relevant — and remains a §7 ask. |
-| **`hayatiapp-dev` Functions** | 12 of 13; `revenueCatWebhook` cannot deploy there until **0(c)** puts `RC_WEBHOOK_TOKEN` on dev. |
+| **Notifications, server side** | **RUNNING** as of S070: `prod_pulse.py --from-firebase-cli` exit 0, scheduler ENABLED. **Not re-measured since** — run it before relying on it. |
+| **Notifications, device side** | **STILL ZERO** as of S071: `push_delivery_probe.py` exit 1, 0 of 4 accounts have ever registered. |
+| **The build gap that gates it** | Last `release.yml` run is **2026-08-09, build 119**. Everything client-side merged since — ADR-046, ADR-049, ADR-051, ADR-052, **ADR-053** — is on **nobody's phone**. |
+| **Deployed rules vs `main`** | `rules_drift.py` exited **1 for both projects** at the S071 close. Deploying is a **§7 founder ask**. Re-measure rather than inherit. |
+| **`hayatiapp-prod` Functions** | Clean at S070. ⚠️ **S077 changed `functions/` source** (the export's device lane), so prod is now behind `main` on function code as well — a deploy is a **§7 ask**, and `functions_drift.py` should report it. |
 | **`functions-drift` / `rules-drift` in CI** | Both **visibly SKIPPED** by design — one absent secret (operator **2(e)(iv)**). |
-| **#137** | **CLOSED (ADR-053).** |
-| **#175, #174, #221, #222, #223, #206** | **CLOSED** (S075, S074, S071, S073, S072, ADR-048). |
+| **#137, #227** | **CLOSED** (ADR-053, ADR-054). |
+| **#176, #175, #174** | **CLOSED** — and they were still listed as *open* in `operator-expected.md` until S077 checked every row against `gh`. |
 
-### What S076 changed that a later session will trip over
+### What S076/S077 changed that a later session will trip over
 
 * `app/lib/core/l10n/strong_bidi_ranges.dart` is **GENERATED — never edit it.**
   Re-derive with `python3 tool/gen_bidi_rtl_ranges.py`; CI runs `--check` plus
-  `tool/gen_bidi_rtl_ranges_test.py`.
-* **If `--check` fails after a runner-image bump, read the message.** The table
-  is derived from the interpreter's own UCD, so a newer Python emits a newer
-  Unicode. The tool prints a *different sentence* for that than for a hand-edit,
-  because a version move is news and the fix is to regenerate and read the diff
-  as a changelog.
-* `intl` is gone from the bidi seam and must not return. It remains a `pubspec`
-  dependency only because Flutter's generated localizations import it.
-* The generator's output must stay **`dart format`-clean**. It emits the
-  formatter's own choices deliberately; if that ever drifts, `dart format
-  --set-exit-if-changed` and `--check` deadlock against each other and no edit
-  satisfies both.
+  `tool/gen_bidi_rtl_ranges_test.py`. **If `--check` fails after a runner-image
+  bump, read the message** — the table is pinned to the interpreter's Unicode
+  version, and the tool prints a *different sentence* for "Unicode moved" than
+  for a hand-edit.
+* The generator's output must stay **`dart format`-clean**, or that gate and
+  `--check` deadlock against each other permanently.
+* **The export must never carry a raw FCM registration token, at any nesting
+  level** (ADR-054). Delivery is `Clipboard.setData`, so a leak lands on the
+  system pasteboard. `data-rights-core.test.ts` asserts this over the whole
+  serialized projection; do not narrow it.
+* `FORMAT_VERSION` is **3**. **Four** assertions pin it — three
+  `expect(...formatVersion).toBe()` and the constant itself — and **two** carry
+  the number in the *test's name*. Bump all of them together, or the next
+  session debugs a name that disagrees with its own assertion (lesson **108**).
 
 ---
 
 ## 2. Then, in priority order
 
-**1 — #226**, the sibling of this session's objective and the more serious half:
-the privacy policy states *"ikimiz does not send push notifications today"*,
-which is true of the outcome and **false of the system** (the server has composed
-and attempted a push on schedule since 2026-08-11), and its "what we collect"
-list names neither `fcmTokens` nor `pushDiagnostic`. **Founder/lawyer-blocked**,
-because any revision bumps `CURRENT_LEGAL_VERSION` in three places and re-gates
-consent for every existing user. A session can draft the wording; it cannot land it.
+**1 — #226**, and it is the most serious open item in the repo: the privacy
+policy tells users *"ikimiz does not send push notifications today"*, which is
+true of the outcome and **false of the system**. **Founder/lawyer-blocked** — any
+revision bumps `CURRENT_LEGAL_VERSION` and re-gates consent for every existing
+user. A session can draft the wording; it cannot land it. **Now listed in
+`operator-expected.md`**, which it was not before S077.
 
-**2 — #208** — `integration-emulator` hung **silently** for 38 minutes and burned
-the whole 50-minute budget. Second blow-out; raising the ceiling again is not a
-fix, it is the third one queued.
-
-**3 — #204** (`deliver` has failed to create the `tr` localization on **every**
+**2 — #204** (`deliver` has failed to create the `tr` localization on **every**
 release since build 1) · **#165** (`rules-drift` built but unarmed) · **#136**
-(the Functions-side bidi twin — see below) · **#129/#121** (release lane) ·
-**#115** · **#41** · **#63/#71** (brandkit).
+(the Functions-side bidi twin — device-blocked, but its fallback is not) ·
+**#129/#121** (release lane) · **#115** · **#41** · **#63/#71** (brandkit).
 
 ⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
 first. Token capture needs none of it; only background *delivery* does.
-`signing_sentinel_test` reddens if it is added.
-
-### A note on #136, now that #137 is closed
-
-#136 is *not* unblocked by ADR-053. The app-side table is Dart; #136 is
-TypeScript in `functions/src/notifications/payload-policy.ts`, and its real
-blocker is a **device question the repo cannot answer from here** — whether iOS
-and Android notification chrome honour `U+2068`/`U+2069` at all. The issue is
-explicit: *do not assume it works — measure on a device*, and do not ship
-invisible control characters into a push payload on faith. Its fallback (reorder
-the Arabic copy so the placeholder never sits beside a neutral) **is** available
-to a session and needs no device.
 
 ---
 
@@ -118,13 +108,13 @@ to a session and needs no device.
 
 | What | Blocked on | Why a session cannot take it alone |
 |---|---|---|
-| **A build carrying ADR-046/049/051/052/053** | founder | `release.yml` uploads a real binary to TestFlight — **§7**. Last build **119, 2026-08-09**. Five merged slices are on no device |
-| **M3.4's last inch** | the founder's phone | One permission grant, on a build that has the fix. **If the prompt was ever declined, iOS will not show it again** — 119's only remedy is iOS Settings → Notifications → ikimiz |
-| **Deploying S071's rules** | founder | §7. Additive, so nothing is broken until it lands — but `rules-drift` reports prod behind `main` |
+| **A build carrying ADR-046/049/051/052/053** | founder | `release.yml` uploads a real binary to TestFlight — **§7**. Last build **119, 2026-08-09** |
+| **M3.4's last inch** | the founder's phone | One permission grant, on a build that has the fix. **If the prompt was ever declined, iOS will not show it again** |
+| **Deploying S071's rules and S077's functions** | founder | §7. Both additive; `rules-drift`/`functions-drift` will report prod behind `main` |
 | **`tr` App Store localization** | founder | Apple refuses the **name**, not the locale. A different Turkish display name fixes **eight** audit findings |
-| **operator 2(d)** — Associated Domains | founder | Measured absent. Same portal page as the push tick |
+| **operator 2(d)** — Associated Domains | founder | Measured absent |
 | **operator 2(e)(iii)** | founder | `FIREBASE_SERVICE_ACCOUNT`. Arms **three** lanes |
-| **operator 2(e)(iv) / #165** | founder | One read-only SA, two roles. Until then `rules-drift` **and** `functions-drift` are SKIPPED by design |
+| **operator 2(e)(iv) / #165** | founder | One read-only SA, two roles |
 | **operator 2(a)** | founder | The budget alert — the control that would have caught #219's cause rather than its symptom |
 | **operator 0(c)** | founder | `RC_WEBHOOK_TOKEN` on dev |
 | **operator 2(e)(ii)** | founder | The controller's legal name. Blocks `/privacy`, `/terms`, the listing |
@@ -144,39 +134,25 @@ Append to `past-prompts.md` → regenerate this file (one objective) → refresh
 `operator-expected.md` → commit + push → verify CI → **watch the post-merge `main` run**
 (`integration-emulator` is main-only) → `codegraph sync`.
 
-> ⚠️ **Write the ADR FIRST, and mean it** (§5.1, lesson **111**). S076 inverted
-> the order and it cost three specific claims: a figure — *"62,408"* — that
-> corresponded to **nothing measurable** and had reached three files, a *"strict
-> superset of `intl`'s RTL class"* assertion that was **false by 322 code points**
-> and had reached a test where it would have forced a correct table to stay
-> wrong, and a stale filename in the generator's own docstring. All three sat
-> beside code that compiled and tests that passed. An ADR written first has to
-> state its numbers while there is nothing green lending them authority.
-
-> ⚠️ **A scan whose glob matches nothing reports the same clean zero as a scan
-> that passed** (lesson **110**). S076's golden declaration rested on a corpus
-> scan that first reported *"200 strings, 0 changes"* — its ARB glob pointed at a
-> directory that does not exist, so it had classified **no localized string at
-> all**. Assert a floor on the input before believing the output, in throwaway
-> probes as much as in committed tests.
-
-> ⚠️ **State a mutant by its measured post-condition, not its intent** (lesson
-> **112**). S076's third mutant was described as reproducing `intl`'s exact gap.
-> It removed nine of ten ranges and left **22 of 150** code points covered,
-> because one generated range spans `intl`'s class boundary. Both tests went red
-> anyway, so nothing pushed back on a sentence that was simply false.
-
-> ⚠️ **A mutation run that applies nothing prints the same green as a guard that
-> works** (lesson **109**). Assert the anchor and the landed edit **before**
-> running the test, and use **absolute paths** — S076 hit this again, restoring a
-> mutated file from a `cd`-shifted relative path and leaving the tree dirty.
-
-> ⚠️ **An empty lens is UNVERIFIED, never a clean bill** (§5.5). Read the raw
-> findings list (lesson **107**), and when a lens is quiet on a subject you have
-> not checked yourself, check it.
+> ⚠️ **WRITE THE ADR FIRST** (§5.1, lesson **111**). S076 inverted it and paid
+> three claims for it, including a figure — *"62,408"* — that corresponded to
+> nothing measurable and had reached three files. S077 did it in the right order.
+> An ADR written first must state its numbers while nothing green is lending
+> them authority.
 
 > ⚠️ **FREEZE THE TREE BEFORE THE REVIEW** (lesson **113**). S076 kept editing
 > docs while its five lenses read the repo, and all three surfaced blockers were
 > *"the documentation is uncommitted"* — true when read, false by the time it was
-> read back, and never a defect in the change. Commit or stash first, or point
-> the review at a ref rather than the working tree.
+> read back, and never a defect in the change. Commit or stash first.
+
+> ⚠️ **A scan whose glob matches nothing reports the same clean zero as a scan
+> that passed** (lesson **110**). Assert a floor on the input before believing
+> the output, in throwaway probes as much as in committed tests.
+
+> ⚠️ **State a mutant by its measured post-condition, not its intent** (lesson
+> **112**), and **assert the anchor landed before running the test** using
+> **absolute paths** (lesson **109**).
+
+> ⚠️ **Check the issue rows against `gh`, not against the last session's memory.**
+> S077 found three CLOSED issues still listed as open in `operator-expected.md`,
+> and **#226 — founder-blocked — listed in no operator document at all.**

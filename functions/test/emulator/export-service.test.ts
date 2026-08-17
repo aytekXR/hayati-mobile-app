@@ -22,6 +22,10 @@ const DAY_PREREVEAL = '20260710';
 
 const B_REVEALED_TEXT = 'BBBB_SECRET_REVEALED_ANSWER';
 const B_PREREVEAL_TEXT = 'BBBB_SECRET_PREREVEAL_ANSWER';
+// Real-looking registration tokens: the anti-leak assertion greps the serialized
+// envelope for these exact strings, so they must be distinctive.
+const A_TOKEN_1 = 'fcm-token-alice-phone-9f3a';
+const A_TOKEN_2 = 'fcm-token-alice-tablet-2c71';
 const B_DAILY_COUNT = 4242;
 // A long distinctive string sentinel for B's daily lane, carried in its dayKey.
 // It replaces the old 4-digit `String(B_DAILY_COUNT)` negative-sweep sentinel,
@@ -68,7 +72,7 @@ async function seedPaired(): Promise<void> {
   await db.collection('invites').doc('BBBB3333').set({ creatorUid: B, joinerUid: A, status: 'joined', coupleId: CID, joinedAt: Timestamp.now(), createdAt: Timestamp.now() });
   await db.collection('invites').doc('CCCC4444').set({ creatorUid: B, status: 'pending', expiresAt: Timestamp.fromMillis(Date.now() + 60_000), createdAt: Timestamp.now() });
 
-  await db.collection('users').doc(A).set({ status: 'married', contentLanguage: 'tr', register: 'respectful', coupleId: CID, notificationPrivacy: 'discreet', consent: { version: 1, acceptedAt: Timestamp.fromMillis(1_699_000_000_000), ageAttested: true }, createdAt: Timestamp.now() });
+  await db.collection('users').doc(A).set({ status: 'married', contentLanguage: 'tr', register: 'respectful', coupleId: CID, notificationPrivacy: 'discreet', consent: { version: 1, acceptedAt: Timestamp.fromMillis(1_699_000_000_000), ageAttested: true }, fcmTokens: [A_TOKEN_1, A_TOKEN_2], pushDiagnostic: { state: 'denied', detail: 'permissionRequestRefused', at: Timestamp.fromMillis(1_700_000_000_000) }, createdAt: Timestamp.now() });
   await db.collection('users').doc(B).set({ status: 'married', contentLanguage: 'ar', register: 'respectful', coupleId: CID, createdAt: Timestamp.now() });
   await db.collection('users').doc(A).collection('soloAnswers').doc('20260701').set({ questionId: 'solo_tr_9', text: 'A solo reflection', answeredAt: Timestamp.now() });
   await db.collection('users').doc(B).collection('soloAnswers').doc('20260701').set({ questionId: 'solo_tr_9', text: 'B solo reflection', answeredAt: Timestamp.now() });
@@ -79,14 +83,17 @@ beforeEach(async () => {
 });
 
 describe('buildExportDocument — envelope + positive per section', () => {
-  it('produces a formatVersion-2 envelope with every A-authored section present', async () => {
+  it('produces a formatVersion-3 envelope with every A-authored section present', async () => {
     await seedPaired();
     const result = await buildExportDocument(db, A, deps);
     expect(result.kind).toBe('ok');
     if (result.kind !== 'ok') return;
     const doc = result.document;
 
-    expect(doc.formatVersion).toBe(2);
+    // v3 as of ADR-054 (the device lane). The NAME of this test moved with the
+    // number deliberately — a test called "formatVersion-2" that asserts 3 is
+    // lesson 108 waiting to happen.
+    expect(doc.formatVersion).toBe(3);
     expect(doc.uid).toBe(A);
     expect(doc.generatedAt).toBe(new Date(FIXED_NOW).toISOString());
 
@@ -102,6 +109,25 @@ describe('buildExportDocument — envelope + positive per section', () => {
       acceptedAtMs: 1_699_000_000_000,
       ageAttested: true,
     });
+
+    // ADR-054 (#227). END-TO-END, not just the projector: the lane has to survive
+    // the real Firestore read, including a real server Timestamp on `at`, which
+    // the unit test fakes with an object carrying toMillis().
+    expect(doc.data.profile.device).toEqual({
+      registeredDeviceCount: 2,
+      pushDiagnostic: {
+        state: 'denied',
+        detail: 'permissionRequestRefused',
+        atMs: 1_700_000_000_000,
+      },
+    });
+
+    // ⚠️ THE ANTI-LEAK ASSERTION, over the WHOLE envelope rather than the device
+    // lane. This export is delivered by Clipboard.setData, so a registration
+    // token reaching any part of this document ends up on the system pasteboard.
+    const serialized = JSON.stringify(doc);
+    expect(serialized).not.toContain(A_TOKEN_1);
+    expect(serialized).not.toContain(A_TOKEN_2);
 
     // soloAnswers, couple context, A's couple answers, coach lane, subscription, invites.
     expect(doc.data.soloAnswers.map((s) => s.text)).toContain('A solo reflection');
@@ -164,8 +190,12 @@ describe('buildExportDocument — unpaired, free tier, missing profile', () => {
     const result = await buildExportDocument(db, A, deps);
     expect(result.kind).toBe('ok');
     if (result.kind !== 'ok') return;
-    expect(result.document.formatVersion).toBe(2);
+    expect(result.document.formatVersion).toBe(3);
     expect(result.document.data.profile.consent).toBeUndefined();
+    // ADR-054: an account with neither fcmTokens nor pushDiagnostic gets NO
+    // device lane, rather than one asserting a count of zero about a device
+    // that never existed.
+    expect(result.document.data.profile.device).toBeUndefined();
   });
 
   it('a free-tier (no subscription doc) paired caller still exports — no premium gate', async () => {

@@ -16,8 +16,15 @@ class DataExport {
     required this.data,
   });
 
-  /// The export shape version (Decision 5): `1` today. A future shape change
-  /// bumps this, so a renderer can stay honest about what it is showing.
+  /// The export shape version (ADR-019 Decision 5), so a renderer can stay
+  /// honest about what it is showing.
+  ///
+  /// Deliberately NOT restated as a number here. The server owns this constant
+  /// (`FORMAT_VERSION` in `data-rights-core.ts`) and has bumped it twice — v2
+  /// for the consent lane (ADR-023), v3 for the device lane (ADR-054) — while
+  /// this comment still said "`1` today". A client-side copy of a server-owned
+  /// version is a claim that goes stale silently and is believed by whoever
+  /// reads it next (issue #222's whole shape). The app renders whatever arrives.
   final int formatVersion;
 
   /// The ISO-8601 instant the export was generated (server clock).

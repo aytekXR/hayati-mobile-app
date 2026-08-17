@@ -3471,3 +3471,56 @@ Red-first at the render seam **in the issue's own words** (#137 asks for "a red-
 **Notes / debt logged:** none new.
 
 **Next objective written to resume-prompt.md:** see the file.
+
+---
+
+## Session 077 — 2026-08-17 — #227: the export stops being narrower than the deletion lane (ADR-054)
+
+**Objective (from resume-prompt.md):** #227 — the data-rights export whitelist omits `fcmTokens` and `pushDiagnostic`. Decide whether that is right, on the merits, rather than inheriting it.
+
+**Outcome:** done. ADR committed **before** the code, which is the discipline S076 inverted.
+
+### The asymmetry that settled it
+
+`deletion-service.ts` step 5 sweeps `users/{A}` **in full**, so both fields *are* destroyed on an Art. 17 request. So the system **deleted data it would not show you** — and "we hold nothing about your devices" was never an available answer, because the deletion lane already conceded we hold it.
+
+ADR-049 D7 had kept `pushDiagnostic` out *"for consistency with `fcmTokens`"* and said so in its own words: *"for consistency rather than for a reason anyone has argued on the merits."* This session argued the merits.
+
+### The measurement that decided the FORMAT, not the principle
+
+The export is **not a file**. `export_screen.dart:59` is a single `Clipboard.setData` of the pretty-printed JSON, and that is the entire delivery mechanism. #227 framed the risk as *"a file the user may store or forward"*; the reality is sharper — an FCM registration token is a **live credential that addresses a phone**, and the raw form would land on the general pasteboard, readable by other apps and, on Apple, relayed to the subject's other devices by Universal Clipboard. **The subject would not have to forward it for it to leave the device.**
+
+So the two fields are treated **differently**, which is exactly what D7 declined to do:
+
+| field | exported as | why |
+|---|---|---|
+| `pushDiagnostic` | **verbatim** | no credential (`state`/`detail` are closed enumerations pinned in `firestore.rules`), and it is a statement *about* the subject we recorded without them ever seeing it — the paradigm Art. 15 case |
+| `fcmTokens` | **count only** | a bare `string[]` with no per-token metadata, so a count is the only non-credential fact it can honestly yield |
+
+### One definition of "a registered device", not two
+
+The count first shipped as a local filter that was byte-identical to `recipients.fcmTokensOf`. Replaced with the real import: a token this export counted but `sweep-push` would not send to — or the reverse — is a number that answers the subject's question wrongly. **ADR-052's lesson applied to a predicate rather than a decoration.** It is legitimate here because `recipients.ts` is itself pure (its only import is a `type`), so `data-rights-core.ts` keeps the no-I/O contract its header promises.
+
+### The test that was doing its job, and was rewritten rather than deleted
+
+ADR-049's pin asserted that *neither* field is exported, and its comment said it existed to go red *"the moment a future change starts exporting either field, which is the moment the question in issue #227 has to be answered rather than inherited."* It did exactly that. The rewrite keeps the half that still holds — the **anti-leak** assertion — and **widens** it to `JSON.stringify` over the whole projection, so a future lane carrying a token elsewhere reddens too. Mutation-checked: injecting the raw tokens into the lane **is** caught.
+
+**Four** `formatVersion` pins went red on the v2 → v3 bump and were each updated deliberately — three `expect(...formatVersion).toBe()` and the `FORMAT_VERSION` constant itself — and **two** of them carried the number **in the test's NAME** (`'produces a formatVersion-2 envelope…'`, `'returns a formatVersion-2 envelope for a live profile'`), which is lesson **108** waiting to happen.
+
+⚠️ **Both of those counts were first written as "three" and "one", and the design review caught them.** Lesson **111** — a number typed next to working code inherits the code's credibility — recurring *in the session that filed it*, which is the strongest evidence for it available. The code was right; only the sentence describing it was wrong, and nothing about the passing suite could have said so.
+
+### Stale claims found and fixed while passing through
+
+* `data_export.dart` said the format version was *"`1` today"*. The server had bumped to 2 at ADR-023 and this session took it to 3. Replaced with a comment that does **not** restate a server-owned number — the #222 shape, prevented rather than repeated.
+* **`operator-expected.md` listed three CLOSED issues as open** — #176, #175, #174 — found by checking every row against `gh` rather than reading them. Struck through with their closure notes.
+* **#226 was in no operator document at all**, despite being founder/lawyer-blocked. A dependency the founder cannot see is not recorded. Added with the reason a session cannot take it: any legal-text revision bumps `CURRENT_LEGAL_VERSION` and re-prompts **every existing user** for consent.
+
+### Verification
+
+`vitest` full functions suite under the emulators: **54 files, 1,101 tests, all passing**, coverage **97.47%**. App `data_rights` suite: 51 passing. Three mutants, all caught — count forced to 0, the lane emitted unconditionally, and the raw tokens leaked into the lane.
+
+⚠️ **What no test here proves:** that a count is the *legally* correct redaction. That is a judgement, argued in ADR-054 from the credential nature of the token and the clipboard delivery, and recorded so a lawyer reviewing **#226** can overturn it in one sentence rather than reconstructing why the export looks the way it does.
+
+**Commits:** `f621be5` (ADR, **before** the code), plus the implementation commit this entry arrives in — PR **#236**.
+
+**Next objective written to resume-prompt.md:** see the file.
