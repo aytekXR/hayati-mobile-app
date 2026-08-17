@@ -399,6 +399,65 @@ concurrency:
     siteShape.out,
   );
 
+  // ⚠️ THE SECOND INVERSION, and the one my own operator fix did NOT catch.
+  // `== 'prod' || ref != 'main'` contains both required substrings and fires on
+  // EVERY dev dispatch from a branch — the guard blocking exactly the deploys it
+  // was never meant to touch, while reading as correct to anyone checking words.
+  final orInsteadOfAnd = runOn({
+    'deploy-thing.yml': goodLane(
+      guard: '''
+      - name: prod deploys only from main
+        if: \${{ inputs.project == 'prod' || github.ref != 'refs/heads/main' }}
+        run: exit 1
+''',
+    ),
+  });
+  check(
+    'refpin/or-instead-of-and-fails',
+    orInsteadOfAnd.code == 1,
+    orInsteadOfAnd.out,
+  );
+
+  // Operand order is style, not meaning: the conjunction is accepted either way.
+  final reversedOperands = runOn({
+    'deploy-thing.yml': goodLane(
+      guard: '''
+      - name: prod deploys only from main
+        if: \${{ github.ref != 'refs/heads/main' && inputs.project == 'prod' }}
+        run: exit 1
+''',
+    ),
+  });
+  check(
+    'refpin/operand-order-is-style',
+    reversedOperands.code == 0,
+    reversedOperands.err,
+  );
+
+  // ---- RULE 0: a lane nobody can classify is a lane nobody guards -----------
+  // ⚠️ The lint's own header CLAIMED this check existed before it did. A fourth
+  // lane with an unrecognised selector would have skipped the ref-pin rule
+  // entirely and passed with no guard at all.
+  final unclassifiable = runOn({
+    'deploy-config.yml': goodLane(
+      selector: 'environment',
+      prodValue: 'production',
+      devValue: 'staging',
+      guard: '',
+    ),
+  });
+  check(
+    'classify/unknown-selector-is-reported',
+    unclassifiable.code == 1,
+    'a lane taking a target-shaped input this lint cannot classify must NOT pass',
+  );
+  check(
+    'classify/unknown-selector-names-both-fixes',
+    unclassifiable.err.contains('productionSelectors') &&
+        unclassifiable.err.contains('nobody guards'),
+    unclassifiable.err,
+  );
+
   // ---- the derived lane list ------------------------------------------------
   // A sentinel over an empty set is the greenest thing in this repo and measures
   // nothing. It must be an INPUT ERROR, distinct from both PASS and FAIL.

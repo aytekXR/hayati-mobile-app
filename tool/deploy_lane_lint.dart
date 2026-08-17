@@ -43,8 +43,8 @@ const String _workflowDir = '.github/workflows';
 ///
 /// A lane is judged against this table by the inputs it actually declares, so a
 /// future lane naming its selector something else is NOT silently exempted —
-/// [checkEveryLaneIsClassified] fails on a deploy lane this table cannot
-/// classify, rather than passing it for lack of an opinion.
+/// [checkLaneIsClassified] fails on a deploy lane that takes inputs this table
+/// cannot classify, rather than passing it for lack of an opinion.
 const Map<String, String> productionSelectors = {
   'project': 'prod',
   'channel': 'live',
@@ -130,6 +130,7 @@ int runDeployLaneLint(
       );
       return _exitUsage;
     }
+    violations.addAll(checkLaneIsClassified(name, source, passes));
     violations.addAll(checkConcurrency(name, source, passes));
     violations.addAll(checkProductionRefPin(name, source, passes));
   }
@@ -159,6 +160,46 @@ String? _laneName(String path) {
   final base = path.split(Platform.pathSeparator).last;
   if (!base.startsWith('deploy-') || !base.endsWith('.yml')) return null;
   return base.substring(0, base.length - 4);
+}
+
+/// RULE 0 — every deploy lane must be CLASSIFIABLE.
+///
+/// ⚠️ This rule exists because its absence was a lie the file told about itself.
+/// [productionSelectors]'s doc comment claimed a lane this table cannot classify
+/// is failed "rather than passed for lack of an opinion" — and **no such check
+/// existed**. A fourth lane declaring `environment: [staging, production]` would
+/// have had [checkProductionRefPin] return an empty list and passed the whole
+/// lint with no ref guard at all, while the header promised the opposite. The
+/// design review's skeptic found it by reading for the named function and not
+/// finding it.
+///
+/// A lane with **no** dispatch inputs is legitimately unclassifiable and needs no
+/// pin: it cannot select anything. What must never pass silently is a lane that
+/// DOES take target-shaped inputs this lint does not know.
+List<String> checkLaneIsClassified(
+  String lane,
+  String source,
+  List<String> passes,
+) {
+  if (_productionSelector(source) != null) return const [];
+  final declared = RegExp(
+    r'^ {6}([a-z_][a-z0-9_]*):',
+    multiLine: true,
+  ).allMatches(source).map((m) => m.group(1)!).toSet();
+  if (declared.isEmpty) {
+    passes.add('$lane declares no dispatch inputs, so it selects no target');
+    return const [];
+  }
+  final known = productionSelectors.entries
+      .map((e) => '${e.key}=${e.value}')
+      .join(', ');
+  return [
+    '$lane: declares input(s) ${declared.join(', ')}, none of which this lint '
+        'can classify as selecting production ($known). Either this lane cannot '
+        'reach production — in which case say so by naming its inputs the way '
+        'the others do — or add its selector to productionSelectors. A lane '
+        'nobody can classify is a lane nobody guards (ADR-050 D4).',
+  ];
 }
 
 /// RULE 1 — every deploy lane declares `concurrency`, per target, never cancelling
@@ -282,11 +323,17 @@ List<String> checkProductionRefPin(
   final guards = RegExp(r'if:\s*\$\{\{([^}]*)\}\}').allMatches(code);
   for (final match in guards) {
     final expression = match.group(1)!.replaceAll(RegExp(r'\s+'), ' ');
-    final firesOnProd = expression.contains("inputs.$input == '$prodValue'");
-    final firesOffMain = expression.contains(
-      "github.ref != '$requiredProdRef'",
-    );
-    if (firesOnProd && firesOffMain) {
+    // ⚠️ AND, NOT OR — a SECOND inversion, distinct from the `!=` one above.
+    // `inputs.project == 'prod' || github.ref != 'refs/heads/main'` contains
+    // both required substrings and fires on every dev dispatch from a branch:
+    // the guard blocking the deploys it was never meant to touch, while still
+    // reading as correct to anyone checking for the right words. So the
+    // conjunction itself is asserted, in either operand order.
+    final conjunction =
+        "inputs.$input == '$prodValue' && github.ref != '$requiredProdRef'";
+    final reversed =
+        "github.ref != '$requiredProdRef' && inputs.$input == '$prodValue'";
+    if (expression.contains(conjunction) || expression.contains(reversed)) {
       // ⚠️ ORDER IS THE WHOLE POINT. A guard step placed AFTER the deploy step
       // is not a weaker guard, it is decoration: the thing it exists to prevent
       // has already happened by the time it runs, and the run still goes red so

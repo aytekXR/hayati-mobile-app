@@ -148,6 +148,15 @@ credential-free, dependency-free `dart:io` source sentinel that runs in the
 `quality` job before any `pub get`. It asserts, **for every dispatch-only deploy
 lane**:
 
+0. the lane is **classifiable at all** — a lane taking target-shaped inputs this
+   lint's vocabulary does not know is **reported**, never skipped. ⚠️ This rule
+   exists because its absence was a lie the file told about itself: the
+   vocabulary's own comment claimed such a lane would be failed, and no such
+   check existed, so a future `environment: [staging, production]` lane would
+   have passed the whole lint with no ref guard while the header promised the
+   opposite. *(The design review's skeptic found it by reading for the named
+   function and not finding it — the check now exists and a mutant removing it
+   reddens a named test.)*
 1. the lane declares `concurrency` with an explicit `cancel-in-progress: false`;
 2. its group **interpolates** (not a constant — a constant makes dev queue behind
    prod, a new bug rather than a weaker guard) and does so via
@@ -163,6 +172,12 @@ lane**:
    close, passing a lint that only looked for vocabulary. *(Found by the design
    review; the first implementation had exactly this defect, and the test that
    now covers it was confirmed to fail against that form.)*
+   **And the conjunction itself is asserted, not just the two comparisons.**
+   `inputs.project == 'prod' || github.ref != 'refs/heads/main'` contains both
+   required substrings and fires on **every** dev dispatch from a branch — a
+   second, distinct inversion that the operator fix above does *not* catch, and
+   that the review caught separately. Either operand order is accepted; `||` is
+   not;
 4. both halves live in **one** expression — two steps each satisfying half guard
    nothing, because the conditions never co-occur;
 5. the guard step appears **before** the step that deploys, located by an explicit

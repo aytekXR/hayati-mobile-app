@@ -1,4 +1,4 @@
-# Resume Prompt — Session 072
+# Resume Prompt — Session 073
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -7,45 +7,31 @@
 > never-without-asking list) and `session-lessons.md` (numbered to **109**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #223 — `deploy-rules.yml` can publish a BRANCH's rules to production,
-and neither it nor `deploy-site.yml` declares `concurrency`.**
+**Objective: #222 — the handoff documents carry 10 verified stale claims, and
+this is the class of defect that gets EXECUTED.**
 
-Filed at S070 while building `deploy-functions.yml`, and deliberately not fixed in
-that diff: changing an existing lane's safety posture is its own decision, and
-`deploy-rules.yml` is ADR-041 D5's artifact.
+Filed by S071's own audit. **Two were already served in passing** — the false
+*"nothing writes `fcmTokens` yet"* in `architecture.md` §3 and its twin in
+`dpa-inventory.md` — because that diff touched those exact lines. **Eight
+remain**, including two contradictions inside `operator-expected.md`'s
+notifications section, which is the page the founder reads *instead of* the
+session log.
 
-The exposure, in one command:
+Read the issue for the list. The discipline that makes this worth a session
+rather than a tidy-up:
 
-```sh
-gh workflow run deploy-rules.yml --ref some-branch \
-  -f project=prod -f confirm_prod=hayatiapp-prod
-```
+* **Re-measure each claim before rewriting it.** A stale claim replaced by a
+  freshly-invented one is the same defect with a newer date. Every number in the
+  fix should come from a command run this session, and the command should be in
+  the diff or the commit message.
+* **A contradiction has a right side.** Where `operator-expected.md` says two
+  things, do not split the difference — find which is true and say why the other
+  was written, because the reason it was plausible is the reason it will recur.
+* **Lesson 64 is the point:** these documents are read as instructions. S068 lost
+  37 hours to a stale premise (`gcloud` is not installed ⇒ Cloud Scheduler is
+  unverifiable) that was true once, copied forward, and executed.
 
-The typed confirmation says *which project*, never *which code*. Worse than
-untidy: `rules-drift` compares the released ruleset against `main` post-merge, so
-a branch deploy **manufactures** drift and sends the next reader hunting a
-discrepancy a dispatch box created on purpose.
-
-`deploy-functions.yml` already closes it for its own lane (ADR-048 D1), and that
-guard is the shape to copy — including the part where **dev stays free**, because
-exercising a branch on dev is what dev is for.
-
-Acceptance is in the issue. Two judgement calls it leaves open and you must
-settle, in the diff or in an ADR:
-
-* whether `deploy-site.yml` wants the same ref guard (weaker case — the site is
-  regenerated from `docs/legal/` and no drift checker is confused by it, but
-  publishing a branch's marketing site to a live domain is still not obviously
-  wanted);
-* `cancel-in-progress: false` is the load-bearing half of the concurrency group —
-  a deploy killed mid-flight is worse than one that waits.
-
-**Neither lane has ever executed.** Both are unarmed until operator **2(e)(iii)**,
-so this is a fix to make *before* the first real dispatch, not a live exposure —
-which also means **you cannot prove it by running it.** Say which instrument you
-actually used (§5.7): a workflow-lint test in the `release_lane_lint.dart` /
-`functions_drift_test.py` mold is the honest option, and `actionlint` is not
-installed.
+Cheap, and it protects every future session's first twenty minutes.
 
 ## 1. Where things actually stand *(measured 2026-08-17 — re-measure, do not inherit)*
 
