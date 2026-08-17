@@ -1,4 +1,4 @@
-# Resume Prompt — Session 073
+# Resume Prompt — Session 074
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -7,31 +7,37 @@
 > never-without-asking list) and `session-lessons.md` (numbered to **109**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #222 — the handoff documents carry 10 verified stale claims, and
-this is the class of defect that gets EXECUTED.**
+**Objective: #174 — the reveal is felt and seen but never ANNOUNCED. There is
+no `liveRegion` anywhere in `lib/`.**
 
-Filed by S071's own audit. **Two were already served in passing** — the false
-*"nothing writes `fcmTokens` yet"* in `architecture.md` §3 and its twin in
-`dpa-inventory.md` — because that diff touched those exact lines. **Eight
-remain**, including two contradictions inside `operator-expected.md`'s
-notifications section, which is the page the founder reads *instead of* the
-session log.
+`RevealChoreography` runs its three-beat sequence and fires a haptic — the
+product's signature moment. A VoiceOver user gets the haptic and **nothing
+else**: `grep -rn "liveRegion\|SemanticsService" app/lib` returns zero hits. The
+partner's answer arrives in the tree silently, so the one moment the whole
+product is built around passes unremarked for a screen-reader user.
 
-Read the issue for the list. The discipline that makes this worth a session
-rather than a tidy-up:
+**This is not "add a label."** The card's text is already reachable by
+exploration; what the choreography communicates is an *event* — *this just
+unlocked* — and events need `SemanticsService.announce` or a `liveRegion: true`
+node. And the failure in the other direction is **worse than silence**: an
+announcement that fires on every rebuild interrupts the user mid-sentence,
+repeatedly.
 
-* **Re-measure each claim before rewriting it.** A stale claim replaced by a
-  freshly-invented one is the same defect with a newer date. Every number in the
-  fix should come from a command run this session, and the command should be in
-  the diff or the commit message.
-* **A contradiction has a right side.** Where `operator-expected.md` says two
-  things, do not split the difference — find which is true and say why the other
-  was written, because the reason it was plausible is the reason it will recur.
-* **Lesson 64 is the point:** these documents are read as instructions. S068 lost
-  37 hours to a stale premise (`gcloud` is not installed ⇒ Cloud Scheduler is
-  unverifiable) that was true once, copied forward, and executed.
+Acceptance is in the issue. The two things that make it a session rather than a
+one-liner:
 
-Cheap, and it protects every future session's first twenty minutes.
+* **the fire-point is a real decision** — choreography beat 2, or the card's own
+  mount? #173 filed this rather than fixing it precisely because that choice
+  deserves its own review pass. It interacts with reduce-motion, which collapses
+  the visuals but **keeps** the haptic (so it must keep the announcement too);
+* **assert the MECHANISM, not the outcome.** "A `liveRegion` node exists" is the
+  vacuous version — this repo has lesson **108** for exactly that. The test must
+  prove it announces **once per reveal across a rebuild**, which means the guard
+  needs somewhere to live that survives re-renders.
+
+Related and worth reading first: **#175** (10 of 14 raised cards render flat —
+the card decoration is copy-pasted per screen instead of coming off the theme).
+They touch the same surfaces; they are not the same slice.
 
 ## 1. Where things actually stand *(measured 2026-08-17 — re-measure, do not inherit)*
 
