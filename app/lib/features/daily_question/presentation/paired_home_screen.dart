@@ -6,7 +6,7 @@ import 'package:flutter/services.dart'
     show HapticFeedback, LengthLimitingTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design_system/elevation_tokens.dart';
+import '../../../core/design_system/card_surface.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/design_system/typography_tokens.dart';
@@ -609,10 +609,7 @@ class _PacksTile extends ConsumerWidget {
       borderRadius: RadiusTokens.cardRadius,
       child: Container(
         padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: RadiusTokens.cardRadius,
-        ),
+        decoration: raisedCardDecoration(theme),
         child: Row(
           children: [
             Icon(Icons.auto_stories, color: theme.colorScheme.primary),
@@ -667,10 +664,7 @@ class _CoachTile extends StatelessWidget {
       borderRadius: RadiusTokens.cardRadius,
       child: Container(
         padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: RadiusTokens.cardRadius,
-        ),
+        decoration: raisedCardDecoration(theme),
         child: Row(
           children: [
             Icon(Icons.forum_outlined, color: theme.colorScheme.primary),
@@ -723,11 +717,7 @@ class _QuestionCard extends StatelessWidget {
     );
     return Container(
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: RadiusTokens.cardRadius,
-        boxShadow: ElevationTokens.level1,
-      ),
+      decoration: raisedCardDecoration(theme),
       child: Stack(
         children: [
           const PositionedDirectional(
@@ -770,11 +760,9 @@ class _QuestionCard extends StatelessWidget {
 
 /// The shared sealed/answer card chrome (ui-ux §9.4 card variants): Night
 /// Raised, radius 16, Veil hairline, plum Level-1 shadow.
-BoxDecoration _cardDecoration(ThemeData theme) => BoxDecoration(
-  color: theme.colorScheme.surfaceContainerHighest,
-  borderRadius: RadiusTokens.cardRadius,
+BoxDecoration _cardDecoration(ThemeData theme) => raisedCardDecoration(
+  theme,
   border: Border.all(color: theme.colorScheme.outlineVariant),
-  boxShadow: ElevationTokens.level1,
 );
 
 /// The partner half of the pre-reveal card: **locked / waiting / failure** —

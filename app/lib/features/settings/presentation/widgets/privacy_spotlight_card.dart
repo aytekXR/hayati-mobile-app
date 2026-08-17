@@ -3,9 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/design_system/card_surface.dart';
 import '../../../../core/design_system/color_tokens.dart';
-import '../../../../core/design_system/elevation_tokens.dart';
-import '../../../../core/design_system/radius_tokens.dart';
 import '../../../../core/design_system/spacing_tokens.dart';
 import '../../../../core/l10n/gen/app_localizations.dart';
 import '../../../../core/storage/local_flag_store.dart';
@@ -82,11 +81,9 @@ class _PrivacySpotlightCardState extends ConsumerState<PrivacySpotlightCard> {
       // parent's layout is byte-identical once the card is spent.
       margin: const EdgeInsets.only(bottom: SpacingTokens.x6),
       padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: RadiusTokens.cardRadius,
+      decoration: raisedCardDecoration(
+        theme,
         border: Border.all(color: theme.colorScheme.outlineVariant),
-        boxShadow: ElevationTokens.level1,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

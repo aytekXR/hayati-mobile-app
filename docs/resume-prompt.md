@@ -1,4 +1,4 @@
-# Resume Prompt — Session 075
+# Resume Prompt — Session 076
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -7,33 +7,43 @@
 > never-without-asking list) and `session-lessons.md` (numbered to **109**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #175 — 10 of 14 raised cards render FLAT, because the card
-decoration is copy-pasted per screen instead of coming off the theme.**
+**Objective: #137 — the bidi seam asks `intl` which way a string leans, and
+`intl` gets Arabic Extended-A wrong.**
 
-A design-system defect with a design-system fix: the elevation exists in the
-tokens and in four places that render it, and ten surfaces re-declare their own
-`BoxDecoration` without it. The visible result is that the product looks
-inconsistent in a way no single screen looks wrong.
+`isolateWithin()` decides whether to emit the isolate controls from
+`Bidi.startsWithLtr()`. `intl`'s RTL character class
+(`intl-0.20.2/lib/src/intl/bidi.dart:46-49`) runs `֑-߿` and `יִ-﷽` and `ﹰ-ﻼ` —
+and **Arabic Extended-A (U+08A0–U+08FF) falls outside it while `intl`'s LTR
+class matches it.** So `startsWithLtr()` returns **true** for a string starting
+with a strong *RTL* character.
 
-Read the issue for the list. What makes it a session rather than ten edits:
+The issue has the measured table (`U+0627` classifies correctly; `U+08A0` and
+`U+08B5` do not; `U+1E900` ADLAM matches neither class). Verify it with
+`python3 unicodedata` before designing — do not inherit it.
 
-* **The fix is a theme extension, not ten copies of the right decoration.**
-  Ten correct copies is the same defect with a better value in it — the
-  eleventh screen still copies whatever it finds. `hayatiTheme` is **memoized**
-  (ADR-039 D7: same `ThemeData` instance per language code), so a card
-  decoration that comes off the theme costs nothing per build.
-* **Goldens will move, and that is the point** — but it is also W4's declared
-  golden-set discipline (`agent-workflows.md`): declare the expected file set in
-  the PR *before* running `--update-goldens`, then paste the resulting
-  `git status --porcelain -- 'app/test/**/*.png'` beside it. A golden that
-  changes outside the declared set is a defect to explain, not churn to accept.
-* **Assert the mechanism.** A test that says "this screen has elevation" passes
-  for ten hand-copied decorations too. What wants asserting is that the card
-  surfaces read their decoration from ONE source — the shape
-  `brandkit_token_parity_test.dart` already uses for the palette.
+**Why it is worth a session despite being low severity:** the failure is
+**silent and one-directional**.
 
-⚠️ It touches the same screens as **#174** (just shipped) — re-read
-`paired_home_screen.dart` rather than working from memory of it.
+* In **RTL chrome** it is harmless — the seam isolates anyway and `FSI` resolves
+  by the *real* first-strong character, which agrees with the paragraph. Correct
+  by accident.
+* In **LTR chrome** the mirror defect survives: the seam believes content and
+  paragraph agree, emits nothing, and the trailing neutral stays on the wrong
+  end. **Nothing goes red.**
+
+That is recurring shape 5 — *a guard that guards one direction and is silent on
+the others* — in the one seam ADR-033 built to prevent exactly this.
+
+⚠️ **ADR-033's invariant is binding** (`session-context.md` §6): isolation is
+applied at the **string boundary and at render only**, and nothing persisted,
+exported or shared may carry `U+2068`/`U+2069`. A fix that widens the
+first-strong test must not widen *where* isolation happens.
+
+The existing `content_text_test.dart` is the mold and it is unusually good —
+it asserts a *specification* (the terminating punctuation binds to the trailing
+side of its own run) read back from `RenderParagraph.getBoxesForSelection`,
+never a coordinate, and it never calls `isolate()` to build its expectation. Add
+to it rather than beside it.
 
 ## 1. Where things actually stand *(measured 2026-08-17 — re-measure, do not inherit)*
 

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design_system/radius_tokens.dart';
+import '../../../core/design_system/card_surface.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/presentation/state/auth_controller.dart';
@@ -83,10 +83,7 @@ class _InviteReadyView extends ConsumerWidget {
                     horizontal: SpacingTokens.x6,
                     vertical: SpacingTokens.cardPadding,
                   ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: RadiusTokens.cardRadius,
-                  ),
+                  decoration: raisedCardDecoration(theme),
                   child: Text(
                     invite.code,
                     style: theme.textTheme.displaySmall?.copyWith(

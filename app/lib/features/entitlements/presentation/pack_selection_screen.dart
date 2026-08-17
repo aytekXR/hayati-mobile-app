@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design_system/radius_tokens.dart';
+import '../../../core/design_system/card_surface.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/l10n/gen/app_localizations.dart';
 import '../../auth/domain/auth_state.dart';
@@ -82,10 +82,7 @@ class _UnlockedView extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: RadiusTokens.cardRadius,
-          ),
+          decoration: raisedCardDecoration(theme),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
