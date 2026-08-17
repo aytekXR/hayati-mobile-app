@@ -16,7 +16,7 @@ library;
 
 import 'dart:ui' show TextDirection;
 
-import 'package:intl/intl.dart' show Bidi;
+import 'strong_bidi_ranges.dart';
 
 /// U+2068 FIRST STRONG ISOLATE — opens a run whose direction is taken from its
 /// own first strong character, exactly like HTML's `dir="auto"`.
@@ -53,6 +53,71 @@ const String popDirectionalIsolate = '\u2069';
 String isolate(String text) =>
     text.isEmpty ? text : '$firstStrongIsolate$text$popDirectionalIsolate';
 
+/// Whether [rune] falls in one of [ranges]' flat `[start, end]` pairs.
+///
+/// Binary search; no allocation per call, which matters because this runs per
+/// character at a render seam.
+bool _inRanges(int rune, List<int> ranges) {
+  var lo = 0;
+  var hi = ranges.length ~/ 2 - 1;
+  while (lo <= hi) {
+    final mid = (lo + hi) >> 1;
+    if (rune < ranges[mid * 2]) {
+      hi = mid - 1;
+    } else if (rune > ranges[mid * 2 + 1]) {
+      lo = mid + 1;
+    } else {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Whether [rune] is strongly right-to-left — Bidi_Class **R or AL**.
+bool isStrongRtl(int rune) => _inRanges(rune, strongRtlRanges);
+
+/// Whether [rune] is strongly left-to-right — Bidi_Class **L**.
+bool isStrongLtr(int rune) => _inRanges(rune, strongLtrRanges);
+
+/// The first strongly-directional character's direction, or null when [text]
+/// has none (a bare `'2026'`, `'…'`, an emoji).
+///
+/// **`intl` is gone from this seam, and that is the fix** (ADR-053, #137). Its
+/// two character classes are approximations *in both directions* — it documents
+/// the trade at the constant itself: *"not completely correct according to the
+/// Unicode standard… simplified for performance and small code size."* Measured
+/// exhaustively against intl 0.20.2, the pinned version:
+///
+///   * **150** strong-RTL code points it classifies as strong-**LTR** — the
+///     whole `U+0800–U+08C9` region (Samaritan, Mandaic, Syriac Supplement,
+///     Arabic Extended-A **and** -B). This is issue #137, and it is wider than
+///     the issue's Arabic-Extended-A-only description.
+///   * **1,783** strong-RTL code points its RTL class does not reach at all.
+///   * **322** code points in its RTL class that are not strong-RTL, and
+///     **3,308** in its LTR class that are not strong-LTR.
+///
+/// That is a fair trade for `Bidi.startsWithLtr`, which only ever has to pick
+/// one of two. It is not a basis for a three-way answer, where both classes
+/// being loose means the neutral case is decided by whichever loose test fired.
+///
+/// **Iterates RUNES, not code units, and that is a SECOND fix.** `intl` matches
+/// with a UTF-16 regex, so an astral character is tested through its surrogates
+/// — and every high surrogate (`U+D800–U+DBFF`) sits inside `intl`'s LTR class.
+/// So every astral RTL script (Adlam, Cypriot, Old Hungarian) read as LTR, and
+/// so did an emoji, through the surrogate that happened to lead it.
+///
+/// The third answer is the one that could not be expressed before: a string
+/// with **no strong character** has no direction of its own and must take the
+/// paragraph's, which is what it already does. Forcing an isolate there would
+/// pin it to LTR and be actively wrong in Arabic chrome.
+TextDirection? firstStrongDirection(String text) {
+  for (final rune in text.runes) {
+    if (isStrongRtl(rune)) return TextDirection.rtl; // rtl-ok
+    if (isStrongLtr(rune)) return TextDirection.ltr; // rtl-ok
+  }
+  return null;
+}
+
 /// [isolate], but ONLY when the isolate would actually do something: when
 /// [text]'s own first-strong direction differs from the [ambient] paragraph's.
 ///
@@ -72,19 +137,9 @@ String isolate(String text) =>
 /// isolate there would pin it to LTR and could be actively wrong in Arabic
 /// chrome.
 ///
-/// First-strong comes from `Bidi.startsWithRtl`/`startsWithLtr`, which are the
-/// spec-shaped "skip to the first strongly-directional character" tests —
-/// **not** `detectRtlDirectionality`, which is a majority heuristic and
-/// disagrees with first-strong in both directions.
-// DEBT (#137): first-strong comes from intl, whose RTL character class is
-// `֑-߿יִ-﷽ﹰ-ﻼ`. **Arabic Extended-A
-// (U+08A0-U+08FF) is outside it — and intl's LTR class MATCHES it.** Measured:
-// U+08A0 is Bidi_Class AL (strong RTL), yet `Bidi.startsWithLtr` returns true.
-// Adlam (U+1E900) matches neither class. So content beginning with one of those
-// characters, rendered in LTR chrome, is silently left un-isolated and the
-// mirror defect survives. Bounded and low-risk here — Gulf Arabic and Turkish
-// both sit inside the covered ranges — but SILENT, which is why it is written
-// down rather than absorbed.
+/// First-strong is decided by [firstStrongDirection] against the generated
+/// Unicode tables, NOT by `intl` — see that function for what `intl` got wrong
+/// and why the third answer (no direction at all) is the one that matters here.
 String isolateWithin(String text, TextDirection ambient) {
   if (text.isEmpty) return text;
   // rtl_lint bans bare TextDirection literals because they are almost always a
@@ -92,7 +147,8 @@ String isolateWithin(String text, TextDirection ambient) {
   // one seam that exists to reason about direction, so it takes the documented
   // escape rather than pretending the comparison can be written without it.
   final ambientIsRtl = ambient == TextDirection.rtl; // rtl-ok
-  if (Bidi.startsWithRtl(text)) return ambientIsRtl ? text : isolate(text);
-  if (Bidi.startsWithLtr(text)) return ambientIsRtl ? isolate(text) : text;
-  return text;
+  final own = firstStrongDirection(text);
+  if (own == null) return text;
+  final ownIsRtl = own == TextDirection.rtl; // rtl-ok
+  return ownIsRtl == ambientIsRtl ? text : isolate(text);
 }

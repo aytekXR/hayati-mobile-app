@@ -271,6 +271,19 @@ jobs:
       # --confirm SEND, because it puts a real notification on a real phone.
       - name: push delivery probe self-tests
         run: python3 tool/ci/push_delivery_probe_test.py
+      # S076 (#137/ADR-053). The bidi seam classifies characters against a
+      # GENERATED Unicode table — 873 ranges nobody can review by eye, so a typo
+      # would be a silent wrong answer at a render seam. These two steps are the
+      # whole reason a generated file is safe to commit: the self-tests prove the
+      # generator, and --check proves the committed file is still ITS output.
+      - name: bidi range table self-tests
+        run: python3 tool/gen_bidi_rtl_ranges_test.py
+      # ⚠️ If this fails after a runner image bump, READ THE MESSAGE. The table
+      # is derived from the interpreter's own UCD, so a newer Python emits a
+      # newer Unicode. The tool says which of the two it is; a version move is
+      # news, not corruption, and the fix is to regenerate and read the diff.
+      - name: bidi range table is current
+        run: python3 tool/gen_bidi_rtl_ranges.py --check
       - name: pub get
         working-directory: app
         run: flutter pub get

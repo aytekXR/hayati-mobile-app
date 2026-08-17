@@ -31,6 +31,16 @@ const _latinContent = 'Kahvaltıda birlikte gülmemiz.';
 /// and no golden covers it.
 const _arabicContent = 'أجبتما كلاكما اليوم.';
 
+/// Arabic **Extended-A** sentence — issue #137's case, and the one the seam
+/// used to get wrong. `U+08A0`–`U+08A2` are Bidi_Class `AL`, exactly as
+/// `U+0627` is, but they sit outside `intl`'s RTL class and INSIDE its LTR
+/// class, so the seam read this string as left-to-right and emitted nothing.
+///
+/// In LTR chrome that is the silent case #137 was filed for: content and
+/// paragraph appeared to agree, so the terminator bound to the paragraph and
+/// landed on the wrong end with no test going red.
+const _extendedArabicContent = 'ࢠࢡࢢ.';
+
 Future<RenderParagraph> _pumpContent(
   WidgetTester tester,
   String content, {
@@ -157,6 +167,24 @@ void main() {
         rp,
         _renderedText(tester),
         contentIsLtr: true,
+      );
+    });
+
+    // ISSUE #137, asked for in the issue's own words: "a red-first test for a
+    // U+08A0-leading string in LTR chrome". It is the same geometric spec as
+    // the mirror case above — this fixture just uses letters `intl` misread.
+    testWidgets('Arabic Extended-A inside LTR chrome (issue #137)', (
+      tester,
+    ) async {
+      final rp = await _pumpContent(
+        tester,
+        _extendedArabicContent,
+        paragraph: TextDirection.ltr,
+      );
+      _expectTerminatorBindsToRun(
+        rp,
+        _renderedText(tester),
+        contentIsLtr: false,
       );
     });
 
