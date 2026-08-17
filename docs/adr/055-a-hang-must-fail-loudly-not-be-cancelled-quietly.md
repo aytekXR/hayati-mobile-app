@@ -96,6 +96,27 @@ A single per-suite bound cannot work: the first suite carries the cold Xcode bui
 **Worst case `16 + 4×6 = 40` min, plus 3.9 min measured setup = 43.9 min, inside
 `timeout-minutes: 50` with ~6 min of slack.** The ceiling is **not** raised.
 
+### Validated on a real runner, against the OTHER known failure mode
+
+The bounds were chosen from the healthy run and then **verified by dispatching
+this branch** (`gh workflow run ci.yml --ref …`, run `32067814813`), because
+`integration-emulator` never runs on a PR and merging an untested change to it
+would be exactly the gap this repo distrusts. The watchdog wrapped all five
+suites and reported its own timings:
+
+| suite | actual | bound | headroom | at S024's +55% runner |
+|---|---|---|---|---|
+| `auth` | 540s | 960s | 1.78× | 837s ✓ |
+| `daily_question` | 113s | 360s | 3.19× | 175s ✓ |
+| `pairing` | 104s | 360s | 3.46× | 161s ✓ |
+| `profile` | 97s | 360s | 3.71× | 150s ✓ |
+| `startup_timing` | 90s | 360s | 4.00× | 140s ✓ |
+
+The last column is the check that matters: S024's blow-out was a runner that ran
+the same work **~55% longer**, and every bound still holds at that speed. A bound
+that only fits a healthy runner would have converted the *first* failure mode
+into a false positive while fixing the second.
+
 ⚠️ **This arithmetic is the design, so a self-test asserts it** — that the sum of
 the configured bounds plus a setup allowance fits inside the job timeout. If it
 ever stops fitting, the watchdog can no longer fire before the job dies and the
@@ -116,6 +137,28 @@ which no reader could make from the logs.
 On expiry it prints a diagnosis rather than a timeout: which suite, how long, the
 last line of output seen, and a snapshot of the two things that can wedge — the
 simulator's state and whether the emulator ports answer.
+
+## Decision 3b — A precondition, because the SAME class of failure arrived mid-session
+
+While this ADR was being implemented, S077's post-merge run went red — and the
+red said nothing true. The functions emulator printed *"Failed to load function
+definition from source … Cannot determine backend specification. Timeout after
+10000"*, loaded **zero** functions, and `emulators:exec` ran every suite against
+it anyway. Fifteen minutes later `daily_question_emulator_test.dart` failed on
+*"answer → mutual reveal round trip"*, because the `answerReveal` **trigger** had
+never loaded. The test named itself; nothing named the emulator.
+
+That is this ADR's thesis in a second costume: the job failed for a real reason
+and reported a different one. So `tool/ci/assert_emulator_functions.sh` probes a
+known **callable** before any suite runs and fails immediately with the cause.
+
+**Its codes are measured, not assumed** — against a live emulator, a loaded
+callable answers a bare GET with `400`, an unknown name with `404`, **and a
+Firestore trigger also answers `404`**, because triggers are not HTTP-addressable
+at all. Probing a trigger would therefore fail against a perfectly healthy
+emulator, and `answerReveal` — the very function whose absence caused the
+incident — is the first one someone would reach for. The constraint is written at
+the top of the script for that reason.
 
 ## Decision 4 — The build strategy is NOT changed here, and the number is recorded
 
