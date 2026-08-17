@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-11** (Session 068)._
+_Last refreshed: **2026-08-17** (Session 070)._
 
 > ### ✅ RESOLVED — billing is back, and your question is arriving again
 >
@@ -323,7 +323,7 @@ gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=
 
 ---
 
-# 🟡 4(a). Push — **install the next build and tap Allow. If no prompt appears, the app now tells you why.**
+# 🟡 4(a). Push — **the fix is merged but NOT in any build. Today, use iOS Settings.**
 
 > ### ⚠️ Re-measured 2026-08-16 — and the instruction above may have been unfollowable
 >
@@ -355,13 +355,20 @@ gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=
 > None of those printed anything you or we could read. That is the bug that was
 > fixed, and it is the one that mattered.
 >
-> ### What is different in the next build
+> ### What is different in the next build — ⚠️ **and that build does not exist yet**
 >
-> **Settings now has a Notifications row that tells you which of the four you are
-> in, and gives you the one button that can fix it.** If notifications were
-> declined it says so plainly — *"the system will not ask again"* — and takes you
-> straight to the iOS Settings page. If they are on, it says that too, out loud,
-> instead of leaving you to guess.
+> **Re-measured 2026-08-17: the last build we shipped is still 119, from
+> 2026-08-09.** The Notifications row described below was written on 2026-08-16,
+> a week after it. It is finished and merged, and **it is on nobody's phone.**
+> Shipping it means one of us dispatching the release lane, which uploads a real
+> binary to your TestFlight — so **a session will ask you before doing it.** If
+> you want it, say so and it goes out.
+>
+> **The next build's Settings will have a Notifications row that tells you which
+> of the four states you are in, and gives you the one button that can fix it.**
+> If notifications were declined it will say so plainly — *"the system will not
+> ask again"* — and take you straight to the iOS Settings page. If they are on,
+> it will say that too, out loud, instead of leaving you to guess.
 >
 > **You can also fix it right now, without waiting for a build:**
 > **iOS Settings → Notifications → ikimiz → Allow Notifications ON**, then open
@@ -383,9 +390,10 @@ gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=
 > came back. `functions_drift` confirms it: *all 13 deployed functions are a clean
 > build of this ref*. **Expect the question at 09:00 and the nudge at 22:00.**
 >
-> Cloud Functions here are still deployed by a hand-typed command rather than a
-> workflow (issue #206/#166) — which is why every one of the 13 had drifted from
-> `main` before this deploy.
+> Cloud Functions were, at the time of that deploy, still published by a
+> hand-typed command rather than a workflow — which is why every one of the 13
+> had drifted from `main` before it. **A deploy lane exists since 2026-08-17**
+> (issue #206, ADR-048); it is unarmed until the secret in 2(e)(iii).
 >
 > ### What is left is one thing, and only your phone can do it
 >
@@ -739,10 +747,18 @@ reachable, which is what **consent** actually depends on, so the app itself is
 fine — but this **will** block App Store submission. The chain is: your legal
 name → the legal pages publish → `/privacy` resolves. One fact unblocks all of it.
 
-### (iii) Optional — let CI deploy the site **and the firestore rules**
+### (iii) Optional — let CI deploy the site, the firestore rules **and the Cloud Functions**
+
+> **⚠️ This item changed on 2026-08-17 — the one secret now arms a THIRD lane.**
+> Cloud Functions used to be the one thing here with no deploy workflow; every
+> Functions deploy this project ever had was a command typed on one laptop, and
+> nothing recorded that it happened. That gap cost us the notifications feature
+> once and thirteen out-of-date functions once. `deploy-functions.yml` now
+> exists (#206) and, like the other two, it is **built and unarmed** until this
+> secret lands. The number of this item has not changed; its **role list has**.
 
 Today the site is deployed with the local `firebase` CLI, logged in as you.
-`FIREBASE_SERVICE_ACCOUNT` is **unset** (re-confirmed 2026-08-05), so CI cannot.
+`FIREBASE_SERVICE_ACCOUNT` is **unset** (re-confirmed 2026-08-17), so CI cannot.
 Worth fixing so the site does not depend on one laptop's login:
 
 ```sh
@@ -760,6 +776,43 @@ CI able to deploy to. Grant it on `hayatiapp-dev` freely; grant it on
 `hayatiapp-prod` only if you want CI to be *able* to change production's
 authorization rules — the lane still requires a manual dispatch and requires
 typing `hayatiapp-prod` into a confirmation box, and **no session will fire it at
+prod without asking you first.**
+
+#### And the third lane — Cloud Functions (`deploy-functions.yml`, ADR-048, #206)
+
+**The roles, and why each one.** These were not copied from a blog post: each
+candidate role's contents were read from Google's own IAM API and compared
+against what the deploy actually calls. That measurement **contradicted
+Firebase's documentation**, which says deploying Functions needs permissions
+"not included in standard Firebase predefined roles" — `roles/firebase.admin`
+measurably *does* carry them. What it genuinely lacks is three things:
+
+| role | why |
+|---|---|
+| **Firebase Admin** (`roles/firebase.admin`) | the functions themselves — and it covers the Hosting and Rules lanes above, so it replaces both roles named earlier if you would rather grant one |
+| **Service Account User** (`roles/iam.serviceAccountUser`) | the deploy must *act as* the functions' runtime account. The CLI checks this by name and fails with a link if it is missing |
+| **Cloud Scheduler Admin** (`roles/cloudscheduler.admin`) | the daily question is a scheduled function, and every deploy re-writes its schedule entry |
+| **Secret Manager Viewer** (`roles/secretmanager.viewer`) | two functions read secrets, and the deploy checks the existing grant |
+
+**Why Viewer and not Admin on that last one, deliberately:** Secret Manager
+**Admin** is the only role that can *read the secret values themselves* — your
+Anthropic API key and the RevenueCat webhook token. A deploy that is only
+re-deploying already-wired functions never needs it (verified in the CLI's own
+source: it reads the existing grant and skips writing when it is already there).
+So the credential CI holds cannot exfiltrate either secret. If a future deploy
+ever adds a **new** secret to a function, it will fail with a permission error
+naming exactly that, and Admin can be granted for that one run.
+
+**Please point the first run at `hayatiapp-dev`.** The role list above is
+measured for coverage but has never been *exercised* — no service account exists
+to exercise it with. On dev a missing role costs nothing and the error names it:
+
+```sh
+gh workflow run deploy-functions.yml -f project=dev
+```
+
+Prod additionally requires typing `hayatiapp-prod` into a confirmation box, only
+runs from `main`, and — as with the rules lane — **no session will fire it at
 prod without asking you first.**
 
 ### (iv) One read-only secret now arms **TWO** checks — issue #165, and the Functions one that cost us the notifications feature
@@ -813,16 +866,19 @@ that nothing is watching.)* To arm it:
    shows **`rules-drift` and `functions-drift`** as real green checks instead of
    skipped ones.
 
-**What the Functions half will tell you on its first armed run**, measured
-2026-08-09 so there are no surprises: it will report **drift on
-`hayatiapp-prod`** — and the reason is *not* that production is running the
-wrong code. It is running exactly the code on `main`. It was deployed by hand
-from a laptop whose `functions/` folder also happened to contain 62 leftover
-files (an old test-coverage report and a debug log), and those got swept into
-the upload. The tool says so in those words rather than raising an alarm. The
-real fix is a **deploy workflow** — Cloud Functions are the last thing here
-still deployed by a typed command — which is **#206** and needs nothing from
-you.
+**What the Functions half will tell you on its first armed run.** This paragraph
+used to warn you that it would report **drift on `hayatiapp-prod`** because a
+hand-deploy had swept 62 leftover files off a laptop into the upload. **That is
+no longer true and the warning is withdrawn** — re-measured 2026-08-17,
+production reads **clean**: all 13 functions are an exact build of `main`, over
+213 files with zero strays. The 2026-08-11 redeploy was made from a tidy folder,
+and nothing has touched the Functions code since. You should expect a **green**
+check, not a red one.
+
+The deploy workflow that paragraph called "the real fix" now exists —
+`deploy-functions.yml` (**#206**, ADR-048) — so Cloud Functions are no longer
+deployed by a typed command. It needs the *other* secret, 2(e)(iii) above, and
+nothing else from you.
 
 ---
 
@@ -1174,7 +1230,7 @@ these.
 | **#175** | 10 of 14 raised cards render flat: the card decoration is copy-pasted per screen instead of coming off the theme. |
 | **#174** | Nothing in the app is announced to VoiceOver when the reveal happens — no `liveRegion` anywhere. |
 | ~~**#166**~~ | ✅ **Closed 2026-08-09.** It asked whether the deployed function code can be compared to `main` *at all* — and it can, exactly. The check exists now. This is the gap that cost you the notification feature at S063. |
-| **#206** | Cloud Functions are the **only** deploy target still done by a typed command with nothing tracking it. That is why production, though running the right code, cannot be compared to a clean checkout. Nothing needed from you to build it. |
+| ~~**#206**~~ | **CLOSED 2026-08-17 (ADR-048).** `deploy-functions.yml` exists, so no deploy target is a typed command any more. It is **unarmed** until item 2(e)(iii)'s secret — whose role list grew in the same change. Production re-measured **clean** while building it, which withdrew the drift warning that used to sit in 2(e)(iv). |
 | **#165** | `rules-drift` is built but unarmed — that is item 2(e)(iv) above, which now arms **two** checks. |
 | **#137** | The bidi seam relies on a library whose character ranges miss one Arabic block; isolation silently no-ops for it. Not reachable in Turkish or Gulf Arabic — filed because it fails quietly. |
 | **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app applies on screen. Latent today — **it stops being latent the moment 4(a) lands and pushes start arriving.** |

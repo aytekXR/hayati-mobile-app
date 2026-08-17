@@ -37,6 +37,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -67,8 +68,18 @@ def section(fn):
 
 def run_cli(argv: list[str]) -> tuple[int, str]:
     out, err = io.StringIO(), io.StringIO()
-    with redirect_stdout(out), redirect_stderr(err):
-        code = D.main(argv + ["--skip-version-check"], listing_loader=RUN_LISTING[0])
+    try:
+        with redirect_stdout(out), redirect_stderr(err):
+            code = D.main(argv + ["--skip-version-check"], listing_loader=RUN_LISTING[0])
+    except SystemExit as exc:
+        # argparse EXITS rather than returning, and SystemExit is a
+        # BaseException — so the section runner's `except Exception` does not
+        # catch it and the whole process dies with argparse's code, its message
+        # sitting inside a StringIO nobody prints. That is a red that names
+        # nothing, which is the exact diagnostic failure this file's docstring
+        # is about. Caught here and turned back into a normal (code, text) pair
+        # so the assertion that follows can say WHICH property moved.
+        code = exc.code if isinstance(exc.code, int) else 2
     return code, out.getvalue() + err.getvalue()
 
 
@@ -876,6 +887,142 @@ def partition_and_dirty_notes():
 # --------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------
+# ADR-048 D5 — --only scopes BOTH verdicts, and says so loudly
+# --------------------------------------------------------------------------
+
+
+@section
+def only_scopes_both_verdicts():
+    """A scoped run makes a SMALLER claim, and must never look like the full one."""
+    root = build_fixture(foreign=False)
+    try:
+        ref, _work, _part = fixture_hashes(root)
+        env = D.env_hash({}, PROD_FIREBASE_CONFIG, "p")
+        good = D.endpoint_hash(ref, env, D.sha1("{}"))
+        bad = D.endpoint_hash("0" * 40, env, D.sha1("{}"))
+
+        # alpha is this ref, beta is NOT. Unscoped this is drift.
+        mixed = {"status": "success",
+                 "result": [fn("alpha", hash=good), fn("beta", hash=bad)]}
+        RUN_LISTING[0] = lambda p: mixed
+
+        code, text = run_cli(["--project", "p", "--root", root])
+        check("only: without --only the mixed listing is DRIFT",
+              code == D.EXIT_DRIFT, f"exit {code}\n{text}")
+
+        code, text = run_cli(["--project", "p", "--root", root, "--only", "alpha"])
+        check("only: scoping to the CLEAN function is exit 0",
+              code == D.EXIT_OK, f"exit {code}\n{text}")
+        check("only: a scoped run NAMES its scope, so a scoped green cannot read "
+              "as a full green", "scope" in text and "alpha" in text, text)
+        check("only: a scoped run says how many exported functions it did NOT examine",
+              "NOT examined" in text, text)
+
+        code, text = run_cli(["--project", "p", "--root", root, "--only", "beta"])
+        check("only: scoping to the DRIFTED function is exit 1",
+              code == D.EXIT_DRIFT, f"exit {code}\n{text}")
+        check("only: the drift annotation carries the scope too",
+              any(ln.startswith("::error::") and "scope" in ln for ln in text.splitlines()),
+              text)
+
+        # A name the barrel does not export is exit 2 — never a silent no-op that
+        # would deploy nothing and report success.
+        code, text = run_cli(["--project", "p", "--root", root, "--only", "gamma"])
+        check("only: a name the barrel does not export is COULD NOT MEASURE",
+              code == D.EXIT_CANNOT_MEASURE, f"exit {code}\n{text}")
+        check("only: and the message names the offending name", "gamma" in text, text)
+
+        # ADR-048 D5's load-bearing rule, and the review's blocker finding: an
+        # out-of-scope function that is UNMEASURABLE must not abort a dispatch
+        # that never named it. Each of these is exit 2 when unscoped.
+        for label, broken in (
+            ("gcfv1", fn("beta", platform="gcfv1", hash=bad)),
+            ("DataConnect-triggered", fn("beta", hash=bad,
+                                         eventTrigger={"dataConnectGraphqlTrigger": {"x": 1}})),
+            ("carrying no hash label", fn("beta", hash=None)),
+            ("from another codebase", fn("beta", codebase="other", hash=bad)),
+            ("carrying no FIREBASE_CONFIG", fn("beta", hash=bad, environmentVariables={})),
+        ):
+            RUN_LISTING[0] = lambda p, b=broken: {
+                "status": "success", "result": [fn("alpha", hash=good), b]}
+            code, text = run_cli(["--project", "p", "--root", root])
+            check(f"only: unscoped, a function {label} is exit 2 (the property being scoped)",
+                  code == D.EXIT_CANNOT_MEASURE, f"exit {code}\n{text}")
+            code, text = run_cli(["--project", "p", "--root", root, "--only", "alpha"])
+            check(f"only: an OUT-OF-SCOPE function {label} does NOT abort the dispatch",
+                  code == D.EXIT_OK, f"exit {code}\n{text}")
+            # The other half, and without it the pair is worth much less: an
+            # implementation that skipped the guards for EVERY function whenever
+            # a scope is set would satisfy the two checks above and still be
+            # broken. Scoping TO the unmeasurable function must still be exit 2 —
+            # `--only` narrows WHICH functions are judged, never whether they are.
+            code, text = run_cli(["--project", "p", "--root", root, "--only", "beta"])
+            check(f"only: scoping TO a function {label} is still COULD NOT MEASURE",
+                  code == D.EXIT_CANNOT_MEASURE, f"exit {code}\n{text}")
+
+        # Lesson 65 stays UNSCOPED: zero deployed at all is ambiguous, zero
+        # deployed WITHIN a scope while others are visible is plain drift.
+        RUN_LISTING[0] = lambda p: {"status": "success", "result": []}
+        code, text = run_cli(["--project", "p", "--root", root, "--only", "alpha"])
+        check("only: an EMPTY listing is still 'could not measure', scope or no scope",
+              code == D.EXIT_CANNOT_MEASURE, f"exit {code}\n{text}")
+
+        RUN_LISTING[0] = lambda p: {"status": "success", "result": [fn("beta", hash=good)]}
+        code, text = run_cli(["--project", "p", "--root", root, "--only", "alpha"])
+        check("only: a scoped function absent from a NON-empty listing is DRIFT, not exit 2",
+              code == D.EXIT_DRIFT, f"exit {code}\n{text}")
+        check("only: and it is diagnosed as the S063 shape", "NOT DEPLOYED" in text, text)
+
+        # Under a scope, a deployed-but-unexported function is out of contract.
+        RUN_LISTING[0] = lambda p: {
+            "status": "success",
+            "result": [fn("alpha", hash=good), fn("beta", hash=good), fn("stale", hash=good)]}
+        code, text = run_cli(["--project", "p", "--root", root])
+        check("only: unscoped, a deployed-but-unexported function is DRIFT",
+              code == D.EXIT_DRIFT and "not exported" in text, f"exit {code}\n{text}")
+        code, text = run_cli(["--project", "p", "--root", root, "--only", "alpha"])
+        check("only: scoped, it is NOT reported — a subset deploy claims nothing "
+              "about functions outside it", code == D.EXIT_OK, f"exit {code}\n{text}")
+    finally:
+        RUN_LISTING[0] = None
+
+
+# --------------------------------------------------------------------------
+# ADR-048 D6 — --require-clean-tree makes "clean by construction" an assertion
+# --------------------------------------------------------------------------
+
+
+@section
+def require_clean_tree_refuses_debris():
+    dirty = build_fixture(foreign=True)
+    clean = build_fixture(foreign=False)
+    try:
+        ref_dirty, _w, part = fixture_hashes(dirty)
+        check("clean-tree: the dirty fixture really does carry a foreign file",
+              len(part.foreign) == 1, str(part.foreign))
+
+        RUN_LISTING[0] = lambda p: listing_for(ref_dirty)
+        code, text = run_cli(["--project", "p", "--root", dirty])
+        check("clean-tree: WITHOUT the flag a foreign file is a diagnosis, not a refusal",
+              code == D.EXIT_OK, f"exit {code}\n{text}")
+
+        code, text = run_cli(["--project", "p", "--root", dirty, "--require-clean-tree"])
+        check("clean-tree: WITH the flag a foreign file is COULD NOT MEASURE",
+              code == D.EXIT_CANNOT_MEASURE, f"exit {code}\n{text}")
+        check("clean-tree: and the refusal NAMES the file, so the remedy is obvious",
+              "lcov.html" in text, text)
+
+        ref_clean, _w2, part2 = fixture_hashes(clean)
+        check("clean-tree: the clean fixture carries none", len(part2.foreign) == 0)
+        RUN_LISTING[0] = lambda p: listing_for(ref_clean)
+        code, text = run_cli(["--project", "p", "--root", clean, "--require-clean-tree"])
+        check("clean-tree: a genuinely clean tree passes the same flag",
+              code == D.EXIT_OK, f"exit {code}\n{text}")
+    finally:
+        RUN_LISTING[0] = None
+
+
 @section
 def repo_reality():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -925,6 +1072,44 @@ def repo_reality():
               code == D.EXIT_CANNOT_MEASURE, f"exit {code}\n{text}")
         check("repo: and it prints the remedy", "npm run build" in text, text)
         check("repo: an unbuilt tree yields no build-output partition", len(part.build) == 0)
+
+
+# --------------------------------------------------------------------------
+# ADR-048 D9 — the comparing CLI and the DEPLOYING CLI must be the same one
+# --------------------------------------------------------------------------
+
+
+@section
+def cli_pin_agrees_across_every_workflow():
+    """ADR-043 D9 could not close "the comparing CLI is not the deploying CLI".
+
+    `deploy-functions.yml` closes it — but only while the version this tool
+    verified its derivation against is the version the lane installs, and those
+    two facts live in different files. A silent disagreement would make the
+    read-back's verdict meaningless in the REASSURING direction, which is this
+    repo's first recurring failure shape. So it is asserted, hermetically.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    workflows = os.path.join(root, ".github", "workflows")
+    pins: dict[str, set] = {}
+    for name in sorted(os.listdir(workflows)):
+        if not name.endswith((".yml", ".yaml")):
+            continue
+        with open(os.path.join(workflows, name)) as handle:
+            found = set(re.findall(r"firebase-tools@([0-9]+\.[0-9]+\.[0-9]+)", handle.read()))
+        if found:
+            pins[name] = found
+
+    check("pin: at least one workflow installs firebase-tools (else this test is vacuous)",
+          len(pins) > 0, str(pins))
+    for name, found in pins.items():
+        check(f"pin: {name} installs exactly the version functions_drift verified against",
+              found == {D.VERIFIED_CLI_VERSION},
+              f"{name} pins {sorted(found)}, tool verified {D.VERIFIED_CLI_VERSION}")
+
+    lane = os.path.join(workflows, "deploy-functions.yml")
+    check("pin: the deploy lane exists and installs firebase-tools",
+          os.path.exists(lane) and "deploy-functions.yml" in pins, str(sorted(pins)))
 
 
 # --------------------------------------------------------------------------

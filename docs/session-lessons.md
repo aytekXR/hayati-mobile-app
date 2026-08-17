@@ -38,6 +38,49 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**107 — Both verifiers can refute a real finding, and the aggregation rule will not save you.** *(S070, #206)*
+The built-diff review's `python` lens reported *"missing test: scoping TO an
+unmeasurable function"*. The refuting skeptic said no; the governing-docs
+adjudicator said no; §5.2's *surface-if-either-says-real* rule therefore dropped
+it, and the synthesis never saw it. It was **real** — the suite asserted that an
+out-of-scope `gcfv1` function does not abort a scoped run, but never that scoping
+**to** one still exits 2, so an implementation skipping the guards for *every*
+function whenever a scope was set would have passed. Building that exact mutant
+took two minutes and it reddened three named assertions once the missing check
+existed. **Aggregation reduces the set you read; it does not decide what is
+true.** Read the raw findings list, and when a refutation is cheap to falsify —
+a mutant you can write, a command you can run — falsify it instead of accepting
+it. The two-verifier panel raises the floor; it is not a ceiling on your own
+judgement.
+
+**106 — "The design implies it" is not a specification, because the code is written from the words.** *(S070, ADR-048)*
+ADR-048 D5 said `--only` narrows *"both verdicts"*, and separately rejected an
+alternative because *"an out-of-scope exit 2 would abort a deploy that had
+nothing to do with it"*. Both true, and between them a hole: ADR-043's three
+exit-2 cases are raised while the listing is **parsed**, before any verdict
+exists, so an implementation that parsed first and scoped second would abort a
+subset deploy over an old `gcfv1` function nobody named — the very thing the
+paragraph rejected. The skeptic argued the ADR already implied the right
+behaviour. It did. **An ADR is the specification the next writer implements
+from, and "implied" is discovered only by someone who already knows the answer.**
+When a decision states an intent whose mechanism lives in code the ADR does not
+otherwise touch, write the mechanism down as a rule — here, one sentence:
+*outside the scope, recorded but never examined.*
+
+**105 — A validator that checks an alphabet cannot see a character its alphabet never mentions.** *(S070, #206)*
+`deploy-functions.yml` validated its function-list input against
+`^[A-Za-z][A-Za-z0-9_]*(,…)*$` — closed, anchored, and it looks airtight. `grep`
+matches **line by line**, so `$'a\nb'` passes on the strength of its first line;
+`IFS=',' read` then consumes only that line, and `echo "names=$ONLY" >>
+$GITHUB_OUTPUT` writes a second, keyless line the parser discards. The lane would
+deploy `a`, read back `a`, and go **green** while `b` was requested and never
+deployed. Reachable with one `gh workflow run -f only=$'a\nb'`. The pattern was
+never wrong about characters — it was silent about **shape**. **Assert the shape
+of an operator input (single line, bounded length) as well as its alphabet, and
+reproduce the bypass in a shell before believing the pattern.** Anchors mean
+different things to different matchers, and the one you are holding may be
+matching a smaller unit than you think.
+
 **104 — A confident wrong state is worse than the missing one it replaced.** *(S069, ADR-046)*
 The whole point of ADR-046 was that four device-side notification failures were
 indistinguishable, so `PushTokenSync` gained five named states. The first

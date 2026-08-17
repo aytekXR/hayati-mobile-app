@@ -523,8 +523,28 @@ def run_listing(project: str, firebase_bin: str, cwd: str) -> dict:
             f"{out.stdout.strip().splitlines()[0][:160]}") from None
 
 
-def parse_listing(payload: dict, project: str, codebase: str) -> dict[str, dict]:
-    """Deployed functions by id. Fails closed on every shape it did not verify."""
+def parse_listing(payload: dict, project: str, codebase: str,
+                  scope: set | None = None) -> dict[str, dict]:
+    """Deployed functions by id. Fails closed on every shape it did not verify.
+
+    ADR-048 D5 — `scope` (from `--only`) makes a function OUTSIDE it **recorded
+    but never examined**: the codebase, platform and DataConnect judgements below
+    do not run on it, and so none of them can produce exit 2. Those three are
+    per-function judgements about *measurability* (ADR-043 D5), and a dispatch
+    that names two functions is not made blind by a third it never named — a
+    tool that parsed first and scoped second would abort a subset deploy over an
+    old `gcfv1` function nobody mentioned, which is precisely the failure D5
+    exists to prevent.
+
+    The two checks that DO still run on everything are about the listing rather
+    than about a function: an entry with no id, and a duplicate id. A malformed
+    listing is malformed whatever this dispatch happens to be about, and
+    recording the second of two duplicates would quietly drop the first.
+
+    Out-of-scope entries are RECORDED rather than dropped so that the caller's
+    zero-listing guard (lesson 65) and its deployed count still describe the
+    project rather than the argument list.
+    """
     if not isinstance(payload, dict):
         raise MeasurementError(f"functions:list for {project} returned {type(payload).__name__}, not an object")
     status = payload.get("status")
@@ -541,6 +561,11 @@ def parse_listing(payload: dict, project: str, codebase: str) -> dict[str, dict]
         if not isinstance(fn, dict) or not fn.get("id"):
             raise MeasurementError(f"functions:list for {project} returned an entry with no id: {fn!r}")
         fid = fn["id"]
+        if fid in deployed:
+            raise MeasurementError(f"{project} lists {fid} twice — this check compares one region per function")
+        if scope is not None and fid not in scope:
+            deployed[fid] = fn      # recorded, never examined (ADR-048 D5)
+            continue
         if fn.get("codebase") not in (None, codebase):
             raise MeasurementError(
                 f"{project}/{fid} belongs to codebase {fn.get('codebase')!r}, not {codebase!r} — "
@@ -562,8 +587,6 @@ def parse_listing(payload: dict, project: str, codebase: str) -> dict[str, dict]
                 "file — which lives outside the functions source directory — into the source "
                 "digest, and this check does not walk it. Failing closed rather than "
                 "reporting drift that is only a missing input")
-        if fid in deployed:
-            raise MeasurementError(f"{project} lists {fid} twice — this check compares one region per function")
         deployed[fid] = fn
     return deployed
 
@@ -630,9 +653,16 @@ def deployed_firebase_config(fn: dict, project: str) -> str:
 
 
 def compare_project(project: str, deployed: dict[str, dict], exported: list[str],
-                    part: Partition, source_dir: str, firebaserc_path: str
-                    ) -> tuple[bool, list[str], str]:
-    """(matches, report lines, one-line summary). Raises if it could not look."""
+                    part: Partition, source_dir: str, firebaserc_path: str,
+                    scope: set | None = None) -> tuple[bool, list[str], str]:
+    """(matches, report lines, one-line summary). Raises if it could not look.
+
+    ADR-048 D5 — under a `scope` BOTH verdicts narrow to the named functions, so
+    exit 0 means "the named functions are a clean build of this ref", which is a
+    smaller claim than this tool's usual one. It must never be readable as the
+    usual one, so the scope and the number of exported functions left unexamined
+    are printed in the report AND carried in the one-line annotation.
+    """
     lines: list[str] = []
     drifted = False
 
@@ -649,10 +679,26 @@ def compare_project(project: str, deployed: dict[str, dict], exported: list[str]
             "apart from the listing alone and will not report the wrong one — confirm with "
             f"`firebase functions:list --project {project}` under a credential you trust")
 
+    # Narrow BOTH verdicts to the scope, and say so before either is reported.
+    # The zero-listing guard above deliberately ran against the UNSCOPED set:
+    # zero deployed at all is ambiguous, zero deployed within a scope while
+    # others are plainly visible is drift.
+    unexamined = 0
+    if scope is not None:
+        in_scope = [n for n in exported if n in scope]
+        unexamined = len(exported) - len(in_scope)
+        lines.append(
+            f"  scope        : --only {', '.join(sorted(scope))} "
+            f"({len(in_scope)} of {len(exported)} exported function(s); "
+            f"{unexamined} NOT examined by this run)")
+        exported = in_scope
+        deployed = {k: v for k, v in deployed.items() if k in scope}
+
     # --- verdict 1: the set comparison (no hashing, no build) ---------------
     missing = sorted(set(exported) - set(deployed))
     extra = sorted(set(deployed) - set(exported))
-    lines.append(f"  deployed     : {len(deployed)} function(s); this ref exports {len(exported)}")
+    lines.append(f"  deployed     : {len(deployed)} function(s); this ref exports {len(exported)}"
+                 + (" (both IN SCOPE)" if scope is not None else ""))
     if missing:
         drifted = True
         lines.append(f"  DRIFT: exported but NOT DEPLOYED — {', '.join(missing)}")
@@ -718,7 +764,9 @@ def compare_project(project: str, deployed: dict[str, dict], exported: list[str]
                      "out what is running.")
 
     if not drifted:
-        lines.append(f"  MATCHES: all {len(deployed)} deployed function(s) are a clean build of this ref")
+        lines.append(f"  MATCHES: all {len(deployed)} deployed function(s) are a clean build of this ref"
+                     + (f" — and {unexamined} exported function(s) were NOT examined"
+                        if scope is not None else ""))
         return True, lines, ""
 
     # The one-line summary the CI annotation carries. Ordered worst-first so the
@@ -737,6 +785,10 @@ def compare_project(project: str, deployed: dict[str, dict], exported: list[str]
         why = (f"{len(hand_deployed)} function(s) run THIS REF'S SOURCE but were deployed "
                f"from a dirty tree ({len(part.foreign)} foreign files) — a process gap, "
                "not wrong code")
+    if scope is not None:
+        # A scoped finding is a finding about a SUBSET. The annotation is the one
+        # line a reader sees in the Actions UI, so the scope travels with it.
+        why = f"[scope: {', '.join(sorted(scope))}] {why}"
     return False, lines, why
 
 
@@ -748,6 +800,12 @@ def main(argv: list[str] | None = None, listing_loader=None) -> int:
     parser.add_argument("--project", action="append", default=[], help="project id; repeatable")
     parser.add_argument("--root", default=None, help="repo root (default: this file's ../..)")
     parser.add_argument("--firebase-bin", default="firebase")
+    parser.add_argument("--only", default=None,
+                        help="comma-separated function names; narrows BOTH verdicts to them "
+                             "(ADR-048 D5). Omit for every exported function")
+    parser.add_argument("--require-clean-tree", action="store_true",
+                        help="refuse (exit 2) if functions/ carries any gitignored file a clean "
+                             "checkout would not have — the deploy lane's precondition (ADR-048 D6)")
     parser.add_argument("--skip-version-check", action="store_true",
                         help="self-tests only: the derivation is pinned to a CLI major")
     args = parser.parse_args(argv)
@@ -783,6 +841,40 @@ def main(argv: list[str] | None = None, listing_loader=None) -> int:
                 f"(e.g. {os.path.relpath(missing_on_disk[0], repo_root)}) — the reference set is "
                 "what a CLEAN checkout carries, and this tree cannot produce it")
         part = Partition(walk_packaged(source_dir, patterns), tracked, build_dir)
+
+        # ADR-048 D6. The deploy lane's whole justification is that deploying
+        # from a clean checkout makes the reference and working-tree digests
+        # identical BY CONSTRUCTION — and "by construction" is a claim, not an
+        # instrument. This is the instrument. Lesson 92: gitignored debris on
+        # the deployer's machine is part of the artifact.
+        if args.require_clean_tree and part.foreign:
+            raise MeasurementError(
+                f"--require-clean-tree: {len(part.foreign)} file(s) under {source_rel}/ are "
+                "gitignored debris a clean checkout does not carry, and the CLI packages the "
+                "DIRECTORY — so deploying now would put them in the deployed digest and make "
+                "this project uncomparable to a clean build of this ref. Remove them and "
+                "re-run: " + ", ".join(os.path.relpath(p, repo_root) for p in part.foreign[:5])
+                + (f" (+{len(part.foreign) - 5} more)" if len(part.foreign) > 5 else ""))
+
+        # ADR-048 D5. Validated against the barrel, because a name that is not
+        # exported would otherwise scope the run to nothing and report success —
+        # the silent no-op this whole tool exists to refuse.
+        scope = None
+        if args.only is not None:
+            names = [n.strip() for n in args.only.split(",")]
+            if not names or not all(names):
+                raise MeasurementError(
+                    "--only was given but names nothing usable. Omit the flag entirely to "
+                    "compare every exported function; an empty selector is refused because "
+                    "firebase-tools' own `--only functions:` degrades to NO filter, which "
+                    "means deploy everything (functionsDeployHelper.js getEndpointFilters)")
+            scope = set(names)
+            unknown = sorted(scope - set(exported))
+            if unknown:
+                raise MeasurementError(
+                    f"--only names {', '.join(unknown)}, which {source_rel}/src/index.ts does "
+                    f"not export. Exported: {', '.join(exported)}")
+
         dirty = git_dirty(source_rel, repo_root)
         firebaserc = os.path.join(repo_root, ".firebaserc")
     except MeasurementError as exc:
@@ -802,9 +894,9 @@ def main(argv: list[str] | None = None, listing_loader=None) -> int:
         print(f"\n=== {project} ===")
         try:
             listing = loader(project)
-            deployed = parse_listing(listing, project, codebase)
+            deployed = parse_listing(listing, project, codebase, scope)
             matches, lines, why = compare_project(project, deployed, exported, part,
-                                                  source_dir, firebaserc)
+                                                  source_dir, firebaserc, scope)
         except MeasurementError as exc:
             print(f"  {exc}")
             print(f"::error::functions_drift could not measure {project}: {exc}")
@@ -821,13 +913,20 @@ def main(argv: list[str] | None = None, listing_loader=None) -> int:
             # every deployed function matches, and whose only finding is a
             # function that is absent, sends the reader to redeploy code that is
             # already correct.
-            print(f"::error::{project}: {why}. Cloud Functions have no deploy lane "
-                  "(#166's residual, re-filed), so this is a manual `firebase deploy "
-                  "--only functions`" + ("" if project.endswith("-dev") else
-                  " — and a PROD deploy is a founder ask (session-context.md §7)") + ".")
+            # The remedy, and it changed at S070: there IS a deploy lane now
+            # (ADR-048, #206). A stale fact inside an ::error:: string is read
+            # only at the moment someone's check just went red — lesson 64.
+            print(f"::error::{project}: {why}. Deploy it with the deploy-functions "
+                  "workflow (`gh workflow run deploy-functions.yml -f project="
+                  + ("dev" if project.endswith("-dev") else "prod")
+                  + "`)" + ("" if project.endswith("-dev") else
+                  " — a PROD deploy is a founder ask (session-context.md §7), and the lane "
+                  "additionally requires typing the project id") + ".")
         return EXIT_DRIFT
     print(f"no drift: {len(args.project)} project(s) run a clean build of this ref "
-          f"({', '.join(args.project)})")
+          f"({', '.join(args.project)})"
+          + (f" — SCOPED to {', '.join(sorted(scope))}; every other exported function was "
+             "NOT examined" if scope is not None else ""))
     return EXIT_OK
 
 

@@ -1,0 +1,345 @@
+# deploy-functions — publish Cloud Functions to hayatiapp-dev / hayatiapp-prod.
+#
+# WHY THIS EXISTS AT ALL (issue #206, ADR-048; split out of #166/ADR-043 D8).
+# deploy-rules.yml and deploy-site.yml exist. Cloud Functions had NO deploy
+# workflow, so every Functions deploy this project ever had was a hand-typed
+# `firebase deploy` from one laptop, and nothing recorded that it happened.
+#
+# That gap has cost this project twice, both times the same way — the belief
+# that merged and green meant running. S063 shipped the whole push feature
+# merged, reviewed, green and in TestFlight while registerPushToken did not
+# exist in production. S068's outage found all 13 deployed functions drifted
+# from main at once.
+#
+# WHY DISPATCH-ONLY, and not on push to main. Merging to `main` is not consent
+# to change what production RUNS — deploy-rules.yml's argument, one target over.
+# The cost is honest and named: between a Functions merge and a dispatch,
+# production runs something other than main. That window is exactly what
+# ci.yml's `functions-drift` job makes impossible to forget.
+#
+# WHY PROD IS ADDITIONALLY PINNED TO main, which deploy-rules.yml does not do.
+# A workflow_dispatch runs against whatever ref the dispatcher selects.
+# Deploying a branch to prod would MANUFACTURE the exact defect this lane exists
+# to remove: `functions-drift` would go red on the next push to main and
+# correctly report "running source that is NOT this ref", and the next reader
+# would hunt a drift that a dispatch box created on purpose. Dev is deliberately
+# free — exercising a branch on dev is what dev is for (session-context.md §7).
+#
+# WHY THERE IS NO --force, EVER. Read out of the installed firebase-tools
+# 15.22.4 rather than its documentation: promptForFunctionDeletion returns early
+# when options.force is set, so --force DELETES any function present in the
+# project and absent from the source with no prompt at all. Without it the same
+# situation aborts and prints the explicit `functions:delete` commands. A bad
+# barrel edit must not be able to silently remove revenueCatWebhook from
+# production and take the entitlement mirror down with it. --force is also one
+# flag meaning four unrelated things (failure policies, min-instance cost,
+# deletion, artifact cleanup policy); all four are covered in ADR-048 D8.
+#
+# OPERATOR PREREQUISITE (which a session cannot do): a repository secret
+# FIREBASE_SERVICE_ACCOUNT. It now arms THREE lanes — this one, deploy-rules.yml
+# and deploy-site.yml — and for this one the account needs four roles, measured
+# against the IAM API rather than inferred: see docs/operator-expected.md item
+# 2(e)(iii). No such secret exists today, so this workflow fails closed at the
+# secrets gate rather than pretending to deploy.
+name: deploy-functions
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Which project to deploy Cloud Functions to'
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prod]
+      confirm_prod:
+        description: 'PROD ONLY: type the project id exactly — hayatiapp-prod. Ignored for dev.'
+        required: false
+        default: ''
+      only:
+        description: 'Optional: comma-separated function names, e.g. registerPushToken,answerReveal. EMPTY = every exported function. dev cannot take revenueCatWebhook until RC_WEBHOOK_TOKEN exists there (operator 0(c)).'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+# Two dispatches against one project would be two CLIs fighting over the same
+# thirteen endpoints. Queue, never cancel: a deploy killed between its fourth and
+# fifth function is the partially-applied state the read-back exists to catch.
+# Per project, because a dev deploy has no reason to wait behind a prod one.
+#
+# `github.event.inputs`, not `inputs`, and deliberately. Both resolve here, but
+# workflow-level `concurrency` is evaluated before any job starts and a bad
+# expression there is a PARSE error — and this lane is dispatch-only, so its
+# first real parse happens the first time someone dispatches it, which is a
+# founder action on a live project. The `github` context is unambiguously
+# available at workflow level; this is not the place to be 85% sure.
+concurrency:
+  group: deploy-functions-${{ github.event.inputs.project }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy-functions
+    runs-on: ubuntu-latest
+    # Thirteen gen-2 functions build containers. deploy-rules.yml's 10 minutes
+    # is a single API call's budget.
+    timeout-minutes: 30
+    steps:
+      # Resolve the alias ONCE, here, so no later step re-derives it. Two steps
+      # that each map dev|prod to a project id are two places to disagree, and
+      # the one that matters is the one that runs `firebase deploy`.
+      - name: resolve target
+        id: target
+        run: |
+          if [ "${{ inputs.project }}" = "prod" ]; then
+            echo "id=hayatiapp-prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "id=hayatiapp-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ADR-048 D1. Checked before everything, including the typed confirmation:
+      # a prod dispatch from a branch is wrong for a reason that has nothing to
+      # do with whether the operator typed the id correctly.
+      - name: prod deploys only from main
+        if: ${{ inputs.project == 'prod' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::A PROD Functions deploy must run on refs/heads/main. This run is on"
+          echo "::error::${{ github.ref }}. Deploying a branch to production would put source"
+          echo "::error::there that is not on main, and ci.yml's functions-drift job would then"
+          echo "::error::correctly report production as running code that is NOT this ref —"
+          echo "::error::manufacturing the exact defect this lane exists to remove."
+          echo "::error::Merge first, then dispatch from main. (dev accepts any ref, by design.)"
+          exit 1
+
+      # Typing the id IS the confirmation. Checked before the secrets gate so a
+      # mistyped prod dispatch fails on the cheap, obvious reason rather than on
+      # a missing credential that would send the reader down the wrong path.
+      - name: prod requires an explicit confirmation
+        if: ${{ inputs.project == 'prod' }}
+        env:
+          CONFIRM: ${{ inputs.confirm_prod }}
+        run: |
+          if [ "$CONFIRM" != "hayatiapp-prod" ]; then
+            echo "::error::Deploying Cloud Functions to PRODUCTION requires typing the project"
+            echo "::error::id exactly (hayatiapp-prod) in the confirm_prod box. Got: '$CONFIRM'"
+            exit 1
+          fi
+          echo "prod deploy confirmed."
+
+      # Fail closed and say WHY, rather than letting `firebase deploy` emit an
+      # opaque auth error. Same shape as deploy-rules.yml's gate and release.yml's
+      # signing gate (ADR-021 D4).
+      - name: secrets gate
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set, so CI cannot deploy Functions."
+            echo "::error::See docs/operator-expected.md item 2(e)(iii): one service account,"
+            echo "::error::four roles (firebase.admin, iam.serviceAccountUser,"
+            echo "::error::cloudscheduler.admin, secretmanager.viewer), added as a repository"
+            echo "::error::secret. The same secret arms deploy-rules.yml and deploy-site.yml."
+            exit 1
+          fi
+          echo "FIREBASE_SERVICE_ACCOUNT present."
+
+      - uses: actions/checkout@v5
+
+      # ADR-048 D3, and the reason it is a safety step rather than an ergonomic
+      # one. firebase-tools' getEndpointFilters splits --only on "," and DROPS
+      # any selector not starting with "functions:"; if every selector is
+      # dropped it returns undefined, which downstream means NO FILTER — deploy
+      # everything. So an operator asking for one function is one comma away
+      # from a full production deploy. This lane never forwards the operator's
+      # string: it validates the names, then BUILDS the selector itself.
+      #
+      # Inputs reach the shell as ENV, never interpolated into the script body:
+      # ${{ }} expands before bash sees the line, so a value carrying shell
+      # metacharacters would otherwise execute.
+      - name: validate the function selector and BUILD it
+        id: selector
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          if [ -z "$ONLY" ]; then
+            echo "no selector given: every exported function will be deployed."
+            # `--only functions` is the whole-codebase selector. It is NEVER
+            # `--only functions:` — that trailing colon is the input that
+            # degrades to no filter at all.
+            echo "selector=functions" >> "$GITHUB_OUTPUT"
+            echo "names=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A NEWLINE MUST BE REFUSED BEFORE THE REGEX, because the regex cannot
+          # see it. `grep` matches line by line, so $'a\nb' passes on the
+          # strength of its first line alone — and then `IFS=',' read` consumes
+          # only that first line and `echo name=$ONLY >> $GITHUB_OUTPUT` writes a
+          # second, keyless line the parser discards. The run would deploy `a`,
+          # read back `a`, and go GREEN while `b` was requested and never
+          # deployed, with nothing in the log saying so. That is the silent
+          # mis-selection ADR-048 D3 refuses hyphens to avoid, arriving through a
+          # character the pattern never mentions. Reachable today: `gh workflow
+          # run ... -f only=$'a\nb'`.
+          case "$ONLY" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::The 'only' box must be a single line. It contained a line break,"
+              echo "::error::which would silently truncate the list to its first entry and"
+              echo "::error::deploy fewer functions than you asked for, with a green result."
+              exit 1
+              ;;
+          esac
+          # Underscore is allowed (a barrel export is a JS identifier). A hyphen
+          # is deliberately refused: parseFunctionSelector splits a selector on
+          # [-.] into prefix-matched chunks, so a hyphenated name would not be
+          # compared the way this lane's report claims it is.
+          if ! printf '%s' "$ONLY" | grep -Eq '^[A-Za-z][A-Za-z0-9_]*(,[A-Za-z][A-Za-z0-9_]*)*$'; then
+            echo "::error::The 'only' box must be a comma-separated list of function names,"
+            echo "::error::each starting with a letter and containing only letters, digits and"
+            echo "::error::underscores — e.g. registerPushToken,answerReveal. Got: '$ONLY'"
+            echo "::error::(Leave it EMPTY to deploy every exported function.)"
+            exit 1
+          fi
+          selector=""
+          IFS=',' read -ra names <<< "$ONLY"
+          for name in "${names[@]}"; do
+            # The prefix goes on EVERY element. A selector without it is silently
+            # dropped by getEndpointFilters, and if all of them are dropped the
+            # filter becomes undefined — i.e. deploy everything.
+            selector="${selector:+$selector,}functions:$name"
+          done
+          echo "deploying ONLY: $selector"
+          echo "selector=$selector" >> "$GITHUB_OUTPUT"
+          echo "names=$ONLY" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      # The CLI packages the DIRECTORY and never compiles TS, so lib/ must exist
+      # and must be current before anything is uploaded or compared.
+      - name: build functions/lib (it is what gets deployed)
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
+
+      # Pinned to the version functions_drift.py verified its hash derivation
+      # against. That agreement is asserted hermetically by
+      # functions_drift_test.py, because it is what removes ADR-043 D9's
+      # "the comparing CLI is not the deploying CLI" residual for this lane.
+      - name: install firebase-tools (pinned to the verified version)
+        run: npm install -g firebase-tools@15.22.4
+
+      # Say what is about to change BEFORE changing it. Exit 1 here means "there
+      # is drift", which is the normal reason to be running this workflow, so it
+      # must not stop the deploy; exit 2 means the tool could not measure — or
+      # that the tree is dirty — and that DOES stop it.
+      #
+      # --require-clean-tree is this lane's entire justification made into an
+      # assertion (ADR-048 D6): a fresh runner is clean today, and "by
+      # construction" is a claim rather than an instrument. functions_drift.py
+      # needs no pip dependency — stdlib only — unlike rules_drift.py.
+      - name: what is deployed right now, and is this tree clean enough to deploy
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/deploy-functions-sa.json
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: ${{ steps.target.outputs.id }}
+          ONLY_NAMES: ${{ steps.selector.outputs.names }}
+        run: |
+          printf '%s' "$SA" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          args=(--project "$PROJECT_ID" --require-clean-tree)
+          if [ -n "$ONLY_NAMES" ]; then args+=(--only "$ONLY_NAMES"); fi
+          set +e
+          python3 tool/ci/functions_drift.py "${args[@]}"
+          code=$?
+          set -e
+          if [ "$code" = "2" ]; then
+            echo "::error::Could not measure what is deployed, or this tree is not clean."
+            echo "::error::Deploying now would either overwrite something nobody looked at, or"
+            echo "::error::sweep machine-local debris into the deployed digest. Refusing."
+            exit 1
+          fi
+          echo "pre-deploy drift status: $code (0 = already in sync, 1 = will change)"
+
+      - name: deploy
+        id: deploy
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/deploy-functions-sa.json
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: ${{ steps.target.outputs.id }}
+          SELECTOR: ${{ steps.selector.outputs.selector }}
+        run: |
+          # Recorded BEFORE the deploy runs, so it is set whether the CLI
+          # succeeds or fails. The read-back gates on this rather than on
+          # `steps.deploy.conclusion`, because the `steps` context only carries
+          # steps that have RUN: if an earlier gate stopped the job,
+          # `steps.deploy.conclusion` is null, and `null != 'skipped'` is TRUE —
+          # which would run a read-back for a deploy that never happened. An
+          # output that is either "true" or absent has no such third state.
+          echo "attempted=true" >> "$GITHUB_OUTPUT"
+          printf '%s' "$SA" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          # $SELECTOR is ONE token — `functions` or `functions:a,functions:b` —
+          # built by the validated step above, so it is quoted rather than
+          # word-split, and no operator text reaches this line.
+          #
+          # --non-interactive explicitly, never inferred. firebase-tools derives
+          # it from !process.stdin.isTTY, and a lane whose deletion-safety rests
+          # on a runner's stdin not being a terminal is one runner change away
+          # from a prompt that hangs until the job times out.
+          #
+          # No --force. See this file's header and ADR-048 D8.
+          firebase deploy --only "$SELECTOR" \
+            --project "$PROJECT_ID" \
+            --non-interactive
+          echo "deploy step completed."
+
+      # Deploy, THEN measure — a vendor reporting success is a claim about its
+      # own work, and the guarantee is reading back what is actually released.
+      #
+      # `if: always()` is LOAD-BEARING and is the one place this lane departs
+      # from deploy-rules.yml (ADR-048 D4). A ruleset is one artifact released in
+      # one call. A Functions deploy is N independent operations, and
+      # firebase-tools will partially apply ON PURPOSE — promptForUnsafeMigration
+      # skips unsafe updates in non-interactive mode and continues. The most
+      # dangerous state this lane can produce is a partially applied deploy
+      # nobody measured, and that state exists only AFTER a failure, which is
+      # exactly when a normal step sequence stops running.
+      #
+      # It still votes. Three readings follow, and the deploy's own exit code
+      # gives none of them:
+      #   deploy OK,    read-back MATCHES -> deployed, and proven.
+      #   deploy FAILS, read-back DRIFT   -> nothing landed, or some of it did;
+      #                                      the report names which functions.
+      #   deploy FAILS, read-back MATCHES -> every scoped function's source IS
+      #                                      this ref and the CLI failed at
+      #                                      something around the release.
+      #
+      # Gated on the deploy having been ATTEMPTED, not merely on always(). A run
+      # stopped by the main-pin, the typed confirmation or the secrets gate never
+      # touched the project, so a read-back there would report the drift that was
+      # already there and redden a run for a state it did not cause — the
+      # cry-wolf shape.
+      - name: prove what is deployed NOW is this ref
+        if: always() && steps.deploy.outputs.attempted == 'true'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/deploy-functions-sa.json
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT_ID: ${{ steps.target.outputs.id }}
+          ONLY_NAMES: ${{ steps.selector.outputs.names }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::error::No credential — this run failed at or before the secrets gate, so"
+            echo "::error::there is nothing to read back and nothing was deployed."
+            exit 1
+          fi
+          printf '%s' "$SA" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          # Deliberately NOT --require-clean-tree here: after a failed deploy the
+          # tree may legitimately carry debris, and an exit 2 would replace the
+          # drift diagnosis that is the entire reason this step runs at all.
+          args=(--project "$PROJECT_ID")
+          if [ -n "$ONLY_NAMES" ]; then args+=(--only "$ONLY_NAMES"); fi
+          python3 tool/ci/functions_drift.py "${args[@]}"

@@ -67,12 +67,32 @@ _Environment facts below were last re-measured **2026-08-05**._
   | `python3 tool/ci/rules_drift.py --project hayatiapp-prod --from-firebase-cli` | verifies deployed rules against this ref **with no `FIREBASE_SERVICE_ACCOUNT`** — the CI lane needs that secret, this path does not. |
   | `firebase deploy --only functions` / `--only firestore:rules` | the deploy. **§7 applies — ask first.** |
 
-  **There is no Functions deploy workflow** (`deploy-rules.yml` and `deploy-site.yml` exist;
-  functions have none), so deployment is a manual step nothing tracks. That is issue **#166**,
-  and it cost S063 the entire push feature: everything merged, every check green, and the
-  callables the app calls did not exist in production. **"Merged and green" is not "running"**
-  (lesson **86**) — and the first row of that table is how you tell the difference in about
-  ten seconds. Use it before reporting any feature that spans a deploy boundary as shipped.
+  **There IS a Functions deploy workflow since S070** — `deploy-functions.yml` (#206,
+  ADR-048), dispatch-only, prod pinned to `main` and behind a typed project id, which
+  measures → deploys → reads back. Until 2026-08-17 there was none, and deployment was a
+  manual step nothing tracked: that cost S063 the entire push feature — everything merged,
+  every check green, and the callables the app calls did not exist in production.
+  **"Merged and green" is not "running"** (lesson **86**) — and the first row of that table
+  is how you tell the difference in about ten seconds. Use it before reporting any feature
+  that spans a deploy boundary as shipped.
+
+  **The lane is UNARMED** until operator **2(e)(iii)** (`FIREBASE_SERVICE_ACCOUNT`), exactly
+  like `deploy-rules.yml`, so the row above is still how a session deploys today — and §7
+  still applies to prod. The lane's own command sequence is reproducible locally:
+  ```sh
+  # every exported function
+  python3 tool/ci/functions_drift.py --project <p> --require-clean-tree
+  firebase deploy --only functions --project <p> --non-interactive
+  python3 tool/ci/functions_drift.py --project <p>
+
+  # or a subset — note the `functions:` prefix goes on EVERY name, and a
+  # selector without it is silently dropped (an all-dropped list means NO
+  # filter, i.e. deploy everything)
+  python3 tool/ci/functions_drift.py --project <p> --require-clean-tree --only a,b
+  firebase deploy --only functions:a,functions:b --project <p> --non-interactive
+  python3 tool/ci/functions_drift.py --project <p> --only a,b
+  ```
+  **Never pass `--force`**: it deletes functions absent from the source with no prompt.
 
 ## 3. Toolchain and commands
 
