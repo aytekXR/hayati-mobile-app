@@ -122,6 +122,20 @@ jobs:
         run: dart tool/release_lane_lint_test.dart
       - name: release lane lint
         run: dart tool/release_lane_lint.dart
+      # ADR-050 (#223) — the three dispatch-only deploy lanes must agree with
+      # each other. NONE of them has ever executed and none can until operator
+      # 2(e)(iii) lands FIREBASE_SERVICE_ACCOUNT, so there is no dispatch to
+      # observe and no log to read; `actionlint` is not installed either. This
+      # pair is therefore the ENTIRE protection for those guards, exactly as
+      # release_lane_lint is for a lane that only runs on a tag. Self-tests then
+      # the lint, plain dart:-only, pre-pub-get.
+      #
+      # ⚠️ Green here means "the guard is written correctly", never "the guard was
+      # tested" — that needs a dispatch, which needs the secret.
+      - name: deploy lane lint self-tests
+        run: dart tool/deploy_lane_lint_test.dart
+      - name: deploy lane lint
+        run: dart tool/deploy_lane_lint.dart
       # ADR-024 D1: the Slack notifier is bash, and bash gets neither
       # `dart format` (it silently ignores *.sh) nor `dart analyze`. shellcheck
       # is the static half of that gate (SC2086-class unquoted expansions); the

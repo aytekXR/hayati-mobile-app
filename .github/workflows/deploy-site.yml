@@ -54,6 +54,15 @@ on:
 permissions:
   contents: read
 
+# Two overlapping publishes to one channel would race over one public URL. Queue,
+# never cancel (ADR-050 D3). Per channel, because a preview has no reason to wait
+# behind a live publish — and `github.event.inputs`, not `inputs`, because
+# workflow-level concurrency is evaluated before any job starts and a bad
+# expression there is a PARSE error on someone's first dispatch (ADR-048 D10).
+concurrency:
+  group: deploy-site-${{ github.event.inputs.channel }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: deploy-site
@@ -61,6 +70,40 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+
+      # ADR-050 D2. #223 filed this as the weaker half of the two lanes — "the
+      # site is regenerated from docs/legal/ at deploy time and there is no drift
+      # checker to confuse". Both clauses are true and the conclusion does not
+      # follow.
+      #
+      # What a live publish serves is the PRIVACY POLICY and TERMS: the same
+      # docs/legal/*.md that ADR-023 byte-syncs into app/assets/legal/ under a
+      # drift test, precisely so the app and the repo can never disagree about
+      # what the policy says. Publishing from a branch puts a THIRD version into
+      # the world — the public page Apple's listing points at, saying something
+      # the app on the user's phone does not. That is the exact failure ADR-023's
+      # sync test exists to prevent, routed around the test rather than through
+      # it, and it is worse than rules drift in one respect: a rules deploy is
+      # corrected by another deploy, while a published legal text has already
+      # been fetched.
+      #
+      # It holds for an `invite_only` live publish too, which carries no legal
+      # text at all: a branch's app-site-association is still the file Apple
+      # fetches to decide whether an invite link opens the app.
+      #
+      # `preview` stays free — the same dev/prod asymmetry under other names, and
+      # what the preview channel is for.
+      - name: live publishes only from main
+        if: ${{ inputs.channel == 'live' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::A LIVE site publish must run on refs/heads/main. This run is on"
+          echo "::error::${{ github.ref }}. The live channel serves the privacy policy and"
+          echo "::error::terms that ADR-023 byte-syncs into the app, so publishing a branch"
+          echo "::error::would put text on the public page that the shipped app disagrees"
+          echo "::error::with — and it is already fetched by Apple and by search engines"
+          echo "::error::before anyone notices."
+          echo "::error::Merge first, then dispatch from main. (preview accepts any ref.)"
+          exit 1
 
       # Refuse the combination that would put "to be completed by the founder"
       # on the live domain. Checked HERE as well as in the builder because the
