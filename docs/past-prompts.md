@@ -3256,7 +3256,13 @@ if: ${{ inputs.project != 'prod' && github.ref != 'refs/heads/main' }}
 **Dev blocked from a branch, prod admitted from anywhere — the guard inverted into precisely the hole it was added to close, passing a lint that only looked for vocabulary.** The rule now asserts the **operators**, and the test covering it was *confirmed red against the old form* rather than merely added. Two more from the same review: the concurrency group must key on the input that selects the **target** (one keyed on `confirm_prod` interpolates faithfully and serializes the wrong pairs), and **comments are stripped before scanning** — every lane now carries a header quoting the guard, so a lint reading prose would go green on the remediation note somebody leaves when they *delete* it.
 
 **Commits:** `49198fe` (ADR + the two lanes + the lint), `0c73b7f` (docs) — PR **#230**.
-**CI:** green (PR + post-merge `main`).
+**CI:** green, **both runs watched to conclusion**. PR run `32021507864` — all
+jobs green, `quality` included, which is where the new lint and its self-tests
+run. Post-merge `main` run `32022632099` — green including `integration-emulator`
+at **23m11s** (11:02:11→11:25:22Z). With S071's 31m37s that is **two consecutive
+runs today inside the 50-minute budget**, which is evidence for **#208** rather
+than a reason to close it: the issue is about a job that hung *silently*, and two
+healthy runs do not disprove an intermittent hang.
 **Docs touched:** `docs/adr/050-*` (new), `architecture.md` §9, `test-suite.md`, `resume-prompt.md`, `past-prompts.md`.
 
 **Verification, and the honest bound on it.** The lint is red on the real tree before the fixes (4 violations) and green after, with `deploy-functions.yml` green throughout as the positive control. **15 mutants, each reddening a named check**, anchors asserted present-and-unique before every edit and the file diffed byte-identical against a pre-mutation copy afterwards. One mutant survived and was **wrong** — "break after the first violation" loses nothing when the first lane is clean — and was replaced with `lanes.take(1)`, which the lane-coverage check catches.

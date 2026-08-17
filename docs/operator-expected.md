@@ -15,7 +15,7 @@
 > when the list around it shrinks. Read top-to-bottom for priority. Numbers that
 > have closed but are still cited by code are listed at the very bottom.
 
-_Last refreshed: **2026-08-17** (Session 071)._
+_Last refreshed: **2026-08-17** (Session 072)._
 
 > ### ✅ RESOLVED — billing is back, and your question is arriving again
 >
