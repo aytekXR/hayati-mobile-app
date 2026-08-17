@@ -3,8 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/design_system/elevation_tokens.dart';
-import '../../../core/design_system/radius_tokens.dart';
+import '../../../core/design_system/card_surface.dart';
 import '../../../core/design_system/spacing_tokens.dart';
 import '../../../core/design_system/typography_tokens.dart';
 import '../../../core/l10n/bidi_isolate.dart';
@@ -385,11 +384,9 @@ class _QuestionSlot extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final name = result.creatorDisplayName;
-    final cardDecoration = BoxDecoration(
-      color: theme.colorScheme.surfaceContainerHighest,
-      borderRadius: RadiusTokens.cardRadius,
+    final cardDecoration = raisedCardDecoration(
+      theme,
       border: Border.all(color: theme.colorScheme.outlineVariant),
-      boxShadow: ElevationTokens.level1,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

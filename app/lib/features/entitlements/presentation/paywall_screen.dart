@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
+import '../../../core/design_system/card_surface.dart';
 import '../../../core/design_system/color_tokens.dart';
 import '../../../core/design_system/radius_tokens.dart';
 import '../../../core/design_system/spacing_tokens.dart';
@@ -405,9 +406,8 @@ class _PackageCard extends StatelessWidget {
           borderRadius: RadiusTokens.cardRadius,
           child: Container(
             padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: RadiusTokens.cardRadius,
+            decoration: raisedCardDecoration(
+              theme,
               // The resting card takes the shipped INPUT pattern (theme
               // `enabledBorder` → `focusedBorder`): a Veil hairline at rest, a 2dp
               // Pomegranate rule when chosen. It replaces a TRANSPARENT 2dp
@@ -534,10 +534,7 @@ class _ProcessingBanner extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: RadiusTokens.cardRadius,
-      ),
+      decoration: raisedCardDecoration(theme),
       child: Row(
         children: [
           Icon(Icons.hourglass_empty, color: theme.colorScheme.tertiary),
@@ -562,10 +559,7 @@ class _PurchaseFailureCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(SpacingTokens.cardPadding),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: RadiusTokens.cardRadius,
-      ),
+      decoration: raisedCardDecoration(theme),
       child: Row(
         children: [
           Icon(Icons.error_outline, color: theme.colorScheme.error),
