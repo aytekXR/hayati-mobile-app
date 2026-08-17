@@ -3361,3 +3361,54 @@ TR and AR address the user **informally** (`Cevapladın`, `أجبت`, `Partnerin
 **Notes / debt logged:** the Android announcement-deprecation obligation is recorded in ADR-051 and `architecture.md` rather than filed, because M6.5 is where it becomes actionable and ADR-006 gates that on a founder decision.
 
 **Next objective written to resume-prompt.md:** #175 — 10 of 14 raised cards render FLAT; the card decoration is copy-pasted per screen instead of coming off the theme.
+
+## Session 075 — 2026-08-17 — #175: "raised" had one definition and fourteen implementations (ADR-052)
+
+**Objective (from resume-prompt.md):** #175 — 10 of 14 raised cards render flat because the card decoration is copy-pasted per screen. Fix it as a design-system defect, assert the mechanism, and follow W4's golden-declaration discipline.
+
+**Outcome:** done.
+
+### Counted before touching anything, and #175's numbers verified exactly
+
+```
+card-shaped BoxDecorations on surfaceContainerHighest: 14
+  WITH ElevationTokens shadow: 4
+  FLAT (no boxShadow):         10
+```
+
+Unlike #222, whose ten items included one that was wrong, this issue's audit was exact. **The defect was never that ten values were wrong — it is that there were fourteen values.** Ten happened to be missing a line; the eleventh card anyone wrote would have copied whichever neighbour they were looking at.
+
+### Two shapes were measured, and each one changed the API
+
+* **It takes `ThemeData`, not `BuildContext`.** Every call site already held a `theme` (they all read `theme.colorScheme.surfaceContainerHighest`), and one — `_cardDecoration` in the paired home — is a **top-level function with no context at all**. A context-taking signature, which is what the ADR first specified, would have forced that site to keep its inline decoration.
+* **It takes an optional `border`.** `privacy_spotlight_card` and `partner_preview` already carry `Border.all(outlineVariant)` over the same surface/radius/elevation, and the paywall's selectable plan card uses its border as a **state signal** with a long comment explaining why.
+
+Either omission would have left the sentinel with its first exception to carve out, which is how a rule acquires its first hole. Both were found by printing all fourteen decoration blocks before writing the function rather than after.
+
+### The golden declaration held exactly — including the half that matters
+
+W4 requires the expected set **written before** `--update-goldens`, not read off the result. Declared: six screens MUST change; `partner_preview` and `settings` MUST NOT, because their cards already carried the token and were only being re-routed.
+
+```
+99 of 360 goldens changed — all six declared screens
+ZERO movement in partner_preview and settings
+ZERO outside the declaration
+```
+
+**The zero is the strongest check in the diff.** Byte-identical goldens on the four already-correct surfaces prove the new function reproduces the value they had; had it not, the other ten would have been wrong with it and the suite would have said so.
+
+### A trap found while re-measuring ADR-025's claim
+
+ADR-025 D1 refused a `CardThemeData` because *"`grep` finds zero `Card(`"*. Re-measuring returns **1** — and the single hit is the **comment stating the claim**. The assertion's own text is the only match for the query that verifies it. Constructed `Card(` widgets: still zero, so the decision stands. But a session re-measuring casually sees `1` and "corrects" a true claim into a false one — **S073's failure running backwards**, and a reminder that a grep-shaped claim should say what it excludes.
+
+**Commits:** `64708ef` (ADR, before the code), `180be91` (implementation + 99 goldens) — PR **#234**.
+**CI:** green (PR + post-merge `main`).
+**Docs touched:** `docs/adr/052-*` (new), `architecture.md`, `test-suite.md`, `resume-prompt.md`, `past-prompts.md`.
+
+**Verification:** app **1728 tests**, `flutter analyze` and `dart format` clean. **Two mutants, each caught** — an inline decoration reintroduced under `features/`, and the elevation dropped from the one definition. `grep surfaceContainerHighest app/lib/features` returns **zero**.
+
+⚠️ **The verification this session could not perform, in the ADR, in `test-suite.md` and here:** a golden suite is a **regression net, not a design review**. It proves these pixels do not change again unannounced; it cannot judge whether the shadow *looks* right, and nobody has looked on a device. Bounded, not removed: the shadow is not a new value but the token already rendering on four card surfaces in this app, so ten surfaces now match four already considered correct — and if the result is wrong then the **token** is wrong, which is a founder call (ADR-025 D3, the shape of #63/#71).
+
+**Notes / debt logged:** none new.
+
+**Next objective written to resume-prompt.md:** #137 — the bidi seam's first-strong scan misses Arabic Extended-A, so isolation silently no-ops for it.
