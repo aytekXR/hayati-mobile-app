@@ -4,7 +4,7 @@
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **112**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **113**) first.
 > Re-derive the session number from `git log`.
 
 **Objective: #227 — the data-rights export omits every trace of the user's
@@ -174,3 +174,9 @@ Append to `past-prompts.md` → regenerate this file (one objective) → refresh
 > ⚠️ **An empty lens is UNVERIFIED, never a clean bill** (§5.5). Read the raw
 > findings list (lesson **107**), and when a lens is quiet on a subject you have
 > not checked yourself, check it.
+
+> ⚠️ **FREEZE THE TREE BEFORE THE REVIEW** (lesson **113**). S076 kept editing
+> docs while its five lenses read the repo, and all three surfaced blockers were
+> *"the documentation is uncommitted"* — true when read, false by the time it was
+> read back, and never a defect in the change. Commit or stash first, or point
+> the review at a ref rather than the working tree.

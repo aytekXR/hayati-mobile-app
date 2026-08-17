@@ -38,6 +38,21 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**113 — A review of a tree you are still editing spends its findings on the edit in progress.** *(S076, ADR-053)*
+S076 launched the §5 build-diff review and then kept working — updating
+`architecture.md`, `test-suite.md`, the lessons file — while the five lenses read
+the repo. All three surfaced blockers reduced to *"the documentation is
+uncommitted"*, which was true when read, false twenty minutes later, and never a
+defect in the change. One was a flat false positive: a verifier reported
+`resume-prompt.md` as never regenerated, and its own paired skeptic refuted it by
+reading the diff. **The review's instrument was a moving target, so its findings
+describe a moment rather than the change.** The existing rule is *rebase before
+review — review the diff that will actually merge*; this is its other half:
+**freeze the tree for the duration**. Commit or stash first, and if a review must
+overlap with work, point it at a ref (`git diff origin/main...<sha>`) rather than
+the working tree. Cousin of **107** — there the aggregation rule lost a real
+finding, here the input lost the findings' subject.
+
 **112 — A mutation described by its INTENT is a claim about a test that was never made.** *(S076, ADR-053)*
 The third mutant for the bidi table was written as *"delete the ranges covering
 `U+0800–U+08C9`, reintroducing `intl`'s exact gap"*, it deleted nine ranges, both
