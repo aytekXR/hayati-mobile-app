@@ -159,6 +159,14 @@ jobs:
       # back to being cancelled with no Slack notification.
       - name: integration watchdog self-tests
         run: bash tool/ci/integration_watchdog_test.sh
+      # S078 (#208/ADR-055), added after S077's post-merge run failed for a
+      # reason its own error message never mentioned: the functions emulator hit
+      # a 10s discovery timeout, loaded ZERO functions, and `emulators:exec` ran
+      # the suites anyway. Fifteen minutes later a test failed on "answer →
+      # mutual reveal round trip" because the answerReveal TRIGGER had never
+      # loaded. This precondition names that in seconds instead.
+      - name: emulator functions precondition self-tests
+        run: bash tool/ci/assert_emulator_functions_test.sh
       # tool/ci/testflight_testers.py holds a CREDENTIAL path (the ES256
       # assertion for App Store Connect) that no other gate looks at — it is
       # Python, so neither `dart format`/`analyze` nor shellcheck sees it, and
@@ -670,7 +678,8 @@ jobs:
       - name: Integration tests (auth + firestore + functions emulators)
         run: |
           firebase emulators:exec --only auth,firestore,functions --project demo-hayati \
-            'cd app && first=1 && for suite in integration_test/*_test.dart; do
+            'tool/ci/assert_emulator_functions.sh http://127.0.0.1:5001 demo-hayati europe-west1 createInvite exportData || exit 1;
+             cd app && first=1 && for suite in integration_test/*_test.dart; do
                case "$suite" in
                  */phone_auth_emulator_test.dart)
                    echo "::warning file=app/$suite::Quarantined from CI — crashes the app natively in verifyPhoneNumber on the iOS simulator (issue #15). Covered by VM unit tests."

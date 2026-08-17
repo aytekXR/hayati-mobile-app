@@ -38,6 +38,25 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**114 — A compensating control can be silent for exactly the failure it exists to catch.** *(S078, ADR-055)*
+`integration-emulator` is main-only, and its own comment says so while naming the
+thing that makes that safe: *"the compensation for its post-merge-only verdict
+already exists and works: ADR-024's Slack notifier reports the run nobody is
+watching."* It does not work for a timeout. `slack_notify.sh` deliberately sends
+**nothing** when the outcome is `cancelled` — a superseded run is not an event,
+and that policy is right — and **GitHub reports a timed-out job as `cancelled`**.
+So the 38-minute hang was invisible twice over: no progress in the log, and no
+notification afterwards. The control was not broken and the policy was not wrong;
+**the platform spent one word on two unrelated things**, and the compensation
+happened to sit on the wrong side of it. Two things follow. First, *"X compensates
+for Y"* is a claim about a **failure mode**, not about X, and it has to be checked
+against the specific way Y actually fails — this one had been asserted in a
+comment for sessions without anyone asking which outcomes reach it. Second, when a
+control cannot distinguish two cases, prefer changing **what you emit** over
+teaching the control a distinction its inputs cannot carry: the fix here is a
+watchdog that produces `failure` instead of `cancelled`, and the notifier needed
+no change at all.
+
 **113 — A review of a tree you are still editing spends its findings on the edit in progress.** *(S076, ADR-053)*
 S076 launched the §5 build-diff review and then kept working — updating
 `architecture.md`, `test-suite.md`, the lessons file — while the five lenses read
