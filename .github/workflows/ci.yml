@@ -148,6 +148,25 @@ jobs:
         run: shellcheck tool/ci/*.sh
       - name: slack notifier self-tests
         run: bash tool/ci/slack_notify_test.sh
+      # S078 (#208/ADR-055). The watchdog that turns a wedged integration suite
+      # into a NAMED FAILURE instead of a silent `cancelled`. Hermetic — every
+      # "suite" in the self-test is a sleep or an echo, no simulator, no
+      # emulator — so it runs here rather than on the macOS leg it guards.
+      #
+      # ⚠️ Its last assertion is the load-bearing one and it reads THIS FILE:
+      # the per-suite bounds must sum to less than `integration-emulator`'s
+      # `timeout-minutes`, or the watchdog can never fire first and the job goes
+      # back to being cancelled with no Slack notification.
+      - name: integration watchdog self-tests
+        run: bash tool/ci/integration_watchdog_test.sh
+      # S078 (#208/ADR-055), added after S077's post-merge run failed for a
+      # reason its own error message never mentioned: the functions emulator hit
+      # a 10s discovery timeout, loaded ZERO functions, and `emulators:exec` ran
+      # the suites anyway. Fifteen minutes later a test failed on "answer →
+      # mutual reveal round trip" because the answerReveal TRIGGER had never
+      # loaded. This precondition names that in seconds instead.
+      - name: emulator functions precondition self-tests
+        run: bash tool/ci/assert_emulator_functions_test.sh
       # tool/ci/testflight_testers.py holds a CREDENTIAL path (the ES256
       # assertion for App Store Connect) that no other gate looks at — it is
       # Python, so neither `dart format`/`analyze` nor shellcheck sees it, and
@@ -536,12 +555,51 @@ jobs:
     needs: quality
     runs-on: macos-15
     # Each suite compiles its own simulator binary and they run serially, so the
-    # bound is ~4 Xcode debug builds plus the emulator round-trips (auth,
-    # pairing, profile, daily_question; phone_auth stays quarantined, issue #15).
+    # bound is FIVE Xcode debug builds plus the emulator round-trips — auth,
+    # daily_question, pairing, profile and startup_timing; phone_auth stays
+    # quarantined (issue #15). ⚠️ This list said "four" and omitted
+    # startup_timing until S078 counted them (ADR-055).
+    #
     # 40 → 50 (S024): the healthy norm is 25-26 min, but a slow macOS runner ran
     # the same work ~55% longer and hit 40 exactly (run 29295078572 — all suites
     # that finished were green; the budget, not the tests, was the failure).
+    #
+    # NOT raised again at S078, and that is the point of ADR-055. The second
+    # blow-out (#208) was a HANG, not slowness — 38 minutes of complete silence —
+    # so 50 → 60 would only have bought a 60-minute hang. The real bound is now
+    # the per-suite watchdog below, which fails the job before this ceiling can
+    # cancel it. Measured healthy run 32062696199: 22.7 min total = 3.9 setup +
+    # 18.6 suites, of which 9.3 min is Xcode.
     timeout-minutes: 50
+    env:
+      # ADR-055 D2. The bounds are DERIVED from measurement, not guessed: the
+      # first suite carries the cold Xcode build (262.9s vs 67-85s for the rest)
+      # and legitimately takes ~4x the others, so it gets its own bound.
+      #
+      # SIZED AGAINST THE WORST OBSERVED RUN, NOT THE MEDIAN, and against S024's
+      # documented +55% slow runner — because that is the OTHER failure mode and
+      # a bound that only fits a healthy runner turns it into a false timeout.
+      # Three runs, and the spread is wide enough that this matters:
+      #
+      #   run 32062696199 (healthy)   auth 513s   others 122-188s
+      #   run 32067814813 (dispatch)  auth 540s   others  90-113s
+      #   run 32071907287 (dispatch)  auth 640s   others 189-203s
+      #
+      # Worst observed: 640s / 203s. At +55% that is 992s / 315s. The first
+      # bound was 960s on the strength of the 540s run alone and would have
+      # FAILED that check — caught by re-measuring the third dispatch instead of
+      # reusing the number already written down. 1080 and 360 hold.
+      #
+      # Worst case 18 + 4x6 = 42 min + 4 setup = 46, inside timeout-minutes: 50.
+      #
+      # ⚠️ integration_watchdog_test.sh ASSERTS that arithmetic against these
+      # exact values and the suite count on disk. If the sum ever passes the
+      # ceiling the watchdog can no longer fire first, the job goes back to
+      # being CANCELLED, and slack_notify.sh goes back to saying nothing — a
+      # dead guard behind green tooling. Change these and the test tells you.
+      WATCHDOG_FIRST_SUITE_SECONDS: 1080
+      WATCHDOG_LATER_SUITE_SECONDS: 360
+      WATCHDOG_SETUP_ALLOWANCE_MINUTES: 4
     permissions:
       contents: read
     steps:
@@ -607,8 +665,15 @@ jobs:
       # deterministic pass/fail, no orphans, no manual port-poll (W4: no silent
       # retries, no `|| true`). demo-hayati is credential-free (no secrets). Runs
       # from repo root (firebase.json lives here). --timeout none keeps the long
-      # first-run sim compile from tripping the per-test timeout (the 30-min job
-      # timeout is the real bound); -r expanded streams progress so a wedge shows.
+      # first-run sim compile from tripping the per-test timeout. ⚠️ This used to
+      # say "the 30-min job timeout is the real bound" — it was 50, and had been
+      # since S024 moved it without updating the sentence depending on it. The
+      # real bound is now integration_watchdog.sh, PER SUITE (ADR-055). It also
+      # claimed `-r expanded` "streams progress so a wedge shows"; #208 refuted
+      # that — 38 minutes of silence is what -r expanded produced. It streams
+      # progress BETWEEN tests and says nothing while the app is failing to
+      # launch, which is where the wedge was. The watchdog's heartbeat is what
+      # actually makes a wedge visible.
       # One `flutter test` invocation PER SUITE, sequentially. Passing the
       # integration_test/ directory lets flutter_tools run the suites
       # concurrently against the one simulator, where they fight over the shared
@@ -628,14 +693,27 @@ jobs:
       - name: Integration tests (auth + firestore + functions emulators)
         run: |
           firebase emulators:exec --only auth,firestore,functions --project demo-hayati \
-            'cd app && for suite in integration_test/*_test.dart; do
+            'tool/ci/assert_emulator_functions.sh http://127.0.0.1:5001 demo-hayati europe-west1 createInvite exportData || exit 1;
+             cd app && first=1 && for suite in integration_test/*_test.dart; do
                case "$suite" in
                  */phone_auth_emulator_test.dart)
                    echo "::warning file=app/$suite::Quarantined from CI — crashes the app natively in verifyPhoneNumber on the iOS simulator (issue #15). Covered by VM unit tests."
                    continue;;
                esac
                echo "::group::$suite"
-               flutter test "$suite" \
+               # ADR-055: the FIRST suite carries the cold Xcode build, so it
+               # gets the larger bound. A non-zero status fails the job — 124
+               # means the watchdog fired, and the job FAILING rather than being
+               # cancelled is what puts it in Slack at all (ADR-024 D2 sends
+               # nothing for `cancelled`, correctly, because a superseded run is
+               # not an event — and GitHub spends that same word on a timeout).
+               if [ "$first" = "1" ]; then
+                 bound="$WATCHDOG_FIRST_SUITE_SECONDS"; first=0
+               else
+                 bound="$WATCHDOG_LATER_SUITE_SECONDS"
+               fi
+               ../tool/ci/integration_watchdog.sh "$bound" "$suite" \
+                 flutter test "$suite" \
                  --dart-define=USE_AUTH_EMULATOR=true \
                  --dart-define=USE_FIRESTORE_EMULATOR=true \
                  --dart-define=USE_FUNCTIONS_EMULATOR=true \

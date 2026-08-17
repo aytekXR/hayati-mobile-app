@@ -1,55 +1,44 @@
-# Resume Prompt — Session 078
+# Resume Prompt — Session 079
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **113**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **114**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #208 — `integration-emulator` hung SILENTLY for 38 minutes and burned
-its whole budget, and the previous mitigation was to raise the ceiling.**
+**Objective: #129 (with #121) — the release lane's `bundle install` comment is
+false in every clause, and no release run has ever exercised the committed lock.**
 
-This is blow-out **two**, and the two have **different shapes** — which is the
-part a session must not flatten:
+`.github/workflows/release.yml` says:
 
-* **S024's** was uniform slowness. Suites kept printing progress; a slow macOS
-  runner ran the same work ~55% longer and hit `timeout-minutes: 40` exactly. The
-  fix was 40 → 50.
-* **This one emitted nothing at all for 38 minutes**, parked at `00:00 +0`
-  immediately after a clean 49-second Xcode build. A slow runner still prints.
-  That is a **hang** — the app never reaching the emulators, or the simulator
-  wedging — not a budget shortfall.
+```yaml
+      - name: bundle install
+        # Gemfile pins fastlane ~> 2.225 (repo root). Gemfile.lock is documented
+        # debt (fastlane/README.md, ADR-021 D6): no Ruby on the dev box means no
+        # faithful lock until the first real lane run, so bundler resolves fresh
+        # here and there is no lock to key a bundler-cache on.
+        run: bundle install
+```
 
-**So raising 50 → 60 converts a 50-minute hang into a 60-minute hang.** Do not.
+**Every clause of that is now false.** S048 closed #120 by generating, verifying
+and committing `Gemfile.lock`; `fastlane/README.md` opens its debt section with
+*"✅ `Gemfile.lock` is COMMITTED"*, and ADR-032 records the debt as
+**DISCHARGED**. This is standing addendum 19 broken again — *when a diff corrects
+a claim, grep the WHOLE repo for that claim* — and S048 corrected it in the ADR
+and the README while leaving the workflow saying the opposite.
 
-Two facts worth carrying in before measuring anything:
+⚠️ **The comment is the smaller half.** `bundle install` without `--deployment`
+(or `bundle config set frozen true`) **resolves fresh and ignores the committed
+lock**, so the lane has never actually run the versions the lock pins. Fixing the
+comment without fixing the install would leave a truthful sentence describing an
+unenforced lock — which is worse, because it reads as verified.
 
-1. **GitHub reported the conclusion as `cancelled`, not `failure`.** That reads
-   like a human pressed a button, and `slack_notify.sh` reported everything else
-   as success-shaped. A timeout on the one **main-only** job is exactly ADR-024's
-   founding case — the red that lands after the session's attention has moved on.
-2. **It was checked, not assumed, that this was not a regression.** The merge
-   touched nothing under `app/` or `functions/`, and a re-run of the same job on
-   the same commit passed while genuinely running all four suites. The re-run
-   still took **37m46s**, against the 25–26 min the job's own comment calls
-   healthy.
-
-The issue's own checklist is a good starting shape — a per-suite watchdog that
-**names itself** when it fires, something logged during the silence so there is
-anything at all to debug from, distinct Slack handling for `cancelled`, and a
-re-check of whether four serial Xcode debug builds are still the right trade
-(that is most of the 25–26 min baseline and is what leaves no headroom).
-
-⚠️ **The trap in this one:** a watchdog that fires is easy to build and easy to
-get wrong in the way this repo keeps finding — a timeout that reports "timed out"
-without saying *which suite, at which phase* is the same non-diagnosis in a
-shorter wrapper. And it will be **hard to test**, because the failure is a hang
-you cannot reproduce on demand. Decide before writing code what evidence would
-prove the watchdog works, and note that **the emulator suite cannot run on this
-box without `~/.local/share/java/jdk-21.0.11+10-jre/bin` on PATH** — S077 lost a
-run to `java: command not found` before reading `session-context.md` §"Functions
-/ emulator", which documents it.
+**Pair it with #121**, which asks whether the *"write App Store Connect API
+key"* step is dead under manual signing. Same file, same lane, and the release
+lane is **§7 — a session must never dispatch it**, so both are read-and-reason
+changes whose verification is by inspection plus whatever the next founder-run
+release reports. Say so plainly rather than implying a green.
 
 ## 1. Where things actually stand *(measured 2026-08-17 — re-measure, do not inherit)*
 
@@ -61,10 +50,10 @@ run to `java: command not found` before reading `session-context.md` §"Function
 | **Deployed rules vs `main`** | `rules_drift.py` exited **1 for both projects** at the S071 close. Deploying is a **§7 founder ask**. Re-measure rather than inherit. |
 | **`hayatiapp-prod` Functions** | Clean at S070. ⚠️ **S077 changed `functions/` source** (the export's device lane), so prod is now behind `main` on function code as well — a deploy is a **§7 ask**, and `functions_drift.py` should report it. |
 | **`functions-drift` / `rules-drift` in CI** | Both **visibly SKIPPED** by design — one absent secret (operator **2(e)(iv)**). |
-| **#137, #227** | **CLOSED** (ADR-053, ADR-054). |
+| **#137, #227, #208** | **CLOSED** (ADR-053, ADR-054, ADR-055). |
 | **#176, #175, #174** | **CLOSED** — and they were still listed as *open* in `operator-expected.md` until S077 checked every row against `gh`. |
 
-### What S076/S077 changed that a later session will trip over
+### What S076/S077/S078 changed that a later session will trip over
 
 * `app/lib/core/l10n/strong_bidi_ranges.dart` is **GENERATED — never edit it.**
   Re-derive with `python3 tool/gen_bidi_rtl_ranges.py`; CI runs `--check` plus
@@ -78,6 +67,20 @@ run to `java: command not found` before reading `session-context.md` §"Function
   level** (ADR-054). Delivery is `Clipboard.setData`, so a leak lands on the
   system pasteboard. `data-rights-core.test.ts` asserts this over the whole
   serialized projection; do not narrow it.
+* **`integration-emulator`'s per-suite bounds must keep summing to LESS than
+  `timeout-minutes`** (ADR-055). If they stop fitting, the watchdog can never
+  fire, the job goes back to being **`cancelled`**, and `slack_notify.sh` goes
+  back to saying nothing — a dead guard behind green tooling.
+  `integration_watchdog_test.sh` asserts the arithmetic and derives the suite
+  count from the tree, so **adding a sixth integration suite reddens it**. That
+  is deliberate: move the bounds or the ceiling, consciously.
+* **Do not probe a Firestore trigger** with `assert_emulator_functions.sh`.
+  Measured: a loaded callable answers `400`, an unknown name `404`, and a
+  **trigger also answers `404`** — so probing `answerReveal` fails against a
+  perfectly healthy emulator. Pass callables only.
+* **`integration-emulator` never runs on a PR.** Prove a change to it with
+  `gh workflow run ci.yml --ref <branch>` before merging, as S078 did — a green
+  PR says nothing about that job.
 * `FORMAT_VERSION` is **3**. **Four** assertions pin it — three
   `expect(...formatVersion).toBe()` and the constant itself — and **two** carry
   the number in the *test's name*. Bump all of them together, or the next

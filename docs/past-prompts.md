@@ -3524,3 +3524,61 @@ ADR-049's pin asserted that *neither* field is exported, and its comment said it
 **Commits:** `f621be5` (ADR, **before** the code), plus the implementation commit this entry arrives in — PR **#236**.
 
 **Next objective written to resume-prompt.md:** see the file.
+
+---
+
+## Session 078 — 2026-08-17 — #208: a hang must FAIL loudly, not be CANCELLED quietly (ADR-055)
+
+**Objective (from resume-prompt.md):** #208 — `integration-emulator` hung silently for 38 minutes and burned its whole budget. Second blow-out; raising the ceiling again is not a fix.
+
+**Outcome:** done, and verified by dispatching the branch rather than by reasoning.
+
+### The finding that reframed the issue
+
+The job's own comment names its compensating control and asserts it works — *"ADR-024's Slack notifier reports the run nobody is watching."* **It does not, for this failure.** `slack_notify.sh` sends **nothing** when the outcome is `cancelled`, because a superseded run is not an event (ADR-024 D2, and that policy is right). **GitHub reports a timed-out job as `cancelled`.**
+
+So the one control that exists to surface a post-merge red on a main-only job was silent by design for exactly the outcome a timeout produces. The hang was invisible **twice**: no progress in the log, and no notification afterwards.
+
+GitHub spends **one word on two unrelated things** and the notifier cannot separate them from its inputs. So the fix is not to teach it a distinction it cannot see — it is to **stop producing `cancelled`** for a case that is not a supersede. A per-suite bound that fires below the ceiling makes the job end in **`failure`**, which reaches Slack through the path that already works. **The notifier needed no change at all.** Catching the wedge ~34 minutes earlier is the side effect. Lesson **114**.
+
+### Three false claims in the job's own comments, each load-bearing
+
+| claim | measured |
+|---|---|
+| *"four suites… ~4 Xcode debug builds"* | **five** — `startup_timing` was missing from the list |
+| *"the 30-min job timeout is the real bound"* | it is **50**, and has been since S024 moved it without updating the sentence depending on it |
+| *"`-r expanded` streams progress so a wedge shows"* | refuted by the incident — 38 minutes of silence is what it produced. It streams *between* tests and says nothing while the app is failing to launch |
+
+### The load-bearing test is arithmetic, not behavioural
+
+The watchdog only works if it can fire **before** the ceiling cancels the job. If the bounds ever sum past it, the mechanism is unreachable and the job silently reverts to cancelled-and-silent — a guard that is present, green, and structurally unable to act. So the self-test **parses `ci.yml`**, derives the suite count **from the tree**, and reddens if the sum stops fitting. Mutation-checked both directions.
+
+### Verified by dispatch, because this job never runs on a PR
+
+`gh workflow run ci.yml --ref …` (run `32067814813`) — the watchdog wrapped all five suites, emitted 35 heartbeats, and reported its own timings. The column that matters is the last one, because S024's blow-out was the *other* failure mode:
+
+| run | `auth` | others |
+|---|---|---|
+| `32062696199` (healthy) | 513s | 122–188s |
+| `32067814813` (dispatch) | 540s | 90–113s |
+| `32071907287` (dispatch, post-review) | **640s** | **189–203s** |
+
+A bound that only fit a healthy runner would have turned the first failure mode into a false positive while fixing the second — **and the first sizing did exactly that.** 960s was chosen against the 540s run and looked like 1.78× headroom; against the worst observed run, 640 × 1.55 = **992s > 960s**. Raised to **1080s**, caught only by re-measuring the third dispatch instead of reusing the number already written down. The ADR's own trap, sprung on the ADR.
+
+### A real main-red arrived mid-session, and produced the second half of the slice
+
+S077's post-merge run went red while this was being built, and **the red said nothing true**: the functions emulator hit a 10s discovery timeout, loaded **zero** functions, and `emulators:exec` ran the suites anyway. Fifteen minutes later a test failed on *"answer → mutual reveal round trip"* — because the `answerReveal` **trigger** had never loaded. Checked rather than assumed whether S077 caused it (no import cycle; the same code loads all 13 functions locally; every prior `main` run passed) and re-ran the job to settle flake-vs-regression.
+
+`assert_emulator_functions.sh` now names it in seconds. **Its codes are measured against a live emulator**: a loaded callable answers `400`, an unknown name `404`, **and a Firestore trigger also answers `404`** — so probing `answerReveal`, the very function whose absence caused the incident, would fail against a healthy emulator. That constraint is written at the top of the script.
+
+### Two defects in my own wrapper, and one in the probe — all found by running them
+
+* the comment claimed output was **tee'd live** while the code buffered it and dumped it at the end (the self-test now **counts** occurrences, because a duplicated thousand-line suite log is invisible to a `grep`);
+* the heartbeat used `elapsed % N`, which **skips a beat** whenever an iteration overruns a second — i.e. exactly on the loaded or wedged runner where it is the only thing being read;
+* `curl … || echo 000` produced `000000`, because curl's `-w` already writes `000` on a connection failure and *then* exits non-zero — so an **unreachable emulator reported as loaded**. Caught by the assertion that "unreachable" and "not loaded" must be different words.
+
+Also: a `pgrep` leak-check that matched its own command line (a false "LEAKED"), and a `pkill -f "sleep 300"` that killed the shell running it.
+
+⚠️ **What no test here proves:** the hang is not reproducible, so the wedge case is **synthetic**. This proves the mechanism, never the diagnosis of the actual incident. The heartbeat exists so the next occurrence produces the evidence this one did not. The build strategy — 9.3 min of the 18.6 is Xcode, the largest lever — is deliberately **not** changed in the same slice that changes how the job fails.
+
+**Next objective written to resume-prompt.md:** see the file.
