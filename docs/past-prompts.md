@@ -3753,4 +3753,23 @@ The Crashlytics sentinel's first version failed on **the doc comment explaining 
 
 **Honest bound, stated rather than implied:** prod ships the **no-op sink**. The funnel is *instrumented and emitting, into a debug sink, in dev only*. Nothing here makes Gate 2 or Gate 3 measurable — that needs the founder's token, a legal revision, and #242/#243.
 
-**Commits:** `72bea39` (ADR rev 2), `175da58` (contract + sinks), `fd6b96f` (emitter + state-transition events), `84259b6` (call sites + sentinels + docs), `5bac247` (review pass 2) — PR **#244**.
+**Commits:** `72bea39` (ADR rev 2), `175da58` (contract + sinks), `fd6b96f` (emitter + state-transition events), `84259b6` (call sites + sentinels + docs), `5bac247` (review pass 2) — PR **#244**, squashed to **`f9de121`** on `main`. **#239 CLOSED.**
+
+### The CI result, recorded here rather than left for a later session to add
+
+Post-merge `main` run **32193564585**: **success on every job** — `quality`,
+`functions-rules`, `ios-build-smoke`, and **`integration-emulator`**, which is
+main-only by cost design (ADR-006) and about which the PR's green said nothing.
+The four drift jobs are `skipped`, visibly, for the one absent secret.
+
+**And one near-miss worth writing down.** The PR run I watched first reported
+`X ios-build-smoke in 0s` and **`gh run watch --exit-status` still exited 0** —
+because the run had been **cancelled** by the next push, not failed. That is the
+standing hazard about repeated pushes cancelling the only macOS gate, met in
+person: a cancelled run reads as covered while having compiled nothing. The fix
+was to stop trusting the exit code and read `conclusion` **per job** on the run
+that actually carried the final tree. Both the PR run (32192567902) and the
+`main` run were then verified that way, job by job.
+
+**Next objective written to resume-prompt.md:** **#226**, as S082 — draft the
+legal revision covering push *and* analytics in one bundle, and stop at a draft.
