@@ -22,7 +22,7 @@
         run: bundle install
 ```
 
-**Every clause is false.** S048 closed #120 by generating, verifying and
+**Three of its four clauses are false.** The first — *"Gemfile pins fastlane ~> 2.225"* — is **true** (`Gemfile:21`). The draft of this ADR said *"every clause is false"*; the design review counted. That is the same over-claim shape this session has already filed twice (lessons 111, 115), caught here before it reached code. S048 closed #120 by generating, verifying and
 committing `Gemfile.lock`; `fastlane/README.md` opens its debt section with
 *"✅ `Gemfile.lock` is COMMITTED"*, and ADR-032 records the debt as
 **DISCHARGED**. S048 corrected the claim in the ADR and the README and left the
@@ -90,25 +90,59 @@ not accompanied by a regenerated lock now **fails the release lane loudly**
 instead of being silently re-resolved at release time. That is the point, not a
 side effect.
 
-## Decision 3 — Verify the COMMITTED lock, in CI, on every change to it
+## Decision 3 — Verify the COMMITTED lock in `ci.yml`, as a VISIBLY SKIPPED job
 
-Decision 2 alone would move the first real exercise of the committed lock onto
-the founder's next release — the thing #129 warns against, merely narrowed. So
-the gap is closed at the source instead.
+Decision 2 alone would move the first real exercise of the committed lock onto the
+founder's next release — the thing #129 warns against, merely narrowed. So the gap
+is closed at the source.
 
-`gemfile-lock.yml` gains a **`verify` mode** that installs the **committed**
-lock frozen without regenerating it. It runs on `pull_request` whenever `Gemfile`
-or `Gemfile.lock` changes, on the same `macos-26` + Ruby 3.3 the release lane
-uses, so a lock that cannot be installed frozen **cannot reach `main`**.
+**A new `gemfile-lock-verify` job in `ci.yml`**, on `macos-26` + Ruby 3.3,
+installs the **committed** lock with `--frozen` and then runs
+`bundle exec fastlane lanes`. It is gated on a computed `gemfile_changed` output
+so that on a PR touching no Ruby files it appears as **`skipped`**, never absent.
 
-**Why a paths filter and not every PR:** this is a macOS runner, and the file
-changes perhaps twice a year. A check that runs constantly for a file that never
-moves is how a gate becomes noise and then becomes `if: false`.
+### Why not the paths-filtered `pull_request` trigger this ADR first proposed
 
-**Why the same runner and not ubuntu:** a lock is a claim about a platform. The
-committed lock's `PLATFORMS` is `arm64-darwin-23` plus generic `ruby`; verifying
-on Linux would exercise the generic fallback and prove the wrong thing — green
-here, red on the founder's release.
+Because it contradicts a decision this repo made in Session 002 and records in
+`ci.yml`:
+
+> *"per-job paths filters don't exist and workflow-level `paths-ignore` would
+> **deadlock required checks** (Session 002 decision)"*
+
+The repo has **zero** paths-filtered workflows, deliberately. And a paths filter
+is worse than the skipped-job shape `rules-drift` already uses: a skipped job is
+an honest gap **visible in the checks list on every run**, whereas a filtered-out
+workflow is simply *absent* — a reviewer cannot tell "the lock was verified" from
+"this PR didn't touch `Gemfile*`", and branch protection cannot require a check
+that may not appear. **The design review caught this before it was written.**
+
+### Why in `ci.yml` and NOT as a second mode of `gemfile-lock.yml`
+
+The first draft put a `verify` mode inside the generator. Three reasons not to:
+
+1. **The generator would have to not regenerate**, and a mis-wired `if:` would
+   leave `bundle lock` running before the frozen install — verifying the lock it
+   had just created. That is failure shape **4**, and it is precisely the defect
+   this ADR is fixing in that same file. A separate job cannot make that mistake.
+2. `gemfile-lock.yml` is **`workflow_dispatch`-only**, and that is load-bearing
+   elsewhere: **ADR-036 D4 cites it as the model** — *"`deploy-site.yml` is
+   `workflow_dispatch` only, in `gemfile-lock.yml`'s shape"* — and
+   `fastlane/README.md:209` calls it *"(dispatch-only)"*. Adding a
+   `pull_request` trigger would silently falsify both.
+3. Generating and verifying are different acts with different triggers. Keeping
+   them in one file is what let the generator quietly verify its own output.
+
+### Why the same runner, and why it runs `fastlane lanes` too
+
+A lock is a claim about a **platform**: the committed `PLATFORMS` is
+`arm64-darwin-23` plus generic `ruby`, so verifying on Linux would exercise the
+generic fallback and prove the wrong thing — green here, red on the release.
+
+And installing is not the whole claim. The generator already proves the lock is
+*usable* (`bundle exec fastlane lanes`) rather than merely installable, because
+the release lane runs `bundle exec fastlane ios beta`, which loads the Fastfile
+and its plugins. **The verifier must not prove less than the generator**, so it
+runs the same check.
 
 ## Decision 4 — #121: the App Store Connect key step STAYS, and the trigger is sharpened
 
@@ -133,10 +167,24 @@ release the founder cannot debug from their side.
 *"Very likely dead" is not "proven dead", and this ADR declines to convert one
 into the other by writing it down more confidently.*
 
-What changes is that the trigger becomes checkable rather than a hope: the step's
-comment now names the **exact evidence** that would settle it — a release run
-whose log shows the archive and upload succeeding with the step removed — and
-#121 records that it is waiting on a founder-watched run, not on analysis.
+### The experiment that settles it, named rather than run
+
+The design review proposed a better instrument than "wait for someone to try
+deleting it", and it is recorded here as the method for whoever can watch a run:
+**move the key to a path nothing could auto-discover** (e.g.
+`$HOME/.hayati-unused/AuthKey_<KEY_ID>.p8`) rather than removing the step. If
+nothing reads it, the lane behaves identically and the step is proven dead. If
+something does, xcodebuild fails with a *missing key at the auto-discovery path*
+— an attributable, re-runnable error rather than a cryptic signing failure.
+
+**It is not run now**, and the reason is timing rather than principle: a failed
+release today costs more than usual, because a build is the single thing blocking
+push-notification testing (`operator-expected.md`, item 1). This is a controlled
+experiment worth doing on a release the founder is already watching, not one
+they need.
+
+So the trigger is now specific: **#121 is waiting on a founder-watched release
+run, with the canary-path experiment as the method** — not on further analysis.
 
 ## Consequences
 
@@ -145,7 +193,7 @@ divergence fails loudly instead of silently re-resolving; and for the first time
 the **committed** lock is verified installable, on the platform that installs it,
 before it can reach `main`.
 
-**What it costs.** One macOS CI job on the rare PRs that touch `Gemfile*`.
+**What it costs.** One macOS job in `ci.yml`, which runs only when `Gemfile*` changes and is **visibly skipped** otherwise — so the checks list distinguishes *verified* from *not applicable*.
 
 **⚠️ What is still unproven, stated plainly.** That the release lane *as a whole*
 succeeds with `--frozen`. Decision 3 verifies the same command on the same image,
