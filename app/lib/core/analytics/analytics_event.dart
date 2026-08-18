@@ -174,16 +174,17 @@ final class StreakDayEvent extends AnalyticsEvent {
 /// compile.
 final class CoachMsgEvent extends AnalyticsEvent {
   const CoachMsgEvent({required this.outcome, AnalyticsPersona? persona})
-    : _persona = persona;
+    : persona = identical(outcome, AnalyticsCoachOutcome.help) ? null : persona;
 
   final AnalyticsCoachOutcome outcome;
 
-  final AnalyticsPersona? _persona;
-
   /// The persona, or null on a crisis outcome — the ADR-016 strip, applied by
   /// the type rather than by every caller remembering to.
-  AnalyticsPersona? get persona =>
-      outcome == AnalyticsCoachOutcome.help ? null : _persona;
+  ///
+  /// The strip runs in the INITIALIZER, so on a crisis outcome the persona is
+  /// never stored at all rather than stored-and-hidden-behind-a-getter. There
+  /// is no field left holding the value a later refactor could re-expose.
+  final AnalyticsPersona? persona;
 
   @override
   FunnelEvent get name => FunnelEvent.coachMsg;

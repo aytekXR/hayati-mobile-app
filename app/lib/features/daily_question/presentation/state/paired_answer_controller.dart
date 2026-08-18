@@ -1,3 +1,5 @@
+import 'package:hayati_app/core/analytics/analytics.dart';
+import 'package:hayati_app/core/analytics/analytics_event.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../domain/couple_answers_repository_provider.dart';
@@ -44,6 +46,14 @@ class PairedAnswerController extends _$PairedAnswerController {
   }) async {
     if (state is PairedSaveSaving) return;
     state = const PairedSaveSaving();
+    // Captured BEFORE the await: `ref.read` on an autoDispose controller
+    // THROWS once it is disposed, and this one can be disposed mid-flight —
+    // its own `ref.mounted` guard below concedes exactly that. The Analytics
+    // instance itself is keepAlive, so emitting through the captured handle
+    // is safe from anywhere. (Found by ADR-017 D8's disposed-mid-send test,
+    // which is the only place the repo already exercised this; the other
+    // three call sites had the same latent defect and no test to reveal it.)
+    final analytics = ref.read(analyticsProvider);
     try {
       await ref
           .read(coupleAnswersRepositoryProvider)
@@ -54,6 +64,13 @@ class PairedAnswerController extends _$PairedAnswerController {
             questionId: questionId,
             text: text,
           );
+      // `q_answered{mutual}` (architecture.md §7). Same placement rule as the
+      // solo twin: after the write resolves, before the ref.mounted guard.
+      analytics.qAnswered(
+        uid: uid,
+        dayKey: dayKey,
+        mode: AnalyticsAnswerMode.mutual,
+      );
       if (!ref.mounted) return;
       state = const PairedSaveIdle();
     } on CoupleDataException catch (failure) {

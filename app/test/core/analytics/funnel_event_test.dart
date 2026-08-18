@@ -67,4 +67,11 @@ void main() {
       'ShareCardCreatedEvent',
     );
   });
+
+  test('the derived emitter method name is mechanical too', () {
+    expect(FunnelEvent.install.emitterMethodName, 'install');
+    expect(FunnelEvent.qAnswered.emitterMethodName, 'qAnswered');
+    expect(FunnelEvent.revealViewed.emitterMethodName, 'revealViewed');
+    expect(FunnelEvent.coachMsg.emitterMethodName, 'coachMsg');
+  });
 }

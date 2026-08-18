@@ -1,9 +1,12 @@
+import 'package:hayati_app/core/analytics/analytics.dart';
+import 'package:hayati_app/core/analytics/analytics_event.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../profile/domain/relationship_profile.dart';
 import '../../domain/coach_exception.dart';
 import '../../domain/coach_persona.dart';
 import '../../domain/coach_register.dart';
+import '../../domain/coach_reply.dart';
 import '../../domain/coach_repository_provider.dart';
 import '../../domain/coach_window.dart';
 import 'coach_transcript.dart';
@@ -71,6 +74,10 @@ class CoachSendController extends _$CoachSendController {
         .read(coachTranscriptProvider(uid, coupleId, personaId))
         .entries;
     final repository = ref.read(coachRepositoryProvider);
+    // Captured alongside the transcript notifier and for the same reason
+    // (ADR-017 D8): a mid-send persona switch disposes THIS controller, and
+    // `ref.read` after that throws. The turn still happened.
+    final analytics = ref.read(analyticsProvider);
     final window = buildCoachWindow(entries: entries, newUserText: text);
 
     try {
@@ -84,6 +91,28 @@ class CoachSendController extends _$CoachSendController {
       // Land the reply FIRST, through the captured (keepAlive) reference — this
       // must happen even if `ref.mounted` is now false (controller disposed).
       transcript.applyExchange(userText: text, reply: reply);
+      // `coach_msg` — the event ADR-016 binds. The reply's `kind` is the ONLY
+      // outcome the wire carries (the server's crisis/help-path split never
+      // crosses it), and the ADR-016 strip is applied by CoachMsgEvent itself:
+      // on a help outcome the persona is dropped, and cap counts and the crisis
+      // category have no home on the type at all — so `reply.remaining` and
+      // `reply.category`, both present on the post-filter help path, cannot be
+      // forwarded even by accident.
+      //
+      // Emitted through the captured `ref` before the mounted guard, for the
+      // same reason applyExchange is: a mid-send persona switch disposes THIS
+      // controller, and the turn still happened.
+      analytics.coachMsg(
+        outcome: switch (reply.kind) {
+          CoachReplyKind.reply => AnalyticsCoachOutcome.reply,
+          CoachReplyKind.help => AnalyticsCoachOutcome.help,
+        },
+        persona: switch (personaId) {
+          CoachPersonaId.coach => AnalyticsPersona.coach,
+          CoachPersonaId.dateGenie => AnalyticsPersona.dateGenie,
+          CoachPersonaId.giftGenie => AnalyticsPersona.giftGenie,
+        },
+      );
       if (!ref.mounted) return;
       state = const CoachSendIdle();
     } on CoachException catch (failure) {

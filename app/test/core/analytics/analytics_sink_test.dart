@@ -120,6 +120,37 @@ void main() {
     });
   });
 
+  group('the sink is wired in DEV ONLY (ADR-057 D2b)', () {
+    // The second of the two independent gates. The kReleaseMode guard above
+    // survives someone copying the wiring into the wrong entrypoint; THIS
+    // survives someone deleting that guard. Asserting only one of them leaves
+    // a single point of failure in front of the claim "prod emits nothing".
+    test('main_dev wires the DebugAnalyticsSink', () {
+      expect(
+        File('lib/main_dev.dart').readAsStringSync(),
+        contains('DebugAnalyticsSink()'),
+      );
+    });
+
+    test('main_prod wires NO analytics sink at all', () {
+      final prod = File('lib/main_prod.dart').readAsStringSync();
+      expect(
+        prod.length,
+        greaterThan(1000),
+        reason: 'main_prod.dart read as ${prod.length} chars — the path moved',
+      );
+      expect(
+        prod,
+        isNot(contains('DebugAnalyticsSink')),
+        reason:
+            'prod must leave analyticsSinkProvider at its NoopAnalyticsSink '
+            'default: this slice ships NO vendor sink, and docs/legal/ + '
+            'docs/dpa-inventory.md have no row for one (#226)',
+      );
+      expect(prod, isNot(contains('analyticsSinkProvider')));
+    });
+  });
+
   group('NoopAnalyticsSink', () {
     test('records nothing and never throws', () {
       expect(

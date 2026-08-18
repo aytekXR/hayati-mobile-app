@@ -68,6 +68,19 @@ enum FunnelEvent {
   /// from its own subject — it could not detect the drift it exists to detect
   /// (`session-lessons.md`, standing). `funnel_call_site_sentinel_test.dart`
   /// uses this to find call sites in the source tree.
-  String get payloadTypeName =>
-      '${wire.split('_').map((part) => part[0].toUpperCase() + part.substring(1)).join()}Event';
+  String get payloadTypeName => '${_pascalCase}Event';
+
+  /// The [Analytics] method that emits this event, DERIVED from [wire] for the
+  /// same reason [payloadTypeName] is: `q_answered` → `qAnswered`.
+  ///
+  /// `funnel_call_site_sentinel_test.dart` scans the source tree for
+  /// `.<emitterMethodName>(` — the `card_surface_sentinel_test` idiom of asking
+  /// the tree rather than trusting a list.
+  String get emitterMethodName =>
+      _pascalCase[0].toLowerCase() + _pascalCase.substring(1);
+
+  String get _pascalCase => wire
+      .split('_')
+      .map((part) => part[0].toUpperCase() + part.substring(1))
+      .join();
 }
