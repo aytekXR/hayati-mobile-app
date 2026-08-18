@@ -1,4 +1,4 @@
-# Resume Prompt — Session 079
+# Resume Prompt — Session 080
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -6,6 +6,13 @@
 > Read `session-context.md` (toolchain, machine, review discipline, the
 > never-without-asking list) and `session-lessons.md` (numbered to **116**) first.
 > Re-derive the session number from `git log`.
+
+> **Why this is S080 and not S079.** S079 opened on #129 and was replanned
+> mid-session: the post-merge run of S078's watchdog falsified the bound S078 had
+> just shipped (the same suite has now been observed at 457/513/540/640/936s — a
+> 2.05x spread), so the guard was re-based on **silence** instead of wall-clock
+> time before it could start reddening `main` for no reason. #129 was not
+> started. See `past-prompts.md` S079 and lesson **116**.
 
 **Objective: #129 (with #121) — the release lane's `bundle install` comment is
 false in every clause, and no release run has ever exercised the committed lock.**
