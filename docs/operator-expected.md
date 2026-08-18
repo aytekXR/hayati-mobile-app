@@ -1,12 +1,12 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-18 02:10 UTC
+**Last Updated:** 2026-08-18 02:40 UTC
 
 ## Current Status
 
 - Session: **080**
 - Goal: **#129 — the release lane installs the lock it was given, and CI verifies that lock for the first time**
-- Status: **On Track**
+- Status: **Complete** (S080 merged and verified on `main`)
 - Completion: **~60%** of the iOS MVP as specified, to public launch
 - Production Readiness: **Beta Ready**
 
@@ -214,7 +214,13 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Merge PR for **#129** once CI concludes, then watch the post-merge `main` run.
+Begin **S081 / #239** — the analytics contract, port and emitters.
+
+S080 is closed: `9318c44` on `main`, **#129 CLOSED**, post-merge run green on
+every job including `integration-emulator`. The new `gemfile-lock-verify` check
+reported **`skipped`** on both the PR and `main` — visible in the checks list
+rather than absent, which was the whole point of gating it with a job-level `if:`
+instead of a workflow paths filter.
 
 ## Next Session Goal
 
