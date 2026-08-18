@@ -3582,3 +3582,57 @@ Also: a `pgrep` leak-check that matched its own command line (a false "LEAKED"),
 ⚠️ **What no test here proves:** the hang is not reproducible, so the wedge case is **synthetic**. This proves the mechanism, never the diagnosis of the actual incident. The heartbeat exists so the next occurrence produces the evidence this one did not. The build strategy — 9.3 min of the 18.6 is Xcode, the largest lever — is deliberately **not** changed in the same slice that changes how the job fails.
 
 **Next objective written to resume-prompt.md:** see the file.
+
+---
+
+## Session 079 — 2026-08-18 — #208 follow-up: bound the SILENCE, and an audit of three sessions' citations
+
+**Objective (from resume-prompt.md):** #129 — the release lane's stale `Gemfile.lock` comment.
+
+**Outcome:** **replanned.** #129 was not started. The post-merge run of S078's watchdog falsified the bound S078 had just shipped, and fixing that took priority over starting new work. #129 moves to S080.
+
+### The fix for #208 needed #208's own criticism
+
+S078 bounded each integration suite by wall-clock time and sized that bound three times in one day — 960s against a 540s run, 1080s against a 640s run — and then the first post-merge `main` run took **936s**. A later dispatch took **457s**.
+
+```
+auth suite observed: 457, 513, 540, 640, 936 s   — a 2.05x spread
+```
+
+That is **wider than the ±55% factor the bounds were being stress-tested against**. No wall-clock number is both tight enough to catch a hang and loose enough to avoid failing a slow run. Chasing it does not converge — which is exactly #208's criticism of raising `timeout-minutes`, one level down, made by the fix for it.
+
+**The instrument was wrong, not the number.** A wedge is defined by producing nothing:
+
+| | longest gap between log lines |
+|---|---|
+| healthy run (cold Xcode build) | **299s** |
+| the #208 incident | **2280s** |
+
+7.6× separation on silence against 2.05× on duration — and the watchdog was **already computing and printing `silent for …s`** in every heartbeat while deciding on something else. Lesson **116**.
+
+The wall-clock bounds became deliberately loose backstops, and the arithmetic self-test was retargeted from "the bounds sum under the ceiling" to the guarantee that actually carries the design: **a wedge is detected before `timeout-minutes` can cancel the job.** Mutation-checked both ways. 30 self-tests; the load-bearing one is that **a slow but chatty child is not killed, however slow**.
+
+### The design review found two ways the watchdog itself misfired
+
+Both reproduced before fixing, both failure shape 5:
+
+* **A passing suite could be reported as wedged.** A child finishing during the loop's 1s sleep, at an elapsed time crossing the bound, fell into the timeout branch — 1.9s under a 2s bound, exit **42**, returned **124**, three times out of three.
+* **`WATCHDOG_HEARTBEAT_SECONDS=0` span forever**, producing a job that hangs until it is **cancelled** — the exact outcome ADR-055 exists to prevent, from the tool built to prevent it.
+
+### A citation audit, and it was worse than a typo
+
+Three ADRs, several commit messages, lesson 111 and the handoff all cited *"`session-rules` §5.1"* for the ADR-before-code rule. **`session-rules.md` has five sections and §5 is "Timebox".** The rule is `session-context.md` §5 item 1 — and **ADR-048 already cited it correctly**, so the right reference sat in the repo while three consecutive sessions copied the wrong one from each other.
+
+Opening it cost one grep and found a second thing: **§5 item 3 requires running the review twice** — once on the design, once on the built diff. S076, S077 and S078 each ran **one**, on the built diff. Three sessions were half-following a procedure they were quoting by number. Lesson **115**.
+
+### The operator checkpoint, rewritten and re-verified
+
+`operator-expected.md` went from 1297 lines of accumulated checkpoints to 225 lines of live state. Every open item was re-measured rather than carried forward: secrets absent (`gh secret list`), the RevenueCat webhook still **HTTP 403**, **0 of 4** accounts ever registered a push token, Dependabot alerts still disabled, billing **resolved** and dropped.
+
+**One proposed item was dropped because the audit that produced it was wrong.** A sub-audit reported *"M5.3 not started; needs an LLM API key from the operator"* — which would have put a fabricated task in front of the founder. `coach-proxy.ts:291` deploys `AnthropicCoachProvider` with `secrets: ['LLM_API_KEY']`; `UnconfiguredCoachProvider` is only the default for the injectable test seam. The key is **present on both projects** and `coachProxy` is deployed to prod. Verifying beat trusting — and this is the second time in three sessions that a review agent's confident claim did not survive being checked.
+
+Two gaps it found that **do** hold, both verified directly: **analytics has no implementation at all** (MVP item 11), and the launch question bank stands at **7 per locale against 400/300/300** (MVP item 3).
+
+**Commits:** `4c304aa` (citation audit), `2b86c30` (silence bound), `adfa718` (checkpoint rewrite) — PR **#238**.
+
+**Next objective written to resume-prompt.md:** #129 with #121, as S080.

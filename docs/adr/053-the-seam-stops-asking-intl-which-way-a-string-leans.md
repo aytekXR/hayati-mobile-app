@@ -7,7 +7,7 @@
 
 ## ⚠️ Procedural note: this ADR was written after the code, and that was wrong
 
-`session-rules` §5.1 requires the ADR to be written and committed **before** the
+`session-context.md` §5.1 requires the ADR to be written and committed **before** the
 implementation, because the ADR is where the design is decided rather than
 described. This session inverted that: the measurement and the code came first,
 and this document was written against a working tree.

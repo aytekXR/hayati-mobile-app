@@ -1,1297 +1,225 @@
-# Operator Expected — what İkimiz needs from you (the founder)
+# Operator Checkpoint
 
-> **Canonical, committed** operator checklist (founder request, Session 009): the
-> single place to see what is expected from you, refreshed at every session
-> close. Check it after every merge to `main`.
->
-> **This file lists ONLY open, actionable items.** Nothing that is finished
-> appears here. Closed items and the session-by-session narrative live in
-> `docs/past-prompts.md`; engineering decisions live in `docs/adr/`; tracked
-> engineering work lives in GitHub issues.
->
-> **The item numbers are stable identifiers, not an order.** `tool/ci/testflight_testers.py`,
-> `tool/ci/rules_drift.py`, `.github/workflows/{deploy-site,deploy-rules,ci}.yml`
-> and several ADRs cite them by name, so a surviving item keeps its number even
-> when the list around it shrinks. Read top-to-bottom for priority. Numbers that
-> have closed but are still cited by code are listed at the very bottom.
+**Last Updated:** 2026-08-18 01:00 UTC
 
-_Last refreshed: **2026-08-17** (Session 078)._
+## Current Status
 
-> ### ✅ RESOLVED — billing is back, and your question is arriving again
->
-> **Your billing is restored** (both projects read `billingEnabled: true` against
-> a billing account that is `open`, measured 2026-08-11 07:16 UTC). **Today's
-> question exists** — the sweep ran at **07:19 UTC** and created it:
->
-> ```
-> question_rollover: sweep complete   assigned=1  existing=0  failed=0
-> ```
->
-> Open the app and it is there. Nothing is asked of you here.
->
-> #### The previous version of this box was wrong, and the correction matters
->
-> It said *"Your app is running… your data, your functions and your users are
-> unaffected"* and called this a blocked deploy. **It was not. Your backend was
-> down for 37 hours** — 2026-08-09 18:00 UTC to 2026-08-11 07:19 UTC.
->
-> Cloud Run refused **all 38 hourly invocations** at the serving layer before the
-> container ever started:
->
-> ```
-> HTTP 500  "The request failed because billing is disabled for this project."
->           latency 0s   userAgent: Google-Cloud-Scheduler
-> ```
->
-> The mistake was reading `firebase functions:log` and seeing a line at every
-> hour. Every one of those lines was the **error**, not the sweep. An invocation
-> that is refused and a sweep that completes look nearly identical in that stream
-> — one letter apart, `E` and `I`.
->
-> Two other claims in that box were also wrong, and are corrected for the record:
-> the projects do **not** share a billing account (prod `0197C1-…`, dev
-> `012195-…`, two separate accounts), so "both are affected → it must be the
-> shared account" was reasoning from a premise that was never checked.
->
-> #### What it actually cost you
->
-> * **2026-08-10 has no question and never will.** No day doc was created for it.
->   The rollover only ever writes *today's* key and deliberately does not backfill
->   (ADR-011), so that day stays empty rather than being invented after the fact.
-> * Your streak still reads `lastMutualDate: 20260809`.
->
-> #### So it cannot happen silently again
->
-> `tool/ci/prod_pulse.py --from-firebase-cli` now answers *"is the daily loop
-> actually running?"* in about ten seconds. It keys its verdict on the sweep's own
-> completion record, so an ENABLED scheduler firing punctually into a dead backend
-> — exactly the state that got published as "your app is running" — reads red.
->
-> *(Item **2(a)**, the budget alert, is still unset — and would have caught this
-> two days earlier.)*
+- Session: **079**
+- Goal: **Harden the S078 integration-suite watchdog after its own first post-merge run falsified its bound** *(replanned mid-session — see Plan Changes)*
+- Status: **On Track**
+- Completion: **~60%** of the iOS MVP as specified, to public launch
+- Production Readiness: **Beta Ready**
 
-> ### 🔔 ONE THING stands between you and a notification: install **build 119** and tap Allow
->
-> ```
-> build 119   processing=VALID   uploaded 2026-08-09
->     internal = IN_BETA_TESTING             <-- you can install it right now
->     external = SUBMITTED (2026-08-11)      <-- your friends: waiting on Apple
-> ```
->
-> Open it to your paired home screen and tap **Allow** when iOS asks about
-> notifications. That is the entire remaining action.
->
-> **The fastest way to see one.** Do not wait for tomorrow's 09:00. Once you have
-> both installed 119 and allowed notifications, have you and your partner each
-> answer today's question — *"your partner answered"* fires the second the other
-> person submits, so you get a real notification in seconds instead of hours. It
-> is also the push that the foreground bug hit hardest, so it tests both fixes at
-> once.
->
-> **If no dialog appears when you open the app**, iOS is remembering an answer you
-> already gave on an older build. Check
-> **Settings → Notifications → ikimiz → Allow Notifications**; iOS shows its
-> dialog once per install and never again, so a "Don't Allow" tapped on 115/116/117
-> can only be undone there.
->
-> ### Two real bugs were fixed to get here — it was never just the tap
->
-> For four sessions this page told you the only thing missing was your tap. That
-> was wrong twice over, and both are now fixed and in build 119.
->
-> 1. **The app threw away your notification address.** Apple hands it over a
->    moment *after* you tap Allow; the app asked a moment too early, failed
->    silently, and never asked again. **Builds 115, 116 and 117 all have this** —
->    tapping Allow on any of them could register nothing at all, with nothing
->    anywhere reporting a problem.
-> 2. **A notification arriving while the app was OPEN showed nothing.** iOS does
->    not display a banner over a foregrounded app unless asked, and ours never
->    did. Your 09:00 question is unaffected (you would be out of the app), but
->    **"your partner answered" was hit hardest** — that one fires the second the
->    other person submits, exactly when you are most likely to be looking at the
->    app.
->
-> ### Your server side is not waiting for anything — it is working
->
-> Measured at the hour the counters actually mean something (your own morning
-> sweep), production finds your couple, works out that neither of you has
-> answered, and composes a notification for each of you:
->
-> ```
-> daily-question sweep   checked: 1   sent: 0   skippedNoToken: 2
-> answer_reveal          kind=partnerAnswered  "push skipped, no fcm tokens"
-> ```
->
-> It stops there because no phone has ever given it an address to send to. The
-> earlier reading of *"checked: 0, so nobody has a token"* was taken at the wrong
-> hours — that counter only moves at your own question hour — and it is corrected
-> now.
->
-> ### You do not have to report anything back
->
-> The moment you tap Allow, `registerPushToken` records its first real call and
-> the morning sweep flips from `skippedNoToken: 2` to `sent`. A session reads
-> both directly. If they do not move, that is a real bug and a findable one.
->
-> ### Measured 2026-08-11 — and it narrows the problem to one thing
->
-> **You both opened the app today** (your session 07:13 UTC, your partner's
-> 05:04 UTC — from the auth records, not guesswork). And `registerPushToken` has
-> **zero invocations in its entire log history** — not one success, not one
-> rejection, and *not even a failed request during the 37-hour outage*.
->
-> That last detail is what makes this conclusive. If your phone had tried to
-> register and been refused by the dead backend, there would be a `500` against
-> it, exactly as there is against the sweep. There is nothing at all. **The call
-> was never attempted**, which means the phone never obtained a token to send —
-> so the fault is on the device side of the line, not the server side.
->
-> ### ⚠️ And the likeliest cause is NOT the build — corrected 2026-08-11
->
-> This page has said that 115/116/117 "could register nothing at all". Reading
-> the code that actually shipped in 117 shows that is **overstated**, and the
-> difference decides what you should do next.
->
-> Build 117 carries a **second** registration path the ADR-044 write-up did not
-> credit: alongside the one-shot token read that fails, it subscribes to
-> `onTokenRefresh` — and iOS delivers the token on that stream a moment later,
-> exactly when the one-shot call has already given up. That listener calls
-> `_register` directly. So on 117, granting permission should have produced a
-> token *anyway*, by the slower path.
->
-> It produced nothing. Combined with zero invocations, that points away from the
-> build and at the simplest explanation: **notification permission has never been
-> granted for this app.** Either the prompt was never reached, or it was answered
-> *Don't Allow* — and iOS shows that dialog once per install and never again, so
-> the app cannot ask a second time.
->
-> ### Which means the fastest fix may need no install at all
->
-> **Try this first — it takes fifteen seconds:**
->
-> 1. **Settings → Notifications → ikimiz → Allow Notifications: ON**
-> 2. Force-quit the app and reopen it to your home screen.
->
-> On the build you already have, that alone should register — iOS hands the app a
-> token on launch once permission is held, and the refresh listener catches it.
->
-> **Then install 119 anyway.** It is strictly better: it retries the capture six
-> times with backoff instead of relying on the refresh path, and it fixes the
-> separate bug where a notification arriving while the app is OPEN displayed
-> nothing. But if you want a notification today, the Settings toggle is the
-> shorter road.
->
-> ### ✅ Your seven friends — build 119 is now with Apple
->
-> 119 was assigned to the `Friends` group but had never been **submitted for
-> Apple's beta review**, which external testers need. It was submitted on
-> **2026-08-11** at your go-ahead:
->
-> ```
-> build 119: submitted for Beta App Review
-> ```
->
-> Beta review usually clears inside a day. When it does, `external` flips to
-> `IN_BETA_TESTING` and all seven get the build with both notification fixes —
-> nothing further is asked of you. Until then they remain on 117, which carries
-> both bugs.
+### How that 60% is arrived at, since one number hides two very different pictures
 
-> **What changed since the last refresh (2026-08-10):**
->
-> * ✅ **Your notification hours are LIVE, not merely merged** — the question
->   announcement at **09:00** and the unanswered-day nudge at **22:00** were
->   deployed to production on **2026-08-11**, once billing came back. All 13
->   functions were redeployed in the same pass, which also closed the drift that
->   had left **every one of them** running code older than `main`:
->   `functions_drift` now reports *"all 13 deployed functions are a clean build of
->   this ref"*.
-> * ✅ **Your daily question is arriving again** — see the resolved box at the top.
-> * ⚠️ **The 22:00 nudge would have been silently swallowed.** Our own
->   quiet-hours rule started at 22:00, so every 10 PM notification would have
->   been composed and then dropped by our own guard — deployed, logged, and
->   delivering nothing. The quiet window moved to **23:00–08:00** in the same
->   change. It also means one less protected hour in your evening; if you would
->   rather have it back, moving the nudge to 21:00 undoes that.
-> * ✅ **Build 119 shipped** with both notification bug fixes.
-> * ✅ **Closed items have been removed from this page**, as you asked. The
->   history lives in `docs/past-prompts.md`.
+| | state |
+|---|---|
+| Engineering infrastructure (M0–M6.3, coach live) | **~95%** — all milestones closed; `coachProxy` is deployed to prod on the live Anthropic provider with `LLM_API_KEY` present on both projects (verified today) |
+| MVP scope item 3 — question bank 400/300/300 | **~2%** — 7 questions per locale exist, solo only; no couple packs |
+| MVP scope item 11 — analytics (Mixpanel + gate instrumentation) | **0%** — no analytics code in `app/lib` at all |
+| MVP acceptance (purchases, push delivery, native review, legal) | **not met** — see Blockers |
 
-**Where things stand in one line:** the MVP is code-complete, both backends run
-current code and current rules, the invite site is live, your icon shipped, the
-notification stack is finished on every side anyone but you can reach — and the
-single thing left is **one install and one tap**.
+The engineering is nearly done. **Content and instrumentation are the gap**, and most of what is left is yours rather than a session's.
 
-## Readiness snapshot — three different questions, three different answers
+## Latest Checkpoint
 
-| Question | Where it stands | What is left |
-|---|---|---|
-| **Is the MVP built?** | **~99%** — M1→M6.3 all merged. All three notifications are built, deployed and **running in production**, on the 09:00/22:00 hours you asked for since the 2026-08-11 deploy. `users.fcmTokens` is still **absent on all four accounts** (measured 2026-08-11): `registerPushToken` has **never once been called by a device**, so the sweep composes a push and stops at `skippedNoToken`. Part of that was a **real bug on the app side**, fixed 2026-08-09 (ADR-044) and shipped in **build 119**: iOS delivers the notification address a moment AFTER you tap Allow, and the app asked once, at the wrong moment, then gave up silently. **No notification has still ever been delivered.** M3.4's ✅ stays struck through until one arrives. | **One install and one tap.** Build 119 is live on TestFlight internal — install it, open it to the paired home screen, accept the prompt. A session verifies capture from the production logs **without you reporting anything** — see 4(a). |
-| **Can people install it?** | **100%** — done, and no longer stale. Builds **115, 116 and 117** have all shipped since; 116 passed Apple's beta review (`external=IN_BETA_TESTING`) and **117 carries the new icon plus the whole notification stack**. `Friends` holds eight: you `INSTALLED`, **two anonymous public-link installs**, one emailed tester `INSTALLED`, four `INVITED` (emailed, not yet opened). | Nothing. Your testers are current. |
-| **Could this go on the public App Store?** | **~55%** — the honest number. The build is ready; the business and legal surface around it is not. | **0(a)** (purchases take money and do not unlock Premium), **0(b)** (the paid loop has never been run end to end), **9** (legal: three blanks, unreviewed, one KVKK filing), **1** and **★** (native TR/AR review — the biggest quality risk, and the crisis lexicon is a safety gate), **8(c)/(d)/(e)**, and **analytics** (Gates 2 and 3 are unfalsifiable without it). |
+`main` is at **`509f23d`**, green on every job including `integration-emulator`.
+**2,844 tests pass** (1,743 app across 158 files; 1,101 functions across 54 files,
+97.47% coverage). Nothing is broken.
 
----
+Since the last checkpoint, four issues closed — **#137**, **#227**, **#208**, and
+earlier **#175/#174/#222/#223/#221**:
 
-# 🔵 What a session is waiting on right now
+- **#137** — the bidi seam classifies characters against generated Unicode tables
+  instead of asking `intl`. Measuring found the filed defect *understated*: five
+  blocks rather than one, plus a second, separate bug where every astral RTL
+  script and every emoji read as left-to-right.
+- **#227** — the data-rights export stopped being narrower than the deletion
+  lane. Deletion already erases device state, so the system was **deleting data
+  it would not show you**. The export now carries a device lane: the diagnostic
+  verbatim, the FCM tokens as a **count only** — because delivery is the system
+  clipboard and a raw token is a live credential addressing a phone.
+- **#208** — a wedged CI suite now **fails with a name** instead of being
+  cancelled in silence. The finding underneath it matters to you: the job's
+  safety net was the Slack notifier, and the notifier is silent for `cancelled`
+  — which is exactly what GitHub calls a timeout. **That net is still unarmed:
+  there is no `SLACK_WEBHOOK_URL` secret, so no CI notification reaches you at
+  all today** (the last `main` run logged *"no notification sent"*).
 
-## (B) 🟡 Add a **Turkish** localization to your App Store listing — measured, not guessed
+**Three corrections were made to the project's own records**, each found by
+measuring rather than re-reading: three closed issues were still listed as open
+in this file; **#226 appeared in no operator document at all** despite being
+founder-blocked; and three ADRs cited a rule (`session-rules` §5.1) that does not
+exist — the rule is `session-context.md` §5.
 
-**You no longer have to answer this one; it was measured on 2026-08-08 and the
-answer is no.** Your listing reads:
+## Plan Changes
 
+**S079 was replanned mid-session, and it is worth one paragraph of yours.**
+
+It opened on **#129** (the release lane's stale `Gemfile.lock` comment). Before
+starting, the post-merge run of the *previous* session's work produced data that
+falsified a bound that work had just shipped: the integration watchdog was sized
+by wall-clock time, and the same test suite has now been observed at **457, 513,
+540, 640 and 936 seconds — a 2.05× spread from runner speed alone**. No fixed
+duration is both tight enough to catch a hang and loose enough to avoid falsely
+failing a slow run.
+
+The instrument was wrong, not the number: a hang is defined by producing
+**nothing**, and a healthy run goes quiet for at most 299s against the incident's
+2280s — a 7.6× separation. The watchdog now bounds **silence**. Fixing that took
+priority over #129 because the alternative was leaving a guard that would have
+started reddening `main` for no reason.
+
+**#129 (with #121) moves to the next session.** No roadmap change; no milestone
+moved.
+
+## Open Operator Actions
+
+Ordered by how much each unblocks. Every item below was verified today.
+
+### 1. Install the TestFlight build and allow notifications — unblocks the whole notification feature
+Open TestFlight → install **build 119** → open the app to the paired home screen →
+tap **Allow** on the notification prompt. If no prompt appears (iOS shows it only
+once ever), go to **iOS Settings → Notifications → ikimiz → Allow Notifications ON**.
+
+*Blocked by this:* every push. The server has composed and attempted pushes on
+schedule since 2026-08-11, and **0 of 4 accounts have ever registered a device
+token** (re-measured today). Nothing else can be tested until one device registers.
+
+⚠️ Build 119 was cut **2026-08-09**. Five merged client slices are on **nobody's
+phone** — the notification diagnostics, the Settings row, the reveal
+announcement, the card surfaces and the bidi fix. **Cutting a new build is
+yours** (the release lane uploads a real binary; a session must never dispatch it).
+
+### 2. Grant the RevenueCat webhook a public invoker — purchases currently take money and never unlock Premium
 ```
-app: ikimiz (com.beyondkaira.hayati) id=6794737016
-app store versions (newest first):
-  1.0  state=PREPARE_FOR_SUBMISSION  platform=IOS  <-- editable
-      en-US: APP_IPHONE_67=6
-```
-
-`en-US` has its six screenshots, correct order, live since 2026-08-03. **`tr`
-does not exist on the version at all**, and screenshots cannot upload into a
-locale that is not there — which is the entire reason Turkish keeps getting
-skipped.
-
-### ⚠️ Corrected the same day — it is NOT a one-minute click, and this is a decision only you can make
-
-The first version of this item told you to click **+ Turkish** and be done. That
-would have failed, and it is worth saying why plainly.
-
-**Apple has been refusing to create the Turkish listing on every single release
-since build 112** — six of them — and nobody read the error, because the step is
-deliberately allowed to fail without failing the build:
-
-```
-Activating version language tr...
-[!] Cannot add localization due to app name. — You cannot add this localization
-    because the app name is already being used by another app.
-```
-
-App Store display names are unique **per language**. `ikimiz` is yours in
-English; **in Turkish, another app already holds it.** So the reason there are
-no Turkish screenshots was never that nobody clicked the button.
-
-**Your decision, three options** — a session should not pick for you:
-
-1. **A different Turkish display name.** The listing name only; the app on the
-   home screen is unaffected. Something like *İkimiz — Çift Sorusu* would clear
-   the collision. Say the words and a session does the rest.
-2. **Ship English-only on the store listing** and drop Turkish. The *app* is
-   still fully Turkish — this is only the store page. The screenshots item then
-   closes as won't-do.
-3. **Claim the name from Apple** (their message offers this if you have
-   trademark rights). Slow, and yours alone.
-
-Tracked as **#204**, whose engineering half **shipped on 2026-08-16**: a release
-that fails to publish store metadata no longer looks green and silent.
-
-### 🔴 And the audit that built found something bigger — it is not just Turkish
-
-The new check asks App Store Connect what it actually holds and compares it with
-what this repo committed. Run against your live listing on **2026-08-16**:
-
-```
-expected locales (fastlane/metadata): en-US, tr
-published locales (App Store Connect): en-US
-
-FINDING: 8 problem(s) with the published copy.
-  - en-US: description differs        - en-US: promotionalText differs
-  - en-US: keywords differs           - en-US: whatsNew differs
-  - en-US: privacyPolicyUrl differs   - en-US: subtitle differs
-  - en-US: supportUrl differs
-  - tr: NOT PUBLISHED
-```
-
-**Nothing we have written has ever reached your App Store page.** Apple's
-refusal happens *before* the upload step, so the whole upload is abandoned — not
-just the Turkish part. Your English listing is still whatever was typed in by
-hand months ago, and **seven of its nine fields disagree with the copy in the
-repo**. Only the app name and the marketing URL happen to match.
-
-**This does not block anything and nothing is broken for your users** — it is the
-store *page*, not the app. But it means the App Store description, keywords,
-subtitle, support URL, privacy URL and "what's new" that a visitor reads today
-are not the ones we have been maintaining.
-
-**And it resolves itself the moment you pick a Turkish name** (option 1 above):
-once Apple stops refusing, deliver gets past that check and publishes *both*
-locales in full on the next release. One decision fixes all eight lines.
-
-You can re-read this yourself at any time, read-only, no release involved:
-
-```sh
-gh workflow run testflight-testers.yml -f group=Friends -f store_metadata_audit=true
-```
-
----
-
-# 🟡 4(a). Push — **the fix is merged but NOT in any build. Today, use iOS Settings.**
-
-> ### ⚠️ Re-measured 2026-08-16 — and the instruction above may have been unfollowable
->
-> Everything on the server is verified working, to the last inch, today:
->
-> | | |
-> |---|---|
-> | the daily loop is running | `prod_pulse.py` exit 0, last sweep 26 minutes ago |
-> | the sweep finds you both | 06:00Z today — `checked:1  skippedNoToken:2  sent:0` |
-> | the app is allowed to call in | `registerpushtoken` grants public invoke — this is **not** the #115 problem |
-> | the build is entitled to push | `aps-environment=production`, wired to every build config since 2026-08-07 |
-> | build 119 carries both fixes | confirmed against the release tag, not the changelog |
->
-> **And no phone has ever called in.** Four accounts, none with a notification
-> address, and Google's request log shows **zero** attempts ever reaching us.
->
-> ### The reason that sat unfixable for five sessions
->
-> There are four different ways this can fail on your phone, and **until today
-> all four looked exactly the same — like nothing happening**:
->
-> 1. build 119 was never installed;
-> 2. **the prompt was declined** — on 115, 116, 117 or 119. iOS shows that dialog
->    **once per install and never again**, so if *Don't Allow* was ever tapped, no
->    new build can fix it and no prompt will appear. Only the Settings app can;
-> 3. permission was granted but the phone never handed over its address;
-> 4. the address was captured and the call to us failed.
->
-> None of those printed anything you or we could read. That is the bug that was
-> fixed, and it is the one that mattered.
->
-> ### What is different in the next build — ⚠️ **and that build does not exist yet**
->
-> **Re-measured 2026-08-17: the last build we shipped is still 119, from
-> 2026-08-09.** The Notifications row described below was written on 2026-08-16,
-> a week after it. It is finished and merged, and **it is on nobody's phone.**
-> Shipping it means one of us dispatching the release lane, which uploads a real
-> binary to your TestFlight — so **a session will ask you before doing it.** If
-> you want it, say so and it goes out.
->
-> **The next build's Settings will have a Notifications row that tells you which
-> of the four states you are in, and gives you the one button that can fix it.**
-> If notifications were declined it will say so plainly — *"the system will not
-> ask again"* — and take you straight to the iOS Settings page. If they are on,
-> it will say that too, out loud, instead of leaving you to guess.
->
-> **You can also fix it right now, without waiting for a build:**
-> **iOS Settings → Notifications → ikimiz → Allow Notifications ON**, then open
-> the app. That works on 119 as it stands.
->
-> ### Nothing else is needed from you, and we can check without asking
->
-> ```sh
-> python3 tool/ci/push_delivery_probe.py --from-firebase-cli
-> ```
->
-> Re-measured **2026-08-17**: `0/4 account(s) have registered a device`. The moment
-> one does, that line changes and the 09:00 sweep goes from `skippedNoToken` to
-> `sent`.
->
-> ### 🆕 2026-08-17 — the next build will also tell us WHICH of the four it is
->
-> Until today the tool could answer one question: *did a device register?* It
-> could not answer the one that mattered — *did the app ever get as far as asking,
-> and what happened when it did?* So five sessions running, the honest answer to
-> "why is it still zero" was **we cannot tell**.
->
-> The app now writes that down where we can read it. On the next build, each
-> phone records one line on its own account saying where it stands — never
-> prompted · asked and refused · allowed but the phone never produced an address ·
-> address obtained and the call to us failed · working — and, where it matters,
-> **which** of two very different things went wrong behind the same symptom.
->
-> It costs you nothing and asks you nothing. It is a few dozen bytes on your own
-> account, it holds no message text and no notification content, and it can be
-> read only by you and by us.
->
-> **⚠️ And it says nothing at all until a build ships.** The field only exists on a
-> phone running a build that contains it, and the last one we shipped is **119,
-> from 2026-08-09**. Right now the tool reports *"no report"* for all four
-> accounts and says, in those words, that this is **not evidence of anything** —
-> it cannot tell "no build has it" from "the app never got that far". Both of the
-> last two fixes are waiting on the same thing: **one release you authorise.**
-
-> ### ✅ Your new hours are LIVE on the server (2026-08-11)
->
-> You asked for the question at **09:00** and the unanswered nudge at **22:00**.
-> Both were deployed to production on 2026-08-11 at your go-ahead, once billing
-> came back. `functions_drift` confirms it: *all 13 deployed functions are a clean
-> build of this ref*. **Expect the question at 09:00 and the nudge at 22:00.**
->
-> Cloud Functions were, at the time of that deploy, still published by a
-> hand-typed command rather than a workflow — which is why every one of the 13
-> had drifted from `main` before it. **A deploy lane exists since 2026-08-17**
-> (issue #206, ADR-048); it is unarmed until the secret in 2(e)(iii).
->
-> ### What is left is one thing, and only your phone can do it
->
-> ⚠️ **Written 2026-08-11 and left here for the history — read the 2026-08-16
-> block above first.** "Tap Allow when iOS asks" is only actionable if iOS still
-> asks, and if the dialog was ever declined it does not. That is the gap the
-> next build closes.
->
-> **Open the app and accept the notification prompt.** Install **build 119** from
-> TestFlight, open it to the paired home screen, and tap **Allow** when iOS asks
-> about notifications. That is the entire remaining action.
->
-> **Use 119, not 115/116/117.** All three earlier builds carry the token-capture
-> bug (ADR-044): they ask iOS for the notification address a moment before iOS can
-> supply it, fail silently, and never ask again — so tapping Allow on any of them
-> can register nothing at all. 119 is the first build where the tap does what it
-> looks like it does.
->
-> ### You do NOT have to report back, and that is new
->
-> Until now this item ended with *"tell us whether a push arrived at 08:00"* —
-> an observation only you could make, which is why it sat here for three
-> sessions. It turns out production says it directly, and a session can read it:
->
-> ```
-> registerPushToken   — invoked by a device?  (today: never, only deploy audit entries)
-> daily-question sweep — "checked": N          (today: 0 on every hourly pass)
-> ```
->
-> ⚠️ **Corrected 2026-08-09.** `checked` is only non-zero on the sweep that
-> matches your OWN question hour (09:00 local = 06:00 UTC since the 2026-08-11
-> deploy), so reading it at any other hour said nothing about tokens — and that is
-> the reading four sessions repeated. At the right hour it says
-> `checked: 1, skippedNoToken: 2`: the server is working and waiting for an
-> address. A **real app-side bug** was also found and fixed the same day
-> (ADR-044) — iOS hands over the address a moment after you tap Allow, and the app
-> asked once, at the wrong moment, then gave up silently. Use build 119.
->
-> ### The one link that has never been tested, and where it would show
->
-> Step 1 of the checklist below is *"tick Push Notifications **and upload the
-> `.p8`** to both projects"*. The tick is confirmed; **whether the APNs key ever
-> reached Firebase is not verifiable from a session** — Google exposes no
-> read-only API for it, and it is the one piece of the chain that only matters at
-> the moment of the FIRST real send. Everything upstream of it is now proven.
->
-> If it is missing, your tap will still register a token normally and the push
-> will fail at the last hop with a named error, which a session reads directly:
->
-> ```
-> question_rollover: sweep push send failed   error=… "Auth error from APNS…"
-> ```
->
-> If that appears, the fix is one upload:
-> **console.firebase.google.com/project/hayatiapp-prod/settings/cloudmessaging**
-> → *Apple app configuration* → upload the `.p8`. Nothing needs rebuilding.
->
-> ### You will not have to wait until 09:00 to find out
->
-> The moment you tap Allow, this answers the whole question in one command —
-> and, crucially, names *which* link is broken rather than reprinting the
-> symptom, because "nothing arrived" has four different causes that look
-> identical:
->
-> ```sh
-> python3 tool/ci/push_delivery_probe.py --from-firebase-cli
-> # once it reports a registered device:
-> python3 tool/ci/push_delivery_probe.py --from-firebase-cli --send-test --confirm SEND
-> ```
->
-> The second one puts **one real notification** on your phone — which is the
-> proof, not a substitute for it. If it arrives, the entire chain works,
-> including the APNs key that nothing else can check. If it does not, the tool
-> says whether the key is missing, the token is dead, or the project is wrong,
-> and what to do about each.
-
-
-### The order matters, and it is not reorderable
-
-From ADR-042 D2. A build that claims the entitlement before the capability exists
-does not fail in CI — it fails in the **macOS release job**, the most expensive
-place in the system to find out, because our iOS CI check builds
-`--no-codesign` and cannot see the problem coming.
-
-1. you tick **Push Notifications** and upload the `.p8` to both projects;
-2. `gh workflow run appid-capabilities.yml` returns **exit 0** — measured, not reported;
-3. the provisioning profile regenerates and `match` picks it up;
-4. **only then** does a session add the plugin and the entitlement, in one commit.
-
-**What you get once it is done:** a question every morning at 09:00, a nudge when
-your partner answers, and a reminder at 22:00 if you have not. Those are the three
-you asked for.
-
-> ### ✅ All three notifications are BUILT, DEPLOYED and RUNNING
->
-> Since 2026-08-11 production runs the hours you asked for: the **09:00** question, the
-> partner-answered nudge, and the **22:00** reminder. The 22:00 one deliberately fires
-> **even if you have no streak** — you asked for it so your partner does not get
-> angry, not to protect a counter.
->
-> **There is no engineering left between you and a notification.** The app knows
-> which phone to notify and only the server can write that. The Firebase
-> notification plugin is now **installed and building** (2026-08-06), so what is
-> missing is exactly two things from you — the tick above and the key below — plus
-> **one line** we add the moment the tick exists.
->
-> That one line is an entitlement claiming push. We cannot add it early: a build
-> that claims push before the App ID allows it **fails to sign**, and it fails in
-> the release step rather than in the checks, which is the expensive place to find
-> out. That is not caution — it happened once already, on a different capability.
-
-**What already exists while you do it.** The server composes the "your partner
-answered" push correctly today and hands it to the send seam — that half has been
-built and tested since M3.4. What never existed is anything to send it *to*: no
-device had ever registered a push token, because nothing in the app or the server
-could write one.
-
-**Session 062 built that.** The app can now record which phone belongs to which
-account, and — this is the part that needed care — **only the server can write it.**
-A phone's push token is effectively an address for that phone, so if the app itself
-could edit that list, a modified app could put someone else's phone on it and start
-receiving their notifications. It is now locked in the security rules in both
-directions, and the lock is tested by trying to break it.
-
-> ### ⚠️ This paragraph was wrong twice, and is corrected in place (S073, #222)
->
-> It used to read: *"Two things are still missing… The daily-question and **16:00**
-> pushes you asked for are the next session's work and are not blocked by
-> anything."* Two errors in one sentence, and the box above this one already
-> contradicted both:
->
-> * **the hour is 22:00, not 16:00.** ADR-045 set your two hours at **09:00** for
->   the question and **22:00** for the unanswered nudge, and this same file says
->   22:00 in seven other places. 16:00 was never the number you asked for.
-> * **those pushes are not "the next session's work" — they were built, deployed
->   and have been running since 2026-08-11.** The box above says so.
->
-> Both halves are the shape that costs this project the most: a plausible
-> sentence, left in a document that is read as instructions, contradicting the
-> paragraph above it. The corrected statement is below.
-
-**What is actually still missing is one thing, and it is not engineering.** The
-Push Notifications plugin and the entitlement (step 4 above) wait on your portal
-tick. **The daily-question 09:00 push and the 22:00 unanswered nudge are built,
-deployed and running** — they have composed a push for both of you every day
-since 2026-08-11. What has never happened is a *device* accepting one, which is
-the section above.
-
----
-
-# 🔴 0(a). Grant the prod RevenueCat webhook its public invoker — **issue #115**
-
-**A purchase on production today would take your customer's money and not unlock
-Premium.** `revenueCatWebhook` is deployed and `ACTIVE` on `hayatiapp-prod`, but
-its Cloud Run service has **no public-invoker permission**, so Google rejects
-RevenueCat's calls *before* your code runs. RevenueCat can never report a
-subscription, renewal or cancellation. The charge goes through, Premium never
-turns on, and **nothing anywhere reports an error**.
-
-**Re-probed 2026-08-05: still Google's HTML 403.** A deploy does not grant
-public-invoker permission, so the honest reading remains that the binding has
-never existed — nothing is fighting you, and the command below is the only thing
-that will create it.
-
-```sh
 gcloud run services add-iam-policy-binding revenuecatwebhook \
   --region=europe-west1 --project=hayatiapp-prod \
   --member=allUsers --role=roles/run.invoker
 ```
+Verify: `curl -i -X POST https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app -H 'Content-Type: application/json' -d '{}'`
+— a **JSON refusal is correct**; HTML means still broken.
 
-**How to tell it worked** — POST to the webhook with no token:
+*Measured today:* **HTTP 403**. Still closed. This is issue **#115**, and it is a
+security-posture decision on a live system, which is why a session will not take
+it alone.
 
-```sh
-curl -i -X POST https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app \
-  -H 'Content-Type: application/json' -d '{}'
+### 3. Rotate the leaked Slack webhook and set `SLACK_WEBHOOK_URL`
+1. Revoke the old webhook (api.slack.com/apps → Incoming Webhooks → remove).
+2. Create a fresh Incoming Webhook for Hayati CI.
+3. `gh secret set SLACK_WEBHOOK_URL --body 'https://hooks.slack.com/services/...'`
+
+*Blocked by this:* **all CI notifications**. This has risen in importance — the
+`integration-emulator` job is post-merge-only by design, and its compensating
+control is precisely this notifier. Today a red on `main` reaches you only if you
+go looking.
+
+### 4. Two service-account secrets — one arms three deploy lanes, one arms two drift checks
+- **`FIREBASE_SERVICE_ACCOUNT`** (Firebase Admin, Service Account User, Cloud
+  Scheduler Admin, Secret Manager Viewer) → `gh secret set FIREBASE_SERVICE_ACCOUNT < sa.json`.
+  Arms `deploy-site.yml`, `deploy-rules.yml`, `deploy-functions.yml`. Point the
+  first run at `hayatiapp-dev`.
+- **`FIREBASE_RULES_VIEWER_SA`** (Firebase Rules Viewer + Cloud Functions Viewer,
+  both projects, read-only) → `gh secret set FIREBASE_RULES_VIEWER_SA < ro.json`.
+
+*Verified today:* both absent; `rules-drift` and `functions-drift` were **SKIPPED**
+on the latest `main` run. **So "is production running what `main` says?" is
+currently unmeasured** — and that exact gap cost the notification feature once
+already.
+
+### 5. Your legal name as data controller
+One fact. It unblocks the privacy policy, the terms, the `/privacy` URL and
+public App Store submission. A session will not guess it into a legal document.
+
+### 6. The Turkish App Store name — Apple refuses `ikimiz` for `tr`
+Another app holds it. Choose: a different Turkish display name, ship
+English-only, or file a trademark claim. *Blocked by this:* **all eight store
+metadata fields** — nothing written in the repo has ever reached the Turkish
+store page (issue **#204**).
+
+### 7. Enable Associated Domains on the App ID
+Apple Developer portal → Identifiers → `com.beyondkaira.hayati` → tick
+**Associated Domains** → Save. Without it, an invite link opens the web page
+instead of jumping into the app.
+
+### 8. Set a Firebase budget alert
+The only watchdog that would have caught the 37-hour outage of 2026-08-09→11.
+Billing itself is **fine** (restored 2026-08-11, verified).
+
+### 9. Enable Dependabot **alerts** (~1 min)
+Settings → Advanced Security → Dependabot alerts → Enable.
+⚠️ Do **not** enable "Dependabot security updates" — the auto-PRs would propose
+downgrading `firebase-admin`. *Verified today:* alerts are disabled.
+
+### 10. `RC_WEBHOOK_TOKEN` on the **dev** project
 ```
-
-A **JSON** refusal is correct — that is your own code turning it away. **HTML is
-still broken.** Then replay an event from the RevenueCat dashboard.
-
-**For the people testing right now this costs you nothing** — the free tier
-is the whole product, and the coach (the only Premium feature) is behind the
-paywall, so nobody can reach it. **Just tell them not to tap Subscribe.** Fix it
-before anyone outside that group.
-
-**Why a session will not do this for you:** making a production endpoint publicly
-reachable is a security decision on your live system, and a session cannot read
-your webhook token to confirm it matches what RevenueCat sends. Opening the
-endpoint without that confirmation replaces a closed door with a door that
-rejects everything.
-
-## 0(b). Apple's pricing propagation → then the sandbox purchase test
-
-The RevenueCat project, the `premium` entitlement, both products, the `default`
-offering and the In-App Purchase key are wired, and the App Store subscription
-products exist. Pricing has been 409-ing purely on Apple's post-agreement
-propagation (Business is green) — **Apple's clock, not yours**.
-
-When it clears: run the **sandbox purchase test** (TR + SA, Premium must flip on
-both phones — this is M4's acceptance line and the last unproven link in the
-product), then **revoke the RevenueCat `sk_` v2 key**.
-
-⚠️ **If you ever add another subscription product: leave "Family Sharing" OFF.**
-It is **IRREVERSIBLE** — Apple cannot turn it off once on, and it would create a
-second entitlement source the server does not control (ADR-015).
-
-## 0(c). Put `RC_WEBHOOK_TOKEN` on **dev** — the only safe place to rehearse 0(a)
-
-**Dev is missing the shared secret, so dev runs ten of the eleven functions.**
-`revenueCatWebhook` never deploys there. Measured with prod as the control:
-
+printf '%s' '<token>' | firebase functions:secrets:set RC_WEBHOOK_TOKEN --project hayatiapp-dev --data-file=-
 ```
-$ firebase functions:secrets:access RC_WEBHOOK_TOKEN --project hayatiapp-dev
-Error: … HTTP Error: 404, Secret […/RC_WEBHOOK_TOKEN] not found or has no versions.
-
-$ firebase functions:secrets:access RC_WEBHOOK_TOKEN --project hayatiapp-prod
-(exit 0 — prod has it)
-```
-
-Why this is yours: the value must be **the same token you configure in the
-RevenueCat dashboard**, and a session cannot read your dashboard.
-
-```sh
-printf '%s' '<the token from RevenueCat>' | \
-  firebase functions:secrets:set RC_WEBHOOK_TOKEN --project hayatiapp-dev --data-file=-
-```
-
-**Why do it before 0(a).** 0(a) asks you to make a *production* endpoint
-world-reachable. Doing that with no rehearsal anywhere is what makes it a
-security decision rather than a chore. With the token on dev, a session can
-deploy the eleventh function there, prove the token check refuses an unsigned
-POST with **JSON** rather than Google's HTML, and hand you a verified procedure
-instead of a leap.
-
----
-
-# Console and portal items
-
-## 2(a). Set a Firebase budget alert
-
-Billing is live on both projects. The workload is couple-scoped and near-zero at
-current scale, but a budget alert is **the one thing a session cannot do for
-you**, and the one thing you would want already in place before a surprise.
-
-## 2(b). Turn on Dependabot **alerts** (~1 min, one click) — issue #131's other half
-
-CI already fails a PR that **introduces** a new dependency advisory into
-`functions/`. What it deliberately does *not* do is fire when a new advisory is
-published against dependencies **nobody touched** — a gate that reddens `main`
-for a third party's action, on something no session can fix that hour, is a build
-that cries wolf, so it was rejected on purpose (ADR-034).
-
-That other half is a GitHub feature this repo has switched off:
-
-```
-$ gh api repos/:owner/:repo/dependabot/alerts
-Dependabot alerts are disabled for this repository. (HTTP 403)
-```
-
-**Settings → Advanced Security → Dependabot alerts → Enable.** The repo is
-**public**, so it is free. It watches **every** ecosystem here — `functions/` npm,
-the app's `pubspec.lock`, `Gemfile.lock` and the GitHub Actions versions — not
-just the one lockfile CI reads, and unlike a scheduled job it cannot rot.
-
-⚠️ **Alerts, yes. "Dependabot security updates" (automatic PRs), no** — at least
-not yet. This repo carries two open advisories whose only npm-offered fix is
-downgrading `firebase-admin` to 10.3.0, which would undo ADR-031 and conflict
-with ADR-030. Automatic PRs would propose exactly that, repeatedly.
-
-**Why this is yours:** it changes repository settings and starts sending mail to
-you. Neither is a session's call, even though the account has the permission.
-
-**What you will see:** the two open advisories (`brace-expansion`, `uuid`) appear
-immediately. Both were measured **unreachable** — one hangs off a `rimraf` that
-`google-gax` declares and never imports, the other sits under an optional Google
-Cloud Storage package these Functions never load. Recorded in ADR-034, not
-forgotten.
-
-## 🟡 2(d). Enable **Associated Domains** on the App ID — invite links open the app instead of the browser
-
-Apple Developer portal → Certificates, Identifiers & Profiles → **Identifiers** →
-`com.beyondkaira.hayati` → tick **Associated Domains** → Save.
-*(Same page as **4(a)**'s Push Notifications tick — do both in one visit.)*
-
-> **Measured 2026-08-06: `ASSOCIATED_DOMAINS` is absent.** Confirmed by the same
-> read-out as 4(a) — see the box there for the portal's full capability list.
-> This item had been carried for months as *"nobody can see the portal"*; that is
-> no longer true in either direction.
-
-**Not blocking** (ADR-040). It *was*: the entitlement must exist in the
-**provisioning profile** as well as in `Runner.entitlements`, and `match` fetches
-profiles **readonly** (ADR-032) precisely so CI can never mint credentials, so
-signing would have failed with an entitlement mismatch. Rather than hold every
-release behind a portal visit, the entitlement was **removed** and working builds
-ship without it.
-
-**What you lose until you tick it:** an invite link opens the **web page** rather
-than jumping straight into the app. The page shows the code with a copy button,
-and the invitee enters it via "Have a code?" — one extra step, for the invitee
-only. Nothing is broken; it is one tap less direct.
-
-**What ticking it buys:** the next build after it re-adds the entitlement (ordered
-steps are written inside `app/ios/Runner/Runner.entitlements`), and from then on a
-tapped invite lands in the app. The `apple-app-site-association` file is **already
-live and verified** at `https://ikimiz.web.app/.well-known/apple-app-site-association`,
-so nothing else is needed on the web side.
-
-**~~Say what you see either way. A session cannot read the portal, so nobody
-knows whether this capability is already enabled~~** — **no longer true as of
-Session 062.** `gh workflow run appid-capabilities.yml` reads the App ID's
-capability list out of Apple's portal and prints it, so this question and the App
-Attest one below are both answered by one dispatch and neither needs you to
-report anything. See item **4(a)**. *(What remains true: no build has ever been
-signed with this entitlement, so the capability has never been exercised even if
-it is enabled.)*
-
-> **The third capability question, same page (ADR-039).** The prod App Check
-> provider is **App Attest**, but `Runner.entitlements` deliberately does *not*
-> declare `com.apple.developer.devicecheck.appattest-environment` — so prod
-> attestation cannot currently succeed. Harmless today (App Check activation
-> fails open instead of blocking the boot, and enforcement is off), but it will
-> hard-break the day enforcement is switched on. A session did not add the
-> entitlement blind, for the same signing reason as above. ~~**Check whether App
-> Attest appears in the capability list and say what you see**~~ — **you do not
-> need to look.** `gh workflow run appid-capabilities.yml` prints the entire
-> capability list, App Attest included (item **4(a)**).
-
-## 2(e). The website — the invite half is LIVE; the pretty domain and the legal pages need you
-
-Measured 2026-08-05: `https://ikimiz.web.app` serves `/` **200**, `/support`
-**200**, `/i/<code>` **200**, AASA **200**. `/privacy` **404** — deliberately, see
-(ii). Nothing below blocks invites, TestFlight, or the app.
-
-### (i) The DNS record points somewhere else — measured, not assumed
-
-```
-ikimiz.beyondkaira.com  ->  161.97.172.146   (your own VPS; TLS handshake fails
-beyondkaira.com         ->  161.97.172.146    outright — the cert covers the apex only)
-```
-
-There is an explicit `A` record for `ikimiz` pointing at your server, not a
-wildcard. Firebase Hosting needs it pointed at Firebase instead:
-
-Firebase console → `hayatiapp-prod` → **Hosting** → the **`ikimiz`** site → **Add
-custom domain** → `ikimiz.beyondkaira.com`. Firebase gives you a `TXT` record to
-prove ownership and then the `A` records to replace `161.97.172.146` with. TLS is
-issued automatically. **Nothing else on this page depends on it.**
-
-Until then, invite links are emitted on `ikimiz.web.app` (Google-issued TLS, no
-DNS record from anybody). The custom domain is still **parsed** by the app, so
-nothing already sent breaks and moving over later is a one-line change.
-
-### (ii) One legal blank is still open, and it is the one only you can fill
-
-You chose (Session 055): **you personally as the data controller, contact
-aytek@beyondkaira.com, governed by Turkish law.** Two of those three are ready to
-write. The third — the controller's **legal identity as it should appear in a
-privacy policy** — needs your actual full legal name, which no session should
-guess. Send it and all three land in all six documents in one diff.
-
-Until then the builder **refuses** to publish the legal documents, which is the
-point: a policy Apple's listing points at must not say "to be completed by the
-founder". The invite-only publish is not a loophole — it publishes **no policy at
-all**, so it cannot publish an unfinished one.
-
-⚠️ **This is also why your App Store privacy URL does not resolve.** The listing
-declares `https://ikimiz.beyondkaira.com/privacy`; that host fails TLS, and
-`ikimiz.web.app/privacy` 404s. The in-app legal documents are bundled and
-reachable, which is what **consent** actually depends on, so the app itself is
-fine — but this **will** block App Store submission. The chain is: your legal
-name → the legal pages publish → `/privacy` resolves. One fact unblocks all of it.
-
-### (iii) Optional — let CI deploy the site, the firestore rules **and the Cloud Functions**
-
-> **⚠️ This item changed on 2026-08-17 — the one secret now arms a THIRD lane.**
-> Cloud Functions used to be the one thing here with no deploy workflow; every
-> Functions deploy this project ever had was a command typed on one laptop, and
-> nothing recorded that it happened. That gap cost us the notifications feature
-> once and thirteen out-of-date functions once. `deploy-functions.yml` now
-> exists (#206) and, like the other two, it is **built and unarmed** until this
-> secret lands. The number of this item has not changed; its **role list has**.
-
-Today the site is deployed with the local `firebase` CLI, logged in as you.
-`FIREBASE_SERVICE_ACCOUNT` is **unset** (re-confirmed 2026-08-17), so CI cannot.
-Worth fixing so the site does not depend on one laptop's login:
-
-```sh
-gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json   # Firebase Hosting Admin, hayatiapp-prod
-gh workflow run deploy-site.yml -f channel=live -f invite_only=true
-```
-
-Drop `invite_only` once (ii) is filled and the full site — six legal documents in
-three languages — publishes.
-
-The same secret also powers `deploy-rules.yml`, the dispatch-only lane that
-publishes `firestore.rules` (ADR-041, issue #140). For that half the service
-account additionally needs **Firebase Rules Admin** on whichever project you want
-CI able to deploy to. Grant it on `hayatiapp-dev` freely; grant it on
-`hayatiapp-prod` only if you want CI to be *able* to change production's
-authorization rules — the lane still requires a manual dispatch and requires
-typing `hayatiapp-prod` into a confirmation box, and **no session will fire it at
-prod without asking you first.**
-
-#### And the third lane — Cloud Functions (`deploy-functions.yml`, ADR-048, #206)
-
-**The roles, and why each one.** These were not copied from a blog post: each
-candidate role's contents were read from Google's own IAM API and compared
-against what the deploy actually calls. That measurement **contradicted
-Firebase's documentation**, which says deploying Functions needs permissions
-"not included in standard Firebase predefined roles" — `roles/firebase.admin`
-measurably *does* carry them. What it genuinely lacks is three things:
-
-| role | why |
-|---|---|
-| **Firebase Admin** (`roles/firebase.admin`) | the functions themselves — and it covers the Hosting and Rules lanes above, so it replaces both roles named earlier if you would rather grant one |
-| **Service Account User** (`roles/iam.serviceAccountUser`) | the deploy must *act as* the functions' runtime account. The CLI checks this by name and fails with a link if it is missing |
-| **Cloud Scheduler Admin** (`roles/cloudscheduler.admin`) | the daily question is a scheduled function, and every deploy re-writes its schedule entry |
-| **Secret Manager Viewer** (`roles/secretmanager.viewer`) | two functions read secrets, and the deploy checks the existing grant |
-
-**Why Viewer and not Admin on that last one, deliberately:** Secret Manager
-**Admin** is the only role that can *read the secret values themselves* — your
-Anthropic API key and the RevenueCat webhook token. A deploy that is only
-re-deploying already-wired functions never needs it (verified in the CLI's own
-source: it reads the existing grant and skips writing when it is already there).
-So the credential CI holds cannot exfiltrate either secret. If a future deploy
-ever adds a **new** secret to a function, it will fail with a permission error
-naming exactly that, and Admin can be granted for that one run.
-
-**Please point the first run at `hayatiapp-dev`.** The role list above is
-measured for coverage but has never been *exercised* — no service account exists
-to exercise it with. On dev a missing role costs nothing and the error names it:
-
-```sh
-gh workflow run deploy-functions.yml -f project=dev
-```
-
-Prod additionally requires typing `hayatiapp-prod` into a confirmation box, only
-runs from `main`, and — as with the rules lane — **no session will fire it at
-prod without asking you first.**
-
-### (iv) One read-only secret now arms **TWO** checks — issue #165, and the Functions one that cost us the notifications feature
-
-Read-only, one command, closes two real holes.
-
-> **⚠️ This item changed on 2026-08-09 — the account needs a SECOND role.** It used
-> to arm one check. It now arms two, because the same missing-watchman problem
-> turned out to exist for the **Cloud Functions code** as well as for the rules,
-> and that one has already cost you something concrete.
->
-> **This is the gap that ate the notification feature.** At Session 063 the entire
-> push stack was written, reviewed, merged, and every check was green — but
-> nobody had deployed it, so the functions your phone calls **did not exist in
-> production.** Two builds shipped believing it worked. Nothing in the project
-> could have told anyone, because nothing was comparing the code that is
-> *running* to the code that is *merged*.
->
-> That comparison now exists (`functions-drift`, ADR-043). Like the rules one, it
-> is built and **unarmed**, and shows as SKIPPED on every run rather than
-> pretending to pass.
-
-**What is different when you do it:** in step 2 below, grant the account
-**Cloud Functions Viewer** as well as Firebase Rules Viewer. Everything else —
-the name, the one command, the one secret — is unchanged.
-
-For eighteen days both projects served the rules from **2026-07-09** while six
-milestones of newer rules sat merged in the repo and never deployed. That is what
-made "Invite Your Partner" show *Something went wrong* on your build — not the
-invite code, but the phone being denied permission to read its own answers. Every
-CI check was green throughout, because the only thing testing the rules was an
-emulator loading the file from the repo, never the one Firebase was enforcing.
-
-The check exists now (`rules-drift` in `ci.yml`). **It cannot run without a
-credential, and rather than pretend to pass it shows as SKIPPED on every run.**
-*(Both projects are in sync today — re-measured 2026-08-05, exit 0. The gap is
-that nothing is watching.)* To arm it:
-
-1. Firebase console → ⚙ → **Users and permissions** → **Service accounts** tab →
-   Google Cloud console → **Create service account**, name it `ci-rules-viewer`.
-2. Grant it **two** roles — **Firebase Rules Viewer** *and* **Cloud Functions
-   Viewer** — on **both** `hayatiapp-prod` and `hayatiapp-dev`. Both are
-   read-only: this account cannot change anything, which is deliberate, so the
-   jobs that run on every merge can never themselves cause the drift they are
-   looking for.
-3. Create a **JSON key** for it and download the file.
-4. ```sh
-   gh secret set FIREBASE_RULES_VIEWER_SA < ci-rules-viewer.json
-   ```
-5. Delete the downloaded file. Confirm with `gh secret list`; the run after that
-   shows **`rules-drift` and `functions-drift`** as real green checks instead of
-   skipped ones.
-
-**What the Functions half will tell you on its first armed run.** This paragraph
-used to warn you that it would report **drift on `hayatiapp-prod`** because a
-hand-deploy had swept 62 leftover files off a laptop into the upload. **That is
-no longer true and the warning is withdrawn** — re-measured 2026-08-17,
-production reads **clean**: all 13 functions are an exact build of `main`, over
-213 files with zero strays. The 2026-08-11 redeploy was made from a tidy folder,
-and nothing has touched the Functions code since. You should expect a **green**
-check, not a red one.
-
-The deploy workflow that paragraph called "the real fix" now exists —
-`deploy-functions.yml` (**#206**, ADR-048) — so Cloud Functions are no longer
-deployed by a typed command. It needs the *other* secret, 2(e)(iii) above, and
-nothing else from you.
-
----
-
-# 5. SECURITY — rotate the leaked Slack webhook (~10 min, open since S005)
-
-**Verified still open 2026-08-05:** `gh secret list` returns five secrets, all
-release-signing (`ASC_API_KEY_P8_BASE64`, `ASC_ISSUER_ID`, `ASC_KEY_ID`,
-`MATCH_GIT_URL`, `MATCH_PASSWORD`) — **`SLACK_WEBHOOK_URL` does not exist.** The
-local `chore/slack-notifications` branch still exists too, so the webhook to
-revoke is still identifiable.
-
-That branch (commit `13f1e6d`) has a **live Slack webhook URL in plaintext**
-inside a workflow file. It never reached GitHub (push protection blocked it), but
-a credential in a git commit is a leaked credential.
-
-The CI→Slack wiring is built, tested and merged, and stays **silent** until you do
-these four steps — it never spams, never warns, and never reddens a build for a
-missing secret.
-
-1. **Revoke the old webhook** in Slack: api.slack.com/apps → the owning app →
-   *Incoming Webhooks* → remove it. **Do NOT push/merge the
-   `chore/slack-notifications` branch** — it is only the evidence of which webhook
-   to revoke. After revoking, `git branch -D chore/slack-notifications` is safe.
-2. **Create a fresh Incoming Webhook:** api.slack.com/apps → *Create New App → From
-   scratch* → name `Hayati CI` → your workspace → *Create App* → **Features →
-   Incoming Webhooks → Activate ON → Add New Webhook to Workspace** → choose the
-   channel → *Allow* → copy the URL. **It must be an *Incoming Webhook*, NOT a
-   Workflow-Builder webhook** (the latter silently 400s our messages).
-3. **Store it as a REPOSITORY secret** (NOT the `release` environment — the
-   notifier has no environment binding so it can report a *failing* signing job;
-   an environment secret would be invisible and fail silently):
-   ```sh
-   gh secret set SLACK_WEBHOOK_URL --body 'https://hooks.slack.com/services/…'
-   ```
-4. **Confirm:** the next push to `main` posts the first message. If not, read the
-   run's `slack-notify` job log — one line says why.
-
-**What you get:** failures always (PRs + main); successes only on main/manual
-re-run/release; branch, commit, actor, run link and a per-job line — **never any
-log content**. The one CI event with *no other reader* is a failing
-`integration-emulator` on `main` (it runs only after merge, when the session has
-moved on) — that is the message this exists to deliver.
-
----
-
-# 4. On-device verification — the checks only your iPhone can settle
-
-**4(a) is above** and gates the whole notification feature. The rest of this item
-is observation.
-
-Your release ritual, from `main`, on Linux — no Mac, no Xcode, no manual upload:
-
-```sh
-gh workflow run release.yml --ref main      # or: git tag v0.1.0 && git push --tags
-```
-
-Build numbers are automatic (`100 + the CI run number`); the *version* (`0.1.0`)
-comes from `app/pubspec.yaml` and must match the tag, and CI stops you loudly if
-they disagree.
-
-✅ **Resolved 2026-08-06/07.** Build 114 was never submitted, and rather than
-submit a stale binary, **115 and then 116 were built and submitted** — 116 carries
-the post-sign-in dead-end fix (the "Something went wrong" you reported), the real
-support page, the UI polish pass, the iPhone-only change AND the entire
-notification stack. **Install 116.** The dispatch below is kept for the next time:
-
-```sh
-gh workflow run testflight-testers.yml \
-  -f dry_run=false -f assign_latest_build=true -f submit_for_review=true
-```
-
-⚠️ **After any release, read the `assign the new build to the Friends group`
-step's log, or run `-f status_only=true`. Do not infer delivery from a green
-release.** That step is `continue-on-error` on purpose — Apple's processing queue
-is a third party's schedule and should not redden a release — but non-blocking
-must not mean unread. It failed silently on its first two attempts.
-
-⚠️ **Keep your `MATCH_PASSWORD` safe.** It decrypts the certificates repo
-(`aytekXR/hayati-match-certs`). Lose it and the stored signing identity is
-unreadable — recoverable (a session can re-bootstrap) but annoying, and Apple
-caps distribution certificates at 3.
-
-Please eyeball each of these on a TestFlight build:
-
-1. **Keychain round-trip** — set a PIN, force-quit, relaunch → must ask for the
-   PIN. Then **delete the app, reinstall, launch → it must STILL ask for the PIN**
-   (the reinstall-bypass defence; if it opens straight in, that is a real hole —
-   tell a session immediately).
-2. **Face ID self-revoke** — turn it on, lock, unlock with Face ID. Then change or
-   add a face in iOS Settings and reopen the app → it must have switched Face ID
-   **off** by itself and demand the PIN.
-3. **Discreet icon** — flip it in Settings. iOS shows its own "you changed the
-   icon" alert (Apple's, expected, unsuppressible). Confirm the icon changes and
-   the **name under it does not**.
-4. **App-switcher snapshot** — open the coach or a revealed answer, swipe to the
-   app switcher → the card must show a **blank panel**, never your content.
-5. **Cold-start stopwatch** — time a cold launch of the **prod** build (airplane
-   mode + normal). CI deliberately does not assert the <2s number; your phone is
-   where the honest number comes from.
-6. **Invite round-trip** — send an invite from one phone, open the link on the
-   other. It should land on `https://ikimiz.web.app/i/<code>` with a copy button
-   (not the app — that is 2(d)), then "Have a code?" should pair you.
-7. **Issue #15** — if phone-auth sign-in crashes natively, capture the log
-   (Xcode → Window → Devices → Open Console). That log is the whole blocker.
-8. **Issue #48** — a transient Face ID lockout (too many failed attempts)
-   currently appears to revoke the biometric accelerator permanently. The issue
-   defers to your observation of what actually happens on the device.
-9. Also: Apple first-authorization full name reaching `displayName`; deep-link
-   cold+warm OS→app delivery; the real-device pairing test.
-
-**Also riding this item:** **dSYM upload** for Crashlytics, **App Attest** (App
-Check enforcement stays OFF in both consoles until on-device attestation is
-verified), and **Universal links** (2(d)).
-
----
-
-# Activation infrastructure — still unbought, still gating the funnel
-
-None of these block TestFlight or on-device testing. All of them block a real
-launch, and each is a purchase or a decision only you can make.
-
-- [ ] **Analytics wiring decision** — `app/lib/core/analytics/` is empty. **Gate 2
-      and Gate 3 are unfalsifiable without it**: activation and monetization
-      cannot be measured, so the gates cannot be passed or failed honestly.
-- [ ] **The Gate 1 content bank** — the TikTok/content-ops track, dormant by
-      ADR-007 unless you re-activate it.
-- [ ] **The ADR-027 trademark decision** — worth doing before public launch, not
-      blocking anything now.
-
----
-
-# Content and copy decisions
-
-## The couple questions are the Turkish SOLO pack — a known placeholder
-
-Not a bug, and recorded in the code (`rollover-service.ts:29`: *"Placeholder
-couple bank until W9 authors the real couple packs"*). `content/packs/` holds
-`solo_tr`, `solo_ar`, `solo_en` and no couple packs, so a paired couple falls back
-to `solo_tr`.
-
-For Turkish-speaking testers the *language* is right. What they will notice is
-that the questions are **the same ones they already answered during solo week**.
-If the beta is meant to test the couple ritual rather than the plumbing,
-authoring one real couple pack (W9, `content/README.md`) is the highest-value
-content work available — and it needs you, not a session.
-
-## Two words differ between your App Store listing and your app — your call
-
-A brand decision rather than a bug, so nothing was changed in either place:
-
-| Thing | Your App Store description says | Your app says |
-|---|---|---|
-| the streak unit | **nar tanesi** / pomegranate seed | **tohum** / seed (`app_tr.arb:86`) |
-| the weekly grace day | **hoşgörü günü** | **Merhamet günü** (`app_tr.arb:88`) |
-
-A Turkish user reads one word in the listing and sees another in the app. The
-website follows the **app**, on the reasoning that the site describes what someone
-is about to see — but if you prefer the listing's words, the app is the side to
-change, and a session can do it in one diff. **Tell us which.**
-
----
-
-# Before PUBLIC launch (none of these block TestFlight or on-device testing)
-
-## 1. Native review of the app content — **the biggest quality risk in the product**
-
-Every TR/AR string is an AI draft marked review-PENDING. The redesign waves added
-more, all flagged "native register review pending" per commit. TR: you two. AR:
-your Gulf-dialect reviewer. Mandatory before any public launch
-(`content/README.md`, W9). All editable in place, or send corrections to a session.
-
-> **⚠️ One concrete thing to watch for in the ARABIC copy.** Arabic punctuation and
-> Western punctuation are **not interchangeable** in a right-to-left layout. `؟`
-> (the Arabic question mark, U+061F) is a *strong* character — it always sits where
-> it should. A Western `.` or `?` is *neutral*, and next to Latin text it can jump
-> to the wrong end of the line. All seven Arabic solo questions correctly end with
-> `؟`; some of the AI-drafted **coach** copy ends Arabic sentences with a Western
-> `.` instead. The app compensates automatically, so nothing is broken — but **if
-> you are editing Arabic copy, prefer `؟` and `،` over `?` and `,`**. It is
-> invisible in the text file and only shows up on screen.
-
-- **Solo questions** (7 × TR/AR/EN) — `content/packs/solo_{tr,ar,en}.json`; run
-  `dart content/validator/validate.dart --sync`. These double as the **couple**
-  question-bank placeholder, so edits pay off twice. *A question may carry
-  `"seasonalWindow"` — exactly one of `ramadan`, `eid_fitr`, `eid_adha`,
-  `new_year` — and is then offered only inside that window. Anything else is a
-  loud validation error by design. Ramadan/Eid dates follow the Saudi Umm al-Qura
-  calendar, which can differ by a day from Diyanet or local sighting; we chose not
-  to fudge the edges — say the word if you want it padded.*
-- **Paywall / pack copy** (~28 strings × TR/AR/EN) — `app/lib/core/l10n/arb/`
-  (keys `paywall`/`packs`/`packSelection`).
-- **Coach chat copy** (27 strings × TR/AR/EN) — keys `coach*`, plus persona/register
-  TONE blocks in `functions/src/coach/persona-prompts.ts` (safety lines are the ★
-  gate below). Includes the Perisi/ملهم persona-naming call.
-- **Lock & settings copy** (41 strings) — keys `lock*`/`settings*`. Two carry
-  **safety** meaning worth your eyes: the **Face ID warning** (factual caution, not
-  accusation) and the **"Forgot PIN?"** copy (recovery signs you out, does not
-  quietly let someone in).
-- **Data-rights copy** — keys `dataRights*`/`coupleEnded*`/`settingsNotificationPrivacy*`.
-  Three carry legal or safety weight: the **deletion confirmation** (irreversible;
-  "both of you"), the partner's **"shared space closed" notice** (calm, non-blaming,
-  never names who), and the **"does not cancel your subscription"** line (users act
-  on it with money involved).
-- **Store listing** (`fastlane/metadata/{tr,en-US}`) + the localized **Face ID** and
-  **Local Network** purpose strings
-  (`app/ios/Runner/{en,tr,ar}.lproj/InfoPlist.strings`).
-- **New, when 4(a) lands:** the **push notification copy** — three (soon four)
-  message types × TR/AR/EN × the discreet variant. These are the only strings in
-  the product a user reads on a lock screen, in front of other people.
-
-## ★ Crisis-content safety review — the one gate before the coach runs on a real device
-
-The crisis word-lists (TR / AR incl. Arabizi / EN), the professional-help response,
-the "not therapy" disclaimer, and the safety lines of the coach's system-prompt
-preamble are AI-drafted and marked `nativeReview: PENDING`. **An under-reading
-crisis filter is a safety failure — only native speakers can judge the lists.**
-TR: you two (~15 min). AR incl. Arabizi: your Gulf reviewer.
-
-- **Also here:** crisis-hotline numbers are deliberately NOT in the app (a wrong
-  number is dangerous) — choose the TR/SA numbers you trust and a session wires
-  them in. A CI test fails if a phone-number-shaped string is added to coach copy
-  without going through this gate.
-- **Where:** `functions/src/coach/crisis-lexicon.ts`,
-  `functions/src/coach/help-content.ts`, `functions/src/coach/persona-prompts.ts`,
-  and `coachDisclaimerBody` in `app/lib/core/l10n/arb/`.
-- **When:** blocks the first on-device coach use.
-
-## 9. The legal bundle — your review, three blanks, three lawyer questions, one filing
-
-The six documents at `docs/legal/` (privacy policy + terms × TR/AR/EN — also in the
-app under Settings → Privacy & Terms) are AI-drafted against the shipped code and
-marked review-PENDING. They currently carry **legal version 2**, which names
-Anthropic as the coach's AI provider.
-
-- **(a) Native + legal review** of the six docs. TR: you two (~5 min; the policy
-  doubles as the KVKK aydınlatma metni). AR: your Gulf reviewer. Legal: your lawyer.
-  A material change bumps the version and re-asks everyone's consent.
-- **(b) Three blanks only you can fill** (bracketed in every doc): the controller's
-  legal identity (your name or a company), a contact address, and the governing law.
-  **This is the same blank as 2(e)(ii)** — filling it once unblocks both.
-- **(c) Three recorded lawyer questions** (in `docs/legal/README.md` + ADR-023):
-  **A** — is relationship-content processing special-category under KVKK Art 6 /
-  PDPL (we implemented conservative YES)? **B** — may the one consent be required to
-  use the reflective features (required, but sign-out/export/delete always open)?
-  **C** — must consent withdrawal *erase* stored reflections, or does
-  stop-collecting + self-serve deletion suffice (we implemented the latter, for the
-  DV reason)?
-- **(d) One real legal action — the KVKK data-transfer filing.** Hosting TR users'
-  data on Google's EU servers is a cross-border transfer under amended Art 9: sign
-  Google's Kurul-approved standard contract and **file it with the Kurum within 5
-  business days of signing**. **Anthropic is a US processor**, so the same
-  standard-contract leg and filing now cover them too. Evidence and links in
-  `docs/dpa-inventory.md`. Needed before PUBLIC launch, not for TestFlight.
-- **(e) Also recorded, none urgent:** the Kurul "adequate measures" question; the
-  seven PDPL items before the first Saudi user; a GDPR flag for the Phase-4
-  EU-diaspora channel; **İYS registration before any promotional push** — note that
-  4(a) makes push real, and this obligation attaches to *promotional* messages only,
-  not to the daily-ritual notifications.
-- **(f) Optional, would let us say something stronger:** enable
-  **zero-data-retention** on your Anthropic organisation and a session will tighten
-  the privacy notice to match. Today it says Anthropic does not train on your coach
-  messages (true under their commercial terms) but stops short of claiming they
-  retain nothing, because their default API retention is limited but not zero.
-
-## 8. Store-listing decisions + the missing web pages (pre-submission, none blocking)
-
-- **(c) Privacy-policy + support-page URLs.** The support page **now exists and
-  resolves** (`https://ikimiz.web.app/support`). The privacy URL does not — see
-  2(e)(ii). The listing ships EMPTY URL fields behind a loud CI warning (never a
-  fake URL). Apple requires both at submission; the in-app requirement is already
-  met by the in-app documents. When hosted, a session drops the lint's
-  `--allow-empty-urls` flag.
-- **(d) Age rating:** verify at first submission — whether Apple's questionnaire
-  treats the AI coach as a maturity factor is only provable in App Store Connect. If
-  it forces a higher tier, the choice (constrain vs accept) is yours.
-- **(e) App Privacy questionnaire** — the manifest ships
-  (`app/ios/Runner/PrivacyInfo.xcprivacy`). Four recorded judgment calls to resolve
-  against the questionnaire: (i) the App Privacy labels must match the declared
-  types (contact info, User ID, Other User Content, Purchase History, Crash Data —
-  all non-tracking); (ii) whether couples' free-text + coach content warrants
-  Apple's **"Sensitive Info"** category (the manifest omits it — Apple's taxonomy ≠
-  KVKK's); (iii) Crash Data declared **not linked** to identity — confirm; (iv) the
-  **Local Network** purpose string ships in prod for the dev rig (prod makes no LAN
-  connections) — decide keep/reword/strip at submission.
-
----
-
-# Non-blocking decisions (nothing waits on these)
-
-## 7. Should coach conversations ever be SAVED? — the private-thread retention decision
-
-Today coach chats are **ephemeral** (nothing on the server or the phone; a fresh
-start is a fresh conversation; sign-out wipes instantly) — the most protective
-posture. Options: **(a) ephemeral forever** (simplest, safest); **(b) a saved
-private thread per person** (`coach_sessions`, ~30-day auto-delete — needs your
-retention window, rules guaranteeing a partner can never read the other's thread,
-and inclusion in export/delete). No engineering waits on this; ephemeral works
-indefinitely.
-
-## #63 — Phosphor vs Material icons
-
-The brand kit names **Phosphor** icons; the app ships **28 Material** icons and
-Phosphor was never added. Options: **(a)** switch to Phosphor (new dependency, 28
-icons re-drawn, a size increase, and hand-mirrored twins for every directional icon
-since Phosphor will not auto-flip in Arabic); **(b)** update the brand kit to say
-Material (cheapest, honest — Material outline reads well with the brand; **the
-recommendation** unless you have a view). Either is fine; a Phosphor switch would be
-its own session.
-
-## #71 — a motion token in the brand kit
-
-Motion is defined in brand-kit §6 prose (150–300ms, ease-out) but has no token in
-`hayati-tokens.json`; the app realises it as `MotionTokens` (review-enforced). A
-brandkit-revision decision — add a `motion` block to the tokens JSON and the parity
-test could check it mechanically.
-
----
-
-# Two facts about your TestFlight group you should know
-
-Neither is a fault; both are things a founder should know rather than discover.
-
-* **Two of the eight `Friends` testers are anonymous public-link installs**
-  (`inviteType='PUBLIC_LINK'`, no email, both `INSTALLED`). A public TestFlight
-  link exists somewhere and strangers have used it. That may be exactly what you
-  intended — if not, the link can be disabled in App Store Connect.
-* **Tester emails travel through a `workflow_dispatch` input, which is
-  world-readable on a public repo** — and older revisions of this file listed five
-  in plain text. Both are in git history now, so this is recorded rather than
-  fixable. Noted because it should be a decision rather than a default. **This file
-  no longer prints tester addresses, and the four Beta App Review contact values
-  never took that path at all** — they are secrets precisely for this reason
-  (ADR-038 D1). If you want the emails out of the public record, that is a history
-  rewrite and a founder call. Also: because those four values are secrets, GitHub
-  redacts them *anywhere* they appear in a log, including in unrelated output — one
-  friend shares your surname, so her last name prints as `***` too. Nothing is
-  wrong; the log is just less readable than it looks.
-
----
-
-# Engineering issues you may want to know about — but that need nothing from you
-
-Listed only so nothing on this page looks like a silent gap. Sessions drive all of
-these.
-
-| Issue | What |
-|---|---|
-| ~~**#176**~~ | ✅ **Closed 2026-08-08.** Left listed as open here until S077 re-checked every row against `gh` — the founder's checklist was carrying three finished items. The Question text style asks for Rubik **Light**, which is not bundled — so it silently renders at Regular. The cheapest real bug on the list. |
-| ~~**#175**~~ | ✅ **CLOSED 2026-08-17 (S075, ADR-052).** "Raised" now has one definition instead of fourteen; the ten flat cards get the Level-1 plum shadow the brandkit always assigned them. ⚠️ **Nobody has looked at it on a device** — a golden suite proves the pixels do not change again, never that they were right. Worth a glance on your next build. |
-| ~~**#174**~~ | ✅ **CLOSED 2026-08-17 (S074, ADR-051).** The reveal now announces once to VoiceOver. ⚠️ **Tests prove the event is dispatched with the right text and direction; that VoiceOver actually *speaks* it, usefully, needs a device and a person** — yours. |
-| ~~**#166**~~ | ✅ **Closed 2026-08-09.** It asked whether the deployed function code can be compared to `main` *at all* — and it can, exactly. The check exists now. This is the gap that cost you the notification feature at S063. |
-| ~~**#206**~~ | **CLOSED 2026-08-17 (ADR-048).** `deploy-functions.yml` exists, so no deploy target is a typed command any more. It is **unarmed** until item 2(e)(iii)'s secret — whose role list grew in the same change. Production re-measured **clean** while building it, which withdrew the drift warning that used to sit in 2(e)(iv). |
-| **#226** | ⚠️ **NEEDS YOU, and it was missing from this list until S077.** The privacy policy tells users *"ikimiz does not send push notifications today"* — true of the outcome, **false of the system**: the server has composed and attempted a push on schedule since 2026-08-11. Its *"what we collect"* list also names neither `fcmTokens` nor `pushDiagnostic`, both of which we store about a user's device. **Why a session cannot just fix it:** any revision to the legal texts bumps `CURRENT_LEGAL_VERSION`, which **re-prompts every existing user for consent**. That is your call and a lawyer's, not a side effect of an engineering slice. A session can draft the wording for you. |
-| **#165** | `rules-drift` is built but unarmed — that is item 2(e)(iv) above, which now arms **two** checks. |
-| ~~**#137**~~ | **CLOSED 2026-08-17 (ADR-053).** The seam classifies characters against generated Unicode tables now, so it is right by construction rather than by luck. **Nothing was ever wrong for you or the founder's testers** — Turkish and Gulf Arabic always sat inside the covered ranges. Re-measuring it found the filed defect was *understated*: five blocks rather than one, plus a second, separate bug where every astral RTL script and every emoji read as left-to-right. No operator action, then or now. |
-| **#136** | Arabic **push-notification** bodies interpolate a partner's name without the isolation the app applies on screen. Latent today — **it stops being latent the moment 4(a) lands and pushes start arriving.** |
-| **#129** | The release lane's `Gemfile.lock` comment is false, the lane installs unfrozen, and no release run has touched the committed lock. |
-| **#121** | Confirm a likely-dead App Store Connect key step in the release lane. Its old blocker (2(d)) is dead; pair it with #129. |
-| **#41** | `app_user_id` = Firebase uid is a threat-model gap. **Wants deciding before real purchases accumulate** — after that it becomes a migration rather than a clean change. |
-| **#48**, **#15** | Waiting on your device — items 4(7) and 4(8) above. |
-| **#13** | Android instant verification — M6.5, waits on your Gate 3 call. |
-
----
-
----
-
-*Closed items are not kept here.* This page lists only what is still open; the
-session-by-session record of everything that closed lives in
-`docs/past-prompts.md`, and the retired-but-still-cited item numbers (2(c), #140,
-#130) moved there too — `testflight_testers.py` still prints 2(c) when the Beta
-App Review contact fields are missing, so the number stays valid even though the
-item does not.
+Without it dev runs 12 of 13 functions and item 2 cannot be rehearsed safely.
+
+### 11. Sandbox purchase test, once Apple's pricing propagation clears
+Buy in **TR** and **SA** sandbox; Premium must flip on **both** phones. Then
+revoke the RevenueCat `sk_` v2 key. This is M4's acceptance line and it has never
+been met.
+
+### 12. Native TR/AR review of every user-visible string — mandatory before public launch
+All TR/AR copy is an AI draft marked `review-PENDING`: solo questions, paywall and
+pack copy, the 27 coach strings, 41 lock/settings strings, data-rights copy, store
+listing, `InfoPlist.strings`. **TR: the two of you. AR: a Gulf-dialect reviewer.**
+
+### 13. ★ Crisis-content safety review — the gate before the coach runs on a real device
+Review the crisis word lists (TR/AR including Arabizi, EN), the professional-help
+response and the "not therapy" disclaimer, and give crisis hotline numbers for TR
+and SA that you trust. Files: `functions/src/coach/crisis-lexicon.ts`,
+`help-content.ts`, `persona-prompts.ts`. **An under-reading filter is a safety
+failure, not a bug.**
+
+### 14. The legal bundle — review, three blanks, three lawyer questions, one filing
+Six documents in `docs/legal/`, all `review-PENDING`. Blanks: controller identity,
+contact address, governing law. Three lawyer questions are listed in
+`docs/legal/README.md`. Plus the KVKK data-transfer filing for EU hosting and the
+US processor.
+
+### 15. Decide **#226** — the privacy policy is factually wrong about push
+It says *"ikimiz does not send push notifications today"*, which is true of the
+outcome and **false of the system**, and it names neither `fcmTokens` nor
+`pushDiagnostic` in what we collect. ⚠️ Any revision bumps `CURRENT_LEGAL_VERSION`
+and **re-prompts every existing user for consent** — your call, not a session's.
+A session can draft the wording.
+
+### 16. Two content decisions that are yours
+- The **couple** questions are currently the Turkish *solo* pack — a known
+  placeholder. The launch target is 400/300/300; **7 per locale exist**.
+- **#63** Phosphor vs Material icons, and **#71** a motion token — brandkit
+  revisions, both low priority.
+
+## Current Blockers
+
+Nothing blocks the *next session's engineering*. These block **launch**:
+
+1. **Payments cannot complete** — the RevenueCat webhook is not invocable (#115, item 2).
+2. **Push has never been delivered** — no device has ever registered (item 1).
+3. **Prod-vs-`main` drift is unmeasured**, not passing — both drift checks SKIPPED for want of one read-only secret (item 4).
+4. **Legal documents are unreviewed** with three blanks (items 5, 14, 15).
+5. **Content is ~2% authored** and no analytics exist — MVP scope items 3 and 11.
+
+## Next Step
+
+Merge PR **#238** (the silence-bound watchdog fix) once its CI concludes — the
+change is already proven green on a dispatched `integration-emulator` run — then
+watch the post-merge `main` run.
+
+## Next Session Goal
+
+**#129 (with #121)** — the release lane's `bundle install` comment is false in
+every clause, and the lane installs **unfrozen**, so it has never actually
+exercised the committed `Gemfile.lock`.
+
+Measured, and it lowers the risk the issue assumed: the lane's `bundle install`
+runs in the `sign-upload` job on **macos-26 with Ruby 3.3**, and `gemfile-lock.yml`
+already ran `bundle install --frozen` **successfully on that same image and Ruby**
+against this exact lock. The command has passed; what is untested is only image
+drift since — which is precisely what `--frozen` exists to surface.
+
+⚠️ Its verification lands on **your** next release run, because a session must
+never dispatch the release lane.

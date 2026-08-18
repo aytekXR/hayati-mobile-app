@@ -5,7 +5,7 @@
 - **Deciders:** session agent (no operator dependency; no schema migration, no client release required for correctness)
 - **Related:** **ADR-049 D7** (which deferred exactly this question and pinned the omission with a test), **ADR-042** (`fcmTokens` is server-owned and frozen to the client), **ADR-023** (the consent lane, and the `FORMAT_VERSION` precedent), issue **#227**, issue **#226** (the sibling, founder-blocked)
 
-> Written and committed **before** the implementation, per `session-rules` §5.1.
+> Written and committed **before** the implementation, per `session-context.md` §5.1.
 > S076 inverted that order and it cost three claims that had already been typed
 > next to working code (lesson **111**). The numbers below were measured first
 > and there is nothing green yet to lend them authority.
