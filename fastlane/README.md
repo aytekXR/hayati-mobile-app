@@ -231,6 +231,27 @@ fastlane must satisfy the Gemfile's `~>` constraint, so a deleted lock or a
 Gemfile bump without a regen reddens the **cheap ubuntu preflight** instead of
 failing inside the release job past a 40-minute macOS leg.
 
+### The gap that closed at S080 (ADR-056, issue #129)
+
+Everything above verifies **the lock this workflow just generated**. Until S080
+nothing verified **the committed file** — `gemfile-lock.yml` runs `bundle lock`
+before its frozen install, and its own comment notes the lock is untracked at
+that moment, so a `git diff` there would pass vacuously. #129 put it as *"no
+release run has ever executed with the committed lock"*; it was wider than that —
+**nothing ever had.**
+
+Two changes close it:
+
+* **`release.yml` installs `--frozen`.** A `Gemfile` edit without a regenerated
+  lock now fails the release lane loudly instead of being silently re-resolved.
+* **`ci.yml`'s `gemfile-lock-verify` job** installs the **committed** lock frozen
+  on the same macos-26 + Ruby 3.3, and runs `bundle exec fastlane lanes` under
+  it, whenever `Gemfile` or `Gemfile.lock` changes. It is a job-level `if:` — so
+  it shows as **`skipped`**, never absent — because a check you cannot see is
+  indistinguishable from one that passed.
+
+So the first exercise of a new lock is a PR, not the founder's release.
+
 ## Secrets policy
 
 Zero credentials in **this** repo (architecture.md §9) — and since ADR-032 D1

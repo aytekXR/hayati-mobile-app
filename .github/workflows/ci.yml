@@ -61,6 +61,12 @@ jobs:
       # exist and workflow-level paths-ignore would deadlock required checks
       # (Session 002 decision, past-prompts.md).
       code_changed: ${{ steps.changes.outputs.code }}
+      # ADR-056 (#129). Gates `gemfile-lock-verify`, which is a macOS job for a
+      # file that changes about twice a year. Computed HERE, and surfaced as a
+      # job-level `if:` rather than a workflow paths filter, for the reason
+      # written two comments up: a filtered workflow is ABSENT from the checks
+      # list, and absent cannot be told apart from "verified". A skipped job can.
+      ruby_changed: ${{ steps.changes.outputs.ruby }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -74,21 +80,36 @@ jobs:
       - name: detect docs-only push
         id: changes
         run: |
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          # Both signals FAIL OPEN to true: an unknown parent, a force-push, a
+          # dispatch or a first push all run the expensive legs rather than
+          # quietly skipping them. No early `exit 0` — every path must emit BOTH
+          # outputs, or a job gated on the missing one is silently never run.
+          code=true
+          ruby=true
+          base=''
+          case "${{ github.event_name }}" in
+            push)          base='${{ github.event.before }}' ;;
+            pull_request)  base='${{ github.event.pull_request.base.sha }}' ;;
+          esac
+          if [ -n "$base" ] \
+             && [ "$base" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "$base" 2>/dev/null; then
+            # Everything the macOS jobs exercise; docs/, README, tool/ and
+            # repo-root content/ deliberately excluded (ubuntu jobs still cover
+            # them on every push). Only a docs-only PUSH may set code=false.
+            if [ "${{ github.event_name }}" = "push" ] \
+               && git diff --quiet "$base" "${{ github.sha }}" -- app functions firebase.json firestore.rules .github/workflows; then
+              code=false
+            fi
+            # ADR-056: the Ruby bundle. Checked on pushes AND PRs, because the
+            # point is to stop a lock that cannot be installed frozen from ever
+            # reaching main — which means catching it on the PR.
+            if git diff --quiet "$base" "${{ github.sha }}" -- Gemfile Gemfile.lock; then
+              ruby=false
+            fi
           fi
-          base='${{ github.event.before }}'
-          if [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base" 2>/dev/null; then
-            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          # Everything the macOS jobs exercise; docs/, README, tool/ and
-          # repo-root content/ deliberately excluded (ubuntu jobs still cover
-          # them on every push).
-          if git diff --quiet "$base" "${{ github.sha }}" -- app functions firebase.json firestore.rules .github/workflows; then
-            echo "code=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "ruby=$ruby" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -510,6 +531,67 @@ jobs:
           echo "$x" | grep -A1 '<key>NSPrivacyTracking</key>' | grep -q '<false/>' || { echo "::error file=app/ios/Runner/PrivacyInfo.xcprivacy::NSPrivacyTracking is not false in the bundled manifest (issue #55)." >&2; exit 1; }
           echo "$x" | grep -q '<string>CA92.1</string>' || { echo "::error file=app/ios/Runner/PrivacyInfo.xcprivacy::the CA92.1 UserDefaults required-reason entry is missing from the bundled manifest (issue #55)." >&2; exit 1; }
           echo "PrivacyInfo.xcprivacy present and valid in Runner.app (tracking=false, CA92.1 declared)."
+
+  # ADR-056 (issue #129) — DOES THE COMMITTED Gemfile.lock ACTUALLY INSTALL?
+  #
+  # Nothing in this repo has ever answered that. `gemfile-lock.yml` does run
+  # `bundle install --frozen`, but it runs `bundle lock` FIRST and so verifies the
+  # lock it just regenerated — never the file in the repo; its own comment admits
+  # the lock is untracked at that point. So the committed lock has been a claim,
+  # and `release.yml` (which now installs `--frozen`) would have been the first
+  # thing to test it — on the founder's release, which a session cannot watch.
+  #
+  # VISIBLY SKIPPED, never absent. Gated on `quality`'s `ruby_changed` output
+  # rather than a workflow paths filter: a filtered workflow does not appear in
+  # the checks list at all, and "absent" is indistinguishable from "verified".
+  # This is the same shape as rules-drift, and the same Session-002 reasoning
+  # that keeps paths-ignore out of this repo.
+  #
+  # macos-26 + Ruby 3.3 MIRROR release.yml's sign-upload job, and that is not
+  # incidental: a lock is a claim about a PLATFORM. The committed PLATFORMS is
+  # arm64-darwin-23 plus generic `ruby`, so verifying on ubuntu would exercise
+  # the generic fallback and prove the wrong thing — green here, red on release.
+  # If sign-upload's runner or Ruby ever moves, move this in the SAME diff.
+  gemfile-lock-verify:
+    name: gemfile-lock-verify
+    needs: quality
+    if: needs.quality.outputs.ruby_changed == 'true'
+    runs-on: macos-26
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          # Do NOT let the action install for us: it would resolve (and possibly
+          # rewrite) the lock as a side effect, and this job's entire contract is
+          # that the COMMITTED bytes are what get installed.
+          bundler-cache: false
+      # The checksum brackets the install for the reason gemfile-lock.yml's does
+      # NOT hold: there the lock is untracked, so a diff sees nothing. Here it is
+      # tracked, so `git diff --exit-code` is a real check — if --frozen were
+      # bypassed and the lock moved, this fails instead of passing quietly.
+      - name: bundle install --frozen (the COMMITTED lock, byte for byte)
+        run: |
+          before="$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)"
+          bundle install --frozen --jobs 4 --retry 3
+          after="$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)"
+          if [ "$before" != "$after" ]; then
+            echo "::error::bundle install modified the COMMITTED Gemfile.lock despite --frozen ($before -> $after)."
+            exit 1
+          fi
+          git diff --exit-code -- Gemfile.lock
+          echo "committed Gemfile.lock installs frozen and is unchanged ($after)."
+      # Installable is not usable. release.yml runs `bundle exec fastlane ios
+      # beta`, which loads the Fastfile and its plugins, so the verifier must not
+      # prove less than the generator already does.
+      - name: the locked bundle can actually run fastlane
+        run: |
+          bundle exec fastlane --version | tail -3
+          bundle exec fastlane lanes >/dev/null
+          echo "fastlane enumerated its lanes under the committed lock."
 
   integration-emulator:
     name: integration-emulator
