@@ -38,6 +38,32 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**118 — A rule recorded in one feature's ADR does not generalise itself; the diff will walk into it once per call site.** *(S081, ADR-057)*
+ADR-017 D8 exists precisely because `ref.read` on an autoDispose controller
+**throws** once it is disposed — it is why `CoachSendController` captures the
+transcript notifier *before* the await. S081 added an analytics emit to four
+controllers and read the provider *after* the await at **all four**. Only the
+coach path had a test exercising mid-flight disposal, so exactly one went red and
+the other three were **latent, in code whose own `ref.mounted` guards concede the
+disposal can happen**. The suite caught the one that was already covered; nothing
+would have caught the three that were not. **When you add the same line to N call
+sites, the question is not "does it work here" but "which invariant does the
+neighbouring code already defend, and does my line defend it too".** The fix was
+uniform (capture before the await everywhere) and cost one grep; finding it cost
+a full suite run and a regression test written after the fact.
+
+**117 — A behavioural test of a de-duplication key cannot see the key.** *(S081, ADR-057)*
+The once-only funnel events are de-duplicated by strings persisted in
+`SharedPreferences` — `analytics.signup.<uid>` and five siblings. Every one was
+tested as *behaviour*: call twice, assert one emission. **That test passes
+identically for `analytics.singup.<uid>`.** And because the keys persist **across
+app updates**, a typo does not fail anywhere: it silently re-emits a once-only
+event for every existing user, on the version that "fixes" it, and the funnel
+shows a spike nobody can explain. Surfaced by the built-diff review, not by the
+suite. **Where a value is a persisted contract rather than an implementation
+detail, assert the VALUE — behaviour is blind to it by construction**, and the
+`FORMAT_VERSION` pinning discipline (lesson 108) is the same rule one layer up.
+
 **116 — When a threshold needs re-tuning twice, the INSTRUMENT is wrong, not the number.** *(S078/S079, ADR-055 D2 revised)*
 The integration watchdog bounded each suite by wall-clock time. 960s was sized
 against a 540s run; a later run took 640s, so it went to 1080s; **the very next

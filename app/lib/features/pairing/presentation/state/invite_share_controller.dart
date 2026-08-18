@@ -1,3 +1,4 @@
+import 'package:hayati_app/core/analytics/analytics.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../domain/invite_repository_provider.dart';
@@ -40,8 +41,21 @@ class InviteShareController extends _$InviteShareController {
   Future<void> share(String message) async {
     if (_sharing) return;
     _sharing = true;
+    // Captured BEFORE the await: `ref.read` on an autoDispose controller
+    // THROWS once it is disposed, and this one can be disposed mid-flight —
+    // its own `ref.mounted` guard below concedes exactly that. The Analytics
+    // instance itself is keepAlive, so emitting through the captured handle
+    // is safe from anywhere. (Found by ADR-017 D8's disposed-mid-send test,
+    // which is the only place the repo already exercised this; the other
+    // three call sites had the same latent defect and no test to reveal it.)
+    final analytics = ref.read(analyticsProvider);
     try {
       await ref.read(inviteShareLauncherProvider).shareText(message);
+      // `invite_sent` (architecture.md §7) AFTER the launcher returns, so a
+      // share sheet that never opened is not counted as an invite. Per action,
+      // not de-duplicated: a user who shares twice sent two invites (ADR-057
+      // D4). The single-flight guard above already drops a double tap.
+      analytics.inviteSent();
     } finally {
       if (ref.mounted) _sharing = false;
     }

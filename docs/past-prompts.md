@@ -3683,3 +3683,74 @@ The shell branching inside the YAML — the part CI cannot report on until it ru
 The step's own comment sets the precondition: *"A session that can watch a real run should delete it and confirm."* This session cannot, and ADR-029 D2 refused `CODE_SIGN_IDENTITY` on identical grounds. What changed is the method: the comment now names a **canary-path experiment** — move the key somewhere nothing can auto-discover rather than deleting the step, so a wrong premise fails with a *missing key at the auto-discovery path* (attributable, re-runnable) instead of a cryptic signing failure. Not run now for timing, not principle: a failed release costs more than usual while a build is the one thing blocking push testing.
 
 **Next objective written to resume-prompt.md:** analytics — MVP item 11, unbuilt, no issue.
+
+---
+
+## Session 081 — 2026-08-18/19 — #239: the funnel splits three ways, and every client event now has a call site a test keeps honest (ADR-057)
+
+**Objective (from resume-prompt.md):** #239 — analytics is MVP item 11, and it is entirely unbuilt. Gates 2 and 3 are not merely unmeasured; they are unmeasurable.
+
+**Outcome:** done for the autonomous half. Two remainders **filed, not deferred into prose** — **#242** (the server emitter has no port) and **#243** (the two emitters share no identity). PR **#244**.
+
+### The first session where BOTH review passes changed the deliverable
+
+`session-context.md` §5 item 3 requires the review twice. S076–S078 each ran one (lesson 115); S080 ran two. This ran two, and **each pass found something the other could not have**.
+
+**Pass 1, on the design** — 5 lenses × 2 verifiers, 29 agents, 0 errors, 20 findings, 11 surfaced. It produced **revision 2 of ADR-057**, committed before any code. Three findings changed the shape of the work:
+
+* **`share_card_created` is an event for a feature `mvp.md` explicitly lists as OUT** (*"Quizzes & shareable result cards (v1.5)"*), and `grep shareCard app/lib` returns nothing. Revision 1 listed it as a **client** event — which would have minted a typed event nothing could ever emit, reading as an unwired funnel step forever. The partition is not two-way but **three**: 8 client + 3 server + 1 with no feature = 12.
+* **Nothing decided how many times an event fires.** An `install` that fires on every cold boot is not an install; a `paired` that fires on every profile-stream tick is not a pairing. This is the largest silent-wrongness risk in client funnel instrumentation and revision 1 said nothing about it at all.
+* **Gate 3's `install→paid` is a cross-emitter join with no join key** — `install` fires pre-account, `paid` is keyed to a `coupleId`, and D3 removed the obvious candidate on purpose. The metric the MVP exists to answer stays uncomputable, and that is now written down (#243) rather than discovered on launch day.
+
+Also killed: *"the debug sink writes through the existing observability layer"* was **not a specification**. `core/observability/` holds exactly two candidates and both are wrong — `CrashReporter.log` is a **Crashlytics breadcrumb**, so routing events there would have handed an existing processor a data category `dpa-inventory.md` does not list for it.
+
+**Pass 2, on the built diff** — 5 lenses × 2 verifiers, 17 agents, 0 errors, 6 findings, 4 surfaced. **Two of the four were over-claims in my own code**, which is the shape this repo keeps paying for:
+
+* A doc comment claimed *"every event here has a pair of tests there"*. **Five of the eight had no behavioural call-site test anywhere.** Fixed by building them rather than softening the sentence.
+* The once-keys were tested for **behaviour only**. "Call twice, see one" passes just as happily for a key spelled `analytics.singup.<uid>` — and these keys live in `SharedPreferences` **across app updates**, so a typo does not fail, it silently re-emits a once-only event for every existing user on the version that fixes it.
+
+Three of pass 2's five lenses returned **zero** findings after 48–57 tool calls each. That is a genuine nothing-found, not an empty result — §5 item 5's distinction, checked rather than assumed.
+
+### The two decisions that were actually load-bearing
+
+**`paired` is emitted from the profile's `coupleId`, not from the join flow.** `JoinInviteController` is the obvious home and it is wrong: **only the joiner ever runs it.** The inviter becomes half of a couple without touching that controller, so a join-flow emitter would have reported roughly **half** the pairings that happened — and Gate 2 is *"pairing ≥40% of **signups**"*. The metric the whole funnel exists to answer would have read about half its true value, with nothing anywhere reading red. `users/{uid}.coupleId` is stamped server-side for both members.
+
+**The port's default is silence, not a throw.** This departs from the `authRepositoryProvider` idiom deliberately: those seams throw because a missing repository is a bug that must be loud, and **this is telemetry** (`NoopCrashReporter`, `PushDiagnosticRecorder`). The proof it was right is that instrumenting the app root and six controllers broke **zero** of 1,784 existing tests. A throwing base would have reddened every widget test that renders an instrumented screen — the trap `push_diagnostic_recorder_provider.dart` records having already been sprung once.
+
+### The defect the suite caught, and why it was latent at three of four sites
+
+`ref.read` on an autoDispose controller **throws** once it is disposed. All four action call sites read `analyticsProvider` *after* the await. **Only the coach path had a test that exercises mid-flight disposal** (ADR-017 D8's captured-notifier test), so it went red immediately and the other three were invisible. The handle is now captured before the await at all four, and the missing regression test exists at one of the other three — mutation-checked by restoring the bug.
+
+Worth naming: the guard was already written down in the codebase (ADR-017 D8 exists precisely for this), and the diff still walked into it three times. **A rule that lives in one feature's ADR does not generalise itself.**
+
+### Mutation checks, all with the tree restored byte-identical afterwards
+
+| mutant | result |
+|---|---|
+| a 13th event added to `architecture.md` §7 | **red** (2 tests) |
+| `streak_day` **deleted** from §7 | **red** — the direction revision 1's sentinel would have missed |
+| the §7 heading renamed | **red on the floor** — lesson **110**'s fail-open case |
+| a call site deleted | **red**, naming the event and the missing needle |
+| a server event emitted from the client | **red** |
+| `CrashReporter` injected as code into `core/analytics/` | **red** |
+| the release-guard default flipped to `false` | **red** |
+| one once-key typoed | **red** |
+| `analyticsProvider` read after the await again | **red** |
+
+The Crashlytics sentinel's first version failed on **the doc comment explaining the rule** — a guard measuring prose rather than behaviour. It now strips comments, and asserts the strip did not empty the file: lesson 110 applied to the guard itself.
+
+### Documents this slice made stale, and what was done about each
+
+* **`architecture.md` §7** — gained the three-way split and its four honest gaps. Deliberately appended **after** the first sentence, because that sentence is what Sentinel A parses; the sentinel passing afterwards is the proof the grammar is robust to prose growth.
+* **`dpa-inventory.md`** — the Mixpanel row said *"unbuilt: no analytics SDK exists in app or functions today"*. Still true of the **SDK**, no longer true of the **instrumentation**. It now states precisely what exists, that nothing leaves the device so no processor is engaged, and that the trigger for a row is the first vendor adapter.
+* **`implementation-plan.md`** — its cross-cutting rule says instrumentation is *"implemented **with** their features, never retrofitted"*, and this slice retrofits eight events onto M2/M3/M5 features. §7's schema shipped years before any emitter, so there was no "with their features" moment left to take. Acknowledged in both documents; the call-site sentinel is what makes the rule bind **forward** rather than aspirationally.
+* **`ADR-016`** — its Context says *"No analytics stack exists yet (scout-verified)"*, now false. **Not edited**: `docs/adr/README.md` makes accepted records immutable. ADR-057 carries the pointer instead. *(A review lens proposed editing it; both verifiers correctly refused on exactly that ground.)*
+* **`operator-expected.md`** — said analytics was *"0% — no analytics code in `app/lib` at all"*. Now honest, plus **operator item 18**: the vendor token, and the legal change that must land **before** any adapter — bundled with #226 so users are asked once rather than twice.
+
+### Verification
+
+**1,819 app tests** (was 1,784), coverage **87.69%** (gate 68), `flutter analyze` / `dart format` / `rtl_lint` clean. `core/` still imports `features/` in **0** files — the boundary the dimension binding was designed around rather than through.
+
+**Honest bound, stated rather than implied:** prod ships the **no-op sink**. The funnel is *instrumented and emitting, into a debug sink, in dev only*. Nothing here makes Gate 2 or Gate 3 measurable — that needs the founder's token, a legal revision, and #242/#243.
+
+**Commits:** `72bea39` (ADR rev 2), `175da58` (contract + sinks), `fd6b96f` (emitter + state-transition events), `84259b6` (call sites + sentinels + docs), `5bac247` (review pass 2) — PR **#244**.

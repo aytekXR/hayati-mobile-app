@@ -1,3 +1,5 @@
+import 'package:hayati_app/core/analytics/analytics.dart';
+import 'package:hayati_app/core/analytics/analytics_event.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../domain/solo_answer_exception.dart';
@@ -44,10 +46,27 @@ class SoloAnswerController extends _$SoloAnswerController {
   }) async {
     if (state is SoloSaveSaving) return;
     state = const SoloSaveSaving();
+    // Captured BEFORE the await: `ref.read` on an autoDispose controller
+    // THROWS once it is disposed, and this one can be disposed mid-flight —
+    // its own `ref.mounted` guard below concedes exactly that. The Analytics
+    // instance itself is keepAlive, so emitting through the captured handle
+    // is safe from anywhere. (Found by ADR-017 D8's disposed-mid-send test,
+    // which is the only place the repo already exercised this; the other
+    // three call sites had the same latent defect and no test to reveal it.)
+    final analytics = ref.read(analyticsProvider);
     try {
       await ref
           .read(soloAnswersRepositoryProvider)
           .saveAnswer(uid, dayKey, questionId: questionId, text: text);
+      // `q_answered{solo}` (architecture.md §7) — after the save resolves, so a
+      // failed write is not counted as an answer, and BEFORE the ref.mounted
+      // guard, because a controller disposed mid-save still saved. Once per
+      // (uid, dayKey, solo) so an edit does not inflate the count (ADR-057 D4).
+      analytics.qAnswered(
+        uid: uid,
+        dayKey: dayKey,
+        mode: AnalyticsAnswerMode.solo,
+      );
       if (!ref.mounted) return;
       state = const SoloSaveIdle();
     } on SoloAnswerException catch (failure) {

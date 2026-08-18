@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter/services.dart'
     show HapticFeedback, LengthLimitingTextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hayati_app/core/analytics/analytics.dart';
 
 import '../../../core/design_system/card_surface.dart';
 import '../../../core/design_system/radius_tokens.dart';
@@ -249,6 +250,31 @@ class _PairedHomeScreenState extends ConsumerState<PairedHomeScreen>
       ),
     );
 
+    // `streak_day` (architecture.md §7). The streak is SERVER-owned truth
+    // written only by the reveal trigger (ADR-012), so the honest client
+    // observation is "the couple doc now shows a mutual day it did not before"
+    // — keyed on `lastMutualDate`, which the server only ever moves forward.
+    //
+    // Guarded on count > 0 because CoupleStreak.zero is also what an ABSENT
+    // wire field maps to: trigger lag or a not-yet-deployed trigger must never
+    // surface as a real streak, and that rule governs the count as much as the
+    // display.
+    //
+    // Emitted from build, which is safe precisely because the emitter is
+    // idempotent per (uid, lastMutualDate) and never throws — after the first
+    // frame of a given mutual day it is a flag read and a return.
+    final streak = coupleData.streak;
+    final lastMutualDate = streak.lastMutualDate;
+    if (streak.count > 0 && lastMutualDate != null) {
+      ref
+          .read(analyticsProvider)
+          .streakDay(
+            uid: widget.uid,
+            lastMutualDate: lastMutualDate,
+            count: streak.count,
+          );
+    }
+
     return _PairedQuestionView(
       // Re-key on the day so a midnight flip re-seeds the entry controller
       // instead of carrying yesterday's draft into the new question.
@@ -261,7 +287,7 @@ class _PairedHomeScreenState extends ConsumerState<PairedHomeScreen>
       slot: slot,
       // Live server truth off the couple doc (ADR-012); the revealed section
       // shows it only when it is a real, positive streak.
-      streak: coupleData.streak,
+      streak: streak,
     );
   }
 }
@@ -352,6 +378,18 @@ class _PairedQuestionViewState extends ConsumerState<_PairedQuestionView> {
     _revealSignalFired = true;
     HapticFeedback.lightImpact();
     _announceReveal();
+    // `reveal_viewed` (architecture.md §7) rides ADR-051's ONE-SHOT signal
+    // point, so the felt, the heard and the counted reveal are the same
+    // instant — there is no second definition of "the reveal happened" to
+    // drift from this one.
+    //
+    // The `_revealSignalFired` latch is per widget INSTANCE and the revealed
+    // branch also mounts on cold-open-into-revealed, so re-opening the app on
+    // a revealed day would emit again; the emitter's (uid, dayKey) once-key is
+    // what makes it once per day (ADR-057 D4).
+    ref
+        .read(analyticsProvider)
+        .revealViewed(uid: widget.uid, dayKey: widget.dayKey);
   }
 
   /// The heard half of [_signalReveal] (ADR-051 D2).

@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/analytics/analytics.dart';
+import 'core/analytics/debug_analytics_sink.dart';
 import 'core/bootstrap/boot_failure_app.dart';
 import 'core/config/app_config.dart';
 import 'core/firebase/app_check_bootstrap.dart';
@@ -141,6 +143,15 @@ Future<void> main() async {
       config,
       crashReporter: crashReporter,
       extraOverrides: [
+        // The funnel's dev-visible sink (ADR-057 D2b). DEV ONLY, deliberately:
+        // prod leaves `analyticsSinkProvider` at its NoopAnalyticsSink default
+        // until a vendor adapter and the founder's Mixpanel token exist, and
+        // until docs/legal/ + docs/dpa-inventory.md have the row that adapter
+        // would require (#226). The sink is ALSO a no-op under kReleaseMode, so
+        // the two gates fail independently — this wiring survives someone
+        // deleting that guard, and that guard survives someone copying this
+        // line into main_prod.dart.
+        analyticsSinkProvider.overrideWithValue(const DebugAnalyticsSink()),
         authRepositoryProvider.overrideWith(
           (ref) => FirebaseAuthRepository(
             firebaseAuth: FirebaseAuth.instance,

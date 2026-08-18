@@ -1,12 +1,12 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-18 02:40 UTC
+**Last Updated:** 2026-08-19 UTC
 
 ## Current Status
 
-- Session: **080**
-- Goal: **#129 — the release lane installs the lock it was given, and CI verifies that lock for the first time**
-- Status: **Complete** (S080 merged and verified on `main`)
+- Session: **081**
+- Goal: **#239 — analytics: the funnel splits three ways, and every client event now has a call site a test keeps honest**
+- Status: **Complete for the autonomous half** (ADR-057; PR #244). Two remainders filed: **#242**, **#243**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
 - Production Readiness: **Beta Ready**
 
@@ -16,18 +16,32 @@
 |---|---|
 | Engineering infrastructure (M0–M6.3, coach live) | **~95%** — all milestones closed; `coachProxy` is deployed to prod on the live Anthropic provider with `LLM_API_KEY` present on both projects (verified today) |
 | MVP scope item 3 — question bank 400/300/300 | **~2%** — 7 questions per locale exist, solo only; no couple packs |
-| MVP scope item 11 — analytics (Mixpanel + gate instrumentation) | **0%** — no analytics code in `app/lib` at all |
+| MVP scope item 11 — analytics (Mixpanel + gate instrumentation) | **instrumented, not measured** — was 0% until S081. The app now emits 8 of the 12 funnel events with typed payloads and real call sites, and two tests keep the code and `architecture.md` §7 from drifting apart. **But prod ships a no-op sink: no event leaves any device, and no Mixpanel project exists.** Three named gaps remain — the 3 entitlement events have no server emitter (#242), Gate 3's `install→paid` has no join key (#243), and the vendor adapter needs a legal-text change first (#226, item 16) |
 | MVP acceptance (purchases, push delivery, native review, legal) | **not met** — see Blockers |
 
 The engineering is nearly done. **Content and instrumentation are the gap**, and most of what is left is yours rather than a session's.
 
 ## Latest Checkpoint
 
-`main` is at **`509f23d`**, green on every job including `integration-emulator`.
-**2,844 tests pass** (1,743 app across 158 files; 1,101 functions across 54 files,
-97.47% coverage). Nothing is broken.
+**S081 (2026-08-19) — analytics, MVP item 11.** The app has gone from **no
+analytics code at all** to emitting **8 of the 12 funnel events** with typed
+payloads and real call sites, behind a port. **1,819 app tests** (was 1,743),
+coverage **87.69%**. Nothing is broken.
 
-Since the last checkpoint, four issues closed — **#137**, **#227**, **#208**, and
+**Read this part carefully, because the honest status is narrower than "analytics
+is built":** prod is wired to a **no-op sink**. **No event leaves any device.**
+There is no Mixpanel project, no SDK, and no new processor — so nothing in your
+DPA paperwork changes *today*. What exists is the seam, the events, and two tests
+that stop the code and the specification drifting apart. Turning it into a
+*measurement* is **item 18**, and its first step is legal, not technical.
+
+Three gaps are named rather than hidden: the three entitlement events
+(`trial_start`/`paid`/`churn`) have **no server emitter** (#242); Gate 3's
+`install→paid` **cannot be computed** because the two halves of the funnel share
+no identity, and minting one is a privacy decision (#243); and the `storefront`
+dimension is empty because the app has no source for it.
+
+Before that, four issues closed — **#129**, **#137**, **#227**, **#208**, and
 earlier **#175/#174/#222/#223/#221**:
 
 - **#137** — the bidi seam classifies characters against generated Unicode tables
@@ -202,6 +216,24 @@ A session can draft the wording.
 - **#63** Phosphor vs Material icons, and **#71** a motion token — brandkit
   revisions, both low priority.
 
+### 18. The analytics vendor — and the legal change that must land BEFORE it
+S081 built the funnel behind a port: eight events emit today, into a debug sink,
+**in dev only**. Prod is wired to a no-op, so **nothing leaves any device** and no
+processor is engaged. Turning it into a *measurement* needs two things from you,
+in this order:
+
+1. **A Mixpanel (or Firebase Analytics) project and token.** It drops in behind
+   an unchanged seam — no app rework.
+2. **⚠️ FIRST, the legal change.** Analytics events are *collection*. The moment
+   an adapter sends them off the device, `docs/legal/` needs a collection line
+   and `docs/dpa-inventory.md` needs a processor row — and that **bumps
+   `CURRENT_LEGAL_VERSION` and re-prompts every existing user for consent**,
+   exactly like item 16. **Bundle the two**: one legal revision, one re-consent,
+   covering both push and analytics, rather than asking your users twice.
+
+**There is no CI check that stops an adapter landing without step 2** — the gate
+is a paragraph in ADR-057. That is stated plainly rather than implied.
+
 ## Current Blockers
 
 Nothing blocks the *next session's engineering*. These block **launch**:
@@ -210,29 +242,30 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 2. **Push has never been delivered** — no device has ever registered (item 1).
 3. **Prod-vs-`main` drift is unmeasured**, not passing — both drift checks SKIPPED for want of one read-only secret (item 4).
 4. **Legal documents are unreviewed** with three blanks (items 5, 14, 15).
-5. **Content is ~2% authored** and no analytics exist — MVP scope items 3 and 11.
+5. **Content is ~2% authored** — MVP scope item 3.
+6. **The funnel emits into a no-op in prod** — item 11 is instrumented but not *measured*, and turning that on is item 18 plus item 16.
 
 ## Next Step
 
-Begin **S081 / #239** — the analytics contract, port and emitters.
+Begin **S082 / #226** — draft the legal-text revision, bundled.
 
-S080 is closed: `9318c44` on `main`, **#129 CLOSED**, post-merge run green on
-every job including `integration-emulator`. The new `gemfile-lock-verify` check
-reported **`skipped`** on both the PR and `main` — visible in the checks list
-rather than absent, which was the whole point of gating it with a job-level `if:`
-instead of a workflow paths filter.
+S081 is closed: **#239** done for its autonomous half (PR #244, ADR-057), with
+**#242** and **#243** filed as its two remainders. The app now emits 8 of the 12
+funnel events — **into a no-op in production**, deliberately, because turning that
+into a measurement needs the legal change below first.
 
 ## Next Session Goal
 
-**#239 — analytics.** MVP item 11 is entirely unbuilt: no event is emitted
-anywhere in the app, so **Gates 2 and 3 are not merely unmeasured, they are
-unmeasurable**. The contract already exists (`architecture.md` §7 enumerates the
-funnel; §2 reserves `core/analytics/`; ADR-016 binds the `coach_msg` shape).
+**#226 — and it now covers two things, not one.** The privacy policy says
+*"ikimiz does not send push notifications today"* (true of the outcome, **false of
+the system**) and names neither `fcmTokens` nor `pushDiagnostic`. S081 added a
+second topic to the same document: analytics.
 
-The typed contract, the port and the emitters are autonomous, and Firebase is
-already wired so it can back them today. **The Mixpanel token is yours** — it
-belongs behind the same port rather than in front of the work.
+**Any revision re-prompts every existing user for consent.** Doing push now and
+analytics later asks them **twice**. So the next session drafts **one** revision
+covering both — TR/AR/EN, all three documents, plus the DPA rows — and **stops at
+a draft**. It will not bump `CURRENT_LEGAL_VERSION`; that bump is the thing that
+re-gates your users, and it is yours to authorise. See **item 18**.
 
-⚠️ Analytics events are *collection*, and **#226** already says the privacy
-policy's collection list is wrong. Do not let a second instance of that defect
-land quietly.
+The three bracketed placeholders (entity, contact, governing law) stay bracketed —
+a session must never guess your legal name into a legal document.
