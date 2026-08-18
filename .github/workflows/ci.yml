@@ -538,8 +538,12 @@ jobs:
   # `bundle install --frozen`, but it runs `bundle lock` FIRST and so verifies the
   # lock it just regenerated — never the file in the repo; its own comment admits
   # the lock is untracked at that point. So the committed lock has been a claim,
-  # and `release.yml` (which now installs `--frozen`) would have been the first
-  # thing to test it — on the founder's release, which a session cannot watch.
+  # and `release.yml` (which now installs frozen) would have been the first thing
+  # to test it — on the founder's release, which a session cannot watch.
+  #
+  # ⚠️ VISIBLE, NOT ENFORCING. This job is not in branch protection's required
+  # checks (quality + ios-build-smoke + functions-rules), so a red result here
+  # shows on the PR without blocking the merge. Do not read it as a gate.
   #
   # VISIBLY SKIPPED, never absent. Gated on `quality`'s `ruby_changed` output
   # rather than a workflow paths filter: a filtered workflow does not appear in
@@ -573,13 +577,14 @@ jobs:
       # NOT hold: there the lock is untracked, so a diff sees nothing. Here it is
       # tracked, so `git diff --exit-code` is a real check — if --frozen were
       # bypassed and the lock moved, this fails instead of passing quietly.
-      - name: bundle install --frozen (the COMMITTED lock, byte for byte)
+      - name: bundle install, FROZEN — the COMMITTED lock, byte for byte
         run: |
           before="$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)"
-          bundle install --frozen --jobs 4 --retry 3
+          bundle config set frozen true
+          bundle install --jobs 4 --retry 3
           after="$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)"
           if [ "$before" != "$after" ]; then
-            echo "::error::bundle install modified the COMMITTED Gemfile.lock despite --frozen ($before -> $after)."
+            echo "::error::bundle install modified the COMMITTED Gemfile.lock despite frozen mode ($before -> $after)."
             exit 1
           fi
           git diff --exit-code -- Gemfile.lock

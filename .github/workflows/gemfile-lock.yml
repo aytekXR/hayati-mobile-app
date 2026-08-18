@@ -87,7 +87,7 @@ jobs:
       # `bundle lock`. --frozen makes bundler refuse to modify the lock: if the lock
       # and the Gemfile disagree, or a resolved gem cannot be fetched for this
       # platform, this step fails and no artifact is published.
-      - name: bundle install --frozen (the `npm ci` of this ecosystem)
+      - name: bundle install, FROZEN (the `npm ci` of this ecosystem)
         # The checksum brackets the install because `git diff` cannot help here: the
         # lock is UNTRACKED at this point, so a diff against HEAD sees nothing and would
         # pass vacuously. Comparing the file to itself before and after is the only
@@ -95,10 +95,13 @@ jobs:
         # moved, the artifact would not be the thing that was verified.
         run: |
           before="$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)"
-          bundle install --frozen --jobs 4 --retry 3
+          # Deprecated flag replaced with the config bundler itself
+          # recommends (S080/ADR-056); same assertion, no deprecation warning.
+          bundle config set frozen true
+          bundle install --jobs 4 --retry 3
           after="$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)"
           if [ "$before" != "$after" ]; then
-            echo "::error::bundle install modified Gemfile.lock despite --frozen ($before -> $after); the artifact would not match what was verified."
+            echo "::error::bundle install modified Gemfile.lock despite frozen mode ($before -> $after); the artifact would not match what was verified."
             exit 1
           fi
           echo "Gemfile.lock is byte-identical after a frozen install ($after)."

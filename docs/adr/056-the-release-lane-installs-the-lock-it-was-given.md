@@ -97,8 +97,8 @@ founder's next release — the thing #129 warns against, merely narrowed. So the
 is closed at the source.
 
 **A new `gemfile-lock-verify` job in `ci.yml`**, on `macos-26` + Ruby 3.3,
-installs the **committed** lock with `--frozen` and then runs
-`bundle exec fastlane lanes`. It is gated on a computed `gemfile_changed` output
+installs the **committed** lock frozen and then runs
+`bundle exec fastlane lanes`. It is gated on a computed `ruby_changed` output
 so that on a PR touching no Ruby files it appears as **`skipped`**, never absent.
 
 ### Why not the paths-filtered `pull_request` trigger this ADR first proposed
@@ -191,9 +191,26 @@ run, with the canary-path experiment as the method** — not on further analysis
 **What this buys.** The lane stops lying in a comment; a `Gemfile`/lock
 divergence fails loudly instead of silently re-resolving; and for the first time
 the **committed** lock is verified installable, on the platform that installs it,
-before it can reach `main`.
+on the PR that changes it.
 
 **What it costs.** One macOS job in `ci.yml`, which runs only when `Gemfile*` changes and is **visibly skipped** otherwise — so the checks list distinguishes *verified* from *not applicable*.
+
+**⚠️ VISIBLE, NOT ENFORCING — and the build-diff review caught this ADR claiming
+otherwise.** Branch protection requires exactly `quality`, `ios-build-smoke` and
+`functions-rules` (read from the API, not assumed). `gemfile-lock-verify` is not
+among them, so a red result shows on the PR and **does not block the merge**.
+Earlier drafts of this ADR and of both workflow comments said such a lock *"never
+reaches main"*; that does not follow from a non-required check. Making it required
+is a single repo setting and is recorded as an operator action rather than
+asserted here as if it were already true.
+
+**⚠️ A deprecation the measurement itself printed.** This ADR cites run
+`32087803351` as evidence that a frozen install passes on the release image — and
+that run's log also says `--frozen` is **deprecated** in bundler 2.5.22, advising
+`bundle config set frozen true`. The run was quoted for its platform and version
+facts while its warnings went unread, which is the same defect as citing an
+instrument without saying what it reported. All three workflows now use the
+config form.
 
 **⚠️ What is still unproven, stated plainly.** That the release lane *as a whole*
 succeeds with `--frozen`. Decision 3 verifies the same command on the same image,
