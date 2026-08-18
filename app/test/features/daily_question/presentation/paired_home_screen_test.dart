@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/analytics/analytics.dart';
+import 'package:hayati_app/core/analytics/analytics_event.dart';
 import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/core/widgets/seed_vessel.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
@@ -35,6 +37,7 @@ import '../../../support/fake_local_flag_store.dart';
 import '../../../support/fake_profile_repository.dart';
 import '../../../support/fake_question_pack_repository.dart';
 import '../../../support/localized_app.dart';
+import '../../../support/recording_analytics_sink.dart';
 
 const coupleId = 'couple-1';
 const ownUid = 'uid-1';
@@ -118,6 +121,7 @@ void main() {
       FakeCoupleAnswersRepository answers,
       FakeQuestionPackRepository packs,
       FakeEntitlementRepository entitlements,
+      RecordingAnalyticsSink analytics,
     })
   >
   pumpPaired(
@@ -169,6 +173,10 @@ void main() {
     final packs = FakeQuestionPackRepository()..onLoadPack = onLoadPack;
     if (seedDefaultPack) packs.seedPack(pairedPack);
     final mirrors = entitlements ?? FakeEntitlementRepository();
+    // ADR-057: `reveal_viewed` fires at ADR-051's one-shot signal point and
+    // `streak_day` from the streak read. Both are wired here so the funnel
+    // assertions below run against the REAL screen rather than a stand-in.
+    final analytics = RecordingAnalyticsSink();
     // Signed-in auth so the pushed PackSelectionScreen's auth listen resolves;
     // inert for tests that never push it (PairedHomeScreen ignores auth).
     final auth = FakeAuthRepository(initialUser: const AuthUser(uid: ownUid));
@@ -205,6 +213,7 @@ void main() {
           // The premium coach tile can push CoachScreen, which resolves the
           // coach seams (inert for every non-coach test — the tile is gated).
           localFlagStoreProvider.overrideWithValue(FakeLocalFlagStore()),
+          analyticsSinkProvider.overrideWithValue(analytics),
           coachRepositoryProvider.overrideWith((ref) => FakeCoachRepository()),
           profileRepositoryProvider.overrideWith(
             (ref) => FakeProfileRepository(),
@@ -218,6 +227,7 @@ void main() {
       answers: answers,
       packs: packs,
       entitlements: mirrors,
+      analytics: analytics,
     );
   }
 
@@ -1237,6 +1247,103 @@ void main() {
         expect(announcements.single['message'], ar.pairedRevealAnnouncement);
         expect(announcements.single['textDirection'], TextDirection.rtl.index);
       });
+    });
+  });
+
+  group('the funnel events this screen owns (ADR-057)', () {
+    // Added in review pass 2. The call-site SENTINEL proves `reveal_viewed` and
+    // `streak_day` have a call site; it deliberately cannot prove the call site
+    // is on the right PATH — an emit in the wrong branch satisfies it. These
+    // are the behavioural half, and without them the `streak.count > 0` guard
+    // (which exists so trigger lag never surfaces as a real streak) had nothing
+    // asserting it for the COUNT the way the display already had for the TEXT.
+    Couple coupleWithStreak(int count) => Couple(
+      id: coupleId,
+      memberUids: const [ownUid, partnerUid],
+      timezone: istanbul,
+      streak: CoupleStreak(
+        count: count,
+        lastMutualDate: '20260709',
+        graceTokens: 1,
+      ),
+    );
+
+    Map<String, CoupleAnswer> bothAnswered() => {
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, ownUid):
+          ackedAnswer('My own thoughts.'),
+      FakeCoupleAnswersRepository.keyFor(coupleId, todayKey, partnerUid):
+          ackedAnswer('Partner reply here.'),
+    };
+
+    testWidgets('a revealed day with a positive streak emits reveal_viewed '
+        'AND streak_day', (tester) async {
+      final fakes = await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(fakes.analytics.names, contains('reveal_viewed'));
+      expect(fakes.analytics.names, contains('streak_day'));
+      expect(
+        fakes.analytics.events.whereType<StreakDayEvent>().single.count,
+        4,
+      );
+    });
+
+    testWidgets('a ZERO streak emits no streak_day — trigger lag must not '
+        'surface as a streak in the COUNT any more than in the display', (
+      tester,
+    ) async {
+      // The default couple carries CoupleStreak.zero.
+      final fakes = await pumpPaired(tester, initialAnswers: bothAnswered());
+      await tester.pumpAndSettle();
+
+      expect(fakes.analytics.names, contains('reveal_viewed'));
+      expect(
+        fakes.analytics.names,
+        isNot(contains('streak_day')),
+        reason: 'a zero streak is not a streak day',
+      );
+    });
+
+    testWidgets('a LOCKED day (own answer not in) emits no reveal_viewed', (
+      tester,
+    ) async {
+      final fakes = await pumpPaired(tester, couple: coupleWithStreak(4));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.analytics.names,
+        isNot(contains('reveal_viewed')),
+        reason: 'nothing has been revealed',
+      );
+    });
+
+    testWidgets('the reveal is counted ONCE, however many frames the '
+        'choreography renders', (tester) async {
+      final fakes = await pumpPaired(
+        tester,
+        couple: coupleWithStreak(4),
+        initialAnswers: bothAnswered(),
+      );
+      await tester.pumpAndSettle();
+      // Rebuild storm: the revealed subtree holds an AnimatedBuilder, and the
+      // streak emit rides `build`. Both must stay at one.
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.analytics.names.where((n) => n == 'reveal_viewed'),
+        hasLength(1),
+      );
+      expect(
+        fakes.analytics.names.where((n) => n == 'streak_day'),
+        hasLength(1),
+      );
     });
   });
 }

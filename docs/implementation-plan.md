@@ -167,4 +167,4 @@ v1.5 features enter as fresh milestone specs written *at that time* — pre-spec
 
 - Every milestone ends with docs sync (`architecture.md`, ADRs) — rule #8.
 - Content bank authoring (non-code) proceeds in parallel; the pack validator (M3) is the only code dependency.
-- Gate instrumentation events (`architecture.md` §7) are implemented *with* their features, never retrofitted.
+- Gate instrumentation events (`architecture.md` §7) are implemented *with* their features, never retrofitted. **⚠️ Honoured going forward, breached once knowingly (S081, ADR-057):** §7's schema shipped years before any emitter existed, so the eight client events were retrofitted onto features from M2/M3/M5 — there was no "with their features" moment left to take. The rule is not weakened by that: ADR-057 Decision 6's **call-site sentinel** turns it from aspiration into a red test, so a feature added after that ADR which needs a §7 event cannot merge without its call site. See ADR-057's Consequences.

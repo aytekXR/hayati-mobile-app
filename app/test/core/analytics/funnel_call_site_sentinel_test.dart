@@ -27,8 +27,17 @@ import 'package:hayati_app/core/analytics/funnel_event.dart';
 ///
 /// **That the call site is on the right PATH.** An `invite_sent` emitted from an
 /// error branch satisfies this test. Per-call-site behaviour — the happy path
-/// emits, the failure path does not — is `funnel_call_sites_test.dart`'s job,
-/// and every event here has a pair of tests there.
+/// emits, the wrong state does not — lives in THREE files, and this list is
+/// exhaustive because an earlier draft of this comment claimed all eight were
+/// covered in one of them when five were covered nowhere at all:
+///
+/// * `funnel_call_sites_test.dart` — `invite_sent`, `q_answered` (both modes),
+///   `coach_msg`: the action events, each with a happy path and a failure path.
+/// * `analytics_funnel_sync_test.dart` — `install`, `signup`, `paired`: the
+///   state-transition events, including that `paired` waits for a `coupleId`.
+/// * `paired_home_screen_test.dart` — `reveal_viewed`, `streak_day`, against
+///   the real screen, including that a ZERO streak emits no `streak_day` and a
+///   rebuild storm emits neither twice.
 void main() {
   /// The source the app could plausibly emit from: every feature file, plus the
   /// composition root (where the three state-transition events live).

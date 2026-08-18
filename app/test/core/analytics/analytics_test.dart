@@ -136,6 +136,54 @@ void main() {
       ]);
     });
 
+    // The keys are the ADR-057 D4 table, asserted as STRINGS and not only as
+    // behaviour. Added in review pass 2: a behavioural test ("call twice, see
+    // one") passes just as happily for `analytics.singup.$uid` as for
+    // `analytics.signup.$uid` — and these keys live in SharedPreferences ACROSS
+    // app updates, so a typo does not fail, it silently re-emits a once-only
+    // event for every existing user on the version that fixes it.
+    test(
+      'every once-key matches the ADR-057 D4 table, character for character',
+      () {
+        const cases = <String, void Function(Analytics)>{
+          'analytics.install': _install,
+          'analytics.signup.u1': _signup,
+          'analytics.paired.u1.c1': _paired,
+          'analytics.q.u1.20260818.solo': _qAnsweredSolo,
+          'analytics.reveal.u1.20260818': _revealViewed,
+          'analytics.streak.u1.20260818': _streakDay,
+        };
+        expect(
+          cases,
+          hasLength(6),
+          reason:
+              'ADR-057 D4 lists six keyed events; teach this test about any '
+              'new one',
+        );
+        for (final entry in cases.entries) {
+          final sink = RecordingAnalyticsSink();
+          final container = ProviderContainer(
+            overrides: [
+              analyticsSinkProvider.overrideWithValue(sink),
+              localFlagStoreProvider.overrideWithValue(
+                FakeLocalFlagStore(initial: {entry.key}),
+              ),
+            ],
+          );
+          addTearDown(container.dispose);
+          entry.value(container.read(analyticsProvider));
+          expect(
+            sink.names,
+            isEmpty,
+            reason:
+                'the emitter did not recognise the already-claimed key '
+                '"${entry.key}" — its key string has drifted from ADR-057 D4, and '
+                'every existing user would re-emit this event once on upgrade',
+          );
+        }
+      },
+    );
+
     test('the per-action events are NOT deduplicated', () {
       final analytics = analyticsOf(containerWith());
       analytics.inviteSent();
@@ -227,3 +275,16 @@ class _ThrowingSink implements AnalyticsSink {
   void record(AnalyticsEvent event, AnalyticsDimensions dimensions) =>
       throw StateError('sink exploded');
 }
+
+// Top-level so the key table above stays a map of (key -> the one call that
+// should be suppressed by it), rather than closures that could quietly drift
+// from the emitter's real signatures.
+void _install(Analytics a) => a.install();
+void _signup(Analytics a) => a.signup(uid: 'u1');
+void _paired(Analytics a) => a.paired(uid: 'u1', coupleId: 'c1');
+void _qAnsweredSolo(Analytics a) =>
+    a.qAnswered(uid: 'u1', dayKey: '20260818', mode: AnalyticsAnswerMode.solo);
+void _revealViewed(Analytics a) =>
+    a.revealViewed(uid: 'u1', dayKey: '20260818');
+void _streakDay(Analytics a) =>
+    a.streakDay(uid: 'u1', lastMutualDate: '20260818', count: 3);

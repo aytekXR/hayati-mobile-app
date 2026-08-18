@@ -355,3 +355,25 @@ row, and that is a founder decision, not a follow-up commit.
 now easy to point at a vendor, and the paperwork gate lives in this paragraph
 rather than in CI. Recorded here so the next session cannot land the adapter
 believing the paperwork is done.
+
+### Two documents this slice makes stale, named rather than left to be found
+
+Both were surfaced by the built-diff review pass.
+
+**`implementation-plan.md`'s cross-cutting rule says instrumentation is
+*"implemented **with** their features, never retrofitted"* — and this slice
+retrofits eight events onto features shipped in M2, M3 and M5.** The rule is
+right and stays; what it did not anticipate is a funnel whose *schema* shipped
+in §7 years before any emitter existed, so there was never a "with their
+features" moment to take. **The rule now binds forward**: a feature added after
+this ADR that needs a §7 event ships the call site in its own diff, and
+Decision 6's call-site sentinel is what makes that non-optional rather than
+aspirational. `implementation-plan.md` carries a pointer to this paragraph.
+
+**ADR-016's Context says *"No analytics stack exists yet (scout-verified; §7 is
+an unbuilt schema)"*, and after this slice that is false.** It is **not edited**:
+`docs/adr/README.md` is explicit that *"records are immutable once accepted"*.
+The statement was true when written and is part of the reasoning that produced
+ADR-016's log-shape decision — a decision this ADR *implements* rather than
+overturns. Recorded here so a session reading ADR-016 for the `coach_msg`
+contract does not also inherit its 2026-07-12 view of the world.
