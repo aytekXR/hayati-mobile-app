@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // riverpod_annotation (already a direct dependency) exposes it.
 import 'package:riverpod_annotation/riverpod_annotation.dart' show Override;
 
+import 'core/analytics/analytics.dart';
 import 'core/config/app_config.dart';
 import 'core/config/app_config_provider.dart';
 import 'core/design_system/hayati_theme.dart';
@@ -19,6 +20,8 @@ import 'features/notifications/presentation/state/push_token_sync.dart';
 import 'features/pairing/presentation/state/pending_invite.dart';
 import 'features/privacy_lock/presentation/privacy_guard.dart';
 import 'features/privacy_lock/presentation/state/privacy_lock_controller.dart';
+import 'features/profile/presentation/state/analytics_dimensions_binding.dart';
+import 'features/profile/presentation/state/analytics_funnel_sync.dart';
 
 /// Boots the app for the given flavor [config]. Called only by the flavor
 /// entrypoints (`main_dev.dart` / `main_prod.dart`), which pass the
@@ -40,6 +43,14 @@ void runHayati(
     ProviderScope(
       overrides: [
         appConfigProvider.overrideWithValue(config),
+        // The §7 dimensions become profile-aware here rather than in
+        // core/analytics/ (ADR-057 D3): nothing under core/ imports features/,
+        // and the composition root is where that boundary is crossed. Applied
+        // in the BASE overrides, not extraOverrides, so widget tests get the
+        // same resolver — it degrades to the device locale when the auth and
+        // profile seams are unwired, which is exactly a signed-out user's
+        // dimensions.
+        analyticsDimensionsProvider.overrideWith(profileAnalyticsDimensions),
         ...extraOverrides,
       ],
       child: const HayatiApp(),
@@ -93,6 +104,13 @@ class HayatiApp extends ConsumerWidget {
     // replays BOOT state (re-locking after a wipe, or reverting a just-enabled
     // lock). `wipe()` is a generation bump + `store.clear()` + an in-place state
     // mutation, on purpose (review finding FLUTTER-2).
+    // The three funnel events that are state transitions rather than user
+    // actions — install, signup, paired (ADR-057 D4). Same mount precedent and
+    // same reason as the three listens above: a warm start's restored session
+    // must be OBSERVED, not waited on for an auth EVENT that will never come.
+    // `paired` rides the profile's coupleId, not the join flow, because only
+    // the joiner runs that flow — see analytics_funnel_sync.dart.
+    ref.listen(analyticsFunnelSyncProvider, (_, _) {});
     ref.listen(authControllerProvider, (previous, next) {
       if (next is! AuthSignedIn) {
         ref.invalidate(coachTranscriptProvider);

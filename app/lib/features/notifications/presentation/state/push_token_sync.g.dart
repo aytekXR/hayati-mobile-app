@@ -161,7 +161,7 @@ final class PushTokenSyncProvider
   }
 }
 
-String _$pushTokenSyncHash() => r'2112542e82fc7b1519f38d9cf7a331b70e0f5a09';
+String _$pushTokenSyncHash() => r'29ce1efef0e42db85dfda3e89c3026ccbef0cb9e';
 
 /// Keeps the device's FCM registration token in lockstep with the auth state
 /// (ADR-042 Decision 1/D6), on the `PurchasesIdentitySync` mold — and, since
