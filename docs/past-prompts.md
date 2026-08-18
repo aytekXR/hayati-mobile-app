@@ -3636,3 +3636,50 @@ Two gaps it found that **do** hold, both verified directly: **analytics has no i
 **Commits:** `4c304aa` (citation audit), `2b86c30` (silence bound), `adfa718` (checkpoint rewrite) — PR **#238**.
 
 **Next objective written to resume-prompt.md:** #129 with #121, as S080.
+
+---
+
+## Session 080 — 2026-08-18 — #129: the release lane installs the lock it was given (ADR-056)
+
+**Objective (from resume-prompt.md):** #129 (with #121) — the release lane's `bundle install` comment is false, and the lane installs unfrozen.
+
+**Outcome:** done for #129. **#121 deliberately left open** with its trigger sharpened — see below.
+
+### The first session to run BOTH review passes, and the design pass earned it
+
+`session-context.md` §5 item 3 requires the review twice — once on the design, once on the built diff. S076–S078 each ran one (lesson 115). This ran both, and **the design pass found a blocker that could not have existed after implementation**:
+
+The ADR proposed a **paths-filtered `pull_request` trigger**. That contradicts a Session 002 decision recorded in `ci.yml`: *"workflow-level `paths-ignore` would **deadlock required checks**"*. The repo has **zero** paths-filtered workflows, deliberately. And a filtered workflow is **absent** from the checks list — indistinguishable from "verified" — where a skipped job is an honest, visible gap.
+
+Rebuilding on the repo's own visible-skip pattern dissolved two further findings at once: a `verify` mode inside `gemfile-lock.yml` risked a mis-wired `if:` leaving `bundle lock` running before the frozen install — **verifying the lock it had just created**, the exact defect being fixed *in that same file* — and `gemfile-lock.yml` stays dispatch-only, which **ADR-036 D4 cites as THE model** and `fastlane/README.md` calls "(dispatch-only)".
+
+### The gap was wider than the issue said
+
+#129: *"no release run has ever executed with the committed lock."* Reading `gemfile-lock.yml` in full: it runs `bundle lock` **first**, so it verifies the lock it just regenerated — its own comment concedes the file is untracked at that moment. **Nothing ever had.**
+
+`ci.yml` gained **`gemfile-lock-verify`**: the committed bytes, installed frozen on macos-26 + Ruby 3.3 (mirroring `sign-upload`, because a lock is a claim about a **platform** — `arm64-darwin-23` plus generic `ruby`, so ubuntu would exercise the fallback and be green while the release goes red), bracketed by a checksum **and** `git diff --exit-code` (a real check here precisely because the file *is* tracked), then `fastlane lanes`, because installable is not usable.
+
+### The risk was lower than the issue assumed, and measured rather than argued
+
+#129 calls `--frozen` *"the riskier half"* that *"should land on a run someone is watching"*. A session cannot watch a release run — but `gemfile-lock.yml` is dispatch-only with a read-only token that never commits, so a session **may** run it, and did (`32087803351`): same image, same Ruby, **`arm64-darwin-23`** both sides, **fastlane 2.237.0** both sides, frozen install passed.
+
+### Four things the built-diff pass caught afterwards
+
+1. **"A lock that cannot be installed frozen never reaches `main`" is false** — I wrote it in two comments and the ADR. Required checks are exactly `quality`, `ios-build-smoke`, `functions-rules` (read from the API). The job is **visible, not enforcing**. Making it required is now operator action 8.
+2. **The run I cited printed a deprecation I did not read** — `--frozen` is deprecated in bundler 2.5.22, and that run's log said so while I extracted platform facts from it. All three workflows now use `bundle config set frozen true`.
+3. The ADR named the gate `gemfile_changed`; the code uses `ruby_changed`.
+4. Found while fixing (2): the step **names** still said `--frozen` after the commands stopped using it — lesson 108 in a workflow file.
+
+**That first one is the fourth over-claim of this session's shape** (after `62,408`, the miscited §5.1, "every clause is false"). The pattern is worth naming: a confident absolute written next to code that works reads as verified because the code is. The last two were caught by review before reaching anyone.
+
+### Verification
+
+The shell branching inside the YAML — the part CI cannot report on until it runs — was exercised in a throwaway git repo across **seven** cases: docs-only push, lock-change push, lock-change PR, app-only PR, app-only push, `workflow_dispatch`, and an unknown/force-push base. All seven produce the intended `(code, ruby)` pair, including both fail-open paths. `release_lane_lint`: PASS (12 checks, 80 self-test checks). `deploy_lane_lint`: PASS.
+
+⚠️ **Unproven, and stated rather than implied:** the release lane *as a whole* under frozen install. Only the founder can run it. If it fails at `bundle install`, that is frozen mode working, and the remedy is one dispatch of `gemfile-lock.yml` plus committing the artifact.
+
+### #121 — left open on purpose
+
+The step's own comment sets the precondition: *"A session that can watch a real run should delete it and confirm."* This session cannot, and ADR-029 D2 refused `CODE_SIGN_IDENTITY` on identical grounds. What changed is the method: the comment now names a **canary-path experiment** — move the key somewhere nothing can auto-discover rather than deleting the step, so a wrong premise fails with a *missing key at the auto-discovery path* (attributable, re-runnable) instead of a cryptic signing failure. Not run now for timing, not principle: a failed release costs more than usual while a build is the one thing blocking push testing.
+
+**Next objective written to resume-prompt.md:** analytics — MVP item 11, unbuilt, no issue.

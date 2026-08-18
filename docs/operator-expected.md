@@ -1,11 +1,11 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-18 01:00 UTC
+**Last Updated:** 2026-08-18 02:10 UTC
 
 ## Current Status
 
-- Session: **079**
-- Goal: **Harden the S078 integration-suite watchdog after its own first post-merge run falsified its bound** *(replanned mid-session — see Plan Changes)*
+- Session: **080**
+- Goal: **#129 — the release lane installs the lock it was given, and CI verifies that lock for the first time**
 - Status: **On Track**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
 - Production Readiness: **Beta Ready**
@@ -142,52 +142,61 @@ Apple Developer portal → Identifiers → `com.beyondkaira.hayati` → tick
 **Associated Domains** → Save. Without it, an invite link opens the web page
 instead of jumping into the app.
 
-### 8. Set a Firebase budget alert
+### 8. Optional, one setting — make `gemfile-lock-verify` a required check
+Settings → Branches → `main` → Require status checks → add **`gemfile-lock-verify`**.
+
+Today the required list is `quality`, `ios-build-smoke`, `functions-rules`. The
+new job verifies that the committed `Gemfile.lock` actually installs — but as a
+non-required check it is **visible, not enforcing**: a red result shows on the PR
+without blocking the merge. This is the difference between seeing a broken lock
+and being stopped by one. Low risk; it only ever runs when `Gemfile*` changes.
+
+### 9. Set a Firebase budget alert
 The only watchdog that would have caught the 37-hour outage of 2026-08-09→11.
 Billing itself is **fine** (restored 2026-08-11, verified).
 
-### 9. Enable Dependabot **alerts** (~1 min)
+### 10. Enable Dependabot **alerts** (~1 min)
 Settings → Advanced Security → Dependabot alerts → Enable.
 ⚠️ Do **not** enable "Dependabot security updates" — the auto-PRs would propose
 downgrading `firebase-admin`. *Verified today:* alerts are disabled.
 
-### 10. `RC_WEBHOOK_TOKEN` on the **dev** project
+### 11. `RC_WEBHOOK_TOKEN` on the **dev** project
 ```
 printf '%s' '<token>' | firebase functions:secrets:set RC_WEBHOOK_TOKEN --project hayatiapp-dev --data-file=-
 ```
 Without it dev runs 12 of 13 functions and item 2 cannot be rehearsed safely.
 
-### 11. Sandbox purchase test, once Apple's pricing propagation clears
+### 12. Sandbox purchase test, once Apple's pricing propagation clears
 Buy in **TR** and **SA** sandbox; Premium must flip on **both** phones. Then
 revoke the RevenueCat `sk_` v2 key. This is M4's acceptance line and it has never
 been met.
 
-### 12. Native TR/AR review of every user-visible string — mandatory before public launch
+### 13. Native TR/AR review of every user-visible string — mandatory before public launch
 All TR/AR copy is an AI draft marked `review-PENDING`: solo questions, paywall and
 pack copy, the 27 coach strings, 41 lock/settings strings, data-rights copy, store
 listing, `InfoPlist.strings`. **TR: the two of you. AR: a Gulf-dialect reviewer.**
 
-### 13. ★ Crisis-content safety review — the gate before the coach runs on a real device
+### 14. ★ Crisis-content safety review — the gate before the coach runs on a real device
 Review the crisis word lists (TR/AR including Arabizi, EN), the professional-help
 response and the "not therapy" disclaimer, and give crisis hotline numbers for TR
 and SA that you trust. Files: `functions/src/coach/crisis-lexicon.ts`,
 `help-content.ts`, `persona-prompts.ts`. **An under-reading filter is a safety
 failure, not a bug.**
 
-### 14. The legal bundle — review, three blanks, three lawyer questions, one filing
+### 15. The legal bundle — review, three blanks, three lawyer questions, one filing
 Six documents in `docs/legal/`, all `review-PENDING`. Blanks: controller identity,
 contact address, governing law. Three lawyer questions are listed in
 `docs/legal/README.md`. Plus the KVKK data-transfer filing for EU hosting and the
 US processor.
 
-### 15. Decide **#226** — the privacy policy is factually wrong about push
+### 16. Decide **#226** — the privacy policy is factually wrong about push
 It says *"ikimiz does not send push notifications today"*, which is true of the
 outcome and **false of the system**, and it names neither `fcmTokens` nor
 `pushDiagnostic` in what we collect. ⚠️ Any revision bumps `CURRENT_LEGAL_VERSION`
 and **re-prompts every existing user for consent** — your call, not a session's.
 A session can draft the wording.
 
-### 16. Two content decisions that are yours
+### 17. Two content decisions that are yours
 - The **couple** questions are currently the Turkish *solo* pack — a known
   placeholder. The launch target is 400/300/300; **7 per locale exist**.
 - **#63** Phosphor vs Material icons, and **#71** a motion token — brandkit
@@ -205,21 +214,19 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Merge PR **#238** (the silence-bound watchdog fix) once its CI concludes — the
-change is already proven green on a dispatched `integration-emulator` run — then
-watch the post-merge `main` run.
+Merge PR for **#129** once CI concludes, then watch the post-merge `main` run.
 
 ## Next Session Goal
 
-**#129 (with #121)** — the release lane's `bundle install` comment is false in
-every clause, and the lane installs **unfrozen**, so it has never actually
-exercised the committed `Gemfile.lock`.
+**#239 — analytics.** MVP item 11 is entirely unbuilt: no event is emitted
+anywhere in the app, so **Gates 2 and 3 are not merely unmeasured, they are
+unmeasurable**. The contract already exists (`architecture.md` §7 enumerates the
+funnel; §2 reserves `core/analytics/`; ADR-016 binds the `coach_msg` shape).
 
-Measured, and it lowers the risk the issue assumed: the lane's `bundle install`
-runs in the `sign-upload` job on **macos-26 with Ruby 3.3**, and `gemfile-lock.yml`
-already ran `bundle install --frozen` **successfully on that same image and Ruby**
-against this exact lock. The command has passed; what is untested is only image
-drift since — which is precisely what `--frozen` exists to surface.
+The typed contract, the port and the emitters are autonomous, and Firebase is
+already wired so it can back them today. **The Mixpanel token is yours** — it
+belongs behind the same port rather than in front of the work.
 
-⚠️ Its verification lands on **your** next release run, because a session must
-never dispatch the release lane.
+⚠️ Analytics events are *collection*, and **#226** already says the privacy
+policy's collection list is wrong. Do not let a second instance of that defect
+land quietly.

@@ -1,4 +1,4 @@
-# Resume Prompt — Session 080
+# Resume Prompt — Session 081
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -7,45 +7,46 @@
 > never-without-asking list) and `session-lessons.md` (numbered to **116**) first.
 > Re-derive the session number from `git log`.
 
-> **Why this is S080 and not S079.** S079 opened on #129 and was replanned
-> mid-session: the post-merge run of S078's watchdog falsified the bound S078 had
-> just shipped (the same suite has now been observed at 457/513/540/640/936s — a
-> 2.05x spread), so the guard was re-based on **silence** instead of wall-clock
-> time before it could start reddening `main` for no reason. #129 was not
-> started. See `past-prompts.md` S079 and lesson **116**.
+**Objective: #239 — analytics is MVP item 11, and it is entirely unbuilt. Gates 2
+and 3 are not merely unmeasured; they are unmeasurable.**
 
-**Objective: #129 (with #121) — the release lane's `bundle install` comment is
-false in every clause, and no release run has ever exercised the committed lock.**
+`grep -rli "mixpanel\|analytics" app/lib` returns **nothing**. No event is
+emitted anywhere in the app.
 
-`.github/workflows/release.yml` says:
+This is not undefined work — the contract has been written for a long time:
 
-```yaml
-      - name: bundle install
-        # Gemfile pins fastlane ~> 2.225 (repo root). Gemfile.lock is documented
-        # debt (fastlane/README.md, ADR-021 D6): no Ruby on the dev box means no
-        # faithful lock until the first real lane run, so bundler resolves fresh
-        # here and there is no lock to key a bundler-cache on.
-        run: bundle install
-```
+* **`mvp.md` item 11** — *"Analytics: Mixpanel + Firebase; full gate
+  instrumentation (funnel events enumerated in `architecture.md` §7)."*
+* **`architecture.md` §7** enumerates the funnel exactly:
+  `install → signup → invite_sent → paired → q_answered{solo|mutual} →
+  reveal_viewed → streak_day → trial_start → paid → churn`, plus
+  `share_card_created`, `coach_msg`, and locale/register/storefront dimensions on
+  every event.
+* **`architecture.md` §2** already reserves `core/analytics/`.
+* **ADR-016 binds one event's shape**, and it is the one most easily got wrong:
+  the `coach_msg` emitter *"MUST take the `logCoachEvent` typed-fields shape — no
+  message-text field exists on the type, no uid, and crisis outcomes are never
+  joined to `coupleId`"*. **Read ADR-016 before writing that emitter**, not after.
 
-**Every clause of that is now false.** S048 closed #120 by generating, verifying
-and committing `Gemfile.lock`; `fastlane/README.md` opens its debt section with
-*"✅ `Gemfile.lock` is COMMITTED"*, and ADR-032 records the debt as
-**DISCHARGED**. This is standing addendum 19 broken again — *when a diff corrects
-a claim, grep the WHOLE repo for that claim* — and S048 corrected it in the ADR
-and the README while leaving the workflow saying the opposite.
+**Split the work at the seam, because half of it is operator-blocked.** The typed
+contract, the port, the emitters and their tests are autonomous, and Firebase is
+already wired so Firebase Analytics can back the port today. The **Mixpanel
+project token is a secret the founder must provide** — it belongs behind the same
+port, not in front of the instrumentation.
 
-⚠️ **The comment is the smaller half.** `bundle install` without `--deployment`
-(or `bundle config set frozen true`) **resolves fresh and ignores the committed
-lock**, so the lane has never actually run the versions the lock pins. Fixing the
-comment without fixing the install would leave a truthful sentence describing an
-unenforced lock — which is worse, because it reads as verified.
+⚠️ **Analytics events are collection, and this repo has a live accuracy problem
+there.** `docs/legal/privacy-policy.*` enumerates what is collected, **#226**
+already says that list is wrong about push, and it is founder/lawyer-blocked
+because any revision re-prompts every user for consent. Do **not** quietly widen
+what the product collects and leave the policy behind — that is #226's defect
+with a second instance. `docs/dpa-inventory.md`'s processor register would also
+need a row.
 
-**Pair it with #121**, which asks whether the *"write App Store Connect API
-key"* step is dead under manual signing. Same file, same lane, and the release
-lane is **§7 — a session must never dispatch it**, so both are read-and-reason
-changes whose verification is by inspection plus whatever the next founder-run
-release reports. Say so plainly rather than implying a green.
+⚠️ **The autonomous queue is nearly empty after this.** Of the 14 open issues, the
+S079 audit classified 3 as autonomous — #129 (done, S080), #121 (deliberately
+open, needs a watched release run) and #71 (low-priority brandkit) — with the
+rest operator-blocked. If #239 stalls on the founder's token, prefer finishing
+its autonomous half and stopping, over inventing work.
 
 ## 1. Where things actually stand *(measured 2026-08-17 — re-measure, do not inherit)*
 
@@ -57,7 +58,7 @@ release reports. Say so plainly rather than implying a green.
 | **Deployed rules vs `main`** | `rules_drift.py` exited **1 for both projects** at the S071 close. Deploying is a **§7 founder ask**. Re-measure rather than inherit. |
 | **`hayatiapp-prod` Functions** | Clean at S070. ⚠️ **S077 changed `functions/` source** (the export's device lane), so prod is now behind `main` on function code as well — a deploy is a **§7 ask**, and `functions_drift.py` should report it. |
 | **`functions-drift` / `rules-drift` in CI** | Both **visibly SKIPPED** by design — one absent secret (operator **2(e)(iv)**). |
-| **#137, #227, #208** | **CLOSED** (ADR-053, ADR-054, ADR-055). |
+| **#137, #227, #208, #129** | **CLOSED** (ADR-053, ADR-054, ADR-055, ADR-056). |
 | **#176, #175, #174** | **CLOSED** — and they were still listed as *open* in `operator-expected.md` until S077 checked every row against `gh`. |
 
 ### What S076/S077/S078 changed that a later session will trip over
@@ -107,7 +108,7 @@ user. A session can draft the wording; it cannot land it. **Now listed in
 **2 — #204** (`deliver` has failed to create the `tr` localization on **every**
 release since build 1) · **#165** (`rules-drift` built but unarmed) · **#136**
 (the Functions-side bidi twin — device-blocked, but its fallback is not) ·
-**#129/#121** (release lane) · **#115** · **#41** · **#63/#71** (brandkit).
+**#121** (a watched release run) · **#115** · **#41** · **#63/#71** (brandkit).
 
 ⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
 first. Token capture needs none of it; only background *delivery* does.

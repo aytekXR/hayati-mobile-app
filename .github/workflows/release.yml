@@ -375,8 +375,19 @@ jobs:
         # touch `CODE_SIGN_IDENTITY` because that would be "a blind edit to a
         # signing path from a Linux box with no Mac". The lane demonstrably works
         # WITH this step; "very likely dead" is not "proven dead", and the cost of
-        # being wrong is a broken release the founder cannot debug. A session that
-        # can watch a real run should delete it and confirm.
+        # being wrong is a broken release the founder cannot debug.
+        #
+        # THE EXPERIMENT THAT SETTLES IT (ADR-056 D4, issue #121), for whoever can
+        # watch a run: do NOT delete the step. Change the destination to a path
+        # nothing can auto-discover — e.g. $HOME/.hayati-unused/ — and run the
+        # lane. If nothing reads it the run is identical and the step is proven
+        # dead; if something does, xcodebuild fails with a MISSING KEY at the
+        # auto-discovery path, which is attributable and re-runnable rather than a
+        # cryptic signing failure. Deleting it outright throws away that signal.
+        #
+        # Not done at S080 for timing rather than principle: a failed release
+        # costs more than usual right now, because a build is the single thing
+        # blocking push-notification testing (operator-expected.md, item 1).
         #
         # What DID change: the file is now decoded from ASC_API_KEY_P8_BASE64 —
         # the same secret fastlane authenticates with — instead of requiring a
@@ -419,12 +430,42 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
-      - name: bundle install
-        # Gemfile pins fastlane ~> 2.225 (repo root). Gemfile.lock is documented
-        # debt (fastlane/README.md, ADR-021 D6): no Ruby on the dev box means no
-        # faithful lock until the first real lane run, so bundler resolves fresh
-        # here and there is no lock to key a bundler-cache on.
-        run: bundle install
+      - name: bundle install (frozen)
+        # Gemfile pins fastlane ~> 2.225 (repo root) — still true. The three
+        # clauses that used to follow it were NOT: they said Gemfile.lock was
+        # "documented debt", that "no Ruby on the dev box means no faithful
+        # lock", and that "bundler resolves fresh here". S048 closed #120 by
+        # generating, verifying and committing the lock, and corrected the claim
+        # in ADR-021 D6 and fastlane/README.md while leaving this comment saying
+        # the opposite (addendum 19: when a diff corrects a claim, grep the WHOLE
+        # repo for that claim). ADR-056 / #129.
+        #
+        # --frozen is the `npm ci` of this ecosystem: it asserts the lock is
+        # already coherent instead of quietly rewriting it to fit. The intended
+        # consequence is that a Gemfile edit WITHOUT a regenerated lock fails the
+        # release lane loudly, rather than being silently re-resolved into a
+        # bundle nobody verified.
+        #
+        # This is safe to add from a box with no Ruby because it is measured, not
+        # reasoned: `ci.yml`'s gemfile-lock-verify job installs the COMMITTED lock
+        # frozen on this same macos-26 + Ruby 3.3 whenever Gemfile* changes.
+        #
+        # ⚠️ That job is VISIBLE, not ENFORCING. Branch protection requires only
+        # quality + ios-build-smoke + functions-rules, so a red gemfile-lock-verify
+        # shows on the PR but does not block the merge. An earlier draft of this
+        # comment said such a lock "never reaches main" — it does not follow, and
+        # the build-diff review caught it. Making it required is one repo setting
+        # (operator-expected.md).
+        run: |
+          # `bundle config set frozen true`, NOT `bundle install --frozen`. The
+          # flag is DEPRECATED in the bundler this lock pins (2.5.22) and says so
+          # in the log of the very run ADR-056 cites as its evidence:
+          # "[DEPRECATED] The `--frozen` flag ... bundler will no longer [remember
+          # it] in future versions. Instead please use `bundle config set frozen
+          # true`". Reading that warning was the review's catch: the measurement
+          # was quoted for its platform facts and its warnings were skipped.
+          bundle config set frozen true
+          bundle install
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
