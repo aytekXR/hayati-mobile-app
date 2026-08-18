@@ -1,11 +1,11 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-18 01:00 UTC
+**Last Updated:** 2026-08-18 02:10 UTC
 
 ## Current Status
 
-- Session: **079**
-- Goal: **Harden the S078 integration-suite watchdog after its own first post-merge run falsified its bound** *(replanned mid-session — see Plan Changes)*
+- Session: **080**
+- Goal: **#129 — the release lane installs the lock it was given, and CI verifies that lock for the first time**
 - Status: **On Track**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
 - Production Readiness: **Beta Ready**
@@ -214,21 +214,19 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Merge PR **#238** (the silence-bound watchdog fix) once its CI concludes — the
-change is already proven green on a dispatched `integration-emulator` run — then
-watch the post-merge `main` run.
+Merge PR for **#129** once CI concludes, then watch the post-merge `main` run.
 
 ## Next Session Goal
 
-**#129 (with #121)** — the release lane's `bundle install` comment is false in
-every clause, and the lane installs **unfrozen**, so it has never actually
-exercised the committed `Gemfile.lock`.
+**#239 — analytics.** MVP item 11 is entirely unbuilt: no event is emitted
+anywhere in the app, so **Gates 2 and 3 are not merely unmeasured, they are
+unmeasurable**. The contract already exists (`architecture.md` §7 enumerates the
+funnel; §2 reserves `core/analytics/`; ADR-016 binds the `coach_msg` shape).
 
-Measured, and it lowers the risk the issue assumed: the lane's `bundle install`
-runs in the `sign-upload` job on **macos-26 with Ruby 3.3**, and `gemfile-lock.yml`
-already ran `bundle install --frozen` **successfully on that same image and Ruby**
-against this exact lock. The command has passed; what is untested is only image
-drift since — which is precisely what `--frozen` exists to surface.
+The typed contract, the port and the emitters are autonomous, and Firebase is
+already wired so it can back them today. **The Mixpanel token is yours** — it
+belongs behind the same port rather than in front of the work.
 
-⚠️ Its verification lands on **your** next release run, because a session must
-never dispatch the release lane.
+⚠️ Analytics events are *collection*, and **#226** already says the privacy
+policy's collection list is wrong. Do not let a second instance of that defect
+land quietly.
