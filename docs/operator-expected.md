@@ -23,11 +23,25 @@ The engineering is nearly done. **Content and instrumentation are the gap**, and
 
 ## Latest Checkpoint
 
-`main` is at **`509f23d`**, green on every job including `integration-emulator`.
-**2,844 tests pass** (1,743 app across 158 files; 1,101 functions across 54 files,
-97.47% coverage). Nothing is broken.
+**S081 (2026-08-19) — analytics, MVP item 11.** The app has gone from **no
+analytics code at all** to emitting **8 of the 12 funnel events** with typed
+payloads and real call sites, behind a port. **1,819 app tests** (was 1,743),
+coverage **87.69%**. Nothing is broken.
 
-Since the last checkpoint, four issues closed — **#137**, **#227**, **#208**, and
+**Read this part carefully, because the honest status is narrower than "analytics
+is built":** prod is wired to a **no-op sink**. **No event leaves any device.**
+There is no Mixpanel project, no SDK, and no new processor — so nothing in your
+DPA paperwork changes *today*. What exists is the seam, the events, and two tests
+that stop the code and the specification drifting apart. Turning it into a
+*measurement* is **item 18**, and its first step is legal, not technical.
+
+Three gaps are named rather than hidden: the three entitlement events
+(`trial_start`/`paid`/`churn`) have **no server emitter** (#242); Gate 3's
+`install→paid` **cannot be computed** because the two halves of the funnel share
+no identity, and minting one is a privacy decision (#243); and the `storefront`
+dimension is empty because the app has no source for it.
+
+Before that, four issues closed — **#129**, **#137**, **#227**, **#208**, and
 earlier **#175/#174/#222/#223/#221**:
 
 - **#137** — the bidi seam classifies characters against generated Unicode tables
@@ -233,25 +247,25 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Begin **S081 / #239** — the analytics contract, port and emitters.
+Begin **S082 / #226** — draft the legal-text revision, bundled.
 
-S080 is closed: `9318c44` on `main`, **#129 CLOSED**, post-merge run green on
-every job including `integration-emulator`. The new `gemfile-lock-verify` check
-reported **`skipped`** on both the PR and `main` — visible in the checks list
-rather than absent, which was the whole point of gating it with a job-level `if:`
-instead of a workflow paths filter.
+S081 is closed: **#239** done for its autonomous half (PR #244, ADR-057), with
+**#242** and **#243** filed as its two remainders. The app now emits 8 of the 12
+funnel events — **into a no-op in production**, deliberately, because turning that
+into a measurement needs the legal change below first.
 
 ## Next Session Goal
 
-**#239 — analytics.** MVP item 11 is entirely unbuilt: no event is emitted
-anywhere in the app, so **Gates 2 and 3 are not merely unmeasured, they are
-unmeasurable**. The contract already exists (`architecture.md` §7 enumerates the
-funnel; §2 reserves `core/analytics/`; ADR-016 binds the `coach_msg` shape).
+**#226 — and it now covers two things, not one.** The privacy policy says
+*"ikimiz does not send push notifications today"* (true of the outcome, **false of
+the system**) and names neither `fcmTokens` nor `pushDiagnostic`. S081 added a
+second topic to the same document: analytics.
 
-The typed contract, the port and the emitters are autonomous, and Firebase is
-already wired so it can back them today. **The Mixpanel token is yours** — it
-belongs behind the same port rather than in front of the work.
+**Any revision re-prompts every existing user for consent.** Doing push now and
+analytics later asks them **twice**. So the next session drafts **one** revision
+covering both — TR/AR/EN, all three documents, plus the DPA rows — and **stops at
+a draft**. It will not bump `CURRENT_LEGAL_VERSION`; that bump is the thing that
+re-gates your users, and it is yours to authorise. See **item 18**.
 
-⚠️ Analytics events are *collection*, and **#226** already says the privacy
-policy's collection list is wrong. Do not let a second instance of that defect
-land quietly.
+The three bracketed placeholders (entity, contact, governing law) stay bracketed —
+a session must never guess your legal name into a legal document.
