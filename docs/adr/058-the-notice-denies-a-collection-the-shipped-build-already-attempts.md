@@ -1,16 +1,33 @@
 # ADR-058: the notice denies a collection the shipped build already attempts — one revision, drafted and deliberately not landed
 
-- **Status:** Proposed — the *draft* is the deliverable; landing it is a founder/lawyer decision
+- **Status:** Proposed — **revision 2** (2026-08-21, after the design review). The *draft* is the deliverable; landing it is a founder/lawyer decision
 - **Date:** 2026-08-20 (Session 082)
 - **Deciders:** session agent for the drafting and the landing mechanics; **founder + lawyer for the version bump**, which is the thing this ADR deliberately does not do
-- **Related:** **ADR-023** (the consent surface, the legal bundle, the three-way version sentinel, the byte-sync drift test, lawyer questions A/B/C), **ADR-012 / ADR-042 / ADR-044 / ADR-045 / ADR-046 / ADR-049** (the push chain, its storage, its quiet window, its diagnostic), **ADR-054** (the export's device lane and why a raw token never enters it), **ADR-057** (the funnel, its no-op prod sink, and the paragraph-not-a-CI-check gate), **ADR-028** (the v1→v2 bump precedent), **ADR-019** (the deletion cascade), `docs/legal/README.md` (the bump procedure), `docs/dpa-inventory.md`, `docs/architecture.md` §7 and §8, issues **#226** (this one), **#242**, **#243**, operator items **16** and **18**
+- **Related:** **ADR-023** (the consent surface, the legal bundle, the three-way version sentinel, the byte-sync drift test, lawyer questions A/B/C — to which this ADR adds **D** and **E**), **ADR-012 / ADR-042 / ADR-044 / ADR-045 / ADR-046 / ADR-049** (the push chain, its storage, **its quiet window — ADR-045 moved it to 23:00–08:00**, its diagnostic), **ADR-054** (the export's device lane and why a raw token never enters it), **ADR-057** (the funnel, its no-op prod sink, and the paragraph-not-a-CI-check gate), **ADR-028** (the v1→v2 bump precedent), **ADR-019** (the deletion cascade), `docs/legal/README.md` (the bump procedure), `docs/dpa-inventory.md`, `docs/architecture.md` §7 and §8, issues **#226** (this one), **#242**, **#243**, operator items **16** and **18**
 
-> **Review status, stated prospectively.** Written and committed **before** the
-> draft it governs (`session-context.md` §5 item 1, lesson 111). At the moment of
-> this commit **neither** review pass has run. The design pass runs against this
-> revision; the built-diff pass runs against the drafted documents. What each one
-> found is recorded in `past-prompts.md` and in this ADR's revision history —
-> never claimed here in advance.
+> **Review status.** Revision 1 was written and committed **before** the draft it
+> governs (`session-context.md` §5 item 1, lesson 111), and stated prospectively
+> that neither review pass had run.
+>
+> **The design pass has now run against revision 1** — 5 lenses × 2 independent
+> verifiers, **26 agents, 0 errored, 0 empty results**, 13 findings, 6 surfaced
+> under the either-verifier rule plus 3 from a completeness critic; nothing was
+> dropped unverified. **Revision 2 is what that pass produced**, and every change
+> it made is listed at the end of this ADR.
+>
+> **The built-diff pass (§5 item 3) has NOT run at the time of this revision.**
+> What it finds is recorded in `past-prompts.md`. Nothing below claims a review
+> that has not happened.
+>
+> ⚠️ **Everything this ADR says about `docs/legal/proposed/` and
+> `legal_proposal_test.dart` is a SPECIFICATION of what will be built, not a
+> description of what exists.** The design review flagged that revision 1 wrote
+> Decision 8 in the present tense about artefacts that did not exist. Decision 8
+> is now written prospectively. *(The reviewer additionally called this "the sixth
+> instance" of this repo's recorded over-claim shape; that framing is not
+> accepted — the previous five were claims that verification had **happened**,
+> while this was specification prose in a Proposed ADR. The tense is corrected
+> because it is cheap and clearer, not because the two are the same defect.)*
 
 ## Context — measured on 2026-08-20, not inherited
 
@@ -149,10 +166,25 @@ founder/lawyer review, one re-consent prompt, both corrections.
 **What the bundle does NOT buy, and operator item 18 currently over-promises it.**
 Item 18 reads *"Bundle the two: one legal revision, one re-consent, covering both
 push and analytics, rather than asking your users twice."* Engineering cannot
-guarantee the second half of that sentence. **You cannot name an unnamed
-processor.** The day a vendor adapter lands, the notice gains a recipient, a
-transfer mechanism and a region — three of the four materiality triggers — and by
-the conservative reading that is a second bump and a second prompt.
+guarantee the second half of that sentence. The day a vendor adapter lands, the
+notice gains a recipient, a transfer mechanism and a region — three of the four
+materiality triggers — and by the conservative reading that is a second bump and
+a second prompt.
+
+**"But Mixpanel is already named."** The design review pressed exactly this, and
+it is worth answering rather than waving away: `architecture.md` §1 lists
+*"Mixpanel (product funnels)"* in the stack and §7 says funnels *"are built in
+Mixpanel before launch day"*, and `dpa-inventory.md` carries a
+*"Mixpanel / product analytics (when built)"* row. **Both verifiers refuted the
+finding, and the reason they gave is the right one: a technology intention is not
+an engaged recipient.** The register's own cell says *"no processor exists … no
+processor is engaged … no row is due yet"*, its region cell reads *"to be
+determined when built"*, and there is no account, no token, no contract and no
+DPA. A privacy notice that named Mixpanel today would tell users their data goes
+to a company we have never contacted — a *different* false sentence from the one
+this ADR is correcting, in the same document, pointing the other way. The notice
+names recipients that receive data; the architecture names tools we intend to
+reach for.
 
 Whether it *must* be is a question this repo may not answer for itself, so it is
 recorded as one:
@@ -187,22 +219,33 @@ actually exist, by reading them:
   anywhere — a constraint, stated here because it is invisible in the diff.
 * `legal_document_screen_test.dart`'s `shippedPolicyVersionLine` pins the
   *shipped asset's* `Version 2. Effective 26 July 2026.` line. Untouched.
-* `tool/ci/build_site.py` composes `legal_dir / f"{stem}.{loc}.md"` from a fixed
-  stem list (line 325) — **not a glob**. `/privacy` and `/terms` cannot pick the
-  proposal up.
+* `tool/ci/build_site.py` iterates a **fixed stem tuple**
+  `(("privacy", "privacy-policy"), ("terms", "terms"))` (**line 323**) and
+  composes `legal_dir / f"{stem}.{loc}.md"` (**line 325**) — **not a glob**.
+  `/privacy` and `/terms` cannot pick the proposal up. *(Revision 1 cited line
+  325 for the stem list; the composition is on 325, the list on 323.)*
 * `app/pubspec.yaml` bundles `assets/legal/`, not `docs/legal/`. Nothing about a
   `docs/` subdirectory can reach the app bundle.
 * Goldens: no rendered string changes, so no golden set moves.
 
-**Why not an open PR.** It rots against `main` from the day it is opened; the
-close sequence this repo runs (`session-rules.md` §3) ends every session with a
-merged, green push, so an indefinitely-open branch is outside the process that
-keeps things true; and a founder reading the repository would not find it. A
-merged proposal is readable, diffable, and CI-verified.
+**Why not an open PR — with the weak argument removed.** Revision 1 also claimed
+a founder would not find an open PR, and that an open branch is *"outside the
+process that keeps things true."* The design review was right that both are
+self-serving: GitHub surfaces open PRs prominently, and **the drift risk is
+identical either way** — a merged proposal can go stale against the shipped
+documents exactly as an open branch can. Neither is a reason.
 
-**Consequence, accepted:** the proposal is now a *second* description of the same
-subject, and second descriptions drift. Decision 8's test exists to make the
-drift loud rather than to promise it will not happen.
+What survives is narrower and is the actual reason: **a merged file is the only
+one CI can check.** Decision 8's guards run on `main`; on a never-merged branch
+they run only when someone remembers to push it. An open PR additionally
+accumulates merge conflicts against a `main` that moves every session, so it
+carries the drift risk *plus* a rebase cost, for no gain in what is verified.
+
+**Consequence, accepted and not minimised:** the proposal is a *second*
+description of the same subject, and second descriptions drift. Decision 8's
+parity and anchor assertions make the drifts that matter loud; a purely editorial
+drift in the shipped text would not be caught. That is a real cost of this
+decision, not a risk the decision avoids.
 
 ## Decision 3 — Only the three privacy policies change; the terms do not
 
@@ -244,13 +287,42 @@ replacement therefore says, in each locale:
 1. **What is stored** — the address the device is reachable at for notifications,
    one per device; and the device's own report of whether notifications are
    switched on. In user language, not field names.
-2. **Why** — the daily question, and the nudge when a streak is at risk. Nothing
-   else. These are service messages about the couple's own activity.
+2. **Why — all FOUR of them.** `PushKind` has four members, and revision 1's
+   purpose list named two. A purposes list that is a subset of the purposes is
+   the same defect as the sentence this ADR exists to correct, one level down.
+   The four, measured from `payload-policy.ts` and the two senders:
+
+   | kind | when | sent to |
+   |---|---|---|
+   | `partnerAnswered` | immediately, on the partner's answer write (`reveal-service.ts`) | the member who has not answered |
+   | `reveal` | immediately, once both have answered | the member who answered first |
+   | `dailyQuestion` | couple-local **09:00** (`DAILY_QUESTION_LOCAL_HOUR = 9`) | whoever has not answered |
+   | `streakAtRisk` | couple-local **22:00** (`AT_RISK_LOCAL_HOUR = 22`) | whoever has not answered |
+
+   All four are service messages about the couple's own activity in a product
+   they signed up for. Nothing else is sent.
 3. **The bounds that are already built, stated as bounds rather than as
    reassurance** — a notification never carries the question or an answer
    (structural: `composePush` has no such parameter); nothing is sent inside
-   couple-local quiet hours 22:00–08:00; the discreet setting limits what shows
-   on a lock screen and is on by default in Arabic.
+   couple-local quiet hours **23:00–08:00**; the discreet setting limits what
+   shows on a lock screen and is on whenever the reading language is Arabic or
+   the user has switched it on (`resolveDiscreet`).
+
+   ⚠️ **The window is 23:00–08:00, not 22:00–08:00**, and revision 1 said the
+   latter. **ADR-045 moved it** so the 22:00 streak nudge would not be swallowed
+   by our own defence-in-depth guard — *"22:00 is the last legal hour"*
+   (`local-hour.ts:47-60`, `isQuietLocalHour` = `hour >= 23 || hour < 8`).
+   Writing 22:00 into a privacy policy would have told users they cannot be
+   notified at 10pm on the one evening hour the product deliberately uses. It is
+   recorded here rather than silently fixed because it is precisely the failure
+   this ADR is about: **an inherited number that describes a system that changed.**
+3a. **That a notification can carry the partner's NAME.** `partnerAnsweredNormal`
+   interpolates it into both title and body (*"Aylin answered"*). It carries no
+   answer text — but a name on a lock screen is exactly what a DV-aware product
+   must disclose rather than let a user discover, and it is the one thing the
+   discreet setting is really protecting. v2's copy says the discreet setting
+   shows *"only that something new arrived"*, which describes the discreet path
+   correctly and says nothing about the default path. The draft states both.
 4. **Who else sees it** — Google's Firebase Cloud Messaging and Apple's push
    service, neither pinned to Europe, with the same region honesty the rest of
    the document already uses.
@@ -281,6 +353,20 @@ The replacement paragraph, in each locale, says:
    the device. No analytics provider is connected and none receives anything.
 4. **What stays on the device** — a small marker per milestone, so a milestone is
    not counted twice. It never leaves the phone, and removing the app removes it.
+
+   **And the honest bound the design review made us look at: deleting the
+   account does not remove them.** The cascade sweeps `users/{uid}` and the
+   couple's shared space server-side (ADR-019); the markers live in the phone's
+   own `SharedPreferences`, which no server can reach, so
+   `analytics.signup.<uid>` and its siblings survive a deletion on the device
+   that wrote them — carrying a uid and, for one key, a `coupleId`. Two verifiers
+   independently held that this does **not** make the analytics correction
+   material (nothing is transmitted, no recipient gains anything, and the
+   *"data-location split"* trigger is about server-side geography — see ADR-023's
+   own use of that phrase), and that judgement is accepted. It is still a gap
+   between what *"delete my account"* sounds like and what it reaches, so the
+   draft says removing the app is what removes them, and the gap is **filed as
+   its own issue** rather than left in this paragraph.
 5. **The promise, kept verbatim in substance** — if analytics is ever connected,
    it arrives with its **own separate opt-in**, off until it is turned on, with
    the provider named at that moment, and it is never folded into the one
@@ -302,7 +388,11 @@ Decision 1 and lawyer question D for why naming one now was rejected.
   engineering fact: the register already treats Apple as an *independent
   controller* for store data, and APNs is a different leg under different terms.
   It is entered as **role: to be confirmed (founder/lawyer)** rather than
-  asserted, because asserting it would be playing counsel.
+  asserted, because asserting it would be playing counsel — **and it is raised as
+  numbered lawyer question E in `docs/legal/README.md`**, not left as an
+  annotation in a register cell (the design review's catch: a question only a
+  reader of the register would ever meet is not a question anyone has been
+  asked).
 
 And the device-registration note stops disposing of both in a subordinate clause;
 it points at the rows.
@@ -321,16 +411,24 @@ a green signal about (lesson 110: *a scan whose glob matches nothing reports the
 same clean zero as a scan that passed*). So the test is built to fail loudly on
 an **empty or missing input** before it asserts anything about content.
 
-`app/test/features/legal/legal_proposal_test.dart` asserts:
+`app/test/features/legal/legal_proposal_test.dart` **will assert** — it does not
+exist yet, and neither does the directory it reads:
 
 1. **The input exists and is a closed set** — `docs/legal/proposed/` contains
    **exactly** `privacy-policy.{tr,ar,en}.md` plus `README.md`, no more and no
    fewer, and each document clears a **line-count floor**. A proposal that
    silently lost a locale is a red, not a clean zero.
 2. **The draft is exactly one version ahead, and has NOT landed** — each document
-   declares `Version 3.`, and `currentLegalVersion` is still **2**. This is the
+   declares version **3**, and `currentLegalVersion` is still **2**. This is the
    assertion that makes "deliberately not landed" a machine-checked state rather
    than a sentence in an ADR.
+
+   ⚠️ **The version line is LOCALISED, and a literal `Version 3.` match would
+   guard one of the three locales.** The shipped documents read `Version 2.` (en),
+   `Sürüm 2.` (tr) and `الإصدار 2.` (ar). The assertion therefore parses a
+   **per-locale pattern** and compares the extracted integer — the recurring
+   shape 5 failure (*a gate written in one language guards one language*) caught
+   by the design review before it was written rather than after.
 3. **Renderer-subset conformance** — no table, link, bold, italic, inline code,
    block quote, image, numbered list or nested bullet, per
    `docs/legal/README.md`'s authoring rules. A draft that cannot render is a
@@ -361,6 +459,16 @@ must go with it. That is the intended coupling: the bump diff cannot leave a
 stale guard behind, and `docs/legal/proposed/README.md` carries the deletion as
 step 0 of its procedure.
 
+**And by the SUPERSEDING diff too.** If some future revision becomes v3 without
+using this draft, assertion 2 turns red — correctly, because the premise moved —
+and a session then has to work out from a failing test what to do. Both verifiers
+held that red CI is an adequate recovery mechanism under `session-rules.md` §3.5,
+and that is true; it is also an archaeology exercise that costs nothing to
+prevent. `docs/legal/proposed/README.md` therefore carries the one-line
+alternative: **if a different revision lands first, delete
+`docs/legal/proposed/` and `legal_proposal_test.dart` in that same diff and say
+in the commit message that the proposal was superseded.**
+
 ## Consequences
 
 * **#226 stays open, and its state changes from "the notice is wrong" to "a
@@ -376,11 +484,30 @@ step 0 of its procedure.
   adapter"* to something sooner.
 * **The founder now has one decision instead of two**, and it is a decision about
   substance rather than about mechanics: approve the drafted text (with the
-  lawyer), then a single diff bumps three sources, re-syncs six bytes-identical
-  files, sets the effective date, regenerates three golden sets and deletes the
-  proposal. That diff is written out step by step in
-  `docs/legal/proposed/README.md` so it does not have to be re-derived under time
-  pressure.
+  lawyer), then a single diff bumps three version sources, re-syncs **the three
+  changed privacy policies** into `app/assets/legal/` (the three terms documents
+  do not change and are not touched — Decision 3), sets the effective date,
+  **updates `shippedPolicyVersionLine`**, regenerates three golden sets, and
+  deletes the proposal together with its test. That diff is written out step by
+  step in `docs/legal/proposed/README.md` so it does not have to be re-derived
+  under time pressure.
+
+  ⚠️ **`shippedPolicyVersionLine` is the step this ADR's first revision left
+  out**, and `docs/legal/README.md` step 3 names it as one of **two** places the
+  three-way sentinel does not cover — both *"found the hard way when the v1→v2
+  bump left them behind"*. Revision 1 carried the goldens and dropped the pin,
+  i.e. reproduced half of a mistake the repo had already paid for once. Lesson
+  115 exactly: the rule was cited, and the part not quoted was the part being
+  dropped.
+
+* **`docs/legal/README.md` gains lawyer questions D and E**, so the lawyer's
+  canonical list is the one that is complete. Question D is Decision 1's (does
+  naming the analytics recipient at the opt-in surface discharge the aydınlatma
+  obligation, or does the adapter bump the version too). **Question E is Apple's
+  role on the APNs leg** — Decision 7 raises it, and revision 1 left it as an
+  annotation inside a register cell where a lawyer reading the question list
+  would never meet it. Two questions raised for a lawyer, in a document that says
+  *"These three questions"*, is a list that lies by arithmetic.
 * **A second bump is likely when a vendor lands**, and this ADR says so rather
   than letting operator item 18's phrasing imply otherwise. Lawyer question D can
   remove it; nothing else can.
@@ -391,3 +518,51 @@ step 0 of its procedure.
   *AI-drafted, review-PENDING*, exactly as `architecture.md` §8 records — and
   this ADR adds a fourth open lawyer question to A, B and C rather than closing
   any of them.
+
+## What the design pass changed (revision 1 → revision 2)
+
+5 lenses × 2 independent verifiers + a completeness critic. **26 agents, 0
+errored, 0 empty results, 13 findings, nothing dropped unverified** — the
+`agents_error` / `agents_empty_result` check `session-context.md` §5 item 5
+requires, stated as numbers rather than as "the review passed".
+
+**Surfaced and fixed:**
+
+| # | severity | what revision 1 got wrong |
+|---|---|---|
+| 1 | **blocker** | Decision 5 wrote the quiet window as **22:00–08:00**. ADR-045 moved it to **23:00–08:00** so the 22:00 nudge could be delivered. The wrong number was heading into a privacy policy |
+| 2 | **blocker** | Decision 8 described `docs/legal/proposed/` and `legal_proposal_test.dart` in the present tense; neither exists. Now written prospectively |
+| 3 | major | The Consequences bump-diff summary omitted **`shippedPolicyVersionLine`** — one of the two places `docs/legal/README.md` step 3 says the sentinel does not cover, and one the v1→v2 bump had already been caught by once |
+| 4 | major | Decision 8 assertion 2 said each document declares `` `Version 3.` ``. The line is **localised** (`Sürüm`, `الإصدار`), so that guard would have covered one locale of three |
+| 5 | minor | Consequences said the bump *"re-syncs six bytes-identical files"* while Decision 3 says only three documents change. Corrected to three |
+| 6 | minor | `build_site.py`'s stem list is on **line 323**; line 325 is the path composition. Both are now cited |
+
+**Raised by the completeness critic and acted on:**
+
+| # | what nobody else looked for |
+|---|---|
+| 7 | **Lawyer question D was created and never added to the lawyer's list.** `docs/legal/README.md` still said *"These three questions"*. D and E now land there |
+| 8 | **Apple's APNs role was a fifth question hidden inside a register cell.** Now numbered E |
+| 9 | The analytics-adapter gate exists only as prose across two ADRs and an operator item, with no issue tracking it. Filed |
+
+**Attacked and NOT changed — both verifiers refuted, and the reasoning is
+recorded so the same objection does not have to be re-litigated:**
+
+* *"Mixpanel is already named, so name it in the notice."* A technology intention
+  in `architecture.md` is not an engaged recipient; the register itself says no
+  processor exists and no row is due. Answered in Decision 1.
+* *"The analytics correction is material on its own — the on-device markers are
+  a new storage location for identifiers."* The *"data-location split"* trigger
+  is about server-side geography (ADR-023's own usage), and nothing is
+  transmitted. The **deletion gap** the finding surfaced along the way is real,
+  is now stated in Decision 6, and is filed.
+* *"A different v3 could supersede the proposal and leave CI red."* True, and red
+  CI is the designed recovery (`session-rules.md` §3.5) — but the one-line
+  cleanup instruction is cheaper than the archaeology, so Decision 8 carries it.
+
+**Also corrected without a finding**, from the session's own reading of
+`payload-policy.ts` while the review ran: Decision 5's purpose list named **two**
+of the **four** `PushKind` members, and said nothing about `partnerAnswered`
+interpolating the **partner's name** into a notification. A purposes list that is
+a subset of the purposes is the same defect as the sentence this ADR exists to
+correct.
