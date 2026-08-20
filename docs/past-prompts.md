@@ -3773,3 +3773,83 @@ that actually carried the final tree. Both the PR run (32192567902) and the
 
 **Next objective written to resume-prompt.md:** **#226**, as S082 — draft the
 legal revision covering push *and* analytics in one bundle, and stop at a draft.
+
+---
+
+## Session 082 — 2026-08-20/21 — #226: the notice denies a collection the shipped build already attempts (ADR-058)
+
+**Objective (from resume-prompt.md):** #226 — draft the legal-text revision, in ONE bundle covering push *and* analytics, so the founder/lawyer approves once and users are re-consented once. **Autonomous: the drafting. NOT autonomous: landing it.**
+
+**Outcome:** done. A version-3 draft of the three privacy policies sits on `main` at `docs/legal/proposed/`, guarded by a test, with `CURRENT_LEGAL_VERSION` deliberately still **2**. Four issues filed: **#246**, **#247**, **#248**, **#249**, **#250**.
+
+### The measurement that changed what the issue was about
+
+#226 was filed as *"the policy is stale."* It is worse than that, and the difference is the whole ADR.
+
+**Build 119 — the only binary on any phone — already attempts the collection the notice denies.** `git merge-base --is-ancestor` puts ADR-042 and ADR-044 inside `355036878a`; at that sha `app.dart:71` wires `PushTokenSync`, which calls `requestPermission()` and, on success, `registerPushToken` — whose server half writes `users/{uid}.fcmTokens`. The server sweep has been running since S070. **Only the outcome is empty:** `push_delivery_probe.py` re-measured **exit 1, 0/4 registered, all four "no report."**
+
+So the sentence *"ikimiz does not send push notifications today"* is true of the outcome and false of the system, and a privacy notice is a statement about the system. That reframing is what made the draft writable: **describe the system, then state the outcome; never let the outcome stand in for the system.**
+
+**And the analytics no-op does not mean nothing is recorded.** `Analytics._emit` calls `_claimOnce` *before* the sink, so prod writes `analytics.signup.<uid>` and five siblings into `SharedPreferences` — carrying a uid, a `coupleId` and day keys — then discards the event.
+
+### Both review passes ran, and each caught what the other could not
+
+**Pass 1, on the design** — 5 lenses × 2 verifiers + a completeness critic. **26 agents, 0 errored, 0 empty, 13 findings, 6 surfaced + 3 critic, nothing dropped.** It produced **ADR-058 revision 2**, committed before a word of the draft existed. Two blockers:
+
+* Decision 5 wrote the quiet window as **22:00–08:00**. **ADR-045 moved it to 23:00–08:00** so the 22:00 nudge would not be swallowed by our own guard. The wrong number was on its way into a privacy policy.
+* The bump-diff summary dropped **`shippedPolicyVersionLine`** — one of the **two** places `docs/legal/README.md` step 3 says the sentinel does not cover, both *"found the hard way when the v1→v2 bump left them behind."* I cited the rule and dropped the half I was not quoting. Lesson 115, exactly.
+
+The critic found the one nobody else looked for: **lawyer question D was created and never added to the lawyer's list.** `docs/legal/README.md` still said *"These three questions."* D and E now live there.
+
+**Pass 2, on the built diff** — same shape. **26 agents, 0 errored, 1 empty result, 14 findings, 6 surfaced + 4 critic.** The empty verifier is reported rather than absorbed: that finding surfaced as *unverified*, because an empty verdict is not measured, not clean.
+
+**Three of its findings were false sentences in the drafted policy** — the deliverable itself:
+
+* **The blocker.** *"those markers never leave the device, and removing the app removes them."* Both halves are unsafe: Android Auto-Backup is on by default and the manifest sets no exclusion — and this repo already knew the iOS half, because **ADR-018 marks the PIN's Keychain record `unlocked_this_device` specifically to stay "out of iCloud and device backups"**, which concedes ordinary storage is in them. I wrote a false absolute into a legal document *in the ADR that exists to remove one*.
+* *"The report is a status word and a time"* — `pushDiagnostic` is `{state, detail?, at}`, so it can be **two**. Undercounting the collection, in the collection list.
+* *"when your reading language is Arabic"* — **there is no "reading language" in this app.** It is `contentLanguage`, labelled *Question language* / *Soru dili*, and the shipped policy's own collection list already calls it that. The notice invented a name for a control the reader is told to go and find.
+
+**And two guards that could not fail the way their names claimed:**
+
+* The cross-locale parity test was called *"the same sections, in the same order"* and compared **only the three counts**. Three documents with entirely different sections passed it. Rewritten to project each draft heading onto its index in **that locale's shipped document** — the shipped set is the interlingua — and compare the language-free sequences. **The rewrite then failed on correct input**, because Dart `List` has identity equality and a `Set` of three identical lists has length 3.
+* The italic pattern `(?<!\w)_[^_\n]+_(?!\w)` is locale-asymmetric because Dart's `\w` is ASCII-only. **Measured, the asymmetry runs opposite to the review's framing:** it under-guards **English** (`setting_content_language` slips through) while firing on Arabic-flanked underscores. Replaced with the bare form.
+
+### The decisions that were load-bearing
+
+**What is material, and therefore what the bundle actually buys.** Push adds data categories, a purpose, two recipients and a transfer leg — material. The analytics correction adds none of those and **cannot justify a re-consent on its own**, so it rides free. That is the bundle, precisely. **But operator item 18 over-promised the rest of it:** you cannot name an unnamed processor, so a vendor adapter later is a second bump by the conservative reading. That is now **lawyer question D**, with the conservative default standing until the lawyer relaxes it — the ADR-023 precedent.
+
+**Naming Mixpanel was rejected, and both verifiers upheld it.** `architecture.md` names Mixpanel as a *technology intention*; the register says *"no processor exists … no row is due yet."* A notice naming it today would tell users their data goes to a company we have never contacted — a different false sentence, in the same document, pointing the other way.
+
+**The draft lands merged at `docs/legal/proposed/`, not as an open PR** — and the reasoning was trimmed after the design review called it self-serving. What survives is narrow and true: **a merged file is the only one CI can check.** The drift risk is identical either way, and that cost is stated rather than avoided.
+
+**Only the three privacy policies change.** `grep -i 'notification|push|analytic'` over the three terms documents returns nothing.
+
+### The invisible character
+
+The shipped Arabic policy carries **exactly one U+200F**, immediately after the `(` that opens the Latin-script processor list — without it the neutral paren resolves to the wrong side in an RTL paragraph. It sits **inside the one bullet this revision edits**. I found it before writing, built the Arabic draft **programmatically from the shipped file** with 14 content-anchored edits (each asserted to match exactly once) rather than by hand, and the test now pins it. Nothing else in the repo would have noticed it being dropped.
+
+That rebuild was itself forced by a finding *my own test made*: the first hand-written Arabic draft had silently re-translated `## من يُشغّل تطبيق ikimiz` as `## من يُشغّل ikimiz`, dropping a word from a heading I had no business touching. **A revision draft must be a minimal delta, or the lawyer reviews a re-translation instead of a change.**
+
+### Mutation checks — nine, tree restored byte-identical after each
+
+Drop the RLM · restore the false push sentence · bump `currentLegalVersion` · delete a section heading · fill the effective date · add a table · reorder two Arabic sections · rename an Arabic section · underscores in Arabic **body** text. Each turns exactly its own test red. **The ninth was redone:** the first attempt changed a heading *and* added underscores, reddening two tests at once and proving neither.
+
+### Documents this slice made stale, and what was done about each
+
+* `docs/legal/README.md` — lawyer questions **D** and **E** added (the list said *"three"*); a pointer to `proposed/`. The `version:` line is untouched and still unique.
+* `docs/dpa-inventory.md` — **Google FCM** and **Apple APNs** rows added; the note that disposed of both in a subordinate clause replaced; the **İYS/ETK** position recorded as a position; the Mixpanel row told what the draft does and does not discharge.
+* `docs/architecture.md` §8 — the proposal named. **§7 untouched:** its first sentence is parsed by `funnel_event_sentinel_test.dart`.
+* `docs/adr/README.md` — **`Proposed` added to the status vocabulary**, which had no word for a decision whose deliverable is a draft.
+* `docs/test-suite.md` — the fourth cross-tree guard.
+
+### Verification
+
+**1844 app tests** green, `flutter analyze` clean, `dart format` clean. `build_site.py` was **run**: it publishes only the six shipped documents and no `EFFECTIVE DATE` placeholder appears — Decision 2's claim measured rather than reasoned. The effective-date placeholder is matched by that script's own `PLACEHOLDER_SPAN` in all three locales, so a version 3 that lands undated **cannot reach `/privacy`**.
+
+**Honest bound:** nothing about the shipped product changed. No user is re-consented. `CURRENT_LEGAL_VERSION` is 2 in all three sources and a test now says so out loud. **#226 stays open** — its state moves from *"the notice is wrong"* to *"a reviewable correction is on `main`, awaiting the founder and the lawyer."*
+
+**No operator action is required to continue engineering.** The next session is unblocked.
+
+**Commits:** `3f36462` (ADR rev 1), `4abf053` (ADR rev 2, design pass), `6e338db` (the draft + guard + docs), plus the built-diff pass — PR **#251**.
+
+**Next objective written to resume-prompt.md:** **#136**, as S083 — the Functions-side bidi twin. Its autonomous half needs no device, and this session made it pointed: the draft now tells Arabic users, in writing, that a notification can show their partner's name.

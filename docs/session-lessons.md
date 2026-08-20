@@ -38,6 +38,58 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**121 — A test's NAME is a claim; its assertion is the measurement, and nothing keeps them together.** *(S082, ADR-058)*
+The cross-locale parity guard was named *"all three locales carry the same
+sections, in the same order"*. It collected the three ordered heading lists —
+and then asserted **only that the three lengths were equal**. Three documents
+with entirely different sections in any order passed it. The name was quoted
+verbatim into ADR-058 Decision 8 and again into `test-suite.md`, so **three
+artefacts agreed with each other and none of them agreed with the code**, which
+is why a design review reading the ADR could not catch it and only someone
+reading the assertion could. The tell was visible in the code: a variable called
+`counts` holding full lists, with everything but `.length` discarded one line
+later. **When a guard's name promises more than its `expect` measures, the name
+is the thing that gets believed** — it is what a later session greps for, and it
+is what goes into the docs. Read the assertion, not the test name, and be
+suspicious of any guard whose name is a sentence its body could not print.
+*(And the rewrite failed immediately on correct input: Dart `List` has identity
+equality, so a `Set` of three structurally identical lists has length 3. Running
+it is what proved the fix; reading it would not have.)*
+
+**120 — An absolute in a user-facing document is a claim about every platform, and the counter-example is usually already written down in this repo.** *(S082, ADR-058)*
+The version-3 draft said the on-device analytics markers *"never leave the
+device, and removing the app removes them."* Both halves are false wherever
+device backup is on: Android Auto-Backup has been default-on since API 23 and
+`AndroidManifest.xml` sets no exclusion. **The iOS half was already recorded
+here**: ADR-018 stores the PIN in a Keychain record marked
+`unlocked_this_device` *specifically* to stay **"out of iCloud and device
+backups"** — a sentence that only makes sense if ordinary app storage is in
+them. Two code comments and ADR-057 carry the same unqualified assumption, all
+of them inherited from an iOS-only framing nobody re-measured (recurring shape
+**3**). The failure is not the platform detail; it is that **an absolute was
+written into the one document class where being wrong is expensive, by the very
+ADR whose purpose was removing a false sentence from it.** Before writing "never"
+or "always" about storage, grep the repo for the control that was designed
+*around* the exception — it is usually there, and it is usually load-bearing for
+something else.
+
+**119 — A revision draft must be a MINIMAL delta, or the reviewer reviews a re-translation.** *(S082, ADR-058)*
+The first hand-written Arabic v3 draft silently re-worded the intro paragraph and
+rendered `## من يُشغّل تطبيق ikimiz` as `## من يُشغّل ikimiz`, dropping a word
+from a heading the revision had no business touching. A structural test caught
+the heading; **nothing would have caught the paragraph**. That matters more for a
+legal document than for code: the founder's lawyer is paid to review a *change*,
+and a draft that also re-translates unrelated prose buries the change inside
+noise the reviewer must now re-approve line by line. The fix was to stop hand-
+authoring it — the Arabic draft was **rebuilt programmatically from the shipped
+file** by 14 content-anchored replacements, each asserted to match **exactly
+once**, so an anchor that moved failed loudly instead of silently no-op'ing. The
+same rule caught the reverse case one file over: the diff of the EN and TR drafts
+against their shipped counterparts was read line by line, and every changed line
+had to be an intended one. **For any derived document, prefer a scripted delta
+with unique anchors over a rewrite, and read the diff against the source as an
+acceptance step.**
+
 **118 — A rule recorded in one feature's ADR does not generalise itself; the diff will walk into it once per call site.** *(S081, ADR-057)*
 ADR-017 D8 exists precisely because `ref.read` on an autoDispose controller
 **throws** once it is disposed — it is why `CoachSendController` captures the

@@ -14,6 +14,8 @@ This exact `version:` line is read by the three-way source-sentinel test alongsi
 
 Effective date of version 2: 26 July 2026.
 
+**A version-3 DRAFT is waiting in `proposed/`** — three revised privacy policies correcting what version 2 says about notifications and about analytics (issue #226, ADR-058). It is **not in force**, it bumps nothing, and landing it is a founder/lawyer decision because it re-prompts every existing user for consent. `proposed/README.md` carries the delta and the exact landing diff; a structural test (`app/test/features/legal/legal_proposal_test.dart`) holds the draft to this file's authoring rules and asserts it has not landed.
+
 ## Review status (PENDING)
 
 Each document needs a native/register review and a legal review before launch. Nothing here is signed off.
@@ -29,11 +31,13 @@ Each document needs a native/register review and a legal review before launch. N
 
 ### Lawyer questions carried into the legal review
 
-These three questions are the load-bearing legal ambiguities ADR-023 recorded and implemented conservatively. They must be settled by the founder's lawyer, and the answers can relax or confirm the drafts.
+These **five** questions are the load-bearing legal ambiguities recorded and implemented conservatively. They must be settled by the founder's lawyer, and the answers can relax or confirm the drafts. **A, B and C** come from ADR-023 and are about the documents in force; **D and E** are new with the version-3 draft in `proposed/` (ADR-058) and do not block reading it.
 
 - Question A — special-category classification. The drafts treat free-text reflections, shared answers, and coach messages as special-category personal data, so the only realistic basis is explicit consent. Is that classification right, or are they ordinary personal data on the contract basis? Relaxing this in a future version is cheap; adding a missing consent later is expensive, which is why the conservative reading shipped first.
 - Question B — consent as a condition of service. The reflective features are gated on the one consent, but the copy states plainly why it is required (the content is the service itself) and a decliner keeps sign-out, data export, and account deletion directly from the gate. Does this satisfy the freely-given / anti-bundling rules?
 - Question C — what withdrawal must do to the stored corpus. The drafts implement the prospective reading: withdrawing consent pauses the reflective features but leaves already-stored reflections in place until the subject deletes them, with the deletion path offered right beside the withdraw action. Does KVKK/PDPL withdrawal of the sole special-category basis compel controller-initiated erasure, or does the prospective reading plus an adjacent self-serve erasure path suffice?
+- Question D — does naming the analytics provider at its own opt-in discharge the aydınlatma obligation for that processing? The version-3 draft states that product analytics is off, that connecting it needs a separate unbundled opt-in, and that the provider will be named in that opt-in before any event leaves the device. If that satisfies the duty to inform, an analytics adapter can land without touching this notice. If a new named recipient in the notice requires its own version bump regardless, then the adapter re-prompts every user a second time. **The conservative default stands until you relax it: assume the adapter bumps.** ADR-058 Decision 1 records why the alternative — naming a provider we have not contracted with — was rejected as its own false statement.
+- Question E — on the notification leg, is Apple a processor or an independent controller? The register already treats Apple as an independent controller for App Store data, but APNs is a different leg under different terms. `dpa-inventory.md` enters the role as *to be confirmed* rather than asserting it, because asserting it would be playing counsel. The answer changes what the notice must say about Apple and whether a transfer safeguard is needed for that leg specifically.
 
 ### Placeholders the founder must fill before these ship
 
