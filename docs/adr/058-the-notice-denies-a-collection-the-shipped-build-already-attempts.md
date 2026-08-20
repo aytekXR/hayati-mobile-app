@@ -1,6 +1,6 @@
 # ADR-058: the notice denies a collection the shipped build already attempts — one revision, drafted and deliberately not landed
 
-- **Status:** Proposed — **revision 2** (2026-08-21, after the design review). The *draft* is the deliverable; landing it is a founder/lawyer decision
+- **Status:** Proposed — **revision 3** (2026-08-21, after the built-diff review). The *draft* is the deliverable; landing it is a founder/lawyer decision
 - **Date:** 2026-08-20 (Session 082)
 - **Deciders:** session agent for the drafting and the landing mechanics; **founder + lawyer for the version bump**, which is the thing this ADR deliberately does not do
 - **Related:** **ADR-023** (the consent surface, the legal bundle, the three-way version sentinel, the byte-sync drift test, lawyer questions A/B/C — to which this ADR adds **D** and **E**), **ADR-012 / ADR-042 / ADR-044 / ADR-045 / ADR-046 / ADR-049** (the push chain, its storage, **its quiet window — ADR-045 moved it to 23:00–08:00**, its diagnostic), **ADR-054** (the export's device lane and why a raw token never enters it), **ADR-057** (the funnel, its no-op prod sink, and the paragraph-not-a-CI-check gate), **ADR-028** (the v1→v2 bump precedent), **ADR-019** (the deletion cascade), `docs/legal/README.md` (the bump procedure), `docs/dpa-inventory.md`, `docs/architecture.md` §7 and §8, issues **#226** (this one), **#242**, **#243**, operator items **16** and **18**
@@ -15,9 +15,16 @@
 > dropped unverified. **Revision 2 is what that pass produced**, and every change
 > it made is listed at the end of this ADR.
 >
-> **The built-diff pass (§5 item 3) has NOT run at the time of this revision.**
-> What it finds is recorded in `past-prompts.md`. Nothing below claims a review
-> that has not happened.
+> **The built-diff pass (§5 item 3) has now run too** — same shape, **26 agents,
+> 0 errored, 1 empty result** (that finding surfaced as *unverified* rather than
+> being counted as clean), 14 findings, 6 surfaced plus 4 from the critic.
+> **Revision 3 is what that pass produced**, and it is listed at the end
+> alongside revision 2's.
+>
+> **Both passes have now run, and each found what the other could not.** The
+> design pass caught a quiet-hours number that would have gone into a privacy
+> policy; the built-diff pass caught a false sentence *in the drafted policy
+> itself* and two guards that could not fail the way their names claimed.
 >
 > ⚠️ **Everything this ADR says about `docs/legal/proposed/` and
 > `legal_proposal_test.dart` is a SPECIFICATION of what will be built, not a
@@ -352,7 +359,12 @@ The replacement paragraph, in each locale, says:
 3. **Where it goes: nowhere.** Today the app records these and discards them on
    the device. No analytics provider is connected and none receives anything.
 4. **What stays on the device** — a small marker per milestone, so a milestone is
-   not counted twice. It never leaves the phone, and removing the app removes it.
+   not counted twice. We never receive them; they go when the app is removed;
+   and, being ordinary app data, they ride the device's own backups if the
+   subject uses them. ⚠️ **Revision 2 wrote the absolute** — *"never leave the
+   device, and removing the app removes them"* — and the built-diff review
+   refuted both halves. See revision 3's table below; the Android manifest gap
+   it exposed is filed rather than asserted away.
 
    **And the honest bound the design review made us look at: deleting the
    account does not remove them.** The cascade sweeps `users/{uid}` and the
@@ -566,3 +578,64 @@ of the **four** `PushKind` members, and said nothing about `partnerAnswered`
 interpolating the **partner's name** into a notification. A purposes list that is
 a subset of the purposes is the same defect as the sentence this ADR exists to
 correct.
+
+## What the built-diff pass changed (revision 2 → revision 3)
+
+Same shape as the design pass. **26 agents, 0 errored, 1 empty result, 14
+findings, nothing dropped unverified.** The one empty verifier is reported rather
+than absorbed: that finding surfaced as **unverified**, because an empty verdict
+is *not measured*, not *not real* (`session-context.md` §5 item 5).
+
+**Surfaced and fixed — three of them are in the DRAFT, which is the deliverable:**
+
+| # | severity | what revision 2's draft got wrong |
+|---|---|---|
+| 1 | **blocker** | *"those markers never leave the device, and removing the app removes them."* **Both halves are unsafe.** Ordinary app storage rides the device's own backup: Android Auto-Backup is on by default and `AndroidManifest.xml` sets no `allowBackup="false"` and no extraction rules — and this repo already knows the iOS half, because ADR-018 chose a Keychain record marked `unlocked_this_device` *specifically* to stay **"out of iCloud and device backups"**, which concedes that ordinary storage is in them. A false absolute in a legal document is the exact defect this ADR exists to remove, reintroduced by it. Rewritten to say what is true: we never receive them, they go when the app is removed, and they ride your device's backups if you use them. **The Android manifest gap is filed** |
+| 2 | major | *"The report is a status word and a time"* — `pushDiagnostic` is `{state, detail?, at}`, so it can be **two** status words. Undercounting what you collect, in the collection list. Now *"a short status and a time"* |
+| 3 | major | *"when your reading language is Arabic"* — **there is no "reading language" in this app.** The setting is `contentLanguage`, labelled *Question language* / *Soru dili*, and the shipped policy's own collection list already calls it the question language. The notice invented a term for a control the reader is supposed to go and find. Now *"question language"* |
+| 4 | major | *"No notification has ever been delivered to anyone."* The instrument measures **registration**, not delivery. The inference is sound — you cannot deliver to a token that does not exist — but stating the conclusion hides which half was measured (lesson **78**). Now *"No device has ever finished registering, so no notification has ever been delivered"* |
+| 5 | minor | *"switched on, refused, or could not be set up"* — *"refused"* imputes intent, and ADR-046 D2 records precisely why that is a confident wrong label on iOS. Now *"not granted"* |
+
+**And two in the GUARD, both of which could not fail the way their names claimed:**
+
+| # | severity | what the test got wrong |
+|---|---|---|
+| 6 | major | The cross-locale parity test was named *"the same sections, in the same order"* and asserted **only that the three counts were equal**. Three documents with entirely different sections passed it. Rewritten to project each draft heading onto its index in **that locale's shipped document** — the shipped set is the interlingua — and compare the resulting language-free sequences. **Running the rewrite immediately failed on every correct input**, because Dart `List` has identity equality and a `Set` of three structurally identical lists has length 3; it compares by value key now |
+| 7 | major | The italic pattern `(?<!\w)_[^_\n]+_(?!\w)` is locale-asymmetric, because Dart's `\w` is ASCII-only. **Measured, the asymmetry runs the opposite way from the review's framing:** it under-guards **English** (`setting_content_language` slips through, since ASCII letters satisfy the lookarounds) while firing on Arabic-flanked underscores. Either way it is one pattern behaving differently per language, in a file whose own comment claims that shape was fixed. Replaced with the bare `_[^_\n]+_` — a legal document has no business containing an underscore pair at all |
+
+**Re-mutation-checked after the rewrites** (three more, on top of revision 2's
+six): reorder two Arabic sections · rename an Arabic section · underscores in
+Arabic **body** text with no heading touched. Each reddens exactly its own test.
+The first attempt at the third mutation changed a heading *and* added
+underscores, so it reddened two tests at once and proved neither — it was redone.
+
+**Attacked and NOT changed — recorded so it is not re-litigated:**
+
+* *"Mutation-checked six ways is not reproducible."* Both verifiers refuted it.
+  The six mutations are named in `test-suite.md`; anyone can re-run them. Naming
+  the mutation is the artefact.
+* *"1844 app tests green is unverifiable."* Both verifiers refuted it, citing
+  `session-rules.md` §2's *"all tests green **locally**"* as the stated bar, with
+  CI as the post-push check.
+* *"Decision 8 lists six assertions but the test has seven groups."* Both
+  refuted — the implementation exceeding its specification is not a defect. The
+  seventh (placeholder counts, the Arabic RLM) is listed below anyway.
+* *"'refused' is fine because ADR-046's own table says the user said no."* One
+  verifier made this argument. It was still changed: the table describes a
+  *state*, the policy describes a *report*, and *"not granted"* costs nothing.
+
+**Raised by the completeness critic and filed rather than folded in:** the
+`users.consent` record — `{version, acceptedAt, ageAttested}` — is stored and
+appears in **no** collection list, in any locale. That is the same defect class as
+#226 in the same paragraph, but it is not push and it is not analytics, and
+widening a draft the founder is about to review is scope creep wearing a helmet
+(`session-rules.md` §2). It is filed, and `docs/legal/proposed/README.md` puts it
+in front of the founder as a candidate to fold in **while the lawyer is already
+reading** — which is the one moment it is nearly free.
+
+**Assertion 7, for completeness** (the group Decision 8 did not enumerate): each
+draft carries exactly **four** unfilled placeholder spans against the shipped
+document's **three**, and the Arabic draft carries exactly **one** U+200F, in the
+same position as the shipped one — an invisible character sitting inside the one
+bullet this revision edits, which nothing else in the repo would notice being
+dropped.

@@ -1,12 +1,13 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-19 UTC
+**Last Updated:** 2026-08-21 UTC
 
 ## Current Status
 
-- Session: **081**
-- Goal: **#239 — analytics: the funnel splits three ways, and every client event now has a call site a test keeps honest**
-- Status: **Complete for the autonomous half** (ADR-057; PR #244). Two remainders filed: **#242**, **#243**
+- Session: **082**
+- Goal: **#226 — draft the bundled legal-text revision covering push and analytics**
+- Status: **Complete for the autonomous half** (ADR-058; PR #251). A version-3 draft is on `main` at `docs/legal/proposed/`, **not in force**. Five issues filed: **#246**–**#250**
+- ⚠️ **One decision is now waiting on you and it is the oldest open honesty gap in the repo — see items 16 and 18**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
 - Production Readiness: **Beta Ready**
 
@@ -23,7 +24,33 @@ The engineering is nearly done. **Content and instrumentation are the gap**, and
 
 ## Latest Checkpoint
 
-**S081 (2026-08-19) — analytics, MVP item 11.** The app has gone from **no
+**S082 (2026-08-21) — the privacy policy now has a correction waiting for you.**
+A **version-3 draft** of the three privacy policies sits at
+`docs/legal/proposed/`. It is **not in force**: `CURRENT_LEGAL_VERSION` is still
+**2**, no user has been re-prompted, and a test asserts that not-landed state so
+it cannot land by accident.
+
+**What the session measured, and why it matters more than "a doc is stale."**
+The policy says *"ikimiz does not send push notifications today."* **Build 119 —
+the only build on any phone — already asks for notification permission and tries
+to register the device's address with our server.** The server sweep has been
+running since S070. The only reason nothing is stored is that the registration
+has never once succeeded (0 of 4 accounts, re-measured). **So the app is already
+attempting a collection its notice denies.** That is not a future problem; it is
+a present one, and it gets wider with the next build, which adds two more things
+the notice does not name.
+
+**What you have to do:** read `docs/legal/proposed/README.md`. It carries the
+delta in plain language, what is still blank, and — if you approve — the exact
+landing diff, step by step. Then items **16** and **18**.
+
+**Two things the review surfaced that are yours to decide**, both flagged in that
+README at the moment they are cheapest: whether to also disclose the **consent
+record** itself (#249 — one bullet, nearly free while your lawyer has the
+document open, expensive as its own round later), and that the draft makes a
+promise the future **Android** build must keep (#250).
+
+*(Previous checkpoint — S081, 2026-08-19 — analytics, MVP item 11.)* The app has gone from **no
 analytics code at all** to emitting **8 of the 12 funnel events** with typed
 payloads and real call sites, behind a port. **1,819 app tests** (was 1,743),
 coverage **87.69%**. Nothing is broken.
@@ -197,18 +224,32 @@ and SA that you trust. Files: `functions/src/coach/crisis-lexicon.ts`,
 `help-content.ts`, `persona-prompts.ts`. **An under-reading filter is a safety
 failure, not a bug.**
 
-### 15. The legal bundle — review, three blanks, three lawyer questions, one filing
+### 15. The legal bundle — review, three blanks, **five** lawyer questions, one filing
 Six documents in `docs/legal/`, all `review-PENDING`. Blanks: controller identity,
-contact address, governing law. Three lawyer questions are listed in
-`docs/legal/README.md`. Plus the KVKK data-transfer filing for EU hosting and the
-US processor.
+contact address, governing law. **Five** lawyer questions are now listed in
+`docs/legal/README.md` — A/B/C from ADR-023, plus **D** (does naming an analytics
+provider at its own opt-in discharge the duty to inform, or does that adapter
+re-prompt everyone a second time) and **E** (on the notification leg, is Apple a
+processor or its own controller). Plus the KVKK data-transfer filing for EU
+hosting and the US processor.
 
-### 16. Decide **#226** — the privacy policy is factually wrong about push
-It says *"ikimiz does not send push notifications today"*, which is true of the
-outcome and **false of the system**, and it names neither `fcmTokens` nor
-`pushDiagnostic` in what we collect. ⚠️ Any revision bumps `CURRENT_LEGAL_VERSION`
-and **re-prompts every existing user for consent** — your call, not a session's.
-A session can draft the wording.
+### 16. Decide **#226** — the draft is written; the decision is yours
+**The wording exists now.** `docs/legal/proposed/` holds a version-3 draft of all
+three privacy policies, and `docs/legal/proposed/README.md` explains the change in
+plain language and carries the exact landing diff.
+
+It corrects two things in one revision: the push disclosure (what the app stores,
+all four notification kinds and their hours, that a notification can show your
+partner's **name** unless discreet mode is on, the quiet window, Google's and
+Apple's notification services as recipients, and that nothing has actually been
+delivered yet) and the analytics sentence (the app now counts a few milestones and
+discards them on the phone — no provider, nothing sent).
+
+⚠️ **Landing it bumps `CURRENT_LEGAL_VERSION` and re-prompts every existing user
+for consent.** That is why a session drafted it and stopped. **What is needed from
+you:** read it, put it in front of your lawyer with the five questions in
+`docs/legal/README.md`, and say go — or say what to change. The three bracketed
+blanks stay blank until item 5.
 
 ### 17. Two content decisions that are yours
 - The **couple** questions are currently the Turkish *solo* pack — a known
@@ -231,8 +272,21 @@ in this order:
    exactly like item 16. **Bundle the two**: one legal revision, one re-consent,
    covering both push and analytics, rather than asking your users twice.
 
+**Step 2 is now drafted — see item 16.** The version-3 draft covers the analytics
+correction as well as push, so the two ride one review and one re-consent.
+
+⚠️ **This bullet used to promise more than engineering can deliver, and S082
+corrected it.** Bundling gets you **one review and one re-consent for what exists
+today**. It does **not** guarantee that connecting a vendor later needs no second
+prompt: a privacy notice has to name the company that receives your users' data,
+and we have not contracted with one — naming Mixpanel today would be a *different*
+false sentence in the same document. Whether the adapter must therefore bump the
+version again is **lawyer question D**, and until your lawyer says otherwise the
+conservative answer stands: **assume it does.**
+
 **There is no CI check that stops an adapter landing without step 2** — the gate
-is a paragraph in ADR-057. That is stated plainly rather than implied.
+is a paragraph in ADR-057, now also tracked as **#247**. Stated plainly rather
+than implied.
 
 ## Current Blockers
 
@@ -241,31 +295,37 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 1. **Payments cannot complete** — the RevenueCat webhook is not invocable (#115, item 2).
 2. **Push has never been delivered** — no device has ever registered (item 1).
 3. **Prod-vs-`main` drift is unmeasured**, not passing — both drift checks SKIPPED for want of one read-only secret (item 4).
-4. **Legal documents are unreviewed** with three blanks (items 5, 14, 15).
+4. **Legal documents are unreviewed** with three blanks (items 5, 14, 15) — **and the ones in force are wrong about push**: a correction is drafted and waiting on you (item 16). This is the only launch blocker whose fix is written and sitting still.
 5. **Content is ~2% authored** — MVP scope item 3.
 6. **The funnel emits into a no-op in prod** — item 11 is instrumented but not *measured*, and turning that on is item 18 plus item 16.
 
 ## Next Step
 
-Begin **S082 / #226** — draft the legal-text revision, bundled.
+Begin **S083 / #136** — the Arabic push copy's bidi twin, the half that needs no
+device.
 
-S081 is closed: **#239** done for its autonomous half (PR #244, ADR-057), with
-**#242** and **#243** filed as its two remainders. The app now emits 8 of the 12
-funnel events — **into a no-op in production**, deliberately, because turning that
-into a measurement needs the legal change below first.
+S082 is closed: **#226**'s autonomous half is done (PR #251, ADR-058) — a
+version-3 draft on `main`, deliberately not landed. **#226 stays open until you
+and your lawyer approve it.** Five issues were filed along the way: **#246**
+(on-device analytics markers survive account deletion), **#247** (the analytics
+adapter gate is prose, not a check), **#248** (nine ADRs missing from the index),
+**#249** (the consent record is named in no collection list), **#250** (Android
+backup would break a promise the new draft makes).
+
+**Nothing blocks the next session's engineering.**
 
 ## Next Session Goal
 
-**#226 — and it now covers two things, not one.** The privacy policy says
-*"ikimiz does not send push notifications today"* (true of the outcome, **false of
-the system**) and names neither `fcmTokens` nor `pushDiagnostic`. S081 added a
-second topic to the same document: analytics.
+**#136 — the Arabic notification copy interpolates a partner's name with no bidi
+protection**, and S082 made that pointed: the new draft tells Arabic users, in
+writing, that a notification can show their partner's name. Having just promised
+it, the repo should be sure the name renders the way its owner wrote it.
 
-**Any revision re-prompts every existing user for consent.** Doing push now and
-analytics later asks them **twice**. So the next session drafts **one** revision
-covering both — TR/AR/EN, all three documents, plus the DPA rows — and **stops at
-a draft**. It will not bump `CURRENT_LEGAL_VERSION`; that bump is the thing that
-re-gates your users, and it is yours to authorise. See **item 18**.
+The half that needs a phone — whether the notification shade honours the isolation
+characters — stays blocked on you (item 1). The half that does not is real work:
+today's Arabic copy is only **accidentally** safe, because the name happens to sit
+at the end of the clause. A name followed by a full stop — `Aylin Y.` — reorders.
+The session will rearrange the Arabic strings so that cannot happen and pin the
+case with a test.
 
-The three bracketed placeholders (entity, contact, governing law) stay bracketed —
-a session must never guess your legal name into a legal document.
+**Nothing in that touches your phone, your accounts, or your money.**

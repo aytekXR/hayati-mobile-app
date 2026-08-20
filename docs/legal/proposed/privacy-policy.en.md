@@ -22,7 +22,7 @@ Your relationship content lives in Google Cloud Firestore, in a European Union m
 - coach usage counters — how many coach messages you have used, never the messages themselves
 - a mirror of your subscription status
 - invite records
-- your notification setup: the address each of your phones can be reached at for notifications, one for each device you sign in on, and your device's own short report of whether notifications are switched on, refused, or could not be set up. The report is a status word and a time, never a message.
+- your notification setup: the address each of your phones can be reached at for notifications, one for each device you sign in on, and your device's own short report of whether notifications are switched on, not granted, or could not be set up. The report is a short status and a time, never a message.
 
 Some service data is not kept in the European Union, and we say so plainly rather than claim everything is in one place:
 
@@ -54,7 +54,7 @@ Your phone's own permission to show notifications is a separate thing from the c
 
 We do not use your relationship content for advertising, and there is no advertising in ikimiz.
 
-There is no analytics or measurement provider connected to ikimiz, and no product-analytics data leaves your phone. What the app does do is keep count of a few plain milestones — that it was installed, that you signed in, that an invite was sent, that you paired, that a question was answered, that a reveal was seen, that a streak day passed, that a coach message was sent. There is no way for one of these to contain a reflection, an answer, or a coach message: they are counts of something happening, and the code that carries them has nowhere to put text. Today they are recorded and then discarded on your phone, because there is nobody to send them to. Your phone also keeps a small marker for each milestone so the same one is not counted twice; those markers never leave the device, and removing the app removes them. If we ever connect an analytics provider, it will arrive with its own separate opt-in, off until you turn it on, naming the provider before anything is sent — never folded into the one consent this app already asks for.
+There is no analytics or measurement provider connected to ikimiz, and no product-analytics data leaves your phone. What the app does do is keep count of a few plain milestones — that it was installed, that you signed in, that an invite was sent, that you paired, that a question was answered, that a reveal was seen, that a streak day passed, that a coach message was sent. There is no way for one of these to contain a reflection, an answer, or a coach message: they are counts of something happening, and the code that carries them has nowhere to put text. Today they are recorded and then discarded on your phone, because there is nobody to send them to. Your phone also keeps a small marker for each milestone so the same one is not counted twice. We never receive those markers. They are ordinary app data on your phone: they go when you remove the app, and, like the rest of your app data, they are included in your device's own backups if you use them. If we ever connect an analytics provider, it will arrive with its own separate opt-in, off until you turn it on, naming the provider before anything is sent — never folded into the one consent this app already asks for.
 
 ## Keeping ikimiz private on your device
 
@@ -64,9 +64,9 @@ Some of ikimiz's privacy is on your own device, and we describe its honest limit
 - The discreet app icon shows a plain icon on your home screen. The app's name still appears under it; the icon image changes, the name does not.
 - ikimiz sends four kinds of notification, and all four are about your own activity: that your partner has answered today's question; that you have both answered, so the day is open; that the day's question is ready, at 9 in the morning in your couple's time zone; and a reminder at 10 in the evening if the day is still unanswered. There are no other kinds, and we send you nothing promotional.
 - A notification never contains the question or an answer, in any mode. That is not a promise we keep by being careful — the code that writes notifications has no way to put question or answer text into one.
-- In its ordinary form a notification can show your partner's name, as in "Aylin answered". The discreet-notifications setting takes that away: with it on, a notification says only that something is waiting for you — no name, no event, no streak count. It is on by default when your reading language is Arabic, and you can switch it on in any language.
+- In its ordinary form a notification can show your partner's name, as in "Aylin answered". The discreet-notifications setting takes that away: with it on, a notification says only that something is waiting for you — no name, no event, no streak count. It is on by default when your question language is Arabic, and you can switch it on in any language.
 - Nothing is sent between 11 in the evening and 8 in the morning, in your couple's own time zone.
-- No notification has ever been delivered to anyone. The whole path above is built and running on our side, but it has never once worked on a real phone, and we would rather tell you that than let this section imply a feature you are receiving.
+- No device has ever finished registering, so no notification has ever been delivered to anyone. The whole path above is built and running on our side, but it has never once worked on a real phone, and we would rather tell you that than let this section imply a feature you are receiving.
 
 ## How long we keep your data
 

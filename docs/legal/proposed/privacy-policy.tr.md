@@ -22,7 +22,7 @@ Kişisel verileriniz, uygulamayı kullanmanız sırasında elektronik ortamda, o
 - koç kullanım sayaçları — kaç koç mesajı kullandığınız; mesajların kendisi asla tutulmaz
 - abonelik durumunuzun bir kopyası
 - davet kayıtları
-- bildirim kaydınız: telefonlarınızın bildirim için ulaşılabildiği adres — giriş yaptığınız her cihaz için bir tane — ve cihazınızın bildirimlerin açık mı, reddedilmiş mi, yoksa kurulamamış mı olduğuna dair kendi kısa raporu. Bu rapor bir durum sözcüğü ve bir zamandan ibarettir, asla bir mesaj değildir.
+- bildirim kaydınız: telefonlarınızın bildirim için ulaşılabildiği adres — giriş yaptığınız her cihaz için bir tane — ve cihazınızın bildirimlerin açık mı, verilmemiş mi, yoksa kurulamamış mı olduğuna dair kendi kısa raporu. Bu rapor kısa bir durum ve bir zamandan ibarettir, asla bir mesaj değildir.
 
 Bazı hizmet verileri Avrupa Birliği'nde tutulmaz. Her şeyin tek bir yerde olduğunu iddia etmek yerine bunu açıkça söylüyoruz:
 
@@ -54,7 +54,7 @@ Telefonunuzun bildirim gösterme izni, yukarıdaki rızadan ayrı bir şeydir ve
 
 İlişkinize dair içeriğinizi reklam için kullanmayız ve ikimiz'de reklam yoktur.
 
-ikimiz'e bağlı hiçbir analitik veya ölçüm sağlayıcısı yoktur ve hiçbir ürün analitiği verisi telefonunuzdan çıkmaz. Uygulamanın yaptığı şey, birkaç sade dönüm noktasını saymaktır: kurulduğu, giriş yaptığınız, bir davet gönderildiği, eşleştiğiniz, bir sorunun cevaplandığı, bir açılışın görüldüğü, bir seri gününün geçtiği ve bir koç mesajı gönderildiği. Bunların birinin bir yansıma, bir cevap ya da bir koç mesajı taşıması mümkün değildir: bunlar bir şeyin gerçekleştiğinin sayımıdır ve onları taşıyan kodda metin koyulacak bir yer yoktur. Bugün bu sayımlar telefonunuzda kaydedilip ardından atılır, çünkü gönderilecek kimse yoktur. Telefonunuz ayrıca aynı dönüm noktasının iki kez sayılmaması için her biri adına küçük bir işaret tutar; bu işaretler cihazdan asla çıkmaz ve uygulamayı kaldırmanız onları da kaldırır. İleride bir analitik sağlayıcı bağlarsak, bu, kendi ayrı onayıyla gelecek; siz açana kadar kapalı olacak, hiçbir şey gönderilmeden önce sağlayıcının adı size söylenecek — ve asla bu uygulamanın hâlihazırda istediği tek rızanın içine katılmayacaktır.
+ikimiz'e bağlı hiçbir analitik veya ölçüm sağlayıcısı yoktur ve hiçbir ürün analitiği verisi telefonunuzdan çıkmaz. Uygulamanın yaptığı şey, birkaç sade dönüm noktasını saymaktır: kurulduğu, giriş yaptığınız, bir davet gönderildiği, eşleştiğiniz, bir sorunun cevaplandığı, bir açılışın görüldüğü, bir seri gününün geçtiği ve bir koç mesajı gönderildiği. Bunların birinin bir yansıma, bir cevap ya da bir koç mesajı taşıması mümkün değildir: bunlar bir şeyin gerçekleştiğinin sayımıdır ve onları taşıyan kodda metin koyulacak bir yer yoktur. Bugün bu sayımlar telefonunuzda kaydedilip ardından atılır, çünkü gönderilecek kimse yoktur. Telefonunuz ayrıca aynı dönüm noktasının iki kez sayılmaması için her biri adına küçük bir işaret tutar. Bu işaretler bize hiçbir zaman ulaşmaz. Bunlar telefonunuzdaki sıradan uygulama verileridir: uygulamayı kaldırdığınızda giderler ve diğer uygulama verileriniz gibi, kullanıyorsanız cihazınızın kendi yedeklerine dâhil olurlar. İleride bir analitik sağlayıcı bağlarsak, bu, kendi ayrı onayıyla gelecek; siz açana kadar kapalı olacak, hiçbir şey gönderilmeden önce sağlayıcının adı size söylenecek — ve asla bu uygulamanın hâlihazırda istediği tek rızanın içine katılmayacaktır.
 
 ## ikimiz'i cihazınızda gizli tutmak
 
@@ -64,9 +64,9 @@ ikimiz'in gizliliğinin bir kısmı kendi cihazınızdadır; bunu abartmak yerin
 - Sade uygulama simgesi, ana ekranınızda sade bir simge gösterir. Uygulamanın adı simgenin altında görünmeye devam eder; değişen simgenin görüntüsüdür, adı değil.
 - ikimiz dört tür bildirim gönderir ve dördü de sizin kendi etkinliğinizle ilgilidir: partnerinizin bugünün sorusunu cevapladığı; ikinizin de cevapladığı, yani günün açıldığı; günün sorusunun hazır olduğu — çiftinizin saat diliminde sabah 9'da; ve gün hâlâ cevapsızsa akşam 10'da bir hatırlatma. Başka tür yoktur ve size hiçbir tanıtım iletisi göndermeyiz.
 - Bir bildirim, hiçbir modda soru ya da cevap metni içermez. Bu, özen göstererek tuttuğumuz bir söz değildir — bildirimleri yazan kodun bir bildirimin içine soru veya cevap metni koyabilmesinin bir yolu yoktur.
-- Olağan hâlinde bir bildirim partnerinizin adını gösterebilir; örneğin "Aylin cevapladı". Gizli bildirimler ayarı bunu ortadan kaldırır: açıkken bildirim yalnızca sizi bekleyen bir şey olduğunu söyler — ad yok, olay yok, seri sayısı yok. Okuma diliniz Arapça olduğunda varsayılan olarak açıktır ve dilediğiniz dilde açabilirsiniz.
+- Olağan hâlinde bir bildirim partnerinizin adını gösterebilir; örneğin "Aylin cevapladı". Gizli bildirimler ayarı bunu ortadan kaldırır: açıkken bildirim yalnızca sizi bekleyen bir şey olduğunu söyler — ad yok, olay yok, seri sayısı yok. Soru diliniz Arapça olduğunda varsayılan olarak açıktır ve dilediğiniz dilde açabilirsiniz.
 - Çiftinizin kendi saat diliminde akşam 11 ile sabah 8 arasında hiçbir şey gönderilmez.
-- Bugüne kadar hiç kimseye tek bir bildirim iletilmedi. Yukarıda anlatılan yolun tamamı bizim tarafımızda kurulu ve çalışıyor; ancak gerçek bir telefonda bir kez bile işlemedi. Bu bölümün, aldığınız bir özelliği ima etmesindense bunu size söylemeyi tercih ederiz.
+- Hiçbir cihaz kaydını tamamlamadı; dolayısıyla bugüne kadar hiç kimseye tek bir bildirim iletilmedi. Yukarıda anlatılan yolun tamamı bizim tarafımızda kurulu ve çalışıyor; ancak gerçek bir telefonda bir kez bile işlemedi. Bu bölümün, aldığınız bir özelliği ima etmesindense bunu size söylemeyi tercih ederiz.
 
 ## Verilerinizi ne kadar süre saklıyoruz
 

@@ -59,6 +59,35 @@ three privacy policies are here — deliberately.
   version 2. These drafts are AI-written. The Turkish register and the Gulf
   Arabic register both need a human reader before this ships.
 
+### One thing to decide WHILE the lawyer is already reading
+
+The built-diff review found a **third** omission in the same *"What we collect"*
+list, and it is neither push nor analytics: the consent record itself.
+`users/{uid}.consent` stores `{version, acceptedAt, ageAttested}` — when you
+consented, to which version, and that you attested you are of age — and **no
+locale's collection list names any of it** (issue **#249**).
+
+It was deliberately **not** folded into this draft: widening a revision the
+founder is about to review is scope creep, and the session's objective was push
+and analytics (`session-rules.md` §2). But you are about to pay for a legal
+review and a re-consent prompt **once**. Adding one true bullet — *"a record of
+when you consented to this notice and which version you consented to"* — is
+close to free while the lawyer has the document open, and expensive as its own
+round later. **Ask them; it is a one-line decision, and it is yours, not the
+session's.**
+
+### A promise this draft makes that the Android build must keep
+
+The analytics paragraph says the on-device markers *"go when you remove the
+app"*. That is true on iOS, the only platform shipping today (ADR-006). It is
+**false on Android by default** — Auto-Backup is on unless you turn it off, and
+`AndroidManifest.xml` currently sets neither `android:allowBackup="false"` nor
+extraction rules, so the markers would be backed up to Google and restored on
+reinstall. The draft is worded to stay true either way (it says plainly that the
+markers ride your device's backups), but the **M6.5 Android slice must configure
+backup exclusion** or the honest wording becomes the only thing holding the line.
+Filed as issue **#250**.
+
 ## The landing diff — every step, in order
 
 Do all of it in **one commit**. A partial bump fails CI in both directions by

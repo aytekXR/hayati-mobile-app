@@ -183,7 +183,14 @@ void main() {
       r'\|': 'table',
       r'\]\(': 'link',
       r'\*\*': 'bold',
-      r'(?<!\w)_[^_\n]+_(?!\w)': 'italic',
+      // Deliberately NOT `(?<!\w)_[^_\n]+_(?!\w)`. Dart's `\w` is `[A-Za-z0-9_]`
+      // and matches no Arabic or Turkish letter, so the word-boundary lookarounds
+      // succeed around Arabic text and fail around English — the SAME
+      // "guards one language" defect (recurring shape 5) the version pattern
+      // above was fixed for, one pattern over. A legal document has no business
+      // containing an underscore pair at all, so the bare form is both simpler
+      // and symmetric across the three locales.
+      r'_[^_\n]+_': 'italic',
       '`': 'inline code',
       r'^>': 'block quote',
       r'^!\[': 'image',
@@ -219,19 +226,56 @@ void main() {
 
   group('the draft keeps the shipped structure and the locales agree', () {
     test('all three locales carry the same sections, in the same order', () {
-      final counts = {
-        for (final locale in locales) locale: sectionsOf(readProposed(locale)),
-      };
-      final lengths = counts.values.map((sections) => sections.length).toSet();
+      // Headings are LOCALISED, so the three lists cannot be compared as
+      // strings. The SHIPPED documents are the interlingua: each locale's
+      // shipped headings are already parallel, so projecting each proposed
+      // heading onto its index in that locale's shipped list yields a
+      // language-free sequence that IS comparable across locales.
+      //
+      // Comparing `.length` alone — which this test did until the built-diff
+      // review — passes for three documents whose sections are entirely
+      // different as long as the counts match. That is a vacuous assertion
+      // wearing the name of a real one (recurring shapes 1 and 5).
+      final shapes = <String, List<int>>{};
+      for (final locale in locales) {
+        final shipped = sectionsOf(readShipped(locale));
+        expect(
+          shipped,
+          isNotEmpty,
+          reason: 'CONTROL: the shipped $locale document must have sections',
+        );
+        shapes[locale] = [
+          for (final heading in sectionsOf(readProposed(locale)))
+            shipped.indexOf(heading),
+        ];
+      }
+
+      for (final entry in shapes.entries) {
+        expect(
+          entry.value,
+          isNot(contains(-1)),
+          reason:
+              'a section in the ${entry.key} draft matches no heading in the '
+              '${entry.key} shipped document. Either it was renamed (which the '
+              'lawyer must see as a rename, not as churn) or it is a NEW '
+              'section — and a new section must be added to all three locales '
+              'and to this test deliberately.',
+        );
+      }
+
       expect(
-        lengths,
+        // `.join`, not the lists themselves: Dart `List` has identity equality,
+        // so a Set of three structurally identical lists has length 3 and this
+        // assertion would fail on every correct input. Found by running it.
+        shapes.values.map((shape) => shape.join(',')).toSet(),
         hasLength(1),
         reason:
             'the three locales must carry the same substantive content — not '
             'word-for-word, but no locale may promise anything another does '
             'not (docs/legal/README.md). The section skeleton is the part of '
-            'that a machine can check; the rest is the native review. Got: '
-            '${counts.map((locale, sections) => MapEntry(locale, sections.length))}',
+            'that a machine can check; the rest is the native review. '
+            'Projected onto the shipped headings the three drafts differ: '
+            '$shapes',
       );
     });
 

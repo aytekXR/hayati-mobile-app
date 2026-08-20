@@ -16,7 +16,7 @@ Conventions:
 
 - **Numbering:** zero-padded `NNN`, monotonically increasing, never reused. **Numbers are claimed by the earliest-created record, not by merge order** — sessions run concurrently on separate machines/trees, so two can draft the same number (S038 addendum). If you find your number taken, renumber yours and say so in the ADR's bullets. *Worked example:* **029 was drafted as 028**, found PR #95 had claimed 028 four hours earlier, and renumbered — both are in the index below, in number order rather than merge order, which is why 029's own bullets carry a numbering note.
 - **One decision per file.** Split, don't bundle.
-- **Statuses:** `Accepted` · `Superseded (by-NNN)` · `Deprecated`. Records are immutable once accepted — a reversal is a new ADR that supersedes the old one; the old record's status flips to `Superseded (by-NNN)` and its body stays intact.
+- **Statuses:** `Proposed` · `Accepted` · `Superseded (by-NNN)` · `Deprecated`. **`Proposed` was added by ADR-058 (S082)** for the one shape the vocabulary had no word for: a decision whose *deliverable is a draft* and whose landing is someone else's call. It is not a placeholder for "not finished" — an ADR is still written and reviewed before the code — it means the thing the ADR decides has deliberately not been done. Records are immutable once accepted — a reversal is a new ADR that supersedes the old one; the old record's status flips to `Superseded (by-NNN)` and its body stays intact.
 
 ADR-001–005 were backfilled at M0.2 (Session 002) from the `architecture.md` §11 decision log; the decisions themselves date to project genesis (Session 000).
 
