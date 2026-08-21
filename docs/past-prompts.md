@@ -3942,4 +3942,27 @@ The whole English sentence backwards, for an English-reading user, because of wh
 
 **No operator action is required to continue engineering.**
 
+### The CI result
+
+**PR #254 green, and the post-merge `main` run green — `32442392296`, every job.**
+Including **`integration-emulator`**, which is main-only by cost design (ADR-006)
+and which the PR's green therefore said nothing about. It ran **25m14s**
+(03:15:31 → 03:40:45) against **21m33s** on the previous main run — the same
+order, comfortably inside ADR-055's silence bound, and worth writing down because
+this session had already been fooled once by a slow box.
+
+| job | PR #254 | post-merge `main` |
+|---|---|---|
+| `quality` | pass | pass |
+| `functions-rules` | pass | pass |
+| `ios-build-smoke` | pass | pass |
+| `integration-emulator` | **skipped (PR)** | **pass, 25m14s** |
+| both drift preflights | skipped | **pass** (checks themselves skipped — ADR-041 D6) |
+| `gemfile-lock-verify` | skipped | skipped |
+| `slack-notify` | pass | pass |
+
+**`functions-rules` passing in CI is the independent confirmation of this
+session's own emulator run** — the one that needed a second attempt on a quiet
+box. A local green re-run and a CI green are two instruments, and both agree.
+
 **Next objective written to resume-prompt.md:** **#242** — record which server surface emits the three entitlement events. It needs a decision, not a vendor.
