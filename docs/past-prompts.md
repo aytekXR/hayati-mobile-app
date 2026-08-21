@@ -4010,4 +4010,27 @@ Documentation only. `architecture.md` §7's addendum was appended **after** the 
 
 **No operator action is required to continue engineering.**
 
+### The CI result, and the two jobs that did NOT run
+
+**PR #256 green, post-merge `main` run `32449699896` green.** But the honest
+statement is narrower than "every job passed", and the difference matters:
+
+| job | PR #256 | post-merge `main` |
+|---|---|---|
+| `quality` | pass | pass |
+| `functions-rules` | pass | pass |
+| `ios-build-smoke` | pass | **skipped** |
+| `integration-emulator` | skipped | **skipped** |
+| both drift preflights | skipped | **pass** (checks skipped — ADR-041 D6) |
+| `slack-notify` | pass | pass |
+
+**`integration-emulator` and `ios-build-smoke` were path-filtered out on `main`,
+because this session changed only `docs/`.** That is correct — there was nothing
+for them to exercise — and it is written down rather than folded into a green,
+because the previous two sessions' close notes make a point of
+`integration-emulator` being the main-only job the PR cannot prove. **This
+session did not prove it either**, and for a different reason: it never ran.
+A close note that said "main green including integration-emulator" three sessions
+running would have been true twice and false here.
+
 **Next objective written to resume-prompt.md:** **#246** — the once-only analytics markers survive account deletion. Autonomous, and it is the last loose thread of the S082/S083 family.
