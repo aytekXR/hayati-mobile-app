@@ -1,118 +1,144 @@
-# ADR-059: the push copy lets a partner's name choose the paragraph direction, and the worst case is not the Arabic one
+# ADR-059: the push copy lets a name choose the paragraph direction — in a branch nothing calls
 
-- **Status:** Accepted
+- **Status:** Accepted — **revision 2** (2026-08-21, after the design review)
 - **Date:** 2026-08-21 (Session 083)
 - **Deciders:** session agent (the fix is device-independent; the isolate question that is *not* stays blocked and is re-filed rather than guessed)
-- **Related:** **ADR-033** (bidi isolation at the content-text seam, and D10, which recorded this deferral), **ADR-053** (the generated strong-bidi ranges; `intl` must not return to this seam), **ADR-012 / ADR-042 D4 / ADR-045** (the push kinds, the recipients, the hours), **ADR-058** (S082's legal draft, which now tells Arabic users in writing that a notification can show their partner's name), issues **#136** (this one), **#133** (the app-side twin, closed by ADR-033)
+- **Related:** **ADR-033** (bidi isolation at the content-text seam; **D10** filed this as #136 rather than fixing it), **ADR-053** (the generated strong-bidi ranges), **ADR-012 / ADR-042 D4 / ADR-045** (the push kinds, the recipients, the hours), **ADR-058** (S082's legal draft, which this ADR corrects), issues **#136** (this one), **#133** (the app-side twin, closed by ADR-033)
 
-> **Review status, stated prospectively.** Written and committed **before** the
-> fix (`session-context.md` §5 item 1, lesson 111). At the moment of this commit
-> neither review pass has run. What each finds is recorded in `past-prompts.md`
-> and in this ADR's revision history.
+> **Review status.** Revision 1 was written and committed **before** the fix
+> (`session-context.md` §5 item 1, lesson 111). **The design pass has now run** —
+> 4 lenses × 2 independent verifiers + a completeness critic, **25 agents, 0
+> errored, 0 empty results**, 15 findings, 9 surfaced + 4 critic, **5 dropped
+> unverified and listed at the end**. **Revision 2 is what it produced**, and one
+> of its findings inverted the ADR's own severity claim.
+>
+> **The built-diff pass has NOT run at the time of this revision.**
 
-## Context — measured with the reference implementation, not reasoned
+> ⚠️ **This ADR does not do what `resume-prompt.md` told S083 to do, and that is
+> stated plainly rather than absorbed.** The assigned objective was *"reorder the
+> Arabic copy so a partner name never sits beside a bidi-neutral."* Measurement
+> showed that is **impossible** — the neutral is inside the name — and that the
+> severe defect is in a different locale. A deviation from an assigned objective
+> is the session's to justify, not to quietly perform; the justification is
+> Findings A and B, and the deviation is itself a finding the design review
+> raised.
 
-Issue #136 says the Arabic `partnerAnswered` copy interpolates a partner name
-with no bidi isolation, that the defect is **latent**, and that the device-free
-option is *"reorder the Arabic copy so the placeholder never sits next to a
-neutral."*
-
-**Two of those three statements survive measurement. The third is wrong, and the
-issue's own diagnosis pointed at the wrong locale.**
+## Context — measured with the reference implementation
 
 ### The instrument, and its control
 
 There is no Flutter here — the renderer is the OS notification shade — so
-ADR-033's evidence does not transfer, and neither does its instrument.
-`tool/bidi_visual.py` drives **FriBidi** (the reference Unicode bidi
-implementation, already on the box as `libfribidi.so.0`) through `ctypes` and
-returns the **visual** reordering of a logical string.
+ADR-033's evidence and its instrument do not transfer. `tool/bidi_visual.py`
+drives **FriBidi** (the reference Unicode bidi implementation, present as
+`libfribidi.so.0`) through `ctypes` and returns the **visual** reordering of a
+logical string.
 
-**Its control is #133 itself.** The app-side doc comment records the visible
-defect that ADR-033 exists to fix — a Turkish answer inside Arabic chrome
-rendering as `.Kahvaltıda birlikte gülmemiz`. Fed that string, the harness
-returns:
+**Its control is #133 itself** — the defect ADR-033 exists to fix, whose rendered
+form the app-side doc records. Fed that string, the harness returns
+`.Kahvaltıda birlikte gülmemiz :ﻚﻜﻳﺮﺷ ﺔﺑﺎﺟﺇ` — the recorded defect verbatim, on a
+case whose answer was already known. Every measurement below comes from it.
 
-```
-logical : إجابة شريكك: Kahvaltıda birlikte gülmemiz.
-visual  : .Kahvaltıda birlikte gülmemiz :ﻚﻜﻳﺮﺷ ﺔﺑﺎﺟﺇ
-```
+### Finding 0 — the branch this is all about is UNREACHABLE, and #136 does not know that
 
-— the recorded defect, verbatim, on a case whose answer was already known. Every
-claim below is output from that harness.
-
-### Finding A — the severe defect is in the TURKISH and ENGLISH copy
-
-`partnerAnsweredNormal` puts `${name}` **first** in both the TR and the EN
-strings:
+**`partnerName` is supplied by no caller.** Both production call sites omit it:
 
 ```ts
-case 'en': return { title: `${name} answered`, body: `${name} answered today's question. Open ikimiz to add yours.` };
-case 'tr': return { title: `${name} cevapladı`, body: `${name} bugünün sorusunu cevapladı. ikimiz'de sen de cevapla.` };
+// reveal-service.ts:341        // sweep-push.ts:80
+composePush({ kind, language,   composePush({ kind, language,
+  discreet });                    discreet, streakCount });
 ```
 
-A first-strong renderer takes the paragraph direction from the **first strong
-character** — which, when the placeholder leads, is *the name's script, not the
-copy's*. Measured, with an Arabic name:
+`grep -rn partnerName` over the whole repository returns `payload-policy.ts` and
+its own unit tests, and nothing else; `git log -S` finds no call site that ever
+passed one. So **every `partnerAnswered` push ever composed has used the
+name-free copy** — *"Your partner answered"*, *"Partnerin cevapladı"*,
+*"أجاب شريكك"*.
+
+Issue #136 calls the defect **LATENT**, meaning *"no current notification
+mis-renders, and it becomes live the first time a display name ends in
+punctuation."* That is not the situation. It becomes live the first time
+**a caller passes a name at all**, which has never happened. The issue's severity
+paragraph, and revision 1 of this ADR which inherited it, both describe a defect
+one step less remote than it is.
+
+Two consequences, and revision 1 got the second one wrong:
+
+* The fix below is **pre-emptive**, not remedial. It is still worth doing — the
+  branch is live, tested code that is one argument away from being reached, and
+  the measurement is cheap now and expensive after it ships — but it fixes
+  nothing any user is experiencing.
+* **Revision 1's Consequences claimed *"a user whose partner has an Arabic name
+  stops receiving backwards notifications."* That is false.** No user receives a
+  name at all. The claim is deleted rather than softened, because it asserted a
+  user-visible benefit that cannot exist.
+
+**And it makes a sentence in ADR-058's legal draft wrong.** That draft — merged
+one session ago — tells Arabic users *"in its ordinary form a notification can
+show your partner's name."* With no caller supplying one, it cannot. **The same
+class of error S082 existed to correct, committed by S082, in the direction of
+over-disclosure.** Corrected here (Decision 5).
+
+### Finding A — where the severe defect would be, and it is not Arabic
+
+`partnerAnsweredNormal` puts `${name}` **first** in the TR and EN strings. A
+first-strong renderer takes the paragraph direction from the first strong
+character — which, when the placeholder leads, is *the name's script*:
 
 ```
 logical : أيلين answered today's question. Open ikimiz to add yours.
 visual  : .answered today's question. Open ikimiz to add yours ﻦﻴﻠﻳﺃ
 ```
 
-**The entire English sentence is laid out right-to-left and its final full stop
-jumps to the head of the line.** That is not a stray punctuation mark beside a
-name; it is the whole notification rendered backwards, for an English- or
-Turkish-reading user, because of who their partner is.
+The whole English sentence laid out right-to-left, its final stop at the head of
+the line. Not a stray mark beside a name — the entire notification backwards, for
+an English- or Turkish-reading user, because of who their partner is.
 
-**The Arabic copy is immune to this**, and by accident rather than by design:
-`أجاب ${name}` opens with a verb, so a strong Arabic character always precedes
-the placeholder and the paragraph direction is never the name's to decide.
+**The Arabic copy is immune**, because `أجاب ${name}` opens with a verb. Revision
+1 called that *"by accident rather than by design"*; the review pushed back and is
+right — Arabic is VSO, so verb-first is the natural construction, not a lucky
+one. What is accidental is only that nobody checked whether the property held in
+the other two languages, where it does not.
 
-The file's own comment says the name *"sits in SUBJECT position in all three
-languages (no possessive/case suffix attaches to it)"*. The placement was
-reasoned about — for **grammar**. #136 predicted this exactly: *"the precedent
-was followed for grammar and missed for direction."* It just did not predict
-which locale would pay.
+**Honest bound (Finding C below):** this depends on the shade using first-strong
+detection. Under a shade that forces the UI locale's direction it does not occur.
+That dependency is real and is why the word *"severe"* belongs to the failure
+mode, not to a measured field incidence.
 
 ### Finding B — the Arabic defect is real, and reordering CANNOT fix it
 
 ```
-logical : أجاب Aylin Y.          logical : أجاب Aylin!
-visual  : .Aylin Y ﺏﺎﺟﺃ           visual  : !Aylin ﺏﺎﺟﺃ
+أجاب Aylin Y.  →  .Aylin Y ﺏﺎﺟﺃ          أجاب Aylin!  →  !Aylin ﺏﺎﺟﺃ
 ```
 
-The `#133` shape again: the name's own trailing punctuation resolves to the
-paragraph direction and detaches to the far side of the Latin run. The body
-breaks the same way (`… ﻦﻋ .Aylin Y ﺏﺎﺟﺃ`).
+The #133 shape: the name's own trailing punctuation resolves to the paragraph
+direction and detaches to the far side of the Latin run. The body breaks the same
+way. **The neutral is inside the name**, so no arrangement of *our* words helps.
+#136's step 3 addresses a neutral *our copy* contributes — sound for that case,
+insufficient for the one the issue names.
 
-**The neutral is inside the name, at its tail** — so no arrangement of *our*
-words can help. Wherever the placeholder sits, a name ending in `.`, `!` or `?`
-carries its own neutral to the boundary. #136's suggested step 3 addresses a
-different case: a neutral that *our copy* places next to the placeholder. It is
-sound advice for that case and insufficient for the one the issue names.
+**Brackets: matched are safe, unmatched are not.** Revision 1 tested only
+`Ayşe (Y)` (correct — Unicode N0/BD16 resolves a *matched* pair to the enclosed
+text) and generalised to all brackets. The review measured the rest:
 
-Two things that do **not** break, so the fix does not need to cover them:
+```
+أجاب Aylin (  →  ) Aylin ﺏﺎﺟﺃ        أجاب Aylin)  →  (Aylin ﺏﺎﺟﺃ
+```
 
-* **Bracketed names.** `Ayşe (Y)` renders correctly — Unicode's paired-bracket
-  rule (N0/BD16) resolves both brackets to the enclosed text's direction. A
-  guard that also stripped brackets would be removing characters for no reason.
-* **A leading neutral.** `.Aylin` → `Aylin. ﺏﺎﺟﺃ` is the mirror case and is
-  ordinary.
+An unmatched bracket is an ordinary neutral and jumps exactly like a period —
+and it mirrors on the way, so `(` arrives as `)`. Emoticon-suffixed names
+(`Sarah :)`) are the realistic case.
 
-### Finding C — the two defects have different blast radii, and only one is ours to see
+### Finding C — the two defects have different dependencies
 
-Finding A depends on **how the shade resolves paragraph direction**: first-strong
-auto-detection reproduces it, a shade that forces the UI locale's direction does
-not. Finding B reproduces under **both**. That asymmetry matters, because
-step 1 of #136 — *does the shade honour `U+2068`/`U+2069`* — is a device
-question nobody can answer from here, and **the fix below deliberately does not
-depend on the answer to either.**
+Finding A reproduces under **first-strong** detection and not under a
+forced-locale shade. Finding B reproduces under **both**. Neither of the fixes
+below depends on the answer to #136's step 1 (does the shade honour
+`U+2068`/`U+2069`), which remains a device question nobody can answer from here.
 
-## Decision 1 — Put a strong copy-language character before the placeholder, in TR and EN
+## Decision 1 — Put a strong copy-language word before the placeholder, in TR and EN
 
-The named variants become the name-free variants with the name inserted **after**
-the opening word, which is what the copy was already saying without it:
+The named variants become the name-free variants with the name inserted after the
+opening word — which is what the copy already said without it:
 
 | | before | after |
 |---|---|---|
@@ -121,111 +147,153 @@ the opening word, which is what the copy was already saying without it:
 | TR title | `${name} cevapladı` | `Partnerin ${name} cevapladı` |
 | TR body | `${name} bugünün sorusunu cevapladı. …` | `Partnerin ${name} bugünün sorusunu cevapladı. …` |
 
-Measured, with an Arabic name, under first-strong detection:
+Measured with an Arabic name, correct under auto-detect **and** forced-LTR:
+`Your partner ﻦﻴﻠﻳﺃ answered today's question. Open ikimiz to add yours.` ·
+`Partnerin ﻦﻴﻠﻳﺃ cevapladı`.
 
-```
-Your partner ﻦﻴﻠﻳﺃ answered today's question. Open ikimiz to add yours.
-Partnerin ﻦﻴﻠﻳﺃ cevapladı
-```
+Paragraph direction is decided by the *first strong character*, which is a
+property of the sentence we author. That is why reordering is the right
+instrument here and the wrong one for Finding B. The Arabic is unchanged: it
+already satisfies the rule.
 
-Correct, and correct under a forced-LTR shade too. **This is why reordering is
-the right instrument for Finding A and not for Finding B:** paragraph direction
-is decided by the *first* strong character, which is a property of the sentence
-we author; a trailing neutral is a property of the name we are handed.
+## Decision 2 — Strip leading/trailing NEUTRALS from the name, in the RTL copy only
 
-The copy gains nothing awkward — `Your partner Aylin answered` is the
-name-free sentence with a name in it, and the two variants now read as one
-family rather than as two unrelated strings. The Arabic keeps `أجاب ${name}`
-unchanged, because it already satisfies the rule.
+`sanitizePushName(name, language)` in `functions/src/notifications/`, called from
+**`partnerAnsweredNormal`** — the one function that interpolates a name — before
+either string is built. That call site is named here because revision 1 specified
+the function and not its caller, which the completeness critic caught.
 
-## Decision 2 — Strip bidi-neutral characters from the ENDS of the name, and fall back when nothing strong is left
+The rule, corrected on three counts:
 
-A single `sanitizePushName()` in `functions/src/notifications/`, applied to every
-language rather than to Arabic alone:
+* **Neutrals only — never "weak".** Revision 1 said *"neutral or weak"*. In
+  Unicode TR9 the weak types include **EN (European Number)**, so a literal
+  implementation would strip digits and turn `Aylin 2` into `Aylin`. Digits are
+  measured harmless (`أجاب John 3` → `John 3 ﺏﺎﺟﺃ`). The set is the ON/WS/S/B
+  neutrals — `.` `!` `?` `…` `:` `،` `-` and kin.
+* **Unmatched brackets ARE stripped; matched pairs are not.** Finding B.
+* **Applied only when the copy's paragraph is RTL** — i.e. `ar`. Measured: in an
+  LTR paragraph a trailing neutral causes no defect at all
+  (`Aylin Y. answered today's question.` is byte-identical logical-to-visual), so
+  trimming it in EN/TR would remove a character from someone's name **for no
+  rendering benefit**. Revision 1 applied it to all three languages and cited
+  ADR-052's single-definition argument for doing so; the review refuted both —
+  ADR-052 is about `BoxDecoration` values and says nothing that transfers, and
+  the symmetry it was invoked to justify is a cost with no return. **One rule,
+  conditioned on the thing that actually varies: the paragraph's direction.**
+* If nothing strong remains — a name that is entirely punctuation — return
+  `undefined`, so the existing, already-tested name-free copy is used.
 
-* trim whitespace, then trim characters whose Unicode bidi class is neutral or
-  weak from **both ends** — `.` `!` `?` `…` `:` `،` `-` and their kin;
-* **brackets are deliberately NOT stripped** (Finding B: N0 already handles
-  them, so removing them would be damage with no benefit);
-* if nothing strong remains — a name that is entirely punctuation — return
-  `undefined`, so `composePush` degrades to the **existing** name-free copy
-  rather than interpolating an empty string. That path already exists and is
-  already tested; this decision only routes to it.
+**The cost, stated rather than buried:** in Arabic, `Aylin Y.` displays as
+`Aylin Y`. A person's name loses a trailing full stop on a lock screen. That is
+the lesser of two evils — the alternative is the same name with its period on the
+wrong side — and it is recorded so a native reviewer can overturn it in one
+sentence.
 
-**Applied to all three languages, not just Arabic**, for the reason ADR-052
-gives about single definitions: a language-conditional sanitiser is two rules
-that will be taught separately, and the next copy change to TR or EN would have
-to re-derive which one it lives under.
+## Decision 3 — No `U+2068`/`U+2069` enters a push payload
 
-**The cost, stated rather than buried:** `Aylin Y.` is displayed as `Aylin Y`.
-A person's name loses a trailing full stop in a lock-screen notification. That is
-a real, if small, alteration of someone's name — and it is the *lesser* of the
-two options, because the alternative is that same name rendered with its period
-on the wrong side. It is recorded here so a founder or a native reviewer can
-overturn it in one sentence.
+Not because the payload is *"persisted, exported or shared"* — revision 1 said
+that and the review was right that it is a stretch. ADR-033 D4 names those three
+seams concretely (Firestore documents, the data-rights export, the invite share
+string) and a push payload is none of them. The real reasons are narrower and
+sufficient:
 
-## Decision 3 — No `U+2068`/`U+2069` enters a push payload, and step 1 stays blocked
+* **ADR-033's general principle** is *"isolate for rendering, never for outgoing
+  text"*, and a push payload is outgoing text — handed to FCM and APNs, both of
+  which log and store it, and to a notification database on the device.
+* **Whether the shade honours them is unmeasurable from here**, and #136 says so:
+  *"do not assume it works — measure on a device, and if it cannot be measured,
+  say so rather than shipping invisible control characters into a push payload on
+  faith."*
+* **Decisions 1 and 2 need neither answer.**
 
-The isolate route is not taken, and this is not a deferral by convenience:
+Step 1 of #136 stays open and **device-blocked**. If a device ever shows the
+isolates working, that is an improvement on this fix — it would let a name keep
+its own punctuation — not a correction of it.
 
-* `session-context.md` §6 / ADR-033 — **nothing persisted, exported or shared may
-  carry the isolates.** A push payload travels through FCM and APNs, is logged by
-  both, and lands in a notification-shade database on the device. It is
-  plausibly all three.
-* Whether the shade honours them is **unmeasurable from here**, and #136 says so
-  in as many words: *"Do not assume it works — measure on a device, and if it
-  cannot be measured, say so rather than shipping invisible control characters
-  into a push payload on faith."*
-* **The fix above needs neither answer.** Decisions 1 and 2 are correct whether
-  the shade auto-detects or forces a direction, and whether or not it honours
-  isolates.
+## Decision 4 — The test asserts the rule, and the rule is about the first STRONG character
 
-Step 1 therefore remains open and **device-blocked**, and #136 stays open for it.
-If a device ever shows the isolates working, that is an *improvement* on this
-fix, not a correction of it — it would let a name keep its own punctuation.
+FriBidi does not run in the Node suite, so the measurement is done once, here,
+and what ships is the invariant it established:
 
-## Decision 4 — The test asserts the RULE, not the rendering
-
-The suite runs in Node; FriBidi does not. Rather than add a native dependency to
-`functions/` for a test, the measurement is done **once, here**, and what ships
-is the invariant that measurement established:
-
-1. **No composed push string may begin with the interpolated name** — asserted
-   over every `(kind × language)` combination that accepts a name, by composing
-   with a known Arabic name and requiring the string to start with a character
-   the *copy* contributed. This is Finding A's rule, and it is a property of the
-   template, checkable without a bidi implementation.
-2. **The sanitiser's contract, by value** — the exact output for a table of
-   inputs (`Aylin Y.` → `Aylin Y`, `Ayşe (Y)` → unchanged, `...` → `undefined`),
-   because a behavioural test of a trimming rule cannot see *which* characters it
-   trims (lesson **117**).
+1. **The first STRONG character of every composed string must come from the
+   copy, not from the name.** Revision 1 wrote *"must not begin with the name"*,
+   which is weaker in a way the review demonstrated: a copy that opened with a
+   neutral (`• ${name} answered`, or a quote) would pass while the defect
+   remained, because P2 skips neutrals when resolving paragraph direction. The
+   assertion composes each `(kind × language)` with a known-RTL name and requires
+   the first character of bidi class L or R to be one the copy contributed.
+   *(This also disposes of the `streakAtRisk` Turkish string, which opens with
+   `${count}`: digits are **weak**, so they never set paragraph direction, and the
+   first strong character is still Turkish.)*
+2. **The sanitiser's contract, by value** — an input/output table, because a
+   behavioural test of a trimming rule cannot see *which* characters it trims
+   (lesson **117**). Including `Aylin Y.` → `Aylin Y`, `Ayşe (Y)` → unchanged,
+   `Aylin (` → `Aylin`, `Aylin 2` → unchanged, `...` → `undefined`, and every
+   case unchanged under `en`/`tr`.
 3. **The fallback is reached**, not merely available: an all-punctuation name
    produces the byte-identical name-free payload.
-4. **A floor on the input**, so the sweep cannot pass by matching nothing
-   (lesson **110**): the number of `(kind, language)` pairs examined is asserted.
+4. **A floor on the input** (lesson **110**): the number of `(kind, language)`
+   pairs the sweep examined is asserted, so a matcher that matched nothing cannot
+   report a clean zero.
 
-`tool/bidi_visual.py` is committed **with** the fix, because the rule above is
-only as good as the measurement behind it, and a later session that wants to
-re-derive it — or to answer step 1 when a device finally exists — should not have
-to rebuild the instrument. It is a tool, not a gate: nothing in CI runs it.
+`tool/bidi_visual.py` ships with the fix. It is a **tool, not a gate** — nothing
+in CI runs it — and it exists so a later session can re-derive the rule, or
+answer step 1 the day a device exists, without rebuilding the instrument.
+
+## Decision 5 — Correct ADR-058's legal draft in the same diff
+
+`docs/legal/proposed/privacy-policy.{en,tr,ar}.md` says a notification *"can show
+your partner's name"*. Finding 0 makes that untrue. The sentence is corrected to
+describe what the system does today — notifications name no one — while keeping
+the discreet-mode explanation, which is about what *would* be shown and remains
+the honest bound.
+
+This is not scope creep: it is a correction to a document this project merged one
+session ago, of exactly the defect class that document exists to remove, found by
+the next session's measurement. Leaving it for the founder's lawyer to trip over
+would be the worse choice.
 
 ## Consequences
 
-* **A user whose partner has an Arabic name stops receiving backwards
-  notifications** in Turkish and English. That is the actual user-visible win,
-  and it is not the one #136 was filed for.
-* **#136 stays open** for step 1 — the device question. Its severity drops from
-  *"a name may render wrongly"* to *"a name loses a trailing full stop"*.
-* **ADR-058's legal draft becomes more defensible.** It tells Arabic users, in
-  writing, that a notification can show their partner's name. It now does so
-  correctly.
-* **The `partnerAnswered` copy changed**, so any native review already done on it
-  is stale for four strings. Flagged to the founder rather than absorbed —
-  `operator-expected.md` item 13 already covers native review of user-visible
-  strings, and these four join it.
-* **This does not repeal ADR-033**, which governs the app-side render seam and
-  remains the right fix there. Two seams, two mechanisms, and D10 predicted the
-  split.
-* **The sanitiser is a display transformation and nothing else.** It is applied
-  at payload composition; no stored name is altered, and the export, the profile
-  and the app are untouched.
+* **No user-visible change today.** The branch is unreachable; this is the
+  specification being made correct before it is wired. Revision 1's claim of a
+  user-visible win is withdrawn.
+* **The wiring gap is filed** rather than fixed here: `partnerAnswered` is
+  supposed to name the partner and does not, which is a product gap needing a
+  server-side display-name lookup — a feature, not this fix.
+* **#136 stays open** for step 1, the device question. Its severity is now
+  recorded accurately: unreachable today; on wiring, a wrong-way period in
+  Arabic and a reversed paragraph in TR/EN.
+* **Four `partnerAnswered` strings changed**, so any native review of them is
+  stale. `operator-expected.md` item 13 already covers native review of
+  user-visible strings; these four join it.
+* **`docs/test-suite.md` gains the new assertions**, which revision 1 omitted
+  from its document list.
+* **This does not repeal ADR-033**, which governs the app-side render seam. Two
+  seams, two mechanisms — and ADR-033 **D10 filed this as #136** rather than
+  fixing it. *(Revision 1 said D10 "predicted the split"; it did not predict
+  anything, it deferred work under the scope guard. Corrected.)*
+* **The sanitiser is a display transformation only.** No stored name is altered;
+  the profile, the export and the app are untouched.
+
+## What the design pass changed, and what it dropped
+
+**Surfaced and acted on:** Finding 0 (unreachable, not latent — and revision 1's
+false user-benefit claim) · unmatched brackets · *"neutral or weak"* including
+digits · EN/TR trimming having no benefit · the ADR-052 miscitation · the
+*"plausibly all three"* stretch of ADR-033 · the test's first-character vs
+first-strong-character gap · the sanitiser's unspecified call site ·
+`test-suite.md` missing from the document list · the unacknowledged deviation
+from the assigned objective · *"D10 predicted"* · *"by accident"*.
+
+**Dropped UNVERIFIED at the cap of 10 — listed because an unverified finding is
+not a refuted one** (`session-context.md` §5 item 6): *"D10 predicted the split
+mischaracterises D10"* · *"#136 scope mismatch: filed for Arabic, fix changes
+EN/TR"* · *"`Aylin Y.` may not be a realistic display name — source untraced"* ·
+*"Finding C's independence claim obscures that Decision 1 addresses a defect that
+may not exist"* · *"by accident rather than by design understates Arabic word
+order"*. Two of the five were cheap enough to act on anyway (D10, *"by
+accident"*); the other three are recorded here and not adjudicated. Notably the
+third — where display names actually come from — is **subsumed by Finding 0**:
+no name reaches this code from anywhere, so the question of which names are
+realistic has no answer to measure yet.
