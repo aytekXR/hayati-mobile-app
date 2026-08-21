@@ -3852,4 +3852,34 @@ Drop the RLM · restore the false push sentence · bump `currentLegalVersion` ·
 
 **Commits:** `3f36462` (ADR rev 1), `4abf053` (ADR rev 2, design pass), `6e338db` (the draft + guard + docs), plus the built-diff pass — PR **#251**.
 
+### The CI result, recorded here rather than left for a later session to add
+
+**PR #251 green, and the post-merge `main` run green too — `32429984999`, every
+job.** Including **`integration-emulator`**, which is main-only by cost design
+(ADR-006) and which the PR's green therefore said nothing about. The run id was
+captured immediately after the merge and watched to conclusion, per
+`session-rules.md` §3.5.
+
+| job | PR | post-merge `main` |
+|---|---|---|
+| `quality` | pass 5m23s | pass |
+| `functions-rules` | pass 2m20s | pass |
+| `ios-build-smoke` | pass 6m02s | pass |
+| `integration-emulator` | **skipped (PR)** | **pass** |
+| `rules-drift` / `functions-drift` (+ preflights) | skipped | **preflights pass, checks skipped** |
+| `gemfile-lock-verify` | skipped | skipped |
+| `slack-notify` | pass | pass |
+
+**`ios-build-smoke` ran to completion on one push**, which is worth stating: it is
+the only macOS gate, repeated pushes cancel it, and a cancelled run reads as
+covered while having compiled nothing. One push, one 6-minute compile, one pass.
+
+The four `skipping` rows are the known unarmed lanes — `rules-drift` and
+`functions-drift` want operator **2(e)(iv)**, and `gemfile-lock-verify` is
+path-filtered. Both drift **preflights** passed on `main`, which is the design
+from ADR-041 D6: the credential probe is its own job so the check is either
+MEASURED or **visibly SKIPPED**, never green-without-measuring.
+
+**Merged as `699eabf`.** `codegraph sync` reports the index already current.
+
 **Next objective written to resume-prompt.md:** **#136**, as S083 — the Functions-side bidi twin. Its autonomous half needs no device, and this session made it pointed: the draft now tells Arabic users, in writing, that a notification can show their partner's name.
