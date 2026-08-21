@@ -3883,3 +3883,63 @@ MEASURED or **visibly SKIPPED**, never green-without-measuring.
 **Merged as `699eabf`.** `codegraph sync` reports the index already current.
 
 **Next objective written to resume-prompt.md:** **#136**, as S083 — the Functions-side bidi twin. Its autonomous half needs no device, and this session made it pointed: the draft now tells Arabic users, in writing, that a notification can show their partner's name.
+
+---
+
+## Session 083 — 2026-08-21 — #136: the push copy lets a name choose the paragraph direction, in a branch nothing calls (ADR-059)
+
+**Objective (from resume-prompt.md):** #136 — reorder the Arabic copy so a partner name never sits beside a bidi-neutral, and pin the latent defect with a test.
+
+**Outcome:** the objective as written was **impossible**, and measurement said so in the first twenty minutes. What shipped is the fix the measurement actually supported, plus a correction to S082's own legal draft. **#136 stays open** for its device half. **#253** filed.
+
+### The session did not do what it was told, and said so
+
+The assigned fix was *"reorder the Arabic copy so the placeholder never sits beside a bidi-neutral."* **The neutral is inside the name** — `Aylin Y.` carries its own full stop — so no arrangement of our words can reach it. Deviating from an assigned objective is a thing to justify in writing, not to quietly perform; ADR-059 carries the justification in a box at the top, and the design review raised the deviation as a finding of its own.
+
+### The instrument came first, and its control is a defect we already had
+
+There is no Flutter here — the renderer is the notification shade — so ADR-033's evidence and its instrument do not transfer. `tool/bidi_visual.py` drives **FriBidi** through `ctypes` (already on the box; no pip, no npm dependency added to `functions/`).
+
+**Its control is #133.** Fed the string ADR-033's own doc comment records as the visible defect, it returns `.Kahvaltıda birlikte gülmemiz` — verbatim. A bidi harness that cannot reproduce a defect we already had is one whose green means nothing. **Everything below is output, not reasoning** — and the reasoning was wrong twice before the tool ran.
+
+### Three findings, in ascending order of how wrong the issue was
+
+**Finding B — the Arabic defect is real.** `أجاب Aylin Y.` → `.Aylin Y ﺏﺎﺟﺃ`. The #133 shape, mid-sentence too.
+
+**Finding A — the SEVERE defect is in Turkish and English.** `${name}` is **first** there, so a first-strong renderer takes the paragraph direction from *the name's script*:
+
+```
+أيلين answered today's question. Open ikimiz to add yours.
+  ->  .answered today's question. Open ikimiz to add yours ﻦﻴﻠﻳﺃ
+```
+
+The whole English sentence backwards, for an English-reading user, because of who their partner is. The Arabic is immune — it is verb-first, as Arabic VSO makes natural. The file's comment says the name *"sits in SUBJECT position in all three languages"*: **placement was reasoned about for grammar and never for direction**, which is exactly what #136 predicted and exactly the opposite locale from where it looked.
+
+**Finding 0 — the branch is UNREACHABLE, and nobody knew.** `partnerName` is supplied by **no caller**. Both `composePush` sites omit it; `grep` finds it only in `payload-policy.ts` and its own tests; `git log -S` finds no call site that ever passed one. **Every `partnerAnswered` push ever composed has used the name-free copy.** #136 calls the defect *latent*; it is one step further out than that, and ADR-059 revision 1 inherited the issue's severity without checking it — then claimed a user-visible benefit that cannot exist. The claim was **deleted, not softened**.
+
+**And Finding 0 made a sentence in S082's own legal draft false.** That draft, merged one session earlier, tells Arabic users *"a notification can show your partner's name."* It cannot. **The same class of error S082 existed to correct, committed by S082** — caught by the next session's measurement and fixed here.
+
+### Both review passes ran, and the second one was where the code was wrong
+
+**Design pass** — 25 agents, 0 errored, 0 empty, 15 findings, 9 surfaced + 4 critic, **5 dropped unverified and listed in the ADR**. It found Finding 0 independently (as did I, while it ran); that unmatched brackets are *not* covered by N0 as revision 1 claimed; that *"neutral or weak"* includes **EN**, so a literal implementation strips digits from names; that trimming in EN/TR is a cost with no measured benefit; that the ADR-052 citation supported nothing; and that the test rule had to be about the first **strong** character, not the first character.
+
+**Built-diff pass** — 23 agents, 0 errored, 0 empty, 9 findings, **none dropped**. Four were defects in the code and test I had just written:
+
+* `open.splice(i, 1)` where N0 requires discarding every bracket opened after the partner — so `(A [B)]` was "fully matched" and kept, and its trailing `]` measured jumping to the head of the line **and mirroring into a `[`**.
+* A matched pair may **wrap the whole name**, and then its contents are at the edge: `(Aylin Y.)` → `(.Aylin Y)`. `Ayşe (Y)` — the only bracket example I had — contains no neutral to detach. The trim is now recursive.
+* **The test's own RTL predicate was broken in a way that reads as fine.** `/[֐-ࣿיִ-﷿ﹰ-﻿]/u` — the Hebrew point in it is **two codepoints**, so the class parsed a range **U+05B4–U+FDFF**: 63,000 codepoints, calling Devanagari, Thai, Hiragana and Han "RTL". A test whose direction predicate is wrong agrees with whatever it is shown. ADR-053 already made this call for the app-side table, which is why **that** one is generated.
+* The Arabic legal example used the **feminine** verb while the code emits the masculine default — a locale saying something the other two do not.
+
+### What shipped
+
+`sanitizePushName` (RTL copy only — measured, nothing detaches in an LTR paragraph, so trimming there takes a character off a name for nothing) · the TR/EN copy opening with the copy's own word · the legal correction in three locales · `tool/bidi_visual.py` · 31 tests. **Mutation-checked six ways**, each reddening exactly its own assertions.
+
+### Verification
+
+`eslint` clean · `tsc` clean · **640 functions tests, 0 failed** (the 25 "failed" *files* are the emulator suites refusing to run without an emulator, by design, printing the exact command) · the legal guard green · `dart format` clean · the tool's own `--control` green.
+
+**The emulator suite, and the run that was NOT green.** Run through the command CI runs. The **first** attempt after the built-diff fixes reported **3 failed** — and the honest reading took one look at the numbers: every failure was a **timeout** (25.0s, 30.9s, 30.9s) plus a `beforeAll` **hook** timing out at 10s in a file whose two tests are skipped. Nothing in this diff can slow a Firestore trigger or a lifecycle hook; it composes strings. The box had been running multi-agent review workflows all session. Re-run on a quiet machine: **1132 passed, 0 failed, exit 0, lines 97.64%.** Recorded rather than quietly replaced, because "I re-ran it and it went green" is the sentence that hides a real flake — the distinguishing evidence here is that the failures were *all* clock-shaped and none was an assertion about behaviour.
+
+**No operator action is required to continue engineering.**
+
+**Next objective written to resume-prompt.md:** **#242** — record which server surface emits the three entitlement events. It needs a decision, not a vendor.

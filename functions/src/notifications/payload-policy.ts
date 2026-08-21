@@ -17,6 +17,8 @@
 //     event specifics, no streak digits, title is the app name only. Default is
 //     ON in the AR locale (F6); see resolveDiscreet.
 
+import { sanitizePushName } from './sanitize-push-name';
+
 export type PushKind = 'partnerAnswered' | 'reveal' | 'streakAtRisk' | 'dailyQuestion';
 export type PushLanguage = 'tr' | 'ar' | 'en';
 
@@ -49,14 +51,37 @@ const DISCREET_BODY: Record<PushLanguage, string> = {
 // all three languages (no possessive/case suffix attaches to it), so an arbitrary
 // name interpolates cleanly; AR uses a masculine-default verb for a named third
 // party, matching the shipped `دعاك {name}` precedent (invitePreviewInvitedBy).
+//
+// ⚠️ THE NAME MUST NEVER BE THE FIRST STRONG CHARACTER (ADR-059 D1, issue #136).
+// The placement above was reasoned about for GRAMMAR and not for DIRECTION, and
+// the two want different things. A first-strong renderer takes the paragraph
+// direction from the first strong character (UAX #9 P2/P3) — so while `${name}`
+// led the EN and TR strings, an Arabic-named partner laid the whole English
+// sentence out right-to-left, with its final stop at the head of the line
+// (measured with FriBidi; see `tool/bidi_visual.py`):
+//
+//     أيلين answered today's question. …
+//       ->  .answered today's question. … ﻦﻴﻠﻳﺃ
+//
+// So EN and TR now open with the copy's own word — which makes the named string
+// the name-free sentence with a name dropped into it, and the two variants read
+// as one family. The Arabic needed no change: it is verb-first, as Arabic VSO
+// order makes natural. `sanitize-push-name.ts` handles the other half — a
+// neutral the NAME carries, which no arrangement of OUR words can reach.
 function partnerAnsweredNormal(language: PushLanguage, partnerName?: string): PushPayload {
-  const name = partnerName?.trim();
+  const name = sanitizePushName(partnerName, language);
   if (name) {
     switch (language) {
       case 'en':
-        return { title: `${name} answered`, body: `${name} answered today's question. Open ikimiz to add yours.` };
+        return {
+          title: `Your partner ${name} answered`,
+          body: `Your partner ${name} answered today's question. Open ikimiz to add yours.`,
+        };
       case 'tr':
-        return { title: `${name} cevapladı`, body: `${name} bugünün sorusunu cevapladı. ikimiz'de sen de cevapla.` };
+        return {
+          title: `Partnerin ${name} cevapladı`,
+          body: `Partnerin ${name} bugünün sorusunu cevapladı. ikimiz'de sen de cevapla.`,
+        };
       case 'ar':
         return { title: `أجاب ${name}`, body: `أجاب ${name} عن سؤال اليوم. افتح ikimiz وأضف إجابتك.` };
     }

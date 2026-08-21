@@ -1,12 +1,13 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-21 UTC
+**Last Updated:** 2026-08-21 UTC (S083)
 
 ## Current Status
 
-- Session: **082**
-- Goal: **#226 — draft the bundled legal-text revision covering push and analytics**
-- Status: **Complete for the autonomous half** (ADR-058; PR #251). A version-3 draft is on `main` at `docs/legal/proposed/`, **not in force**. Five issues filed: **#246**–**#250**
+- Session: **083**
+- Goal: **#136 — the Arabic push copy's bidi twin, the half that needs no device**
+- Status: **Complete for the autonomous half** (ADR-059). **#136 stays open** for its device half. **#253** filed
+- ⚠️ **Item 16 is still waiting on you, and it is the oldest open honesty gap in the repo**
 - ⚠️ **One decision is now waiting on you and it is the oldest open honesty gap in the repo — see items 16 and 18**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
 - Production Readiness: **Beta Ready**
@@ -23,6 +24,26 @@
 The engineering is nearly done. **Content and instrumentation are the gap**, and most of what is left is yours rather than a session's.
 
 ## Latest Checkpoint
+
+**S083 (2026-08-21) — a notification bug fixed before anyone could receive it, and one sentence of last session's draft corrected.**
+
+Nothing here needs you, and nothing changes on your phone. Two things are worth
+knowing.
+
+**A partner's name would have broken notifications, in English and Turkish more
+than in Arabic.** The copy put the name first, and a phone decides which way to
+lay out a line from its first letter — so a partner with an Arabic name would
+have made the whole English notification render backwards. Measured with the
+reference implementation rather than guessed. Both are fixed before the feature
+is switched on.
+
+**And the app never actually sends a partner's name at all** — the code that
+would is written and tested, but nothing calls it, so every notification says
+*"your partner"*. That is filed as a gap to close deliberately (**#253**), not a
+bug. It also means one sentence in last session's legal draft — *"a notification
+can show your partner's name"* — was **wrong**, and it has been corrected. That
+is exactly the kind of error the draft exists to remove, so finding it in the
+draft itself is worth saying out loud rather than quietly fixing.
 
 **S082 (2026-08-21) — the privacy policy now has a correction waiting for you.**
 A **version-3 draft** of the three privacy policies sits at
@@ -301,31 +322,25 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Begin **S083 / #136** — the Arabic push copy's bidi twin, the half that needs no
-device.
+Begin **S084 / #242** — decide which server surface emits the three subscription
+events (`trial_start`, `paid`, `churn`). **It needs a decision, not a vendor and
+not your involvement.**
 
-S082 is closed: **#226**'s autonomous half is done (PR #251, ADR-058) — a
-version-3 draft on `main`, deliberately not landed. **#226 stays open until you
-and your lawyer approve it.** Five issues were filed along the way: **#246**
-(on-device analytics markers survive account deletion), **#247** (the analytics
-adapter gate is prose, not a check), **#248** (nine ADRs missing from the index),
-**#249** (the consent record is named in no collection list), **#250** (Android
-backup would break a promise the new draft makes).
+S083 is closed: **#136**'s autonomous half is done (ADR-059); it stays open only
+for the half that needs a phone (item 1). **#253** was filed — the partner-name
+copy exists and nothing calls it.
 
-**Nothing blocks the next session's engineering.**
+**Nothing blocks the next session's engineering.** The queue of things waiting on
+**you** is unchanged, and item **16** is the one that matters most: a correction
+to your privacy policy is written, reviewed twice, and sitting still.
 
 ## Next Session Goal
 
-**#136 — the Arabic notification copy interpolates a partner's name with no bidi
-protection**, and S082 made that pointed: the new draft tells Arabic users, in
-writing, that a notification can show their partner's name. Having just promised
-it, the repo should be sure the name renders the way its owner wrote it.
+**#242 — where the money events come from.** Three of the twelve funnel events
+(`trial_start`, `paid`, `churn`) have no emitter, and they are the three Gate 3
+is made of. The next session picks between two places to emit them from — the
+RevenueCat webhook, or a trigger on our own subscription mirror — and writes down
+what each costs.
 
-The half that needs a phone — whether the notification shade honours the isolation
-characters — stays blocked on you (item 1). The half that does not is real work:
-today's Arabic copy is only **accidentally** safe, because the name happens to sit
-at the end of the clause. A name followed by a full stop — `Aylin Y.` — reorders.
-The session will rearrange the Arabic strings so that cannot happen and pin the
-case with a test.
-
-**Nothing in that touches your phone, your accounts, or your money.**
+**No vendor, no token, no account.** Nothing leaves any device either way; that
+still waits on item 16 and item 18.
