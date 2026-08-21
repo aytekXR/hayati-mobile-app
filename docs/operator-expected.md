@@ -4,9 +4,9 @@
 
 ## Current Status
 
-- Session: **083**
-- Goal: **#136 — the Arabic push copy's bidi twin, the half that needs no device**
-- Status: **Complete for the autonomous half** (ADR-059). **#136 stays open** for its device half. **#253** filed
+- Session: **084**
+- Goal: **#242 — decide which server surface emits the three subscription events**
+- Status: **Decided and recorded** (ADR-060). **Nothing built**, deliberately — the emitter waits on a sink, which waits on you (item 16). #242 stays open with its body updated
 - ⚠️ **Item 16 is still waiting on you, and it is the oldest open honesty gap in the repo**
 - ⚠️ **One decision is now waiting on you and it is the oldest open honesty gap in the repo — see items 16 and 18**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
@@ -24,6 +24,19 @@
 The engineering is nearly done. **Content and instrumentation are the gap**, and most of what is left is yours rather than a session's.
 
 ## Latest Checkpoint
+
+**S084 (2026-08-21) — a decision made, no code, and nothing you need to do.**
+
+The three subscription events that Gate 3 is made of (`trial_start`, `paid`,
+`churn`) had no home. They now have one, written down: they come from the
+RevenueCat webhook's own decision point, not from a watcher on our subscription
+records. The alternative was rejected on two measurements — a watcher would have
+inherited exactly the delivery failures it was supposed to avoid, and it would
+have recorded a **churn** every time somebody deleted their account.
+
+**Nothing was built**, on purpose: there is nowhere to send the events until the
+analytics decision in item 16/18 is yours to make. What exists is a decision
+precise enough that building it later is transcription.
 
 **S083 (2026-08-21) — a notification bug fixed before anyone could receive it, and one sentence of last session's draft corrected.**
 
@@ -322,25 +335,25 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Begin **S084 / #242** — decide which server surface emits the three subscription
-events (`trial_start`, `paid`, `churn`). **It needs a decision, not a vendor and
-not your involvement.**
+Begin **S085 / #246** — "Delete account and data" does not reach a handful of
+counters your phone keeps to itself. **Nothing here needs you.**
 
-S083 is closed: **#136**'s autonomous half is done (ADR-059); it stays open only
-for the half that needs a phone (item 1). **#253** was filed — the partner-name
-copy exists and nothing calls it.
+S084 is closed: **#242** decided (ADR-060), nothing built, issue updated.
 
-**Nothing blocks the next session's engineering.** The queue of things waiting on
-**you** is unchanged, and item **16** is the one that matters most: a correction
-to your privacy policy is written, reviewed twice, and sitting still.
+**Nothing blocks the next session's engineering.** The queue waiting on **you**
+is unchanged, and item **16** remains the one that matters most: a correction to
+your privacy policy, written and reviewed twice, sitting still.
 
 ## Next Session Goal
 
-**#242 — where the money events come from.** Three of the twelve funnel events
-(`trial_start`, `paid`, `churn`) have no emitter, and they are the three Gate 3
-is made of. The next session picks between two places to emit them from — the
-RevenueCat webhook, or a trigger on our own subscription mirror — and writes down
-what each costs.
+**#246 — the one place "delete my account" does not reach.** The app keeps a few
+small markers on your phone so it does not count the same milestone twice. They
+never leave the device and nothing receives them — but deleting your account does
+not remove them, because that deletion happens on our servers and cannot reach
+your phone. Removing the app does.
 
-**No vendor, no token, no account.** Nothing leaves any device either way; that
-still waits on item 16 and item 18.
+The next session either makes deletion clear them or says plainly in the privacy
+text that it does not. There is a real trade either way, and it will be written
+down rather than decided quietly.
+
+**No accounts, no keys, no money, no phone.**

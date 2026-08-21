@@ -3966,3 +3966,48 @@ session's own emulator run** — the one that needed a second attempt on a quiet
 box. A local green re-run and a CI green are two instruments, and both agree.
 
 **Next objective written to resume-prompt.md:** **#242** — record which server surface emits the three entitlement events. It needs a decision, not a vendor.
+
+---
+
+## Session 084 — 2026-08-21 — #242: the three money events are emitted where the decision is made (ADR-060)
+
+**Objective (from resume-prompt.md):** #242 — decide, and record in an ADR, WHICH server surface emits `trial_start` / `paid` / `churn`. The decision does not need the vendor.
+
+**Outcome:** decided and recorded. **No emitter built** — deliberately, and #242's own framing says why. The issue stays **open** with its body updated to point at ADR-060.
+
+### The trade #242 described was not the trade
+
+The issue presents two options fairly: a port on the RevenueCat webhook, or a Firestore trigger over `subscriptions/{coupleId}`, with the trigger *"decoupling emission from the bearer-token surface"*. **Two measurements collapsed that.**
+
+**One — the trigger does not decouple from delivery.** `firestore.rules:296` makes the mirror function-only, and the webhook is its sole *content* writer. If RevenueCat never delivers, the mirror never changes and a trigger emits nothing either. The trigger buys independence from the webhook's *code*, not its *delivery* — and delivery is the risk the issue names.
+
+**Two — the trigger would emit `churn` when a user deletes their account.** `deletion-service.ts:245` deletes that document inside the M6.2 cascade. The obvious *"was entitled, is no longer"* derivation fires on it: a false churn in a Gate 3 metric, at the moment someone deletes their account in a DV-aware product.
+
+### The design pass found the classification unimplementable at the seam that had just been chosen
+
+**25 agents, 0 errored, 0 empty, 14 findings, 6 surfaced + 4 critic, 4 dropped unverified.** Two blockers:
+
+* **`paid` is defined over a TRANSITION, and revision 1 put the emitter where only the destination is visible.** The previous lane state never leaves the transaction callback, and the RC event cannot substitute — a trial conversion arrives as a `RENEWAL` with `periodType: NORMAL`, *identical in shape* to an ordinary renewal. Uncorrected, `paid` would have fired on **every renewal for the life of every subscription**, and Gate 3's *"trial→paid ≥30%"* would have grown without bound. `ProcessOutcome` must grow; the ADR now says so instead of claiming the implementation is transcription.
+* **ADR-057 D3's *"no uid or `coupleId`, on any event, ever"* was unaddressed**, at the one seam in the system where both are in scope. Two verifiers split on whether D3 is client-scoped or literal — **which is exactly the question #243 exists to answer**, so the ADR resolves it conservatively (neither identifier) and hands the *relaxation* to #243 rather than closing it silently in a document about which surface emits.
+
+Four more: a lapsed trial was counted as churn; `TRANSFER` revokes entitlement too, so *"EXPIRATION is the only revoking event"* is true inside its table and false of the system; the trigger-indistinguishability claim was too strong (`willRenew` separates `CANCELLATION` from `UNCANCELLATION`); and **sandbox purchases would have entered the funnel** — nobody had looked at `environment`, and this project has bought sandbox subscriptions since M4.2.
+
+And the emit is now explicitly **after** the transaction: Firestore retries the callback, so revision 1's phrasing, followed literally, broke the idempotency it was asserting.
+
+### The built-diff pass found me contradicting the same file
+
+**20 agents, 0 errored, 0 empty, 11 findings, 2 surfaced + 4 critic, 3 dropped.** The sharpest: the §7 addendum called the webhook the mirror's *"sole writer"* — contradicting ADR-060's own *"exactly two writers"* **and `architecture.md`'s own §3**, which already carries the precise vocabulary: *"the deleteAccount cascade is the second admin writer, but it only ever deletes the doc WHOLE — the webhook stays the sole CONTENT writer."* The file had the right words and the addendum ignored them.
+
+Also: Decision 2a promised sandbox events *"are counted"* and named no mechanism. The honest version is better — `logOutcome` already carries `environment`, so nothing new is needed.
+
+### One change nobody asked for
+
+The churn guard now keys off the **previous lane state** rather than the event's `periodType`. Revision 2's version made churn depend on RevenueCat sending `period_type` on an expiry — an **unverified vendor shape** whose absence would make churn *silently unmeasurable*. Both verifiers refuted the concern and were right that the general positive-match rule covers it; it is still better not to depend on a vendor shape nobody here can confirm, and the previous state is in hand anyway because blocker 1 forced it.
+
+### Verification
+
+Documentation only. `architecture.md` §7's addendum was appended **after** the sentinel-parsed first sentence — **60 analytics tests green**, so `funnel_event_sentinel_test.dart`'s ≥12-name floor and both parity directions are unaffected. `dart format` clean.
+
+**No operator action is required to continue engineering.**
+
+**Next objective written to resume-prompt.md:** **#246** — the once-only analytics markers survive account deletion. Autonomous, and it is the last loose thread of the S082/S083 family.

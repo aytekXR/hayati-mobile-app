@@ -1,6 +1,6 @@
 # ADR-060: the three money events are emitted where the decision is made, not where the state lands
 
-- **Status:** Accepted — **revision 2** (2026-08-21, after the design review)
+- **Status:** Accepted — **revision 3** (2026-08-21, after the built-diff review)
 - **Date:** 2026-08-21 (Session 084)
 - **Deciders:** session agent (the *port decision* is autonomous and #242 says so; the vendor sink is an operator dependency and nothing here builds one)
 - **Related:** **ADR-057 D1/D2** (the three-way funnel partition; the port whose default is silence), **ADR-013** (the RevenueCat webhook is the entitlement truth; the bearer-token boundary), **ADR-019** (the deletion cascade), **ADR-014/015**, `docs/architecture.md` §7, issues **#242** (this one), **#243** (the join key), **#226** / **#247** (nothing may leave a device until the legal revision lands), **#115** (the webhook is not invocable in prod)
@@ -13,7 +13,9 @@
 > of its blockers made revision 1's central classification unimplementable at the
 > seam revision 1 chose for it.
 >
-> **The built-diff pass has NOT run at the time of this revision.**
+> **The built-diff pass has now run too** — 3 lenses × 2 verifiers + a critic,
+> **20 agents, 0 errored, 0 empty results**, 11 findings, 2 surfaced + 4 critic,
+> 3 dropped unverified. **Revision 3 is what it produced.**
 
 ## Context
 
@@ -133,7 +135,7 @@ needing new machinery:
 |---|---|
 | `trial_start` | an `applied` `INITIAL_PURCHASE` whose `periodType` is the **trial** value |
 | `paid` | an `applied` event that leaves the lane entitled on a **known non-trial** `periodType`, **where the previous lane state was absent, unentitled, or in trial** |
-| `churn` | an `applied` **`EXPIRATION`** **whose `periodType` is a known non-trial value** |
+| `churn` | an `applied` **`EXPIRATION`** where the **PREVIOUS** lane state was entitled on a known non-trial period |
 
 ### ⚠️ The `paid` rule needs the PREVIOUS state, and the outcome does not carry it
 
@@ -175,6 +177,16 @@ paying.** A trial lapse is not in §7's twelve events at all, and this ADR does
 not add a thirteenth for it — it is recorded here so a later reader knows the gap
 is deliberate.
 
+**The guard reads the PREVIOUS state, not the event's `periodType`, and that is
+deliberate.** Revision 2 wrote it as *"an `EXPIRATION` whose `periodType` is a
+known non-trial value"*, which makes churn depend on RevenueCat sending
+`period_type` on an expiry — a **vendor shape this repo has not verified**, and
+whose absence would make churn silently unmeasurable rather than merely wrong.
+The standing rule here is that **only the vendor can refute a vendor API shape**,
+and no session can ask one. Keying off the previous lane state removes the
+dependency altogether, and that state is in hand anyway because blocker 1 already
+forced the outcome to carry it — one field fixing two rules.
+
 ⚠️ **`CANCELLATION` must not emit `churn`,** and it is the mistake this table
 exists to prevent. RC's `CANCELLATION` means *auto-renew was switched off*; the
 subscriber **stays entitled until expiry**, which is why
@@ -208,10 +220,16 @@ TestFlight purchase, every founder test, and every sandbox run of the paywall
 would otherwise land in the funnel that Gate 3 reads — and this project has been
 buying test subscriptions in sandbox since M4.2.
 
-**The emitter fires only for `PRODUCTION`.** Sandbox events are counted and
-dropped, never silently discarded, because "no events at all" and "no *production*
-events" are the two states a debugging session most needs to tell apart. Raised
-by the completeness critic; nobody else looked at it.
+**The emitter fires only for `PRODUCTION`.** Sandbox events are dropped — and
+**the mechanism that makes that observable already exists**, which revision 2
+promised without ever saying: `logOutcome` runs on every event and its
+`logProjection` already carries `environment`. So a debugging session tells *"no
+events at all"* from *"no production events"* by reading the log the webhook
+already writes, and **the emitter adds no counter of its own**. Revision 2 said
+sandbox events *"are counted"* — present tense, of code that does not exist, via
+a mechanism it never named — and the built-diff review was right that this was a
+promise with nothing behind it. Raised by the completeness critic; nobody else
+looked at the environment field at all.
 
 ⚠️ **`periodType` is an OPEN vocabulary.** The type is `string | null`; our tests
 have only ever seen `TRIAL` and `NORMAL`; RevenueCat also documents `INTRO` and
@@ -287,8 +305,9 @@ and this record. #242's own framing — *"there is no reason to build a server
 emitter before there is somewhere for it to emit"* — is accepted.
 
 **What that costs, stated plainly:** a decision recorded and not built is a
-decision that can rot. The mitigation is that #242 stays **open**, its body now
-points here, and the classification table above is written so the eventual
+decision that can rot. The mitigation is that #242 stays **open**, **its body is
+updated to point here by the session that merges this**, and the classification
+table above is written so the eventual
 implementation is transcription rather than re-derivation.
 
 ## Consequences
@@ -349,3 +368,46 @@ ADR-013 citation obscures the log-vs-emit distinction (operational logging and
 analytics payloads are different rules) · that `summary.store` may differ from
 `event.store` in a two-lane couple (the ADR sources the dimension from the
 **event**, which is correct).
+
+## What the built-diff pass changed (revision 2 → revision 3)
+
+**20 agents, 0 errored, 0 empty results, 11 findings, 2 surfaced + 4 critic, 3
+dropped unverified.** A smaller pass than the design one, and the right size: the
+diff is documentation, so what it could find was contradiction rather than
+behaviour.
+
+| # | severity | what revision 2 got wrong |
+|---|---|---|
+| 1 | major | **The §7 addendum said the mirror's *"sole writer"* is the webhook — contradicting ADR-060's own Measurement 1 (*"exactly two writers"*) and, worse, `architecture.md`'s OWN §3, which already draws the distinction: *"the deleteAccount cascade is the second admin writer, but it only ever deletes the doc WHOLE — the webhook stays the sole CONTENT writer."* The file had the precise vocabulary and the addendum ignored it |
+| 2 | major | **Decision 2a promised sandbox events *"are counted"* and named no mechanism.** Present tense, of code that does not exist. The honest version turns out to be better: `logOutcome` already carries `environment` on every event, so nothing new is needed and the emitter adds no counter |
+| 3 | minor *(critic)* | *"its body now points here"* — present tense for an issue update this diff cannot perform. Now stated as an obligation on the merging session, and discharged there |
+| 4 | minor | The §7 addendum bundled Decision 2a in with the *"four traps"*. It is a separate decision, not a trap |
+
+**Changed without a finding, from the session's own reading:** the churn guard now
+keys off the **previous lane state** rather than the event's `periodType`.
+Revision 2's version made churn depend on RevenueCat sending `period_type` on an
+expiry — an unverified vendor shape whose absence would make churn silently
+unmeasurable. Both verifiers refuted the concern (the general "positive match or
+nothing" rule covers it), and they were right that it is covered; it is still
+better not to depend on the vendor shape at all when the previous state is
+already in hand for `paid`.
+
+**Attacked and NOT changed:** that the trial-to-`RENEWAL` claim is an unsourced
+assumption (both verifiers refuted; it is RevenueCat's documented behaviour and
+the linchpin of blocker 1) · that Decision 3 evades the identifier question (both
+refuted: the ADR *does* decide — neither identifier — and hands only the
+*relaxation* to #243) · that Decision 6 shipping nothing leaves the ADR
+incomplete (both refuted) · that Decision 2a's observability needs the emitter to
+exist (refuted, and finding 2 above is the better version of the same point).
+
+**Dropped UNVERIFIED at the cap of 8** (`session-context.md` §5 item 6): *"the
+churn guard may have introduced a symmetric undercount"* — which the
+previous-state change above addresses incidentally · *"the addendum bundles
+Decision 2a as one of the four traps"* — acted on anyway · *"the commit claims 60
+analytics tests pass but cites Flutter tests a reviewer cannot run"* — true, and
+the claim stands: `flutter test test/core/analytics/` is reproducible by anyone
+with the toolchain, and CI runs it.
+
+**Not fixed here:** ADR-060 is not in `docs/adr/README.md`'s index — and neither
+are 049–059. That whole backlog is **#248**; adding one row would deepen the gap
+rather than close it.

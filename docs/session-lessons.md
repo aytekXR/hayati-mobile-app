@@ -38,6 +38,31 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**126 — The file you are appending to often already has the precise word you are about to get wrong.** *(S084, ADR-060)*
+An addendum to `architecture.md` §7 called the entitlement mirror's sole writer
+"the webhook". §3 of the **same file** already reads: *"the deleteAccount cascade
+is the second admin writer, but it only ever deletes the doc WHOLE — the webhook
+stays the sole CONTENT writer."* The distinction had been drawn, deliberately,
+and the new paragraph flattened it — while contradicting its own ADR's
+*"exactly two writers"* three screens away. **Before writing a summary sentence
+about a subsystem, grep the document for the subsystem's name and read what it
+already says.** The cost of not doing it is not a wrong fact so much as two
+documents that disagree, which is the state the reader cannot resolve.
+
+**125 — A rule that reads a field the VENDOR controls is a rule that can go silently unmeasurable.** *(S084, ADR-060)*
+A draft classified `churn` as *"an `EXPIRATION` whose `periodType` is a known
+non-trial value"* — correct-looking, and dependent on RevenueCat sending
+`period_type` on an expiry event. **Nobody here can ask RevenueCat**, the repo's
+own standing lesson is that *only the vendor can refute a vendor API shape*, and
+the test fixtures default that field, so a suite would agree with any assumption.
+If the field is absent the rule matches nothing and **churn is never emitted at
+all** — the failure is silence, not a wrong number, and silence is the failure
+mode a funnel cannot detect from inside. The fix was to key the rule off state
+**we** own (the previous lane), which was already being fetched for a different
+rule. **When a classification can be written against our state or the vendor's,
+prefer ours — and when it cannot, say out loud which vendor behaviour the metric
+now depends on.**
+
 **124 — A hand-rolled Unicode range is a guess with syntax; ask the engine for the property instead.** *(S083, ADR-059)*
 A test needed "is this character strong-RTL", and got
 `/[֐-ࣿיִ-﷿ﹰ-﻿]/u`. It reads like three sensible block ranges. It is not: the
