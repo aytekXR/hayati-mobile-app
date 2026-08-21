@@ -1,13 +1,19 @@
 # ADR-060: the three money events are emitted where the decision is made, not where the state lands
 
-- **Status:** Accepted
+- **Status:** Accepted — **revision 2** (2026-08-21, after the design review)
 - **Date:** 2026-08-21 (Session 084)
 - **Deciders:** session agent (the *port decision* is autonomous and #242 says so; the vendor sink is an operator dependency and nothing here builds one)
 - **Related:** **ADR-057 D1/D2** (the three-way funnel partition; the port whose default is silence), **ADR-013** (the RevenueCat webhook is the entitlement truth; the bearer-token boundary), **ADR-019** (the deletion cascade), **ADR-014/015**, `docs/architecture.md` §7, issues **#242** (this one), **#243** (the join key), **#226** / **#247** (nothing may leave a device until the legal revision lands), **#115** (the webhook is not invocable in prod)
 
-> **Review status, stated prospectively.** Written and committed **before**
-> anything else (`session-context.md` §5 item 1, lesson 111). Neither review pass
-> has run at the time of this commit.
+> **Review status.** Revision 1 was written and committed **before** anything
+> else (`session-context.md` §5 item 1, lesson 111). **The design pass has now
+> run** — 4 lenses × 2 independent verifiers + a completeness critic, **25 agents,
+> 0 errored, 0 empty results**, 14 findings, 6 surfaced + 4 critic, **4 dropped
+> unverified and listed at the end**. **Revision 2 is what it produced**, and one
+> of its blockers made revision 1's central classification unimplementable at the
+> seam revision 1 chose for it.
+>
+> **The built-diff pass has NOT run at the time of this revision.**
 
 ## Context
 
@@ -77,14 +83,36 @@ author of an analytics emitter has any reason to be reading.
 ```
 
 and it has the RC event itself: `type`, `periodType`, `store`, `environment`.
-A trigger has the *mirror*, from which the event type cannot be recovered — a
-`RENEWAL` and an `UNCANCELLATION` both leave `entitled: true`.
+
+A trigger has only the *mirror*. Revision 1 said the event type *"cannot be
+recovered"* from it, and the review was right that this is too strong: a
+before/after diff **does** separate some transitions — `CANCELLATION` sets
+`willRenew: false` where `UNCANCELLATION` sets it true, so those two are
+distinguishable. **The accurate statement is narrower and still sufficient:** a
+diff recovers the transitions that changed a *stored field*, and the
+classification below needs one that often does not — a trial converting to paid
+is a `RENEWAL` that moves `periodType` and nothing else, and is indistinguishable
+from a paid renewal that also re-writes `expiresAtMs` unless the previous
+`periodType` is compared. Which is precisely the state Decision 1 has to go and
+fetch anyway (below), and the trigger would have to fetch it from the same
+place.
 
 ## Decision 1 — The emitter hangs off the `applied` outcome in `entitlement-service.ts`
 
 Not the HTTP handler, and not a trigger. The `applied` branch is the **single
-point at which this system decides that a real billing fact changed the world**,
-and it is inside the transaction's result rather than beside it.
+point at which this system decides that a real billing fact changed the world**.
+
+⚠️ **The emit happens AFTER `db.runTransaction` returns, beside `logOutcome` —
+never inside the callback.** Firestore **retries a transaction callback on
+contention**, so an emit inside it fires once per attempt. Revision 1 said the
+outcome is returned *"from inside `db.runTransaction`"*, which is true of where
+the value is constructed and dangerously wrong as a description of where the
+side effect belongs. `logOutcome(event, outcome)` already sits in the right
+place and is the precedent to copy.
+
+⚠️ **`ProcessOutcome`'s `applied` variant must GROW, and Decision 2 does not work
+until it does.** It carries `summary` — the **new** state — and the previous
+lane state never leaves the transaction callback. See Decision 2.
 
 Everything #242's acceptance list asks then falls out of the taxonomy rather than
 needing new machinery:
@@ -93,17 +121,59 @@ needing new machinery:
 |---|---|
 | **What fires on a replay?** | **Nothing.** `replay-skip` is a distinct outcome; the emitter never sees it |
 | **What fires on an out-of-order delivery?** | **Nothing.** `stale-skip`, likewise |
-| **Can an event be emitted twice?** | No: `applied` is returned once per accepted event, from inside `db.runTransaction` |
+| **Can an event be emitted twice?** | No — **provided the emit is outside the transaction**, on the returned outcome. See the warning above; inside the callback it fires once per retry |
 | **What fires on a TEST event, or an RC type we do not know?** | **Nothing.** `noop-type` — the `PROJECTING_WILL_RENEW` membership test |
 | **What fires on account deletion?** | **Nothing**, by construction: deletion does not produce an RC event |
+| **What fires on a TRANSFER?** | **Nothing** — see Decision 2 |
+| **What fires on a SANDBOX purchase?** | **Nothing** — see Decision 2a |
 
 ## Decision 2 — The three events are classified from the RC type and `periodType`, and `CANCELLATION` is NOT churn
 
 | event | condition |
 |---|---|
-| `trial_start` | an `applied` `INITIAL_PURCHASE` whose `periodType` is the trial value |
-| `paid` | an `applied` event that leaves the lane entitled on a **non-trial** `periodType`, where the previous lane state was absent, unentitled, or in trial |
-| `churn` | an `applied` **`EXPIRATION`** — `entitlement-core.ts` documents it as *"the ONLY revoking event (entitled → false)"* |
+| `trial_start` | an `applied` `INITIAL_PURCHASE` whose `periodType` is the **trial** value |
+| `paid` | an `applied` event that leaves the lane entitled on a **known non-trial** `periodType`, **where the previous lane state was absent, unentitled, or in trial** |
+| `churn` | an `applied` **`EXPIRATION`** **whose `periodType` is a known non-trial value** |
+
+### ⚠️ The `paid` rule needs the PREVIOUS state, and the outcome does not carry it
+
+This is the blocker the design pass found, and it is a defect in revision 1
+rather than a subtlety: `paid` is defined over a **transition**, and Decision 1
+put the emitter somewhere that can only see the destination.
+
+`processRevenueCatEvent` reads `lanes` (previous) inside the transaction,
+computes `nextLanes`, and returns `summary = deriveSummary(nextLanes)` — the new
+state alone. **The previous state never leaves the callback.** And the RC event
+cannot stand in for it: a trial converting to paid arrives as a `RENEWAL` with
+`periodType: NORMAL`, which is *the same event shape* as an ordinary paid
+renewal. Without the previous `periodType` the two are indistinguishable, and
+`paid` would fire on **every renewal for the life of the subscription** — turning
+Gate 3's *"trial→paid ≥30%"* into a number that grows without bound.
+
+**So the implementation must extend `ProcessOutcome`'s `applied` variant** with
+the minimum the classification needs — the previous lane's `entitled` and
+`periodType`, or a `previousSummary` — computed inside the transaction and
+returned with the outcome. That is a real code change, it is small, and naming
+it here is the difference between the eventual implementation being transcription
+and being a redesign at the worst moment.
+
+Revision 1's Decision 5 claimed *"the classification table is written so the
+eventual implementation is transcription rather than re-derivation."* **That was
+false for `paid`**, and it is corrected rather than softened.
+
+### ⚠️ A trial that lapses is NOT churn
+
+Revision 1's churn rule fired on any `applied` `EXPIRATION`, with no `periodType`
+guard, while both other rules had one. So a **free trial that ended without
+converting** would have been counted as a churned customer.
+
+That conflates two different things and corrupts the pair of numbers Gate 3 is
+made of: a failed trial conversion is *already* measured as the absence of a
+`paid` after a `trial_start`, and counting it again as `churn` both inflates
+churn and double-penalises the same user. **Churn is the loss of someone who was
+paying.** A trial lapse is not in §7's twelve events at all, and this ADR does
+not add a thirteenth for it — it is recorded here so a later reader knows the gap
+is deliberate.
 
 ⚠️ **`CANCELLATION` must not emit `churn`,** and it is the mistake this table
 exists to prevent. RC's `CANCELLATION` means *auto-renew was switched off*; the
@@ -115,6 +185,34 @@ reality and double-counts. *(Whether a "cancelled but still entitled" signal is
 worth its own event is a product question, not this one; it is not in §7's
 twelve and this ADR does not add a thirteenth — see the consequences.)*
 
+### ⚠️ TRANSFER revokes entitlement too, and emits nothing
+
+Revision 1 quoted `entitlement-core.ts` calling `EXPIRATION` *"the ONLY revoking
+event"*. That comment is **true inside `PROJECTING_WILL_RENEW`** and false of the
+system: `processTransferEvent` calls `revokeLane`, which sets `entitled: false`,
+and returns `transfer-revoked`. A couple can lose entitlement without any
+`EXPIRATION`.
+
+**It emits nothing, deliberately.** A transfer moves a subscription *between
+accounts*; nobody stopped paying, and the receiving side is not a new purchase.
+Emitting `churn` on the losing side would report a customer loss that did not
+happen, and pairing it with a `paid` on the receiving side would invent a
+conversion. `transfer-hold` likewise. **The reason this is spelled out is that
+the naive reading of the comment — *"churn = entitled went false"* — walks
+straight into it**, which is the same shape as Measurement 2 one path over.
+
+## Decision 2a — PRODUCTION only; sandbox purchases emit nothing
+
+The RC event carries `environment`, and nothing in revision 1 looked at it. Every
+TestFlight purchase, every founder test, and every sandbox run of the paywall
+would otherwise land in the funnel that Gate 3 reads — and this project has been
+buying test subscriptions in sandbox since M4.2.
+
+**The emitter fires only for `PRODUCTION`.** Sandbox events are counted and
+dropped, never silently discarded, because "no events at all" and "no *production*
+events" are the two states a debugging session most needs to tell apart. Raised
+by the completeness critic; nobody else looked at it.
+
 ⚠️ **`periodType` is an OPEN vocabulary.** The type is `string | null`; our tests
 have only ever seen `TRIAL` and `NORMAL`; RevenueCat also documents `INTRO` and
 `PROMOTIONAL`. So the classification is written as **"trial" vs "not trial"**,
@@ -125,7 +223,40 @@ positive match on a known non-trial value; anything else emits **nothing** and i
 counted. A funnel that quietly invents `paid` events from a vocabulary change is
 worse than one with a gap in it.
 
-## Decision 3 — The port is the same shape as the client's, and its default is silence
+## Decision 3 — The emitter sits where both identifiers are in hand, and carries NEITHER
+
+ADR-057 D3 says, of the funnel payloads: **"No payload carries a uid or a
+`coupleId`, on any event, ever."** Its reasoning is not incidental — it is a
+domestic-violence-aware product, and §8's own argument about coach *metadata*
+applies to a funnel keyed to a couple just as well.
+
+**The `applied` outcome carries `coupleId` AND `uid`.** This ADR places the
+emitter at the one point in the entire system where both are already in scope,
+and revision 1 said nothing about it. Two verifiers split on whether D3's *"any
+event, ever"* is client-scoped (D7 back-references it as *"no uid, ever, on a
+client event"*, and #243 describes it as forbidding them *"on any client
+event"*) or literal. **That split is the point:** it is exactly the question
+#243 exists to answer, and it is not this ADR's to close.
+
+**So the conservative reading holds until #243 decides otherwise: the server
+events carry neither identifier.** Concretely:
+
+* If D3 is literal, this is simply obeying it.
+* If D3 is client-scoped, then whether a server event may carry an identity is a
+  **privacy decision that rides #226** — #243 says so in as many words — and a
+  decision made silently, in an ADR about *which surface emits*, would be the
+  worst possible place to make it.
+* The cost is stated rather than hidden: **without a shared identity, Gate 3's
+  `install→paid` remains uncomputable**, which is precisely what #243 is open
+  about. This ADR does not make that worse, and it does not quietly make it
+  better either.
+
+An emitter written at this seam will have both values in a local variable. The
+implementation must therefore make the payload type *unable* to hold them — the
+ADR-057 D3 idiom, where the guarantee is the type signature rather than author
+discipline.
+
+## Decision 4 — The port is the same shape as the client's, and its default is silence
 
 A `ServerAnalyticsSink` in `functions/src/`, mirroring ADR-057 D2: one method, a
 typed event, **a no-op default**, and nothing wired in production. The reasons
@@ -140,7 +271,7 @@ are the same and one is new:
   already applied. The emitter is wrapped and its failures are swallowed — the
   ADR-057 D2 rule, load-bearing here for a different reason.
 
-## Decision 4 — `storefront` is finally real, and only on these three
+## Decision 5 — `storefront` is finally real, and only on these three
 
 §7 asks for a `storefront` dimension on every event; ADR-057 D3 recorded that
 the client can supply it on **none** — no storefront source exists in the app.
@@ -149,7 +280,7 @@ other nine cannot. That asymmetry is recorded rather than papered over: §7's
 "dimensions on every event" is, and will remain, **partially met**, and the half
 that is met is the half Gate 3 needs.
 
-## Decision 5 — This ADR ships NO emitter
+## Decision 6 — This ADR ships NO emitter
 
 Only the decision, `architecture.md` §7's sentence updated to name the surface,
 and this record. #242's own framing — *"there is no reason to build a server
@@ -176,5 +307,45 @@ implementation is transcription rather than re-derivation.
   to "the RevenueCat webhook" — what changes is that the surface is now *decided*
   rather than *assumed*.
 * **No thirteenth event is added.** `CANCELLATION` is deliberately not given one,
-  and if a later session wants "cancelled but still entitled", that is a §7
+  and neither is a lapsed trial. If a later session wants either, that is a §7
   change with a sentinel to satisfy, not a quiet addition here.
+* **This ADR optimises for event-correctness over metric-usefulness**, and says
+  so. A product person watching churn probably wants the *cancel* signal, not the
+  expiry six weeks later; a `paid` that excludes renewals is a conversion count,
+  not a revenue count. Those are legitimate wants and they are **different
+  events**, not different definitions of these three. §7 owns the vocabulary.
+
+## What the design pass changed (revision 1 → revision 2)
+
+**25 agents, 0 errored, 0 empty results, 14 findings, 6 surfaced + 4 critic, 4
+dropped unverified.**
+
+| # | severity | what revision 1 got wrong |
+|---|---|---|
+| 1 | **blocker** | **`paid` is defined over a transition and the emitter could only see the destination.** The previous lane state never leaves the transaction callback, and the RC event cannot substitute — a trial conversion is a `RENEWAL` with `periodType: NORMAL`, identical in shape to an ordinary renewal. Uncorrected, `paid` would have fired on **every renewal for the life of every subscription**, and Gate 3's trial→paid would have grown without bound. `ProcessOutcome` must grow; Decision 2 now says so |
+| 2 | **blocker** | **ADR-057 D3's *"no uid or `coupleId`, on any event, ever"* was unaddressed**, at the one seam in the system where both are in scope. Now Decision 3, resolved conservatively and explicitly handed to #243 rather than closed here |
+| 3 | major | **A lapsed trial was counted as churn.** The churn rule had no `periodType` guard while both others did — so a failed conversion would have been counted twice against the same user, once as a missing `paid` and once as churn |
+| 4 | major | **`TRANSFER` also revokes entitlement.** *"EXPIRATION is the ONLY revoking event"* is true inside `PROJECTING_WILL_RENEW` and false of the system — `revokeLane` sets `entitled: false` on `transfer-revoked`. It now emits nothing, with the reason written down, because the naive *"churn = entitled went false"* reading walks straight into it |
+| 5 | major | **The trigger-indistinguishability claim was too strong.** `CANCELLATION` and `UNCANCELLATION` *are* separable by `willRenew`. Narrowed to the accurate version, which still holds for the transition the classification actually needs |
+| 6 | major *(critic)* | **Sandbox purchases would have entered the funnel.** `environment` was on the event and nobody looked at it. Now Decision 2a — and this project has been buying sandbox subscriptions since M4.2 |
+| 7 | minor | *"from inside `db.runTransaction`"* described the idempotency guarantee in a way that, followed literally, breaks it: Firestore retries the callback. The emit is now explicitly **after** the transaction, beside `logOutcome` |
+
+**Dropped UNVERIFIED at the cap of 10 — listed because unverified is not
+refuted** (`session-context.md` §5 item 6): *"INTRO and PROMOTIONAL periodTypes
+are silently dropped"* (largely answered by the open-vocabulary rule, which
+requires a positive match and emits nothing otherwise) · *"server event
+dimensions are incompletely specified beyond storefront"* · *"the ADR optimises
+for event-correctness over metric-usefulness and does not say so"* (acted on
+anyway, in the consequence above) · *"#242's 'survives a webhook rewrite'
+advantage is not addressed by the measurements"* — which is fair, and the honest
+answer is that it **is** a real advantage of the trigger, just a much smaller one
+than the two the measurements removed.
+
+**Attacked and NOT changed:** that #115 undermines the choice (both verifiers:
+the ADR argues option 2's *advertised advantage* is illusory, which holds
+whatever #115's state) · that `EXPIRATION` is not the only revoking event *within
+its table* (true as scoped; the system-wide case is finding 4) · that the
+ADR-013 citation obscures the log-vs-emit distinction (operational logging and
+analytics payloads are different rules) · that `summary.store` may differ from
+`event.store` in a two-lane couple (the ADR sources the dimension from the
+**event**, which is correct).
