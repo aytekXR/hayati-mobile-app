@@ -1,52 +1,50 @@
-# Resume Prompt — Session 084
+# Resume Prompt — Session 085
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **124**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **126**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #242 — decide, and record in an ADR, WHICH server surface emits
-`trial_start` / `paid` / `churn`. The decision does not need the vendor.**
+**Objective: #246 — "Delete account and data" does not reach the once-only
+analytics markers. Make it, or state in the notice that it does not.**
 
-`architecture.md` §7 assigns three of the twelve funnel events to a **server**
-emitter that does not exist: there is no analytics port anywhere in `functions/`.
-The app deliberately does not emit them — it learns entitlement from a mirror, so
-a client `paid` would timestamp the moment the phone *noticed*, and would be
-missing entirely for a user who never reopens the app (ADR-057).
+`Analytics._claimOnce` writes one `SharedPreferences` key per once-only funnel
+event, **before** the sink is consulted — so this happens on prod today even
+though the sink is a no-op:
 
-**Two candidate surfaces, and the choice is the session:**
+```
+analytics.install · analytics.signup.<uid> · analytics.paired.<uid>.<coupleId>
+analytics.q.<uid>.<dayKey>.<mode> · analytics.reveal.<uid>.<dayKey>
+analytics.streak.<uid>.<lastMutualDate>
+```
 
-1. **A port on the RevenueCat webhook** (`revenueCatWebhook`) — closest to the
-   truth, fires once per real billing event, carries `store` (which is where §7's
-   `storefront` dimension was always going to come from). But the webhook is a
-   **bearer-token surface whose delivery is not guaranteed**, it is **not
-   publicly invocable today** (#115), and it already has an idempotency guard
-   whose semantics the emitter would inherit.
-2. **A Firestore trigger over `subscriptions/{coupleId}`** — fires off our own
-   state, so it cannot miss a delivery the webhook dropped; but it observes a
-   *mirror*, so it times the moment we wrote the mirror, and it needs a
-   before/after diff to tell `trial_start` from `paid` from `churn`.
+Two carry a **uid**, one a **coupleId**, three an activity **date**. The M6.2
+cascade (ADR-019) is server-side and cannot reach the phone, so they survive
+"Delete account and data" on the device that wrote them.
 
-**Acceptance:** an ADR that picks one, states what it costs, and answers at
-minimum — how each of the three events is *distinguished* from the other two;
-what fires on a **replay** (the webhook's idempotency guard is exact-replay only);
-what fires on a **restore** or a plan change; whether an event can be emitted
-twice; and what happens to events that occur while no sink exists. **No adapter,
-no vendor, no token.** Code only if the ADR's own decision demands it.
+**Why this is the right next slice:** it is fully autonomous, it is the last
+loose thread of the S082–S084 family, and **S082's legal draft now makes a
+statement about it** — *"they go when you remove the app"* — which is true and
+narrower than what a user reading "delete my account" expects.
 
-⚠️ **This rides #226 and #243 and cannot outrun them.** Emitting from the server
-is still *collection*, and prod ships a **no-op sink** for exactly that reason
-(operator items 16/18, issue **#247**). The ADR may decide the surface; it may
-not wire a vendor.
+**The decision the session must make, and it is not obvious:** ADR-057 D4
+deliberately accepts that *"a reinstall re-emits"* as the honest bound of a
+`SharedPreferences` key. **Clearing these on delete makes a later re-signup
+re-emit once-only events** — a counting change to a funnel, traded for a data
+-rights improvement. Decide it in the ADR, do not discover it in review.
 
-⚠️ **`architecture.md` §7's FIRST SENTENCE is parsed by a test**
-(`funnel_event_sentinel_test.dart`) behind a ≥12-name floor. If this ADR changes
-which emitter owns an event, **that sentence is the source of truth the test
-reads** — edit it deliberately, and expect the suite to tell you.
+**Acceptance:** either the delete path clears them (with the counting trade
+recorded and the ARB/legal text checked for anything it makes stale), or the ADR
+argues they should stay and the legal draft says so plainly. **A test that fails
+against today's behaviour either way**, and mutation-checked.
 
----
+⚠️ **The app-root sign-out listener already tears down coach state** (ADR-017 D3,
+test-pinned as *gone*, not off-screen). That is the seam and the precedent —
+`app.dart`. Do not invent a second teardown path.
+
+⚠️ **`ref.read` after an await in an autoDispose controller THROWS** (lesson 118).
 
 ## 1. Where things stand *(measured 2026-08-21 — re-measure, do not inherit)*
 
@@ -54,11 +52,26 @@ reads** — edit it deliberately, and expect the suite to tell you.
 |---|---|
 | **#226** | **DRAFT on `main`, revision NOT landed.** `docs/legal/proposed/` holds version 3 of the three privacy policies; `CURRENT_LEGAL_VERSION` is **still 2** and a test asserts it. Closes only when founder + lawyer approve |
 | **#136** | **Autonomous half DONE** (ADR-059). Stays open for **step 1** — whether the notification shade honours `U+2068`/`U+2069` — which is device-blocked |
+| **#242** | **DECIDED, not built** (ADR-060). The surface is the `applied` outcome of `processRevenueCatEvent`. Issue body updated. Stays open for the emitter, which waits on a sink |
 | **Push, device side** | **STILL ZERO.** 0/4 accounts registered, all four "no report" |
 | **`partnerAnswered` never names anyone** | **#253** — no caller supplies `partnerName`. A product gap, filed, not a bug |
 | **The build gap** | Last `release.yml` run is **2026-08-09, build 119**. ADR-046/049/051/052/053/057/059 are on **nobody's phone** |
 | **Deployed rules / functions vs `main`** | Both **drifted or unmeasured** since S071/S077. **S083 changed `functions/` source**, so prod is further behind. A deploy is a **§7 founder ask** |
 | **Open issues** | **#242**, **#243**, **#246**–**#250**, **#253**, plus the older set. None blocks S084 |
+
+### What S084 changed that a later session will trip over
+
+* **`architecture.md` §7 has a second paragraph now**, after the sentinel-parsed
+  first sentence. Appending there is safe and proven twice; **rewording the first
+  sentence, or renaming the heading, is not.**
+* **ADR-060 decided the server emitter's surface and built nothing.** Before
+  implementing it, read Decision 2: **`ProcessOutcome` must grow to carry the
+  previous lane state**, or `paid` cannot be told from an ordinary renewal.
+* **Prefer a rule over state WE own to one over a field the VENDOR controls**
+  (lesson **125**) — and if you cannot, name the vendor behaviour the metric
+  depends on.
+* **Grep the file you are appending to for the words you are about to use**
+  (lesson **126**). S084 flattened a distinction `architecture.md` §3 already drew.
 
 ### What S083 changed that a later session will trip over
 
@@ -93,15 +106,15 @@ reads** — edit it deliberately, and expect the suite to tell you.
 
 ## 2. Then, in priority order
 
-**1 — #243** (the distinct-id: a **privacy** decision that rides #226) · **#249**
+**1 — #243** (the distinct-id: a **privacy** decision that rides #226, and now the one thing ADR-060 deliberately did not close) · **#249**
 (the consent record is named in no collection list — nearly free while the lawyer
 has the document open).
 
 **2 — #204** (`deliver` has failed to create the `tr` localization on **every**
-release since build 112) · **#165** (`rules-drift` built but unarmed) · **#121**
-(a watched release run) · **#248** (ten ADRs missing from the index) · **#246**
-(device-local analytics markers survive account deletion) · **#253** · **#115** ·
-**#41** · **#63/#71** (brandkit).
+release since build 112 — but the **name** is what Apple refuses, so its fix is
+founder-blocked) · **#165** (`rules-drift` built but unarmed) · **#121** (a
+watched release run) · **#248** (eleven ADRs missing from the index) · **#253**
+(`partnerAnswered` names nobody) · **#115** · **#41** · **#63/#71** (brandkit).
 
 ⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
 first. Token capture needs none of it; only background *delivery* does.
