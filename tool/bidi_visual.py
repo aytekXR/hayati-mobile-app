@@ -136,10 +136,11 @@ PUSH_SAMPLES: list[tuple[str, str]] = [
     ("en partnerAnswered body (fixed)", "Your partner {name} answered today's question. Open ikimiz to add yours."),
     ("en partnerAnswered title (BEFORE)", "{name} answered"),
     ("tr partnerAnswered title (fixed)", "Partnerin {name} cevapladı"),
+    ("tr partnerAnswered body (fixed)", "Partnerin {name} bugünün sorusunu cevapladı. ikimiz'de sen de cevapla."),
     ("tr partnerAnswered title (BEFORE)", "{name} cevapladı"),
 ]
 
-PUSH_NAMES = ["Aylin", "Aylin Y.", "Aylin (", "أيلين", "أيلين."]
+PUSH_NAMES = ["Aylin", "Aylin Y.", "Aylin (", "(A [B)]", "(Aylin Y.)", "أيلين", "أيلين."]
 
 
 def run_push() -> int:

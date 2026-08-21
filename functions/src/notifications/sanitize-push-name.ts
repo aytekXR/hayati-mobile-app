@@ -106,12 +106,54 @@ export function sanitizePushName(
 
   if (!RTL_LANGUAGES.has(language)) return trimmed;
 
-  const chars = [...trimmed];
+  const result = trimEdges([...trimmed]);
+  return result !== undefined && hasContent(result) ? result : undefined;
+}
 
-  // A bracket is "matched" only if its partner is present somewhere on the other
-  // side of it; anything else at an edge is a plain neutral. Computed over the
-  // whole string rather than the edges alone, so `Ayşe (Y)` keeps both halves
-  // while `Aylin (` keeps neither.
+/**
+ * The edge trim, as its own function because it **recurses**.
+ *
+ * A name wrapped entirely in a matched pair keeps its brackets (N0 protects
+ * them) — but the content inside is then itself at the edge of the LTR run, and
+ * its own neutrals detach exactly as before. Measured: `أجاب (Aylin Y.)` renders
+ * `(.Aylin Y) ﺏﺎﺟﺃ` — the period lands *inside* the bracket, at position 1. The
+ * brackets being safe does not make what they contain safe, and the built-diff
+ * review found this by testing a case the first draft's example did not have
+ * (`Ayşe (Y)` has no neutral inside to detach).
+ */
+function trimEdges(chars: readonly string[]): string | undefined {
+  if (chars.length === 0) return undefined;
+  const matched = matchedBracketIndices(chars);
+  const keep = (index: number): boolean =>
+    !isEdgeNeutral(chars[index]) || matched.has(index);
+
+  let start = 0;
+  let end = chars.length - 1;
+  while (start <= end && !keep(start)) start += 1;
+  while (end >= start && !keep(end)) end -= 1;
+  if (start > end) return undefined;
+
+  // Wrapped in its own matched pair? Then trim what is inside it, too.
+  if (matched.has(start) && matched.has(end) && BRACKETS.get(chars[start]) === chars[end]) {
+    const inner = trimEdges(chars.slice(start + 1, end));
+    if (inner === undefined) return undefined;
+    return `${chars[start]}${inner}${chars[end]}`.trim();
+  }
+  return chars.slice(start, end + 1).join('').trim();
+}
+
+/**
+ * The indices of brackets that form a **properly nested** pair — the only ones
+ * Unicode's N0/BD16 protects.
+ *
+ * ⚠️ **`open.length = i`, not `open.splice(i, 1)`.** Closing a bracket discards
+ * every bracket opened *after* its partner; a version that removed only the
+ * partner called `(A [B)]` fully matched, while N0 leaves the `]` unpaired — and
+ * measured, that `]` jumps to the head of the line and mirrors into a `[`, which
+ * is the exact defect this function exists to prevent. The first draft had the
+ * `splice`, and the built-diff review measured it wrong.
+ */
+function matchedBracketIndices(chars: readonly string[]): ReadonlySet<number> {
   const matched = new Set<number>();
   const open: { ch: string; index: number }[] = [];
   chars.forEach((ch, index) => {
@@ -124,21 +166,10 @@ export function sanitizePushName(
       if (BRACKETS.get(open[i].ch) === ch) {
         matched.add(open[i].index);
         matched.add(index);
-        open.splice(i, 1);
+        open.length = i;
         return;
       }
     }
   });
-
-  const keep = (index: number): boolean =>
-    !isEdgeNeutral(chars[index]) || matched.has(index);
-
-  let start = 0;
-  let end = chars.length - 1;
-  while (start <= end && !keep(start)) start += 1;
-  while (end >= start && !keep(end)) end -= 1;
-  if (start > end) return undefined;
-
-  const result = chars.slice(start, end + 1).join('').trim();
-  return hasContent(result) ? result : undefined;
+  return matched;
 }

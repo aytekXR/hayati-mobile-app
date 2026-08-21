@@ -1,130 +1,106 @@
-# Resume Prompt — Session 083
+# Resume Prompt — Session 084
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **121**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **124**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #136 — the Arabic push body interpolates a partner name with no bidi
-isolation. Do the half that needs no device: reorder the Arabic copy so a partner
-name never sits beside a bidi-neutral, and pin the latent defect with a test.**
+**Objective: #242 — decide, and record in an ADR, WHICH server surface emits
+`trial_start` / `paid` / `churn`. The decision does not need the vendor.**
 
-`composePush`'s Arabic `partnerAnswered` copy is `أجاب {name}` / `أجاب {name} عن
-سؤال اليوم.` — a Latin-script name dropped into an RTL sentence. **ADR-033 does
-not answer this seam**: it applies isolation *at render*, in the app, and a push
-payload is composed on the server and rendered by the **notification shade**,
-which is neither. Nothing persisted, exported or shared may carry `U+2068`/`U+2069`
-— and a push payload is arguably all three.
+`architecture.md` §7 assigns three of the twelve funnel events to a **server**
+emitter that does not exist: there is no analytics port anywhere in `functions/`.
+The app deliberately does not emit them — it learns entitlement from a mirror, so
+a client `paid` would timestamp the moment the phone *noticed*, and would be
+missing entirely for a user who never reopens the app (ADR-057).
 
-**S082 made this pointed.** The version-3 draft now tells Arabic users, in
-writing, that *"في صورته المعتادة قد يُظهر الإشعار اسم شريككم"* — a notification
-can show your partner's name. Having just promised it, the repo should be sure
-that name renders the way its owner wrote it.
+**Two candidate surfaces, and the choice is the session:**
 
-## What is autonomous, and what is not
+1. **A port on the RevenueCat webhook** (`revenueCatWebhook`) — closest to the
+   truth, fires once per real billing event, carries `store` (which is where §7's
+   `storefront` dimension was always going to come from). But the webhook is a
+   **bearer-token surface whose delivery is not guaranteed**, it is **not
+   publicly invocable today** (#115), and it already has an idempotency guard
+   whose semantics the emitter would inherit.
+2. **A Firestore trigger over `subscriptions/{coupleId}`** — fires off our own
+   state, so it cannot miss a delivery the webhook dropped; but it observes a
+   *mirror*, so it times the moment we wrote the mirror, and it needs a
+   before/after diff to tell `trial_start` from `paid` from `churn`.
 
-* **NOT autonomous — step 1.** Whether the iOS notification shade honours
-  `U+2068`/`U+2069` is a **device** question. Nobody can answer it from here, and
-  no build is on a phone that could (last release **build 119, 2026-08-09**).
-* **Autonomous — the reordering, and the test.** The defect is *latent* today:
-  today's Arabic copy is only **accidentally** safe. `أجاب {name}` puts the name
-  at the end of the clause, where the paragraph direction happens to save it. A
-  name followed by a **bidi-neutral** — a full stop, a comma, a parenthesis — is
-  where it breaks, and `Aylin Y.` is the case to write the test around: the
-  trailing `.` is neutral, so the rendered result reorders.
-* **Prefer finishing one thing.** Do the reorder + the test. Leave step 1 filed.
+**Acceptance:** an ADR that picks one, states what it costs, and answers at
+minimum — how each of the three events is *distinguished* from the other two;
+what fires on a **replay** (the webhook's idempotency guard is exact-replay only);
+what fires on a **restore** or a plan change; whether an event can be emitted
+twice; and what happens to events that occur while no sink exists. **No adapter,
+no vendor, no token.** Code only if the ADR's own decision demands it.
 
-**Acceptance:** every Arabic push string is arranged so an interpolated name is
-never adjacent to a bidi-neutral; a test pins `Aylin Y.` (and at least one
-name with a trailing neutral in each other Arabic string) and **fails against
-today's copy**; ADR-033's boundary is amended or explicitly ruled out of scope
-for the server seam, in writing. **Mutation-check the test** — restore the old
-copy and confirm exactly its own case reddens.
+⚠️ **This rides #226 and #243 and cannot outrun them.** Emitting from the server
+is still *collection*, and prod ships a **no-op sink** for exactly that reason
+(operator items 16/18, issue **#247**). The ADR may decide the surface; it may
+not wire a vendor.
 
-⚠️ **No `U+2068`/`U+2069` may enter a payload** (ADR-033, `session-context.md`
-§6). The fix is word order, not isolation characters.
+⚠️ **`architecture.md` §7's FIRST SENTENCE is parsed by a test**
+(`funnel_event_sentinel_test.dart`) behind a ≥12-name floor. If this ADR changes
+which emitter owns an event, **that sentence is the source of truth the test
+reads** — edit it deliberately, and expect the suite to tell you.
 
 ---
 
-## 1. Where things actually stand *(measured 2026-08-20/21 — re-measure, do not inherit)*
+## 1. Where things stand *(measured 2026-08-21 — re-measure, do not inherit)*
 
 | | State |
 |---|---|
-| **#226** | **DRAFT LANDED, revision NOT landed.** `docs/legal/proposed/` holds a version-3 draft of the three privacy policies. `CURRENT_LEGAL_VERSION` is **still 2** in all three sources and `legal_proposal_test.dart` asserts it. **The issue stays open**: it closes when the founder + lawyer approve and one diff bumps |
-| **Push, device side** | **STILL ZERO.** `push_delivery_probe.py --from-firebase-cli` → exit 1, **0/4 registered, all four "no report"** |
-| **Push, server side** | **RUNNING** as of S070. Not re-measured in S082 — run `prod_pulse.py --from-firebase-cli` before relying on it |
-| **The build gap** | Last `release.yml` run is **2026-08-09, build 119**. ADR-046/049/051/052/053/057 are on **nobody's phone**. Build 119 **does** carry ADR-042/044 — the token capture — which is why #226 is overdue rather than pending |
-| **Deployed rules vs `main`** | `rules_drift.py` exited **1 for both projects** at the S071 close. Not re-measured since. Deploying is a **§7 founder ask** |
-| **`hayatiapp-prod` Functions** | S077 changed `functions/` source, so prod is behind `main`. A deploy is a **§7 ask** |
-| **`functions-drift` / `rules-drift`** | Both **visibly SKIPPED** by design — one absent secret (operator **2(e)(iv)** / item 4) |
-| **Open issues** | **#246**, **#247**, **#248**, **#249**, **#250** filed by S082 — all unblocked-to-file, none blocking S083 |
+| **#226** | **DRAFT on `main`, revision NOT landed.** `docs/legal/proposed/` holds version 3 of the three privacy policies; `CURRENT_LEGAL_VERSION` is **still 2** and a test asserts it. Closes only when founder + lawyer approve |
+| **#136** | **Autonomous half DONE** (ADR-059). Stays open for **step 1** — whether the notification shade honours `U+2068`/`U+2069` — which is device-blocked |
+| **Push, device side** | **STILL ZERO.** 0/4 accounts registered, all four "no report" |
+| **`partnerAnswered` never names anyone** | **#253** — no caller supplies `partnerName`. A product gap, filed, not a bug |
+| **The build gap** | Last `release.yml` run is **2026-08-09, build 119**. ADR-046/049/051/052/053/057/059 are on **nobody's phone** |
+| **Deployed rules / functions vs `main`** | Both **drifted or unmeasured** since S071/S077. **S083 changed `functions/` source**, so prod is further behind. A deploy is a **§7 founder ask** |
+| **Open issues** | **#242**, **#243**, **#246**–**#250**, **#253**, plus the older set. None blocks S084 |
 
-### What S082 changed that a later session will trip over
+### What S083 changed that a later session will trip over
 
-* **`docs/legal/proposed/` is a SECOND description of the same subject.** It will
-  drift. `legal_proposal_test.dart` makes the drifts that matter loud — but its
-  **anchor assertions are its own tripwire**: if the shipped text ever stops
-  containing *"ikimiz does not send push notifications today."* (or its TR/AR
-  twins), the test fails saying **the premise moved**. That is the message, not
-  a bug in the test.
-* **That test is DELETED by the diff that lands the revision** — and by a diff
-  that supersedes it. Its first assertion is that the directory exists.
-  `docs/legal/proposed/README.md` carries both paths as step 0.
-* **`docs/legal/README.md` now lists FIVE lawyer questions**, A–E. Its
-  `version:` line is still the single source the three-way sentinel reads — **do
-  not add a second line matching `^version:\s*\d+\s*$` to that file.**
-* **`Proposed` is now a documented ADR status** (`docs/adr/README.md`), added for
-  the one shape the vocabulary lacked: a decision whose deliverable is a draft.
-* **The Arabic legal documents carry exactly ONE `U+200F`**, after the `(` that
-  opens the Latin processor list. It is invisible, it is pinned by a test, and
-  **it is directly relevant to #136** — it is this repo's existing precedent for
-  fixing an RTL/Latin adjacency without isolation characters.
-* **Prefer a scripted, anchor-asserted delta over hand-editing any derived
-  document** (lesson **119**). S082's hand-written Arabic draft silently dropped
-  a word from a heading.
-* **A guard's NAME is not its assertion** (lesson **121**). S082 shipped a parity
-  test whose name promised order and whose body compared counts, and the name was
-  quoted into two other documents before anyone read the body.
-* **Do not write an absolute about device storage** (lesson **120**). Android
-  Auto-Backup is default-on; ADR-018's `unlocked_this_device` already concedes
-  iOS backups include ordinary storage. Filed as **#250**.
-* **`architecture.md` §7's FIRST SENTENCE is parsed by a test** behind a
-  ≥12-name floor. Prose *after* it is safe; rewording it, or renaming the
-  `## 7. Analytics schema` heading, turns the suite red. **§8 is free-form** —
-  S082 edited it and the suite stayed green.
-* **`analyticsSinkProvider` defaults to the NO-OP and must keep doing so**;
-  **`main_prod.dart` must wire NO analytics sink.** Tests assert both.
-* **`ref.read` after an await in an autoDispose controller THROWS** — capture the
-  handle *before* the await (lesson **118**).
+* **`tool/bidi_visual.py` exists, and its `--control` is the point.** It drives
+  libfribidi and reproduces #133's recorded rendering. **Run `--control` before
+  believing any output.** Not a CI gate — deliberately.
+* **`sanitizePushName` runs for `ar` only**, and that is measured, not stylistic:
+  in an LTR paragraph a trailing neutral does not detach, so trimming there takes
+  a character off a person's name for nothing.
+* **Do not hand-roll a Unicode range** (lesson **124**). A five-character regex
+  in a *test file* silently declared 63,000 codepoints RTL. `\p{Script=…}`.
+* **A capability sentence you WRITE needs the same measurement as one you fix**
+  (lesson **122**). S082's draft said a notification can show a partner's name;
+  S083's grep showed it cannot.
+* **Before writing "latent", grep for the caller** (lesson **123**).
+* **The emulator suite can fail on a loaded box.** S083 saw 3 failures that were
+  all **timeouts** — including a `beforeAll` hook — and 1132/1132 on a re-run.
+  Distinguish by SHAPE: a clock-shaped failure on a busy machine is not an
+  assertion about behaviour. Do not re-run to green without saying you did.
+* **`architecture.md` §7 first sentence is sentinel-parsed**; §8 is free-form.
 * `app/lib/core/l10n/strong_bidi_ranges.dart` is **GENERATED — never edit it**
-  (ADR-053). Re-derive with `python3 tool/gen_bidi_rtl_ranges.py`; CI runs
-  `--check`. **Read the message on failure** — it prints a *different sentence*
-  for "Unicode moved" than for a hand-edit. **This is #136's neighbourhood.**
-* **The export must never carry a raw FCM registration token, at any nesting
-  level** (ADR-054). Delivery is `Clipboard.setData`.
+  (ADR-053). It is the app-side twin of the lesson above.
+* **The export must never carry a raw FCM token** (ADR-054); delivery is
+  `Clipboard.setData`.
 * **`integration-emulator` never runs on a PR.** Prove a change to it with
-  `gh workflow run ci.yml --ref <branch>` before merging. Its per-suite SILENCE
-  bound must stay comfortably inside `timeout-minutes` (ADR-055, lesson 116).
-* **Do not probe a Firestore trigger** with `assert_emulator_functions.sh`: a
+  `gh workflow run ci.yml --ref <branch>` before merging.
+* **Do not probe a Firestore trigger** with `assert_emulator_functions.sh` — a
   trigger answers `404`, exactly like an unknown name. Callables only.
-* `FORMAT_VERSION` is **3**, pinned by **four** assertions, two of which carry the
-  number in the *test's name* (lesson **108**).
+* `FORMAT_VERSION` is **3**, pinned by **four** assertions (lesson **108**).
 
 ---
 
 ## 2. Then, in priority order
 
-**1 — #242 / #243**, both needing a decision more than code: #242 is *which*
-server surface emits `trial_start`/`paid`/`churn` — **the decision can be
-recorded without the vendor**; #243 is the distinct-id, a **privacy** decision
-that rides #226. **#249** (the consent record names itself in no collection list)
-is the same shape and is nearly free while the lawyer has the document open.
+**1 — #243** (the distinct-id: a **privacy** decision that rides #226) · **#249**
+(the consent record is named in no collection list — nearly free while the lawyer
+has the document open).
 
 **2 — #204** (`deliver` has failed to create the `tr` localization on **every**
 release since build 112) · **#165** (`rules-drift` built but unarmed) · **#121**
-(a watched release run) · **#248** (nine ADRs missing from the index) · **#115** ·
+(a watched release run) · **#248** (ten ADRs missing from the index) · **#246**
+(device-local analytics markers survive account deletion) · **#253** · **#115** ·
 **#41** · **#63/#71** (brandkit).
 
 ⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
@@ -136,24 +112,19 @@ first. Token capture needs none of it; only background *delivery* does.
 
 | What | Blocked on | Why a session cannot take it alone |
 |---|---|---|
-| **Landing the #226 revision** | founder/lawyer | The bump re-gates consent for **every** existing user. A session may draft; it may not bump. `docs/legal/proposed/README.md` has the exact diff |
-| **A build carrying ADR-046/049/051/052/053/057** | founder | `release.yml` uploads a real binary to TestFlight — **§7**. Last build **119** |
-| **M3.4's last inch** | the founder's phone | One permission grant, on a build that has the fix. **If the prompt was ever declined, iOS will not show it again** |
-| **Deploying S071's rules and S077's functions** | founder | §7. Both additive |
-| **An analytics vendor sink** | founder + lawyer | The token is one half, #226 the other. **No CI check stops an adapter landing without it** — now tracked as **#247** |
-| **#136 step 1** | the device | Whether the notification shade honours the isolates. **Its reorder half needs no device — that is this session** |
-| **#250** | M6.5 | Android backup exclusion. Gate-3 gated (ADR-006) |
+| **Landing the #226 revision** | founder/lawyer | The bump re-gates consent for **every** existing user. `docs/legal/proposed/README.md` has the exact diff |
+| **#136 step 1** | the device | Whether the notification shade honours the isolates |
+| **A build carrying ADR-046/049/051/052/053/057/059** | founder | `release.yml` uploads a real binary — **§7**. Last build **119** |
+| **M3.4's last inch** | the founder's phone | One permission grant. **If the prompt was ever declined, iOS will not show it again** |
+| **Deploying S071's rules and S077/S083's functions** | founder | §7 |
+| **An analytics vendor sink** | founder + lawyer | #226 is the other half. No CI check stops an adapter landing without it — **#247** |
+| **#250** | M6.5 | Android backup exclusion, Gate-3 gated (ADR-006) |
 | **`tr` App Store localization** | founder | Apple refuses the **name**, not the locale |
-| **operator 2(d)** | founder | Associated Domains. Measured absent |
-| **operator 2(e)(iii)** | founder | `FIREBASE_SERVICE_ACCOUNT`. Arms **three** lanes |
-| **operator 2(e)(iv) / #165** | founder | One read-only SA, two roles |
-| **operator 2(a)** | founder | The budget alert |
-| **operator 0(c)** | founder | `RC_WEBHOOK_TOKEN` on dev |
-| **operator 2(e)(ii)** | founder | The controller's legal name. Blocks `/privacy`, `/terms`, the listing |
+| **operator 2(d) / 2(e)(ii) / 2(e)(iii) / 2(e)(iv) / 2(a) / 0(c)** | founder | Domains, legal name, three secrets, the budget alert |
 | **#115** | founder | Making a prod endpoint world-reachable is a security decision on a live system |
 | **#41** | founder | Live billing identity — *clean change* vs *migration* |
 | **#48**, **#15** | the device | On-device observation nobody has made |
-| **#13** | M6.5 | Android, Gate-3 gated (ADR-006) |
+| **#13** | M6.5 | Android, Gate-3 gated |
 | **#63**, **#71** | founder | Brandkit revisions |
 
 ---
@@ -164,33 +135,28 @@ Append to `past-prompts.md` → regenerate this file (one objective) → refresh
 `operator-expected.md` → commit + push → verify CI → **watch the post-merge `main`
 run** (`integration-emulator` is main-only) → `codegraph sync`.
 
-> ⚠️ **THE REVIEW RUNS TWICE** — *"once on the design, once on the built diff"*
-> (`session-context.md` §5, item 3). **S082 ran both, and each found what the
-> other could not**: the design pass caught a quiet-hours number heading into a
-> privacy policy, and the built-diff pass caught **three false sentences in the
-> drafted policy itself** plus two guards whose names outran their assertions.
-> One pass would have shipped either half of that.
+> ⚠️ **THE REVIEW RUNS TWICE.** **S083 ran both and the second one was where the
+> code was wrong** — four of its findings were defects in the implementation and
+> the test, not the prose, including a test predicate that declared most of the
+> BMP right-to-left. The design pass had already inverted the ADR's severity
+> claim. Neither pass could have found the other's.
 
-> ⚠️ **WRITE THE ADR FIRST** (`session-context.md` §5.1 is **not** the address —
-> it is §5 item 1; lesson **115**). S082's design pass could only exist because
-> the ADR was committed before a word of the draft.
+> ⚠️ **WRITE THE ADR FIRST** (`session-context.md` §5 item 1 — **not** §5.1;
+> lesson **115**).
 
-> ⚠️ **Do not claim a review you have not run, in the artefact itself.** Write
-> review status **prospectively**, then replace it with numbers. S082 recorded
-> `agents_error` and `agents_empty_result` for both passes — the built-diff pass
-> had **one empty verifier**, and that finding surfaced as *unverified* rather
-> than being counted clean (§5 item 5).
+> ⚠️ **Report `agents_error` and `agents_empty_result` as numbers**, and say what
+> was **dropped unverified** at the cap (§5 items 5 and 6). S083's design pass
+> dropped five and listed them in the ADR; its built-diff pass dropped none.
 
-> ⚠️ **FREEZE THE TREE BEFORE THE REVIEW** (lesson **113**), and **`git status`
-> must be EMPTY after every review workflow returns** (§5 item 8).
+> ⚠️ **FREEZE THE TREE BEFORE THE REVIEW** (lesson **113**); `git status` must be
+> EMPTY after every review workflow returns (§5 item 8).
 
-> ⚠️ **A scan whose glob matches nothing reports the same clean zero as a scan
-> that passed** (lesson **110**). Assert a floor on the INPUT, and pair every
-> absence assertion with a **presence control** on a case you know is non-empty.
+> ⚠️ **Run the guard you just wrote, and mutation-check it.** S083's first
+> sanitiser kept `()`; its first parity regex matched a 63,000-codepoint range;
+> S082's rewritten assertion failed on correct input because Dart `List` has
+> identity equality. All three were found by running, not by reading.
 
-> ⚠️ **Run the guard you just wrote before believing it.** S082's rewritten parity
-> assertion failed on correct input (Dart `List` identity equality), and its
-> nested-bullet regex fired on every ordinary bullet because `\s` matches `\n`.
-> Both were found by running, not by reading.
+> ⚠️ **If a claim in the issue is load-bearing, measure it yourself** (lesson
+> **123**). #136 said *"latent"*; one grep said *unreachable*.
 
 > ⚠️ **Check the issue rows against `gh`, not against the last session's memory.**

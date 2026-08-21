@@ -1,6 +1,6 @@
 # ADR-059: the push copy lets a name choose the paragraph direction — in a branch nothing calls
 
-- **Status:** Accepted — **revision 2** (2026-08-21, after the design review)
+- **Status:** Accepted — **revision 3** (2026-08-21, after the built-diff review)
 - **Date:** 2026-08-21 (Session 083)
 - **Deciders:** session agent (the fix is device-independent; the isolate question that is *not* stays blocked and is re-filed rather than guessed)
 - **Related:** **ADR-033** (bidi isolation at the content-text seam; **D10** filed this as #136 rather than fixing it), **ADR-053** (the generated strong-bidi ranges), **ADR-012 / ADR-042 D4 / ADR-045** (the push kinds, the recipients, the hours), **ADR-058** (S082's legal draft, which this ADR corrects), issues **#136** (this one), **#133** (the app-side twin, closed by ADR-033)
@@ -12,7 +12,10 @@
 > unverified and listed at the end**. **Revision 2 is what it produced**, and one
 > of its findings inverted the ADR's own severity claim.
 >
-> **The built-diff pass has NOT run at the time of this revision.**
+> **The built-diff pass has now run too** — 4 lenses × 2 verifiers + a critic,
+> **23 agents, 0 errored, 0 empty results, 9 findings, NOTHING dropped**, 5
+> surfaced + 2 critic. **Revision 3 is what it produced**, and four of its
+> findings were defects in the shipped code and test rather than in the prose.
 
 > ⚠️ **This ADR does not do what `resume-prompt.md` told S083 to do, and that is
 > stated plainly rather than absorbed.** The assigned objective was *"reorder the
@@ -297,3 +300,40 @@ accident"*); the other three are recorded here and not adjudicated. Notably the
 third — where display names actually come from — is **subsumed by Finding 0**:
 no name reaches this code from anywhere, so the question of which names are
 realistic has no answer to measure yet.
+
+## What the built-diff pass changed (revision 2 → revision 3)
+
+**23 agents, 0 errored, 0 empty results, 9 findings, none dropped**, 5 surfaced +
+2 from the critic. Unlike the design pass, most of what it found was **in the
+code**, and three of the four were caught by measuring cases the implementation's
+own examples did not contain.
+
+| # | severity | what the implementation got wrong |
+|---|---|---|
+| 1 | major | **Improperly nested brackets were called matched.** The matcher used `open.splice(i, 1)`, removing only the partner; Unicode N0/BD16 discards **every** bracket opened after it. So `(A [B)]` was fully "matched" and kept — and measured, that trailing `]` jumps to the head of the line and **mirrors into a `[`**, which is the exact defect the function exists to prevent. One character: `open.length = i` |
+| 2 | major | **A matched pair may WRAP the whole name, and then its contents are at the edge.** `Ayşe (Y)` — the only bracket example revision 2 had — contains no neutral to detach. `(Aylin Y.)` does: measured, it renders `(.Aylin Y)`, the period landing *inside* the bracket. The brackets being safe does not make what they contain safe. The trim is now **recursive** through a wrapping pair |
+| 3 | major | **The test's own RTL predicate was broken, in a way that reads as fine.** `/[֐-ࣿיִ-﷿ﹰ-﻿]/u` — the Hebrew point in that class is **two codepoints** (U+05D9 + U+05B4), so it parsed as a range **U+05B4–U+FDFF**: 63,000 codepoints, calling Devanagari, Thai, Hiragana and Han "RTL". A test whose direction predicate is wrong agrees with whatever it is shown. Replaced with `\p{Script=…}` — and the lesson is one this repo already paid for, which is why **ADR-053's app-side table is GENERATED** rather than hand-written |
+| 4 | major | **The Arabic legal example used the FEMININE verb** (`أجابت أيلين`) while the code emits the masculine default (`أجاب`), which `payload-policy.ts` states in a comment. Inherited from S082's draft. The EN and TR examples matched their templates exactly; only the Arabic did not — a locale saying something the others do not, which `docs/legal/README.md` forbids |
+| 5 | minor | `tool/bidi_visual.py`'s `PUSH_SAMPLES` claimed *"every shipped push string that interpolates something"* and **omitted the Turkish body**. Added, along with the two bracket names findings 1 and 2 turned up |
+
+**Re-mutation-checked after the fixes** (two more, on top of the original four):
+restore the `splice`, and disable the wrapper recursion. Each reddens exactly its
+own case; control green; tree restored byte-identical.
+
+**Refuted by both verifiers and recorded rather than silently kept:**
+
+* *"Combining marks at a leading edge are mishandled."* Requires defectively
+  combined input (a mark with no base); in valid Unicode the mark follows its
+  base and is never at the edge alone.
+* *"`firstStrong` misses Greek and Cyrillic."* True of the first version and
+  fixed in passing by finding 3's rewrite; both verifiers held it was not a
+  defect anyway, since it is a test utility exercising Latin and Arabic copy.
+* *"The commit message's emulator claim is unverifiable."* `session-rules.md` §2
+  sets the bar at *"all tests green **locally**"*, with CI as the post-push check.
+* *"The TR body was never measured, only the TR title."* Both share the same
+  first strong character, which is the whole property.
+
+**Not fixed here, and named rather than left implicit:** ADR-059 is not in
+`docs/adr/README.md`'s index — but neither are ADRs 049–058, and that whole
+backlog is issue **#248**. Adding one row would deepen the gap rather than close
+it.

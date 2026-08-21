@@ -21,18 +21,32 @@ const LANGUAGES: readonly PushLanguage[] = ['tr', 'ar', 'en'];
 // paragraph direction is detectable: its first strong character would be R.
 const RTL_NAME = 'أيلين';
 
+// WARNING: script properties, NOT a hand-rolled character range.
+//
+// The first version of this used a literal Hebrew/Arabic character class, and it
+// was broken in a way that reads as fine: the Hebrew point it contained is TWO
+// codepoints (U+05D9 + U+05B4), so the class parsed as U+0590-U+08FF, a
+// standalone U+05D9, and then **U+05B4-U+FDFF** — a 63,000-codepoint range that
+// swallows Devanagari, Thai, Hiragana, Han and most of the BMP, and calls all of
+// it RTL. A test whose direction predicate is wrong agrees with whatever it is
+// shown. Found by the built-diff review, and the lesson is one this repo already
+// paid for: do not hand-roll a Unicode range when the engine will name the
+// property for you — ADR-053 made exactly that call for the app-side table,
+// which is why that one is GENERATED.
+const RTL_SCRIPTS =
+  /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}]/u;
+const LTR_LETTERS = /[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}]/u;
+
 /** The first character of bidi class L or R, or undefined if there is none. */
 function firstStrong(text: string): string | undefined {
   for (const ch of text) {
-    // Arabic + Hebrew blocks stand in for R; the Latin/Turkish repertoire for L.
-    if (/[֐-ࣿיִ-﷿ﹰ-﻿]/u.test(ch)) return ch;
-    if (/\p{Script=Latin}/u.test(ch)) return ch;
+    if (RTL_SCRIPTS.test(ch) || LTR_LETTERS.test(ch)) return ch;
   }
   return undefined;
 }
 
 function isRtl(ch: string): boolean {
-  return /[֐-ࣿיִ-﷿ﹰ-﻿]/u.test(ch);
+  return RTL_SCRIPTS.test(ch);
 }
 
 describe('sanitizePushName', () => {
@@ -54,6 +68,15 @@ describe('sanitizePushName', () => {
       ['Aylin (', 'Aylin'],
       ['Aylin)', 'Aylin'],
       ['Sarah :)', 'Sarah'],
+      // Improper nesting: N0 pairs only `()` here and leaves the `]` unmatched,
+      // which measured jumps to the head of the line AND mirrors into a `[`.
+      // The first implementation called all four matched and kept them.
+      ['(A [B)]', '(A [B)'],
+      // A matched pair may WRAP the whole name — and then the content inside it
+      // is itself at the edge. Measured: `أجاب (Aylin Y.)` renders `(.Aylin Y)`.
+      ['(Aylin Y.)', '(Aylin Y)'],
+      // ...but a pair in the MIDDLE is at no edge and is left entirely alone.
+      ['Aylin (Y.)', 'Aylin (Y.)'],
       // Digits are WEAK, not neutral, and are measured harmless. A rule written
       // as "neutral or weak" would eat them — ADR-059 rev 1 said exactly that.
       ['Aylin 2', 'Aylin 2'],

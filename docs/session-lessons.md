@@ -38,6 +38,47 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**124 — A hand-rolled Unicode range is a guess with syntax; ask the engine for the property instead.** *(S083, ADR-059)*
+A test needed "is this character strong-RTL", and got
+`/[֐-ࣿיִ-﷿ﹰ-﻿]/u`. It reads like three sensible block ranges. It is not: the
+Hebrew point in the middle is **two codepoints** (U+05D9 + U+05B4), so the class
+parsed as `U+0590-U+08FF`, a stray `U+05D9`, and then **U+05B4–U+FDFF** — sixty-
+three thousand codepoints, calling Devanagari, Thai, Hiragana and Han right-to-
+left. Nothing catches it: the tests it guarded all passed, because the strings it
+was shown were Arabic and Latin and it happened to answer those two correctly.
+**A predicate that is wrong agrees with whatever it is given.** `\p{Script=…}`
+says what is meant and cannot be mistyped into a range. This repo had already
+paid for the same lesson at a larger size — **ADR-053 GENERATES the app-side
+strong-bidi table** rather than letting anyone type one — and the reasoning did
+not transfer to a five-character regex in a test file, because nobody thought of
+a test file as a place where Unicode is hard.
+
+**123 — Fix the SPECIFICATION before the feature reaches it; but say out loud that nothing is reachable yet.** *(S083, ADR-059)*
+`partnerAnswered` has named copy in three languages, a `partnerName` parameter,
+and unit tests for all of it. **No caller has ever passed a name** — `grep` finds
+the parameter only in its own file and its own tests, and `git log -S` finds no
+call site that ever supplied one. Issue #136 called the resulting bidi defect
+*"latent"*, which is one step less remote than the truth, and an ADR written from
+the issue inherited that severity and then claimed a user-visible benefit — *"a
+user whose partner has an Arabic name stops receiving backwards notifications"* —
+**that cannot exist, because no user receives a name at all.** Two useful halves.
+First: fixing unwired code is often right, because the branch is one argument
+from being reached and the measurement is far cheaper now than after it ships.
+Second: **the severity sentence is a separate claim from the fix**, and inheriting
+it from the issue is inheriting an unmeasured premise (recurring shape 3). Before
+writing "latent", run the grep that tells you whether anything calls it.
+
+**122 — A correction can introduce the very defect it corrects, one document over.** *(S083, correcting S082)*
+S082 existed to remove a false sentence from the privacy policy — *"ikimiz does
+not send push notifications today"*, true of the outcome and false of the system.
+Its draft then told users *"a notification can show your partner's name"*, which
+is false in the **other** direction: no caller supplies a name, so it cannot.
+S082 measured the push system carefully and did not measure the one sentence it
+was itself adding. **The check that catches this is not more care, it is the same
+check applied to the new text**: for every capability sentence you *write*, ask
+what would have to be true for it to be false, and go and run that. It cost the
+next session one grep to find, and the draft had already merged.
+
 **121 — A test's NAME is a claim; its assertion is the measurement, and nothing keeps them together.** *(S082, ADR-058)*
 The cross-locale parity guard was named *"all three locales carry the same
 sections, in the same order"*. It collected the three ordered heading lists —
