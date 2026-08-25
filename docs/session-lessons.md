@@ -38,6 +38,44 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**129 — A rewrite that keeps every test green can still delete an assertion.** *(S085, ADR-061)*
+Converting the flag seam to typed keys meant rewriting `local_flag_store_test.dart`.
+The rewrite replaced `expect(coachDisclaimerAckKey('u1'), 'coachDisclaimerAck.u1')`
+with a pin on `AccountFlag.coachDisclaimerAck.prefix`, which reads like the same
+assertion and is not: the enum pin proves the **vocabulary** is intact and says
+nothing about which member a **builder** reaches for. The behavioural test could
+not cover the gap — `coach_screen_test.dart` seeds and asserts with the same
+function, recurring shape **4** — and the mutation check proved it: rewiring the
+builder to the wrong member left that test **green**. The built-diff review found
+it; the suite never could, because the suite was green before and after. **When a
+test file is rewritten rather than edited, diff the OLD file's assertions against
+the new one and name where each landed.** A dropped pin leaves no trace anywhere
+else.
+
+**128 — Put the classification in the type, and there is no inventory to keep.** *(S085, ADR-061)*
+The first design guarded "every flag is classified account- or device-scoped"
+with a source scan for `localFlagStoreProvider` whose file set had to match a
+declared list. Four of the six key-builder files never name that identifier, so a
+new flag in a new file consumed from an inventoried consumer was invisible to it —
+the guard reproduced the very defect it was written for. Two closed enums and a
+key type that a raw `String` cannot become deleted the scan **and** the list: a
+flag that is not classified does not compile. **Before writing a source scan that
+enumerates what code must declare, ask whether the compiler can be made to
+enumerate it instead** — and if a hand-written list survives, remember it is a
+fixture derived from its own subject (`funnel_event.dart` says so about itself).
+
+**127 — Reason about the KEY, not about the flag.** *(S085, ADR-061)*
+The resume prompt this session inherited — written by the previous session, from
+ADR-057 D4's own recorded bound — said clearing the once-only markers on deletion
+*"makes a later re-signup re-emit once-only events, a counting change traded for
+a data-rights improvement"*, and framed that trade as the hard decision of the
+session. **There was no trade.** The uid is already inside the key, so a
+replacement account gets a different key and re-emits whether or not the old one
+was cleared. The bound ADR-057 recorded is real for `analytics.install`, which has
+no uid — and was carried forward to five keys that do. **A per-identity cache key
+does not have the invalidation problem a global one has; check which you are
+holding before pricing the trade.**
+
 **126 — The file you are appending to often already has the precise word you are about to get wrong.** *(S084, ADR-060)*
 An addendum to `architecture.md` §7 called the entitlement mirror's sole writer
 "the webhook". §3 of the **same file** already reads: *"the deleteAccount cascade
