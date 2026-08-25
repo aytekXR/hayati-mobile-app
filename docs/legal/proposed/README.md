@@ -76,6 +76,26 @@ close to free while the lawyer has the document open, and expensive as its own
 round later. **Ask them; it is a one-line decision, and it is yours, not the
 session's.**
 
+### A second thing to decide while they are reading — and it is smaller
+
+Session 085 (#246, ADR-061) changed a fact this draft describes. The analytics
+paragraph says the once-only markers *"go when you remove the app"*. As of that
+change, **deleting your account also removes the ones tied to it** — every
+uid-keyed marker on the phone that runs the deletion. `analytics.install` and the
+pre-sign-in `ritualPreviewSeen` marker carry no account and stay, correctly.
+
+**The sentence is still true**, which is why it was not edited: removing the app
+does still clear them, and the notice now promises *less* than the app does. That
+is the safe direction, and the opposite of the mismatch this whole revision
+exists to correct — so re-opening a draft the founder is about to review would
+have been scope creep, not diligence (`session-rules.md` §2).
+
+But *"they go when you remove the app"* sits in the paragraph a user reads to
+learn what happens to their data, and it invites the inference that deleting the
+account does **not**. That inference is now wrong. One added clause closes it, in
+three locales. **Same shape as #249 above: nearly free while the lawyer has the
+document open, its own round later.** Filed as issue **#258**.
+
 ### A promise this draft makes that the Android build must keep
 
 The analytics paragraph says the on-device markers *"go when you remove the
