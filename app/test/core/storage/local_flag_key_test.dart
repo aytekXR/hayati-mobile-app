@@ -1,5 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hayati_app/core/storage/local_flag_key.dart';
+import 'package:hayati_app/features/auth/presentation/state/ritual_preview_seen.dart';
+import 'package:hayati_app/features/coach/domain/coach_disclaimer.dart';
+import 'package:hayati_app/features/data_rights/presentation/state/couple_ended_seen.dart';
+import 'package:hayati_app/features/profile/presentation/state/name_capture_done.dart';
+import 'package:hayati_app/features/settings/presentation/widgets/privacy_spotlight_card.dart';
 
 /// The ADR-061 Decision 4 guard: the classification of every device-local flag,
 /// and the predicate the account deletion sweeps with.
@@ -130,18 +135,25 @@ void main() {
         // word", and those are different sentences.
         expect(localFlagKeyBelongsTo('analytics.install', 'analytics'), isTrue);
         expect(localFlagKeyBelongsTo('analytics.install', 'install'), isTrue);
-        for (final flag in DeviceFlag.values) {
-          for (final segment in flag.value.split('.')) {
-            expect(
-              segment,
-              matches(RegExp(r'^[a-z][A-Za-z]*$')),
-              reason:
-                  '${flag.name} has a segment that could be mistaken for a '
-                  'Firebase uid (28 chars of [A-Za-z0-9]); the collision above '
-                  'stops being hypothetical',
-            );
-            expect(segment.length, lessThan(28));
-          }
+        // Checked over BOTH vocabularies, not just the device one. The
+        // collision is symmetric — an AccountFlag prefix segment that could be
+        // a uid would take another account's key on the same device — and a
+        // guard that covers one path and is silent on the other is
+        // `session-lessons.md` recurring shape 5.
+        final segments = [
+          for (final flag in DeviceFlag.values) ...flag.value.split('.'),
+          for (final flag in AccountFlag.values) ...flag.prefix.split('.'),
+        ];
+        expect(segments, hasLength(greaterThan(11)));
+        for (final segment in segments) {
+          expect(
+            segment,
+            matches(RegExp(r'^[a-z][A-Za-z]*$')),
+            reason:
+                '"$segment" could be mistaken for a Firebase uid (28 chars of '
+                '[A-Za-z0-9]); the collision above stops being hypothetical',
+          );
+          expect(segment.length, lessThan(28));
         }
       },
     );
@@ -215,6 +227,45 @@ void main() {
     });
   });
 
+  group('every key BUILDER produces its shipped text', () {
+    // Restored and widened after the built-diff review. The rewrite that
+    // introduced the typed vocabulary DROPPED `expect(coachDisclaimerAckKey('u1'),
+    // 'coachDisclaimerAck.u1')` and replaced it with a pin on
+    // `AccountFlag.coachDisclaimerAck.prefix` — which is not the same
+    // assertion. The enum pin proves the VOCABULARY is intact; it says nothing
+    // about which member a builder passes. A `coachDisclaimerAckKey` rewired to
+    // `AccountFlag.nameCaptureDone` would have kept every test green, and every
+    // user who had acknowledged the "not therapy" note would have been shown it
+    // again.
+    //
+    // The behavioural tests cannot cover this: `coach_screen_test.dart` seeds
+    // with `coachDisclaimerAckKey(_uid).value` and asserts with the same
+    // function — a fixture derived from its own subject (`session-lessons.md`
+    // recurring shape 4), which passes for the wrong key as happily as the
+    // right one. Lesson 117: where a value is a persisted CONTRACT rather than
+    // an implementation detail, assert the value.
+    const uid = 'u1';
+
+    test('every builder is pinned here', () {
+      // The builders are the subject, so this count is what stops a new one
+      // from being added with no pin at all. Six: five uid-keyed plus the
+      // device-scoped preview flag.
+      expect(_builderPins(uid), hasLength(6));
+    });
+
+    test('each builder produces exactly its shipped key', () {
+      _builderPins(uid).forEach((label, pair) {
+        expect(
+          pair.$1,
+          pair.$2,
+          reason:
+              '$label drifted — every device that already holds the old key '
+              'would be treated as if it had never set the flag',
+        );
+      });
+    });
+  });
+
   group('the key text is the persisted text', () {
     test('account keys join prefix, uid and parts with dots', () {
       expect(
@@ -262,3 +313,37 @@ void main() {
     });
   });
 }
+
+/// Every key builder in the app, called with [uid], beside the exact text it
+/// has been writing to real devices. `(actual, expected)`.
+///
+/// Deliberately built from the BUILDERS rather than from [AccountFlag] /
+/// [DeviceFlag]: the enums are pinned separately, and the gap this table closes
+/// is a builder reaching for the wrong member.
+Map<String, (String, String)> _builderPins(String uid) => {
+  'coachDisclaimerAckKey': (
+    coachDisclaimerAckKey(uid).value,
+    'coachDisclaimerAck.u1',
+  ),
+  'nameCaptureDoneKey': (nameCaptureDoneKey(uid).value, 'nameCaptureDone.u1'),
+  'privacySpotlightSeenKey': (
+    privacySpotlightSeenKey(uid).value,
+    'privacySpotlightSeen.u1',
+  ),
+  'coupleEndedSeenKey': (
+    coupleEndedSeenKey(
+      uid,
+      DateTime.fromMillisecondsSinceEpoch(1752000000000),
+    ).value,
+    'coupleEndedSeen.u1.1752000000000',
+  ),
+  'ritualPreviewSeenKey': (ritualPreviewSeenKey.value, 'ritualPreviewSeen'),
+  // `analytics.install` and the five uid-keyed analytics keys are built inside
+  // the emitter rather than by a named builder, and `analytics_test.dart` pins
+  // all six character for character through it — deliberately untouched by the
+  // diff that could have broken them.
+  'analytics (see analytics_test.dart)': (
+    LocalFlagKey.device(DeviceFlag.install).value,
+    'analytics.install',
+  ),
+};
