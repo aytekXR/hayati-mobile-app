@@ -130,7 +130,7 @@ void main() {
           localFlagStoreProvider.overrideWithValue(
             flags ??
                 FakeLocalFlagStore(
-                  initial: {privacySpotlightSeenKey(user.uid)},
+                  initial: {privacySpotlightSeenKey(user.uid).value},
                 ),
           ),
         ],
@@ -542,7 +542,9 @@ void main() {
       await pumpSolo(
         tester,
         profile: profileWith(createdAt: DateTime(2026, 7, 10, 9)),
-        flags: FakeLocalFlagStore(initial: {privacySpotlightSeenKey(user.uid)}),
+        flags: FakeLocalFlagStore(
+          initial: {privacySpotlightSeenKey(user.uid).value},
+        ),
       );
       await tester.pumpAndSettle();
 

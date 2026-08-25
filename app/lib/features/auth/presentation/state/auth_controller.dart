@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/storage/local_flag_store.dart';
 import '../../../data_rights/domain/data_rights_repository_provider.dart';
 import '../../domain/auth_exception.dart';
 import '../../domain/auth_repository_provider.dart';
@@ -172,15 +173,26 @@ class AuthController extends _$AuthController {
   /// to the root shell; the dead session self-heals to [AuthSignedOut] on its next
   /// token-refresh failure (≤~1h) — the D8 row-7 correction (a completed deletion
   /// masquerading as an error must not be stranded in "retry forever").
+  ///
+  /// **Between the two phases, the device's own account data goes** (ADR-061 D1).
+  /// This is the only place in the app that knows a DELETION happened rather than
+  /// a sign-out — both end in [AuthSignedOut], so the app-root listener cannot
+  /// tell them apart and must not carry this.
   Future<void> deleteAccount() async {
     if (_manualInProgress) return;
     _manualInProgress = true;
     final authRepo = ref.read(authRepositoryProvider);
     final dataRights = ref.read(dataRightsRepositoryProvider);
+    // Read BEFORE phase 1: the cascade destroys the account, and phase 2 signs
+    // the session out. Afterwards there is nobody left to name.
+    final uid = authRepo.currentUser?.uid;
     try {
       // Phase 1: on any DataRightsException the state is left untouched and the
-      // exception propagates past the `on AuthException` catch to the screen.
+      // exception propagates past the `on AuthException` catch to the screen —
+      // so the flag sweep below never runs for a deletion that did not happen.
       await dataRights.deleteAccount();
+      if (!ref.mounted) return;
+      await _clearAccountScopedFlags(uid);
       if (!ref.mounted) return;
       // Phase 2: teardown only after server success.
       await authRepo.signOutAfterAccountDeletion();
@@ -193,6 +205,26 @@ class AuthController extends _$AuthController {
       if (ref.mounted) {
         _manualInProgress = false;
       }
+    }
+  }
+
+  /// Removes every flag this device holds for [uid] (ADR-061 D1), after the
+  /// server cascade has succeeded and before the session is torn down.
+  ///
+  /// **Nothing here can fail the deletion** (ADR-061 D3). `localFlagStoreProvider`
+  /// throws when unoverridden and a platform write can fail on a real phone;
+  /// either way the account is already gone on the server, and telling the user
+  /// their completed deletion failed would be the worse error. It degrades to
+  /// flags left behind — visible only to the person whose phone it is, and never
+  /// to a second account.
+  Future<void> _clearAccountScopedFlags(String? uid) async {
+    if (uid == null || uid.isEmpty) return;
+    try {
+      await ref.read(localFlagStoreProvider).removeAccountScoped(uid);
+    } on Object {
+      // Deliberately silent, and deliberately not a crash-reporter hop: this
+      // runs inside a deletion, and a telemetry call on that path is exactly
+      // what ADR-019's no-push posture keeps off it.
     }
   }
 }

@@ -44,7 +44,7 @@ void main() {
           // M-5 ritual preview already seen: these goldens capture the auth
           // shell; the preview has its own golden matrix.
           localFlagStoreProvider.overrideWithValue(
-            FakeLocalFlagStore(initial: {ritualPreviewSeenKey}),
+            FakeLocalFlagStore(initial: {ritualPreviewSeenKey.value}),
           ),
         ],
       );
@@ -84,7 +84,7 @@ void main() {
           // M-5 ritual preview already seen: these goldens capture the auth
           // shell; the preview has its own golden matrix.
           localFlagStoreProvider.overrideWithValue(
-            FakeLocalFlagStore(initial: {ritualPreviewSeenKey}),
+            FakeLocalFlagStore(initial: {ritualPreviewSeenKey.value}),
           ),
         ],
       );

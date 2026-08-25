@@ -90,7 +90,7 @@ void main() {
     final m = mirrors ?? _premiumMirror();
     final a = auth ?? FakeAuthRepository(initialUser: _user);
     final f = FakeLocalFlagStore(
-      initial: acknowledged ? {coachDisclaimerAckKey(_uid)} : null,
+      initial: acknowledged ? {coachDisclaimerAckKey(_uid).value} : null,
     );
     final p =
         profiles ??

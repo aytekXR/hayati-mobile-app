@@ -15,7 +15,8 @@ import '../pin_setup_screen.dart';
 /// shared device (the coach-ack / nameCaptureDone precedent). Set when the
 /// user takes EITHER action — the card is a one-time invitation, and
 /// Settings remains the permanent home of these controls.
-String privacySpotlightSeenKey(String uid) => 'privacySpotlightSeen.$uid';
+LocalFlagKey privacySpotlightSeenKey(String uid) =>
+    LocalFlagKey.account(AccountFlag.privacySpotlightSeen, uid: uid);
 
 /// The one-time privacy spotlight (redesign M-6, ui-ux §6.1): a dismissible
 /// Night Raised card atop the first solo home — never a modal, never a

@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/storage/local_flag_key.dart';
+
 part 'ritual_preview_seen.g.dart';
 
 /// The device-local "ritual preview completed" flag key (redesign M-5,
@@ -8,7 +10,9 @@ part 'ritual_preview_seen.g.dart';
 /// pitch is a first-launch device experience, not an account state. Set when
 /// the user leaves the preview by either affordance ("Get started" or the
 /// "Sign in" skip); never shown again after that (ui-ux §6.1).
-const String ritualPreviewSeenKey = 'ritualPreviewSeen';
+final LocalFlagKey ritualPreviewSeenKey = LocalFlagKey.device(
+  DeviceFlag.ritualPreviewSeen,
+);
 
 /// The reactive CHANGE signal beside the durable flag — the coupleEndedSeen /
 /// nameCaptureDone idiom: `SignInScreen` reads the flag synchronously off

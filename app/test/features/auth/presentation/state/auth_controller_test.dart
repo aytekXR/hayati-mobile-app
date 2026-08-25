@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hayati_app/core/storage/local_flag_store.dart';
 import 'package:hayati_app/features/auth/domain/auth_exception.dart';
 import 'package:hayati_app/features/auth/domain/auth_repository_provider.dart';
 import 'package:hayati_app/features/auth/domain/auth_state.dart';
@@ -12,6 +13,7 @@ import 'package:hayati_app/features/data_rights/domain/data_rights_repository_pr
 
 import '../../../../support/fake_auth_repository.dart';
 import '../../../../support/fake_data_rights_repository.dart';
+import '../../../../support/fake_local_flag_store.dart';
 
 const testUser = AuthUser(uid: 'uid-1', displayName: 'Aytek');
 
@@ -28,14 +30,20 @@ void main() {
     return (container, fake);
   }
 
+  /// The delete container. [flags] is deliberately OPTIONAL and omitted by the
+  /// ADR-019 phase-model tests below: `localFlagStoreProvider` throws when
+  /// unoverridden, so leaving it out is not laziness — it is the ADR-061 D3
+  /// assertion that a deletion still completes when the flag store cannot be
+  /// resolved at all.
   (ProviderContainer, FakeAuthRepository, FakeDataRightsRepository)
-  makeDeleteContainer() {
+  makeDeleteContainer({LocalFlagStore? flags}) {
     final auth = FakeAuthRepository(initialUser: testUser);
     final dataRights = FakeDataRightsRepository();
     final container = ProviderContainer(
       overrides: [
         authRepositoryProvider.overrideWith((ref) => auth),
         dataRightsRepositoryProvider.overrideWith((ref) => dataRights),
+        if (flags != null) localFlagStoreProvider.overrideWithValue(flags),
       ],
     );
     addTearDown(container.dispose);
@@ -478,6 +486,142 @@ void main() {
     );
 
     test(
+      'the account-scoped local flags go with the account (ADR-061 D1)',
+      () async {
+        const otherUid = 'uid-12';
+        // testUser.uid is 'uid-1', a strict string PREFIX of 'uid-12'. That is
+        // the point of the pair: a substring sweep would take the other
+        // account's flags off this shared device.
+        final mine = [
+          for (final flag in AccountFlag.values)
+            LocalFlagKey.account(flag, uid: testUser.uid),
+        ];
+        final theirs = [
+          for (final flag in AccountFlag.values)
+            LocalFlagKey.account(flag, uid: otherUid),
+        ];
+        final deviceKeys = [
+          for (final f in DeviceFlag.values) LocalFlagKey.device(f),
+        ];
+        final flags = FakeLocalFlagStore(
+          initial: {
+            for (final k in [...mine, ...theirs, ...deviceKeys]) k.value,
+          },
+        );
+        final (container, _, _) = makeDeleteContainer(flags: flags);
+
+        await container.read(authControllerProvider.notifier).deleteAccount();
+
+        for (final key in mine) {
+          expect(
+            flags.isSet(key),
+            isFalse,
+            reason: '$key survived "delete account and data"',
+          );
+        }
+        for (final key in theirs) {
+          expect(
+            flags.isSet(key),
+            isTrue,
+            reason: '$key belongs to another account on this device',
+          );
+        }
+        for (final key in deviceKeys) {
+          expect(
+            flags.isSet(key),
+            isTrue,
+            reason: '$key is device state and must outlive the account',
+          );
+        }
+      },
+    );
+
+    test(
+      'a phase-1 failure clears NOTHING — the account still exists',
+      () async {
+        final key = LocalFlagKey.account(
+          AccountFlag.coachDisclaimerAck,
+          uid: testUser.uid,
+        );
+        final flags = FakeLocalFlagStore(initial: {key.value});
+        final (container, _, dataRights) = makeDeleteContainer(flags: flags);
+        dataRights.onDeleteAccount = () async =>
+            throw const DataRightsNetworkException();
+
+        await expectLater(
+          container.read(authControllerProvider.notifier).deleteAccount(),
+          throwsA(isA<DataRightsNetworkException>()),
+        );
+
+        // The worst outcome available: local data gone, account not deleted.
+        expect(flags.isSet(key), isTrue);
+      },
+    );
+
+    test('a phase-2 sign-out throw still leaves the flags cleared', () async {
+      final key = LocalFlagKey.account(
+        AccountFlag.privacySpotlightSeen,
+        uid: testUser.uid,
+      );
+      final flags = FakeLocalFlagStore(initial: {key.value});
+      final (container, auth, _) = makeDeleteContainer(flags: flags);
+      auth.onSignOutAfterAccountDeletion = () async =>
+          throw const AuthUnknownException(code: 'internal-error');
+
+      await container.read(authControllerProvider.notifier).deleteAccount();
+
+      // The server cascade completed, so the account is gone either way; only
+      // the local teardown threw (ADR-061 D1).
+      expect(flags.isSet(key), isFalse);
+      expect(
+        container.read(authControllerProvider),
+        const AuthError(AuthUnknownException(code: 'internal-error')),
+      );
+    });
+
+    test(
+      'a throwing flag store does NOT fail the deletion (ADR-061 D3)',
+      () async {
+        final (container, auth, dataRights) = makeDeleteContainer(
+          flags: _ThrowingLocalFlagStore(),
+        );
+
+        await container.read(authControllerProvider.notifier).deleteAccount();
+
+        // The account is deleted and the session torn down; only the local
+        // cleanup failed, and the user is never told a completed deletion failed.
+        expect(dataRights.deleteAccountCalls, 1);
+        expect(auth.signOutAfterAccountDeletionCalls, 1);
+        expect(container.read(authControllerProvider), const AuthSignedOut());
+      },
+    );
+
+    test('an ORDINARY sign-out clears nothing (ADR-061 finding 4)', () async {
+      // The regression this design exists to avoid: both a deletion and a
+      // sign-out end in AuthSignedOut, so a teardown-side sweep would re-show
+      // the coach disclaimer to a user who merely signed out and back in.
+      final mine = [
+        for (final flag in AccountFlag.values)
+          LocalFlagKey.account(flag, uid: testUser.uid),
+      ];
+      final flags = FakeLocalFlagStore(
+        initial: {for (final k in mine) k.value},
+      );
+      final (container, _, _) = makeDeleteContainer(flags: flags);
+
+      await container.read(authControllerProvider.notifier).signOut();
+
+      expect(container.read(authControllerProvider), const AuthSignedOut());
+      for (final key in mine) {
+        expect(
+          flags.isSet(key),
+          isTrue,
+          reason: '$key was cleared by a SIGN-OUT, not a deletion',
+        );
+      }
+    });
+
+    test(
       'a phase-2 sign-out throw surfaces as AuthError — protection stays, the '
       'completed deletion self-heals later',
       () async {
@@ -498,4 +642,17 @@ void main() {
       },
     );
   });
+}
+
+/// A [LocalFlagStore] whose sweep fails the way a platform channel can.
+class _ThrowingLocalFlagStore implements LocalFlagStore {
+  @override
+  bool isSet(LocalFlagKey key) => false;
+
+  @override
+  Future<void> set(LocalFlagKey key) async {}
+
+  @override
+  Future<void> removeAccountScoped(String uid) async =>
+      throw StateError('prefs unavailable');
 }

@@ -68,7 +68,7 @@ const pairedProfile = RelationshipProfile(
 /// branch lands on capture exactly as it did before the step existed. The
 /// name-capture group below covers the unset-flag path explicitly.
 FakeLocalFlagStore nameCaptured() =>
-    FakeLocalFlagStore(initial: {nameCaptureDoneKey(user.uid)});
+    FakeLocalFlagStore(initial: {nameCaptureDoneKey(user.uid).value});
 
 void main() {
   Future<FakeProfileRepository> pumpGate(
@@ -433,7 +433,7 @@ void main() {
     testWidgets('a launch with the event flag already set goes straight to '
         'solo (noticed exactly once per device)', (tester) async {
       final flags = FakeLocalFlagStore(
-        initial: {coupleEndedSeenKey(user.uid, at1)},
+        initial: {coupleEndedSeenKey(user.uid, at1).value},
       );
       await pumpGate(tester, profile: endedProfile(at1), flags: flags);
       await tester.pumpAndSettle();
@@ -446,7 +446,7 @@ void main() {
         'again (event-keyed, NOTICE-1)', (tester) async {
       // The first event was already acknowledged on this device…
       final flags = FakeLocalFlagStore(
-        initial: {coupleEndedSeenKey(user.uid, at1)},
+        initial: {coupleEndedSeenKey(user.uid, at1).value},
       );
       // …but a fresh ending (a new `at`) mints a new key, so it is noticed.
       await pumpGate(tester, profile: endedProfile(at2), flags: flags);

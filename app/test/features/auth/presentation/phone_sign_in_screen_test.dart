@@ -232,8 +232,8 @@ void main() {
             localFlagStoreProvider.overrideWithValue(
               FakeLocalFlagStore(
                 initial: {
-                  ritualPreviewSeenKey,
-                  nameCaptureDoneKey(testUser.uid),
+                  ritualPreviewSeenKey.value,
+                  nameCaptureDoneKey(testUser.uid).value,
                 },
               ),
             ),
