@@ -2,14 +2,60 @@
 
 - **Status:** Proposed
 - **Date:** 2026-08-21 (Session 085) · **Revision 2, 2026-08-26** — the consumer
-  inventory in revision 1 was wrong, and the shape of the fix changed with it
+  inventory in revision 1 was wrong, and the shape of the fix changed with it ·
+  **Revision 3, 2026-08-26** — the design review blocked Decision 4's sentinel,
+  and the classification moved from a test into the type system
 - **Deciders:** session agent (device-local behaviour; no operator dependency)
 - **Related:** **ADR-019** (the M6.2 deletion cascade), **ADR-017 D3/D4** (the app-root teardown; the `LocalFlagStore` seam and why it is set-once), **ADR-057 D4** (once-only funnel keys and the reinstall bound), **ADR-018** (the PIN store, which cites the sticky contract as a reason for its own design), **ADR-058** (S082's legal draft, which states what happens to these markers), **ADR-052** (one definition, not a re-derivation per call site), issues **#246** (this one), **#250** (Android backup), **#258** (the legal draft's sentence, filed rather than folded)
 
-> **Review status, stated prospectively.** Revision 1 was written and committed
-> **before** the fix (`session-context.md` §5 item 1, lesson 111). **Revision 2 is
-> also pre-code**: it corrects findings the session's own orientation grep turned
-> up, before either review pass ran and before a line of implementation existed.
+> **Review status.** Revisions 1 and 2 were written and committed **before** the
+> fix (`session-context.md` §5 item 1, lesson 111); revision 2 corrected findings
+> the session's own orientation grep turned up. **Revision 3 folds the design
+> review** — 5 lenses x 2 independent verifiers, run against revision 2, still
+> before a line of implementation existed. The built-diff pass has not run yet.
+
+## Revision 3 — what the design review changed
+
+`agents_error=0` · `agents_empty_result=3` · findings **6** · verified **6** ·
+**dropped unverified 0** · surviving **3**. The three empty lenses (correctness,
+inventory-completeness, honesty) each read 69–97k tokens of the tree before
+answering *"no findings"* — considered-empty, not failed-empty (§5 item 5).
+
+**All three surviving findings landed on Decision 4, and they share one root
+cause: the classification lived in a hand-maintained list.**
+
+1. **BLOCKER — the scan could not see the thing it was scanning for.** D4 proposed
+   scanning `app/lib` for `localFlagStoreProvider` and requiring the file set to
+   match a declared inventory. **Four of the six key-builder files never name that
+   identifier** — `coach_disclaimer.dart`, `couple_ended_seen.dart`,
+   `name_capture_done.dart` and `ritual_preview_seen.dart` each define a key and
+   none of them touches the provider. A new uid-keyed flag, defined in a new file
+   and consumed from an already-inventoried consumer, would leave the file set
+   unchanged: sentinel green, key unclassified, deletion misses it. That is the
+   failure #246 **is**, rebuilt inside the guard written to prevent it. Both
+   verifiers real, high confidence; the adjudicator cited ADR-025 D8 by name — *a
+   declaration nothing enforces reads as coverage*.
+2. **MAJOR — the inventory was a fixture derived from its own subject.** A
+   hand-written file list can be satisfied by pasting a filename. `FunnelEvent`
+   says so about itself in its own source (`funnel_event.dart:66-78`), and
+   `session-lessons.md` recurring shape **4** is the general form. Revision 2's
+   opening paragraph makes the same argument against revision 1's prefix list and
+   then reintroduced the shape one decision later.
+3. **MAJOR — the parity assertion could not catch the bug D2 warns about.** D2
+   argues substring matching is wrong because uid `u1` would swallow `u12`'s
+   flags — but a parity test that calls each builder with **one** uid passes under
+   exactly that mutation. (Skeptic: not real. Adjudicator: real, high. Surfaced
+   under the either-says-real rule, and it is right.)
+
+**Three findings were killed** and are recorded so a later reader does not
+re-raise them: that ADR-017 D4 needed an `Amends:` bullet (no governing document
+requires one — the README's format is Status/Date/Deciders/Related, and
+`Amends` is an emergent convention in four ADRs, not a rule); that
+`pin_lock_store.dart`'s citation goes stale (its **second** reason — prefs are
+the wrong persistence domain, the reinstall bypass — is untouched, and its first
+still holds because the lock needs clearing on **sign-out**, which this change
+deliberately does not do); and that D1 fails to analyse a phase-2 failure after
+clearing (D1's own paragraph analyses exactly that).
 
 ## Revision 2 — what revision 1 got wrong, and why it mattered
 
@@ -167,8 +213,9 @@ row can.
   the auth controller imports a settings widget's key function.
 * It makes the device-scoped exemption a **list entry** rather than a property.
   Under the uid rule, `analytics.install` and `ritualPreviewSeen` are exempt
-  because they contain no uid — and so is every device-scoped flag written after
-  this ADR, by an author who never reads it.
+  because they contain no uid — and, once Decision 4's `LocalFlagKey.device` is
+  the only way to build one, so is every device-scoped flag written after this
+  ADR, by an author who never reads it.
 * Substring matching would be simpler still and is **wrong**: with test uids `u1`
   and `u12`, deleting `u1` would take `u12`'s flags. The dot-boundary wrap is what
   makes cross-account removal safe on a shared device, and it is also why the
@@ -177,7 +224,16 @@ row can.
 
 The sticky contract is **re-stated rather than deleted**: flags are still never
 cleared by the code that sets them. The only thing that removes one is an account
-deletion — the single event that removes everything else too.
+deletion — the single event that removes everything else too. `pin_lock_store.dart`
+keeps both of its reasons for not living here: the lock must be clearable **on
+sign-out**, which this change deliberately still does not do (finding 4), and
+prefs remain the wrong persistence domain for a secret (the reinstall bypass,
+ADR-018 Context). The design review raised the staleness of that citation and both
+verifiers refuted it on exactly those grounds.
+
+Decision 4 is what makes this predicate **total** rather than a convention the
+next author might not follow: `LocalFlagKey.account` cannot produce a key whose
+uid is not a whole dot segment.
 
 ## Decision 3 — A local-cleanup failure never fails the deletion
 
@@ -193,20 +249,93 @@ throws. It cannot happen from the delete screen, and the predicate's
 `uid.isNotEmpty` guard means that if it ever does, the failure is a no-op rather
 than a wildcard that matches an empty segment.
 
-## Decision 4 — An inventory sentinel, because the classification is the thing that rots
+## Decision 4 — The classification is a TYPE, not a list — a closed vocabulary the compiler checks
 
-Decision 2 is complete for every key that puts the uid in a segment. What it
-cannot see is a **future** consumer that keys by uid some other way — or one whose
-author never considered the question. So the guard is not "the predicate works"
-(a unit test covers that); it is **"every consumer has been classified"**:
+Revision 2 put the classification in a test. The review's blocker is that no
+source scan available here can see a flag the scanner's author did not think of,
+and its two majors are that a hand-written inventory is a fixture derived from
+its own subject. All three dissolve if a flag key cannot **exist** without being
+classified. So it cannot.
 
-* a source scan over `app/lib` for `localFlagStoreProvider`, whose file set must
-  equal a declared inventory — adding a consumer reddens the suite until its key
-  is declared account- or device-scoped, in the `funnel_call_site_sentinel_test`
-  idiom (ADR-057 D6) and with the same non-empty control (lesson 110);
-* and a parity assertion that every declared **account-scoped** key builder,
-  called with a test uid, satisfies the predicate — and every declared
-  **device-scoped** key does not.
+**Two closed enums, in `core/storage/local_flag_key.dart`:**
+
+```dart
+enum AccountFlag {  // removed when this account is deleted on this device
+  signup('analytics.signup'), paired('analytics.paired'), qAnswered('analytics.q'),
+  revealViewed('analytics.reveal'), streakDay('analytics.streak'),
+  coachDisclaimerAck('coachDisclaimerAck'), coupleEndedSeen('coupleEndedSeen'),
+  nameCaptureDone('nameCaptureDone'), privacySpotlightSeen('privacySpotlightSeen');
+  const AccountFlag(this.prefix);
+  final String prefix;
+}
+
+enum DeviceFlag {   // survives an account deletion, deliberately
+  install('analytics.install'), ritualPreviewSeen('ritualPreviewSeen');
+  const DeviceFlag(this.value);
+  final String value;
+}
+```
+
+**And one key type that is the only way to make a key:**
+
+```dart
+final class LocalFlagKey {
+  LocalFlagKey.device(DeviceFlag flag) : value = flag.value;
+
+  /// [uid] is placed as its own dot segment. That is not a convention this
+  /// constructor follows — it is the only shape it can produce, and it is what
+  /// makes the deletion sweep TOTAL rather than best-effort.
+  LocalFlagKey.account(AccountFlag flag, {required String uid,
+                                          List<String> parts = const []})
+      : value = [flag.prefix, uid, ...parts].join('.');
+
+  final String value;
+}
+```
+
+`LocalFlagStore.isSet` and `set` take a `LocalFlagKey`. A raw `String` no longer
+compiles.
+
+**What that buys, stated as the three findings it answers:**
+
+* **The blocker is closed by the compiler, and there is no source scan at all.** A
+  new flag cannot reach the store without a `LocalFlagKey`; a `LocalFlagKey`
+  cannot exist without an enum value; an enum value cannot be added to
+  `AccountFlag` without being account-scoped or to `DeviceFlag` without being
+  device-scoped. **Two enums rather than one enum with a `scope` field**, because
+  the field version needs an `assert` to bind the constructor to the scope, and an
+  `assert` is a debug-only guarantee. The compiler is not.
+* **The inventory is no longer hand-written.** The tests iterate `AccountFlag.values`
+  and `DeviceFlag.values` — the vocabulary IS the fixture, the `FunnelEvent.values`
+  idiom (ADR-057 D6) rather than a list beside it.
+* **The parity assertion gets a second uid.** For every `AccountFlag`, the key
+  built for uid `A` must match `A` and must **not** match a `B` that has `A` as a
+  string prefix (`u1` / `u12`) — the exact mutation D2 argues against, which the
+  one-uid version passed.
+
+**Every persisted key string is byte-identical** to what ships today —
+`[prefix, uid, ...parts].join('.')` reproduces each of the eleven exactly. That is
+not asserted by eye: `analytics_test.dart`'s *"every once-key matches the ADR-057
+D4 table, character for character"* seeds raw strings and is **left untouched by
+this change**, so it is an independent pin on the six analytics keys. A key that
+drifted would silently re-emit a once-only event for every existing user on the
+version that fixed it, which is why that test exists and why it must not be
+rewritten in the same diff that could break it.
+
+**The cost, named rather than discovered.** This reaches every flag consumer:
+nine production files and about fifteen one-token test edits. It is larger than
+"clear the flags on delete", and `session-rules.md` §2 calls a drive-by refactor
+scope creep wearing a helmet. It is in scope anyway, and the distinction is that
+**the guard is part of the deliverable**: without it the fix is complete only for
+the eleven flags that exist today, and the review's verdict is that the cheaper
+guard does not guard. Shipping it would be ADR-025 D8's own error.
+
+**One bound, recorded.** `LocalFlagKey.account`'s `parts` are not uids, but the
+predicate cannot tell: if a `coupleId` in `analytics.paired.<uid>.<coupleId>` ever
+equalled some other account's uid, deleting that account would take this key too.
+Firestore auto-ids are 20 characters and Firebase uids are 28, so they cannot
+collide today. Named because the collision would be silent and the length
+coincidence is not a guarantee anyone wrote down.
 
 ## Decision 5 — The legal draft is checked, survives, and gets a note rather than an edit
 
@@ -235,6 +364,10 @@ creep (`session-rules.md` §2); telling them what changed underneath it is not.
   `LocalFlagStore` must see that in the seam rather than discover it in a cascade.
   The doc comment on the method is the mitigation, and it is the whole reason the
   method takes a **uid** rather than a key.
+* **Adding a flag is now a decision, not a keystroke.** Every new flag costs its
+  author one enum entry and forces the account-or-device question at the moment
+  they can still answer it. That is the whole design, and it is also its price:
+  the seam is no longer "pass a string".
 * **The removal reaches one device — the one performing the deletion.** A second
   phone that the same account signed into keeps its flags until the app is
   removed there. The server cascade has always been the only thing that reaches
@@ -248,3 +381,10 @@ creep (`session-rules.md` §2); telling them what changed underneath it is not.
 * **`#250` (Android auto-backup) is untouched and still binds**: on a platform
   where backup restores prefs, a cleared flag can come back. The fix removes what
   is on the device; it cannot reach a copy Google or Apple already took.
+* **What a user actually gets, stated without softening.** Tapping *"Delete
+  account & data"* removes the server cascade (ADR-019), the Keychain lock
+  record (the root listener's `wipe`), and — new here — every account-scoped flag
+  **on the phone that ran the deletion**. It does not reach that account's flags
+  on a second phone, a platform backup already taken, or the two device flags,
+  which is correct. Anyone re-reading this ADR to answer *"is it all gone?"*
+  should read this bullet and the two above it as one answer.
