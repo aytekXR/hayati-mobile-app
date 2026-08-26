@@ -4092,3 +4092,27 @@ The type change reaches **30 files**. `session-rules.md` §2 calls a drive-by re
 **#258** — the version-3 privacy draft says the markers *"go when you remove the app"*. Still **true**: removing the app still clears them, and the notice now promises **less** than the app does, which is the safe direction and the opposite of the mismatch #226 exists to correct. But the sentence sits in the paragraph a user reads to learn what happens to their data, and it invites the inference that deleting the account does **not** — an inference this change makes wrong. One clause closes it, in three locales. Noted in `docs/legal/proposed/README.md` under the section #249 already established, because widening a draft the founder is about to review is scope creep and telling them what moved underneath it is not.
 
 **No operator action is required to continue engineering.**
+
+### The CI result — main green, and `integration-emulator` ran
+
+**PR #259 green; post-merge `main` run `32913494182` green.** The honest version
+names which jobs actually measured something, because four skipped on the PR and
+two of those skipped on `main` too:
+
+| job | PR | `main` |
+|---|---|---|
+| `quality` | ✅ | ✅ |
+| `functions-rules` | ✅ | ✅ |
+| `ios-build-smoke` | ✅ | ✅ — the macOS gate, and it compiled |
+| `integration-emulator` | **skipped** (main-only by cost design, ADR-006) | ✅ **ran** |
+| `rules-drift-preflight` / `functions-drift-preflight` | skipped | ✅ |
+| `rules-drift` / `functions-drift` | skipped | **skipped** — still unarmed for want of operator 2(e)(iii) (#165) |
+| `gemfile-lock-verify` | skipped | skipped — no `Gemfile` change |
+
+The two drift jobs skipping on `main` is **#165 unchanged**, not a regression:
+their preflights ran and concluded the read-only secret is absent. Prod-vs-`main`
+drift therefore remains **unmeasured**, exactly as the blocker list says.
+
+`codegraph sync` reported already-up-to-date against merged `main`.
+
+**#246 closed by the merge.**
