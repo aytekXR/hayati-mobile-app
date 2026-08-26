@@ -126,7 +126,9 @@ void main() {
       initialProfiles: {_uid: profileFor(lang)},
     );
     final flags = FakeLocalFlagStore(
-      initial: mode == _Mode.disclaimer ? null : {coachDisclaimerAckKey(_uid)},
+      initial: mode == _Mode.disclaimer
+          ? null
+          : {coachDisclaimerAckKey(_uid).value},
     );
     addTearDown(mirrors.dispose);
     addTearDown(auth.dispose);

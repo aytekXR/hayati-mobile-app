@@ -4034,3 +4034,61 @@ A close note that said "main green including integration-emulator" three session
 running would have been true twice and false here.
 
 **Next objective written to resume-prompt.md:** **#246** — the once-only analytics markers survive account deletion. Autonomous, and it is the last loose thread of the S082/S083 family.
+
+---
+
+## Session 085 — 2026-08-26 — #246: "delete my account" reaches the device, and a flag cannot exist without saying whose it is (ADR-061)
+
+**Objective (from resume-prompt.md):** #246 — "Delete account and data" does not reach the once-only analytics markers. Make it, or state in the notice that it does not.
+
+**Outcome:** made it. **#246 closes.** The sweep ships, eight-then-eleven-way mutation-checked, with the classification moved into the type system after the design review blocked the guard that was supposed to keep it honest.
+
+### Three inherited claims were wrong, and two of them were mine
+
+ADR-061 revision 1 was already on the branch, unpushed, when this session opened. One orientation grep refuted its central table.
+
+* **"`LocalFlagStore` has three consumers."** Six, and eleven key shapes. It named the analytics keys, the coach ack and the couple-ended notice; it did not know `nameCaptureDone`, `privacySpotlightSeen` or `ritualPreviewSeen` existed.
+* **"`analytics.install` is the only one with no uid."** `ritualPreviewSeen` is set **before sign-in**, so it has no uid to be keyed by and must never be cleared. Revision 1's fix was a **prefix list** built from the flags it had enumerated — and its own first attempt at that list was missing four of the nine account-scoped shapes, silently. That is the argument against the shape, made by the shape.
+* **"Clearing them trades a funnel count for a data right."** *(lesson 127)* No trade exists. The uid is already inside the key, so a replacement account gets a different key and re-emits either way. The bound ADR-057 D4 recorded is real for `analytics.install` — the one key with no uid — and had been carried forward to five keys that do. I wrote that sentence into the resume prompt myself, from a document that was right about a different key.
+
+Revision 2 replaced the prefix list with a **uid predicate**: a key belongs to an account when the uid is one of its dot-delimited segments, both sides wrapped in dots so `u1` cannot claim `u12`'s flags on a shared device.
+
+### The design pass blocked the guard, and the fix was to delete the guard
+
+**17 agents · `agents_error=0` · `agents_empty_result=3` · 6 findings · 6 verified · 0 dropped unverified · 3 surviving.** The three empty lenses (correctness, inventory-completeness, honesty) each read 69–97k tokens of the tree before answering *"no findings"* — considered-empty, not failed-empty. **All three survivors landed on Decision 4, and shared one root cause.**
+
+* **BLOCKER — the scan could not see what it was scanning for.** D4 proposed scanning `app/lib` for `localFlagStoreProvider` against a declared file inventory. **Four of the six key-builder files never name that identifier.** A new uid-keyed flag, defined in a new file and consumed from an already-inventoried consumer, leaves the file set unchanged: sentinel green, key unclassified, deletion misses it. The guard reproduced the defect it was written for. The adjudicator cited ADR-025 D8 by name — *a declaration nothing enforces reads as coverage*.
+* **MAJOR — the inventory was a fixture derived from its own subject.** `funnel_event.dart` says exactly this about itself, four lines of comment, and revision 2 argued it against revision 1 one decision earlier before reintroducing the shape.
+* **MAJOR — the parity assertion could not catch the bug D2 warns about.** One uid passes under the substring predicate the ADR spends a paragraph rejecting.
+
+**Revision 3's answer was not a better scan.** Two closed enums (`AccountFlag`, `DeviceFlag`) and a `LocalFlagKey` that is the only way to build a key. A raw `String` no longer compiles, so a flag cannot reach the seam unclassified; `LocalFlagKey.account` can only place the uid in its own dot segment, so the sweep is total; and **there is no source scan left at all** *(lesson 128)*. Two enums rather than one with a `scope` field, because the field version needs an `assert` to bind constructor to scope and an `assert` is a debug-only guarantee.
+
+**Three findings were killed** and are recorded in the ADR so nobody re-raises them: the `Amends:` bullet (an emergent convention in four ADRs, not a rule — the README's format is Status/Date/Deciders/Related); `pin_lock_store.dart`'s citation going stale (its second reason is untouched, and its first still holds because the lock needs clearing on **sign-out**, which this change deliberately does not do); and D1 failing to analyse a phase-2 failure (D1's own paragraph analyses it).
+
+### The seam that matters is which event you are standing in
+
+`app.dart` already tears down on `AuthSignedOut` — and **both a deletion and an ordinary sign-out end there**. #246's own suggested fix was that listener. It is the one place the sweep must not go: clearing there re-shows the coach disclaimer, the name step and the privacy spotlight to anyone who merely signed out and back in. The sweep lives in `AuthController.deleteAccount`, between the two phases — after the cascade succeeds, before the teardown — the only place in the app that knows which of the two happened. Pinned by a test that runs `signOut()` and asserts every flag survives.
+
+### The built-diff pass found a pin the rewrite had deleted
+
+**9 agents · `agents_error=0` · `agents_empty_result=3` · 2 findings · 2 verified · 0 dropped unverified · 2 surviving.** Byte-preservation, blast-radius and docs each came back clean.
+
+The **MAJOR generalised past what the review reported.** Rewriting `local_flag_store_test.dart` for typed keys replaced `expect(coachDisclaimerAckKey('u1'), 'coachDisclaimerAck.u1')` with a pin on `AccountFlag.coachDisclaimerAck.prefix`. Those read alike and are not: the enum pin proves the **vocabulary** is intact and says nothing about which member a **builder** reaches for. The behavioural test cannot cover it — `coach_screen_test.dart` seeds and asserts with the same function — and **the mutation check proved it**: rewiring the builder to the wrong member left that test **green**, reddening only the restored pin. Every user who had acknowledged the "not therapy" note would have been shown it again *(lesson 129, lesson 117)*. Restored for all six builders with a count assertion, so a new builder cannot arrive unpinned.
+
+The MINOR was the uid-collision bound asserted over `DeviceFlag` segments only while the collision is symmetric — recurring shape **5**, a guard silent on the other path. Now over both vocabularies. *(That bound exists at all because this file's own first draft went red using `analytics` as a candidate uid: the predicate matches segments, so an account whose uid were literally `analytics` would take `analytics.install`. Asserted rather than deleted — the guarantee is not "device flags are unreachable", it is "no Firebase uid is a word".)*
+
+### The scope call, made deliberately
+
+The type change reaches **30 files**. `session-rules.md` §2 calls a drive-by refactor scope creep wearing a helmet, and the reason this is not one is that **the guard is part of the deliverable**: without it the fix is complete only for the eleven flags that exist today, and the review's verdict is that the cheaper guard does not guard. Shipping it would have been ADR-025 D8's own error. Argued in the ADR rather than left for a reviewer to notice.
+
+**Every persisted key string is byte-identical.** `analytics_test.dart`'s character-for-character table was deliberately **left untouched** by the diff that could have broken it, so the six analytics keys keep an independent pin.
+
+### Verification
+
+`flutter analyze` clean across the whole app including `screenshots/`. **1880 tests green.** Coverage **87.73%** against the 68 gate. **Eleven mutation checks**, each reddening exactly its own guards: neuter the sweep · substring predicate · drop the empty-uid guard · move the sweep onto sign-out · move it before the cascade · drift a key prefix by one character · add an unpinned vocabulary member · reclassify an analytics once-key as a device flag · point a builder at the wrong member · add a vocabulary member whose prefix could pass for a Firebase uid · drop a builder from the pin table. `git status` empty after both review workflows.
+
+### Filed rather than folded
+
+**#258** — the version-3 privacy draft says the markers *"go when you remove the app"*. Still **true**: removing the app still clears them, and the notice now promises **less** than the app does, which is the safe direction and the opposite of the mismatch #226 exists to correct. But the sentence sits in the paragraph a user reads to learn what happens to their data, and it invites the inference that deleting the account does **not** — an inference this change makes wrong. One clause closes it, in three locales. Noted in `docs/legal/proposed/README.md` under the section #249 already established, because widening a draft the founder is about to review is scope creep and telling them what moved underneath it is not.
+
+**No operator action is required to continue engineering.**

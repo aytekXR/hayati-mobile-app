@@ -7,7 +7,7 @@ void main() {
     test('embeds the uid and the event epoch-ms', () {
       final at = DateTime.fromMillisecondsSinceEpoch(1752000000000);
       expect(
-        coupleEndedSeenKey('uid-B', at),
+        coupleEndedSeenKey('uid-B', at).value,
         'coupleEndedSeen.uid-B.1752000000000',
       );
     });

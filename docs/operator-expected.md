@@ -1,14 +1,14 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-21 UTC (S083)
+**Last Updated:** 2026-08-26 UTC (S085)
 
 ## Current Status
 
-- Session: **084**
-- Goal: **#242 — decide which server surface emits the three subscription events**
-- Status: **Decided and recorded** (ADR-060). **Nothing built**, deliberately — the emitter waits on a sink, which waits on you (item 16). #242 stays open with its body updated
+- Session: **085**
+- Goal: **#246 — make "Delete account and data" reach the markers left on the phone**
+- Status: **Shipped and closed.** Deleting your account now also removes the app's own private notes-to-self about your account from the phone you delete it on
 - ⚠️ **Item 16 is still waiting on you, and it is the oldest open honesty gap in the repo**
-- ⚠️ **One decision is now waiting on you and it is the oldest open honesty gap in the repo — see items 16 and 18**
+- ⚠️ **The privacy document waiting for your lawyer now carries THREE small notes, not one — see item 16**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
 - Production Readiness: **Beta Ready**
 
@@ -24,6 +24,35 @@
 The engineering is nearly done. **Content and instrumentation are the gap**, and most of what is left is yours rather than a session's.
 
 ## Latest Checkpoint
+
+**S085 (2026-08-26) — "delete my account" now reaches the phone, and nothing here needs you.**
+
+When someone tapped *"Delete account & data"*, everything on our servers went —
+that part has worked since M6.2. But the app also keeps a handful of small
+private markers on the phone itself, so it does not ask you the same thing twice:
+that you have seen the coach's "this is not therapy" note, that you have been
+shown the privacy card once, that a milestone was already counted. Those markers
+name the account they belong to, and **they were surviving the deletion**, because
+a server cannot reach into a phone.
+
+They go now. On the phone that runs the deletion, every marker tied to that
+account is removed along with it. Two markers stay, deliberately: *"this phone
+installed the app"* and *"this phone has seen the intro"*. Neither names a person
+— they describe the handset, not the account — and clearing them would just make
+the app show a first-launch intro to someone who has already seen it.
+
+**Two honest limits, so nobody is surprised later.** It reaches the phone the
+deletion was run on; a second phone the same account once signed into keeps its
+markers until the app is removed there. And if the phone's own backup already
+copied them to Apple or Google, that copy is out of our reach — the same limit
+that applies to every app.
+
+**One thing for your lawyer, and it is small.** The draft privacy notice you are
+holding says these markers *"go when you remove the app"*. That is still true.
+It is now also incomplete, because deleting your account removes them too — the
+notice promises **less** than the app does, which is the safe direction. One
+added clause would close it. It is written up in the draft's own README beside
+the other note, and it is **your call, not a session's**.
 
 **S084 (2026-08-21) — a decision made, no code, and nothing you need to do.**
 
@@ -335,25 +364,35 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Begin **S085 / #246** — "Delete account and data" does not reach a handful of
-counters your phone keeps to itself. **Nothing here needs you.**
+Begin **S086 / #243** — one of the launch numbers you asked for cannot be
+computed, and fixing it would mean collecting something new. **The session will
+lay out the options; the choice is yours.**
 
-S084 is closed: **#242** decided (ADR-060), nothing built, issue updated.
+S085 is closed: **#246** shipped and closed, deletion now reaches the phone.
 
 **Nothing blocks the next session's engineering.** The queue waiting on **you**
 is unchanged, and item **16** remains the one that matters most: a correction to
-your privacy policy, written and reviewed twice, sitting still.
+your privacy policy, written and reviewed twice, sitting still — now with three
+small notes attached rather than one.
 
 ## Next Session Goal
 
-**#246 — the one place "delete my account" does not reach.** The app keeps a few
-small markers on your phone so it does not count the same milestone twice. They
-never leave the device and nothing receives them — but deleting your account does
-not remove them, because that deletion happens on our servers and cannot reach
-your phone. Removing the app does.
+**#243 — "how many people who install end up paying?" has no answer, on purpose.**
+Your Gate 3 targets include *install → paid ≥2%*. The app counts an install
+before anyone has an account, and a payment is recorded against a couple. **There
+is no shared thread between the two**, because the app deliberately refuses to put
+an account identifier on anything it counts — a choice made because this product
+is used by people for whom being identifiable is a safety question.
 
-The next session either makes deletion clear them or says plainly in the privacy
-text that it does not. There is a real trade either way, and it will be written
-down rather than decided quietly.
+Joining them means giving every phone a lasting identifier at install and tying
+it to the account later. That is **collecting something new**: it goes in the App
+Store privacy answers, in the policy your lawyer is holding, and in the processor
+register. It is also the one identifier that would survive signing out.
 
-**No accounts, no keys, no money, no phone.**
+The next session writes the options down with honest costs — including simply
+**accepting that this one number cannot be measured**, which is a real answer and
+costs nothing. **It will not create any identifier.** That decision is yours, and
+it belongs beside the privacy-policy review you already have.
+
+**No accounts, no keys, no money, no phone — for the session. One decision, for
+you, whenever the policy review happens.**

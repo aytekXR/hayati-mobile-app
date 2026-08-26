@@ -81,7 +81,10 @@ void main() {
     final flags =
         overrideFlags ??
         FakeLocalFlagStore(
-          initial: {ritualPreviewSeenKey, nameCaptureDoneKey(testUser.uid)},
+          initial: {
+            ritualPreviewSeenKey.value,
+            nameCaptureDoneKey(testUser.uid).value,
+          },
         );
     addTearDown(fake.dispose);
     addTearDown(fakeProfiles.dispose);
@@ -320,7 +323,9 @@ void main() {
     ) async {
       await pumpScreen(
         tester,
-        overrideFlags: FakeLocalFlagStore(initial: {ritualPreviewSeenKey}),
+        overrideFlags: FakeLocalFlagStore(
+          initial: {ritualPreviewSeenKey.value},
+        ),
       );
       await tester.pumpAndSettle();
 

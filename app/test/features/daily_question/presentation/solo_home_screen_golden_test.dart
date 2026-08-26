@@ -108,7 +108,7 @@ void main() {
           FakeLocalFlagStore(
             initial: privacySpotlight
                 ? <String>{}
-                : {privacySpotlightSeenKey(_user.uid)},
+                : {privacySpotlightSeenKey(_user.uid).value},
           ),
         ),
       ],

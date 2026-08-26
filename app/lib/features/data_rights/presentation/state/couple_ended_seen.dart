@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/storage/local_flag_key.dart';
+
 part 'couple_ended_seen.g.dart';
 
 /// The device-local "seen" flag key for a partner morning-after notice (ADR-019
@@ -10,8 +12,12 @@ part 'couple_ended_seen.g.dart';
 /// prevent). A new ending has a different `at`, so it mints a fresh key and is
 /// noticed exactly once per device; per-uid keying keeps the flag from leaking
 /// across accounts on a shared device (the coach-ack precedent).
-String coupleEndedSeenKey(String uid, DateTime at) =>
-    'coupleEndedSeen.$uid.${at.millisecondsSinceEpoch}';
+LocalFlagKey coupleEndedSeenKey(String uid, DateTime at) =>
+    LocalFlagKey.account(
+      AccountFlag.coupleEndedSeen,
+      uid: uid,
+      parts: ['${at.millisecondsSinceEpoch}'],
+    );
 
 /// A tiny keepAlive notifier the onboarding gate watches so that acknowledging a
 /// notice re-evaluates the gate reactively (review finding APP-2, pinned as

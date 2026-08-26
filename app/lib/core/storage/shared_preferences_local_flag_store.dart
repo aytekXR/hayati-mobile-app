@@ -14,8 +14,23 @@ class SharedPreferencesLocalFlagStore implements LocalFlagStore {
   final SharedPreferences _prefs;
 
   @override
-  bool isSet(String key) => _prefs.getBool(key) ?? false;
+  bool isSet(LocalFlagKey key) => _prefs.getBool(key.value) ?? false;
 
   @override
-  Future<void> set(String key) => _prefs.setBool(key, true);
+  Future<void> set(LocalFlagKey key) => _prefs.setBool(key.value, true);
+
+  @override
+  Future<void> removeAccountScoped(String uid) async {
+    // `getKeys()` is PLUGIN-wide, not seam-wide: it returns every preference any
+    // package wrote through `shared_preferences`. The predicate is what bounds
+    // the sweep — a foreign key would have to carry this uid as a dot segment to
+    // be caught, and nothing on this device does (ADR-061 Consequences).
+    final doomed = _prefs
+        .getKeys()
+        .where((key) => localFlagKeyBelongsTo(key, uid))
+        .toList(growable: false);
+    for (final key in doomed) {
+      await _prefs.remove(key);
+    }
+  }
 }

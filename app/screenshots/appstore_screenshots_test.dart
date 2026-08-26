@@ -344,7 +344,9 @@ void main() {
           inviteRepositoryProvider.overrideWith((ref) => invites),
           inviteShareLauncherProvider.overrideWith((ref) => launcher),
           localFlagStoreProvider.overrideWithValue(
-            FakeLocalFlagStore(initial: {privacySpotlightSeenKey(_ownUid)}),
+            FakeLocalFlagStore(
+              initial: {privacySpotlightSeenKey(_ownUid).value},
+            ),
           ),
         ],
       );
@@ -412,7 +414,7 @@ void main() {
           // Disclaimer already acknowledged: the store shot is the working
           // surface, not the one-time consent panel that sits in front of it.
           localFlagStoreProvider.overrideWithValue(
-            FakeLocalFlagStore(initial: {coachDisclaimerAckKey(_ownUid)}),
+            FakeLocalFlagStore(initial: {coachDisclaimerAckKey(_ownUid).value}),
           ),
           soloClockProvider.overrideWith(
             (ref) =>

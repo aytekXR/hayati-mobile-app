@@ -55,14 +55,19 @@ class Analytics {
   final Ref _ref;
 
   /// First launch on this device. Once per **device**.
-  void install() => _emit(const InstallEvent(), onceKey: 'analytics.install');
+  void install() => _emit(
+    const InstallEvent(),
+    onceKey: LocalFlagKey.device(DeviceFlag.install),
+  );
 
   /// This account reached the app for the first time here. Once per **uid, per
   /// device** — a reinstall re-emits, which is the honest bound of a
   /// `SharedPreferences` key and is recorded in ADR-057 D4 rather than papered
   /// over. Closing it needs server-side identity (#243).
-  void signup({required String uid}) =>
-      _emit(const SignupEvent(), onceKey: 'analytics.signup.$uid');
+  void signup({required String uid}) => _emit(
+    const SignupEvent(),
+    onceKey: LocalFlagKey.account(AccountFlag.signup, uid: uid),
+  );
 
   /// The invite share sheet was handed a composed message. **Per action** — a
   /// user who shares twice sent two invites.
@@ -73,8 +78,14 @@ class Analytics {
   /// Both partners' devices emit their own, so this counts **users paired**,
   /// never couples — the shape Gate 2 pays for (*"pairing ≥40% of signups"* is a
   /// per-user rate).
-  void paired({required String uid, required String coupleId}) =>
-      _emit(const PairedEvent(), onceKey: 'analytics.paired.$uid.$coupleId');
+  void paired({required String uid, required String coupleId}) => _emit(
+    const PairedEvent(),
+    onceKey: LocalFlagKey.account(
+      AccountFlag.paired,
+      uid: uid,
+      parts: [coupleId],
+    ),
+  );
 
   /// A daily question was answered. Once per **uid+dayKey+mode, per device**, so
   /// editing an answer does not inflate the count.
@@ -84,7 +95,11 @@ class Analytics {
     required AnalyticsAnswerMode mode,
   }) => _emit(
     QAnsweredEvent(mode: mode),
-    onceKey: 'analytics.q.$uid.$dayKey.${mode.name}',
+    onceKey: LocalFlagKey.account(
+      AccountFlag.qAnswered,
+      uid: uid,
+      parts: [dayKey, mode.name],
+    ),
   );
 
   /// The mutual reveal settled on screen. Once per **uid+dayKey, per device**:
@@ -92,7 +107,11 @@ class Analytics {
   /// of the same day would otherwise emit again.
   void revealViewed({required String uid, required String dayKey}) => _emit(
     const RevealViewedEvent(),
-    onceKey: 'analytics.reveal.$uid.$dayKey',
+    onceKey: LocalFlagKey.account(
+      AccountFlag.revealViewed,
+      uid: uid,
+      parts: [dayKey],
+    ),
   );
 
   /// The couple's streak advanced to a new mutual day. Once per
@@ -104,7 +123,11 @@ class Analytics {
     required int count,
   }) => _emit(
     StreakDayEvent(count: count),
-    onceKey: 'analytics.streak.$uid.$lastMutualDate',
+    onceKey: LocalFlagKey.account(
+      AccountFlag.streakDay,
+      uid: uid,
+      parts: [lastMutualDate],
+    ),
   );
 
   /// One coach turn. **Per send.** The ADR-016 crisis strip is applied by
@@ -114,7 +137,7 @@ class Analytics {
     AnalyticsPersona? persona,
   }) => _emit(CoachMsgEvent(outcome: outcome, persona: persona));
 
-  void _emit(AnalyticsEvent event, {String? onceKey}) {
+  void _emit(AnalyticsEvent event, {LocalFlagKey? onceKey}) {
     try {
       if (onceKey != null && !_claimOnce(onceKey)) return;
       _ref
@@ -134,7 +157,7 @@ class Analytics {
   /// **emits without de-duplication rather than not emitting**, the `PushTokenSync`
   /// guard precedent. Losing a de-dup is a counting error; losing the event is
   /// blindness, and blindness is what #239 exists to end.
-  bool _claimOnce(String key) {
+  bool _claimOnce(LocalFlagKey key) {
     final LocalFlagStore flags;
     try {
       flags = _ref.read(localFlagStoreProvider);

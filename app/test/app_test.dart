@@ -51,7 +51,7 @@ List<Override> lockSeams() => [
 /// each onboarding step is proven by its own suite.
 Override flagSeam() => localFlagStoreProvider.overrideWithValue(
   FakeLocalFlagStore(
-    initial: {ritualPreviewSeenKey, nameCaptureDoneKey('uid-1')},
+    initial: {ritualPreviewSeenKey.value, nameCaptureDoneKey('uid-1').value},
   ),
 );
 
