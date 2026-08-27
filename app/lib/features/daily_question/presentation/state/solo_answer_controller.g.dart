@@ -54,7 +54,7 @@ final class SoloAnswerControllerProvider
 }
 
 String _$soloAnswerControllerHash() =>
-    r'c472213e9b145a86c8e7489b2e5f6e610ed69e17';
+    r'570cde401acc719de880f7c7405f0906a2f95723';
 
 /// Drives [SoloAnswersRepository.saveAnswer] with the same manual-op
 /// discipline as `ProfileCaptureController`: re-entrant saves are dropped

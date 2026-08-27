@@ -223,8 +223,8 @@ describe('eligibility and recipient selection', () => {
     expect(summary.checked).toBe(0);
   });
 
-  // Rollover runs at local midnight and this pass at local 08:00, so a missing day
-  // doc means assignment failed eight hours earlier. There is no question to
+  // Rollover runs at local midnight and this pass at local 09:00, so a missing day
+  // doc means assignment failed nine hours earlier. There is no question to
   // announce — a separate, countable state, never a push about nothing.
   it('NO day doc → a counted skippedNoDay, and nothing sent', async () => {
     const port = new FakeMessagingPort();

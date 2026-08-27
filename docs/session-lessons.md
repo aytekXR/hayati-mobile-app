@@ -38,6 +38,65 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**132 — A comment that states a measured fact goes stale; a comment that names the command does not.** *(S087, ADR-063)*
+Five separate comments across the notification feature told a reader the device
+half could not work: *"Nothing overrides this yet"*, *"It is INERT until the
+entitlement lands"*, *"There is deliberately no implementation of this yet"*,
+*"correct and inert today"*, *"NOTHING writes this field yet"*. Every one was
+false, most of them for twenty days. **The cruel part is that the repo already
+knew**: `main_prod.dart:217` carries a ⚠️ recording that this exact sentence *"HAD
+BEEN FALSE FOR NINE DAYS"* and naming it *"the fourth indistinguishable
+explanation for silence"* — and that correction was applied to **one file of
+six**. A warning about stale comments is itself a comment, and it propagates no
+better than the thing it warns about. The failure is not that the facts changed;
+it is that a comment **asserted** a fact with a shelf life. So the rule is
+structural rather than diligent: a comment may not carry a measured fact about
+build, device or portal state — **it names the instrument instead**
+(`push_delivery_probe.py`, `appid-capabilities.yml`). A comment that names a
+command cannot go stale, because it makes no claim. And no CI gate can replace
+this: only grammar separates *"the entitlement is absent"* from *"the entitlement
+was absent in August"*, a scan would need an allowlist (lesson **128**), and
+"this cannot work yet" is the single most expensive sentence to leave lying
+around — it reads as a reason to stop looking.
+
+**131 — The convenient field next to the fact is not the fact.** *(S087, ADR-063)*
+`prod_pulse.py` asked `projects/{p}/billingInfo` for `billingEnabled` and treated
+it as "billing works". It means **the project is LINKED to an account**. Through
+six days of a total outage it read `true` while the account behind it was
+`"open": false` and Cloud Run refused every invocation with *"billing is disabled
+for this project"*. The tool would have printed the reassuring `billing: enabled`
+in the middle of the incident it was written for — and the regression test that
+replays that incident passes `billing_enabled=False`, **an input the production
+path could no longer produce**, so the file's most important fixture had quietly
+become unreachable. Two tells, both cheap: the field was one hop *nearer* than
+the authority (`billingAccounts/{id}.open`), and a **vendor boolean named after
+your question is usually named after their schema**. Cousin of **125** — there,
+prefer state we own to a field the vendor controls; here, when you must read the
+vendor, read the one that is *true* rather than the one that is *close*.
+
+**130 — Measure several facts in one `try` and you report none of them — and the probe that fails is usually a consequence of the fact you needed.** *(S087, ADR-063)*
+`prod_pulse.py` was built after #219 to make a silent production outage
+impossible to miss. It met the identical outage on 2026-08-22 and printed
+`could not measure` (exit 2) for six days. Its `main()` ran three independent
+measurements inside one `try`: `measure_billing` **succeeded**, `measure_job`
+raised HTTP 403, `measure_last_sweep` never ran — so the first failure discarded a
+fact already in hand and a fact not yet asked for, and the pure `verdict()`
+function, carefully written to **accumulate** cause and consequence, was never
+called. **The abort was not bad luck.** Cloud Scheduler returns 403 *because*
+billing is off (*"This API method requires billing to be enabled"*), so the one
+state the tool exists to detect is the one state that **guarantees** it cannot
+report — lesson **114** with the control's blind spot aimed at its own subject.
+Three rules came out of it, and the second is the one that generalises furthest:
+probe each fact separately and turn a failure into a **named gap**; **a gap can
+never contribute to a green** (findings → 1, else any gap → 2, else 0 — ADR-041's
+*"never 0 without having compared"* applied to a multi-fact verdict); and **a gap
+is not an absence** — `job_state=None` already meant *"I looked and there is no
+job"*, so without suppressing the paired finding the fix would have printed
+*"the sweep has no trigger"* about a scheduler it merely could not read, i.e.
+invented a cause and been worse than the bug. Recurring shape **1**: an empty
+tool result read as a negative — except here the tool produced the empty result
+itself, while holding the answer.
+
 **129 — A rewrite that keeps every test green can still delete an assertion.** *(S085, ADR-061)*
 Converting the flag seam to typed keys meant rewriting `local_flag_store_test.dart`.
 The rewrite replaced `expect(coachDisclaimerAckKey('u1'), 'coachDisclaimerAck.u1')`

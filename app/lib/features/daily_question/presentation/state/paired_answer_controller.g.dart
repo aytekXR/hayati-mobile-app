@@ -51,7 +51,7 @@ final class PairedAnswerControllerProvider
 }
 
 String _$pairedAnswerControllerHash() =>
-    r'13f061964e6837e4d5dbcbf02ec293bfd7f35a0f';
+    r'bc448b3f1f0268ea7489d5177415cd242af3bf47';
 
 /// Drives [CoupleAnswersRepository.saveAnswer] with the same manual-op
 /// discipline as `SoloAnswerController`: re-entrant saves are dropped while

@@ -112,15 +112,17 @@ function revealNormal(language: PushLanguage): PushPayload {
   }
 }
 
-// dailyQuestion is the hour-8 sweep push (ADR-042 D3) — the founder's first ask,
-// verbatim: "It needs to be send new questions at 08.00 TSI with a question."
+// dailyQuestion is the hour-9 sweep push — ADR-045, re-pointed from the hour 8
+// of ADR-042 D3. The founder's first ask, verbatim: "It needs to be send new
+// questions at 08.00 TSI with a question"; the hour moved on 2026-08-10
+// ("questions should be sent at 9:00 AM"), the intent did not.
 //
 // It announces that a question EXISTS. The question itself never travels, and
 // that is structural rather than a copy rule: composePush has no question
 // parameter, so there is nothing here to leak even by mistake.
 //
-// Name-free and streak-free by design. At the couple's local 08:00 the day doc
-// was created eight hours earlier at local midnight and, in the ordinary case,
+// Name-free and streak-free by design. At the couple's local 09:00 the day doc
+// was created nine hours earlier at local midnight and, in the ordinary case,
 // nobody has answered yet — so there is no partner action to report and no
 // streak state worth putting on a lock screen. A caller that passes partnerName
 // or streakCount for this kind is ignored, which the tests pin.
@@ -144,8 +146,9 @@ function dailyQuestionNormal(language: PushLanguage): PushPayload {
   }
 }
 
-// The no-streak afternoon nudge (ADR-042 D4). D4 drops the streak.count > 0 gate
-// so the 16:00 push reaches couples who have no streak at all — which is most
+// The no-streak evening nudge (ADR-042 D4, re-pointed to hour 22 by ADR-045).
+// D4 drops the streak.count > 0 gate so the nudge reaches couples who have no
+// streak at all — which is most
 // couples in week one and every couple that ever broke one. That population is
 // the REASON for the change, so the copy they receive cannot talk about a streak:
 // "your streak is still alive" is simply FALSE for them, and telling someone
@@ -175,8 +178,9 @@ function unansweredNudgeNormal(language: PushLanguage): PushPayload {
   }
 }
 
-// streakAtRisk with a live streak is the hour-16 sweep push (ADR-012 D3, re-pointed
-// from hour 20 by ADR-042 D4) to a couple whose day is still unrevealed.
+// streakAtRisk with a live streak is the hour-22 sweep push (ADR-012 D3, hour 20
+// -> 16 by ADR-042 D4, -> 22 by ADR-045) to a couple whose day is still
+// unrevealed.
 // INVITATIONAL, never shaming (brandkit §8). Without a positive count it falls
 // through to unansweredNudgeNormal above rather than to a streak-free variant of
 // streak copy. AR numeral-noun agreement is approximated with the tamyiz
@@ -226,7 +230,7 @@ export function composePush(input: {
     case 'streakAtRisk':
       return streakAtRiskNormal(input.language, input.streakCount);
     case 'dailyQuestion':
-      // partnerName and streakCount are deliberately not forwarded: at 08:00
+      // partnerName and streakCount are deliberately not forwarded: at 09:00
       // there is no partner action and no streak state worth announcing.
       return dailyQuestionNormal(input.language);
   }

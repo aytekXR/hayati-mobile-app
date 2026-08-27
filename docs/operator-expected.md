@@ -1,13 +1,14 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-27 UTC (S086)
+**Last Updated:** 2026-08-28 UTC (S087)
 
 ## Current Status
 
-- Session: **086**
-- Goal: **#243 — decide how (or whether) to measure "installs that become paying users"**
-- Status: **Decided and recorded** (ADR-062). **Nothing built and no identifier created**, deliberately. One question below is yours
-- ⚠️ **NEW AND TIME-SENSITIVE: the 9 a.m. daily question needs ONE action from you before it can ever arrive. See "The one thing that unblocks notifications" below.**
+- Session: **087**
+- Goal: **make the 9 a.m. daily question actually arrive on a phone**
+- Status: **The cause was found, and it is not what anyone thought.** See the red box below — this is the most urgent thing in this document
+- 🔴 **PRODUCTION IS DOWN AND HAS BEEN SINCE 2026-08-22. Your Google billing account is CLOSED.** Nothing your app does on a server has worked for six days: no daily question is being assigned, no push is composed, and purchases cannot be processed. **Item 1 ① is the whole fix and only you can do it.**
+- ⚠️ **Last time this happened it cost 37 hours (2026-08-09→11). This time it has cost six days**, because the tool built afterwards to catch it could not report during the outage. That tool is fixed as of today
 - ⚠️ **Item 16 is still waiting on you, and it is the oldest open honesty gap in the repo**
 - ⚠️ **The privacy document waiting for your lawyer now carries THREE small notes, not one — see item 16**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
@@ -26,34 +27,65 @@ The engineering is nearly done. **Content and instrumentation are the gap**, and
 
 ## Latest Checkpoint
 
-**The one thing that unblocks notifications — please do this one first.**
+## 🔴 Your billing account is closed, and it has taken production down
 
-You asked for the daily question to arrive every morning at 9. **It is already
-written, on both sides, and tested.** The server picks 9 a.m. in each couple's own
-timezone, composes the message, and sends it; the app knows how to receive one.
-None of that is missing.
+You asked why the 9 a.m. question never arrives. I found the answer today, and it
+is **not** the answer this document gave you last week.
 
-**What is missing is that no phone has ever told us where to send it.** Measured
-today: **0 of 4 accounts have registered a device.** All four also say *"no
-report"*, which means their phones have never even reported *why* — because the
-last build was cut **2026-08-09** and the self-reporting was added after it.
+**Measured, 2026-08-27/28:**
 
-So one action unblocks everything:
+* Your billing account **`012195-7EF76F-3A9083` ("Firebase Payment", TRY)** reports
+  **`"open": false`** — it is **closed**.
+* Every hourly run of the daily-question sweep since **2026-08-22 02:00 UTC** has
+  been refused before it started, with Google's own words:
+  *"The request failed because billing is disabled for this project."*
+* The last time the sweep actually completed was **2026-08-25 15:00 UTC** — one
+  lone hour that got through. Before that, **2026-08-22 01:00 UTC**.
+* Your **dev** project is linked to the same closed account, so it is down too.
 
-> **① Dispatch the release lane so a current build reaches TestFlight, install it,
-> open the app, and accept the notification prompt when it appears.**
+**What that means in plain terms:** for six days your app has not been assigning
+anybody a daily question, has not been sending any notification, and cannot
+process a purchase. This is not a code problem — nothing in the app is broken.
+The servers are refusing to run because the card behind them stopped paying.
 
-I cannot do this: the lane uploads a real binary under your developer account
-(§7), and the permission prompt has to be accepted on a real phone. **⚠️ If that
-prompt was ever declined on your phone, iOS will not show it again** — the app's
-Settings screen has a row that sends you to the system settings to re-enable it.
+### The two steps, and why the order is not optional
 
-Once that lands, `push_delivery_probe.py` stops saying *"no report"* and starts
-saying which link broke — or that it works. Everything after that is mine.
+> **① Restore billing.** Open
+> <https://console.cloud.google.com/billing/012195-7EF76F-3A9083> (or Firebase
+> Console → ⚙ → Usage and billing). Either reopen this account with a working
+> payment method, or link **both** `hayatiapp-prod` and `hayatiapp-dev` to an open
+> billing account. It usually takes a few minutes to propagate.
+>
+> **② Then dispatch the release lane**, install the build from TestFlight, open the
+> app to the paired home screen, and tap **Allow** on the notification prompt.
+
+**Do ① first.** Doing ② first cannot make a 9 a.m. question arrive — there is no
+question being assigned to announce, and the call your phone makes to register
+itself would be refused too. You would grant permission, see nothing the next
+morning, and reasonably conclude push is still broken. That is the fifth time in a
+row this feature has produced a silence with a different cause, and it is the one
+thing I am trying to stop happening again.
+
+*(If you have **already** done ②: nothing is lost. iOS remembers the permission,
+and the app re-attempts registration every time it launches — so once ① is done,
+just open the app once and it will register itself.)*
+
+**How you will know ① worked**, without asking me:
+
+```
+python3 tool/ci/prod_pulse.py --from-firebase-cli
+```
+
+Today it prints the closed account and a 55-hours-stale sweep and exits **1**.
+When billing is restored it will print *"the daily loop is running"* and exit **0**,
+within about an hour. *(Until today that command answered `could not measure` —
+it read the project's billing **link**, which says "enabled", rather than the
+**account**, which says closed, and it threw away that reading anyway when a
+second API refused it. Both are fixed; ADR-063.)*
 
 *(A functions deploy may also be needed — prod has drifted from `main` since S077.
-That is item 4's territory and I will confirm it the moment a device registers,
-so you are not asked for two things when one may do.)*
+That is item 4's territory and I will confirm it once the servers are running
+again, so you are not asked for two things when one may do.)*
 
 **S086 (2026-08-27) — a launch metric that cannot be measured, and the identifier I did not create.**
 
@@ -244,19 +276,37 @@ moved.
 
 Ordered by how much each unblocks. Every item below was verified today.
 
-### 1. Install the TestFlight build and allow notifications — unblocks the whole notification feature
-Open TestFlight → install **build 119** → open the app to the paired home screen →
-tap **Allow** on the notification prompt. If no prompt appears (iOS shows it only
-once ever), go to **iOS Settings → Notifications → ikimiz → Allow Notifications ON**.
+### 1. Restore billing, THEN install the build and allow notifications — in that order
 
-*Blocked by this:* every push. The server has composed and attempted pushes on
-schedule since 2026-08-11, and **0 of 4 accounts have ever registered a device
-token** (re-measured today). Nothing else can be tested until one device registers.
+**① Restore billing — this one is on fire.** Account
+`012195-7EF76F-3A9083` reports `"open": false`. Every server-side run since
+**2026-08-22 02:00 UTC** has been refused with *"The request failed because
+billing is disabled for this project."* Reopen the account with a working payment
+method, or link `hayatiapp-prod` **and** `hayatiapp-dev` to an open one.
 
-⚠️ Build 119 was cut **2026-08-09**. Five merged client slices are on **nobody's
-phone** — the notification diagnostics, the Settings row, the reveal
-announcement, the card surfaces and the bidi fix. **Cutting a new build is
-yours** (the release lane uploads a real binary; a session must never dispatch it).
+*Blocked by this:* **everything the server does.** No daily question is assigned at
+local midnight, so none can be announced at 9 a.m.; no push of any kind is
+composed; the RevenueCat webhook cannot process a purchase even after item 2.
+Verify with `python3 tool/ci/prod_pulse.py --from-firebase-cli` — exit **0** and
+*"the daily loop is running"* means done.
+
+**② Then** open TestFlight → install a **current** build → open the app to the
+paired home screen → tap **Allow** on the notification prompt. If no prompt appears
+(iOS shows it only once ever), go to **iOS Settings → Notifications → ikimiz →
+Allow Notifications ON**.
+
+*Blocked by this:* every push reaching a phone. **0 of 4 accounts have ever
+registered a device token**, and all four report *"no report"* — measured again
+today. ⚠️ Build 119 was cut **2026-08-09**; eight merged client slices are on
+**nobody's phone**, including the push self-diagnostic that would say which link
+broke. **Cutting a new build is yours** (the release lane uploads a real binary; a
+session must never dispatch it).
+
+**Why ① before ②:** ② cannot deliver a 9 a.m. question while ① is unfixed — there
+is nothing being assigned to announce, and the registration call would be refused
+by the same serving layer. You would spend the prompt and learn nothing. *(If ② is
+already done, nothing is lost: iOS keeps the grant and the app re-registers itself
+on the next launch after ① — `_syncFrom` → `_captureAndRegister`, every launch.)*
 
 ### 2. Grant the RevenueCat webhook a public invoker — purchases currently take money and never unlock Premium
 ```
@@ -318,9 +368,14 @@ non-required check it is **visible, not enforcing**: a red result shows on the P
 without blocking the merge. This is the difference between seeing a broken lock
 and being stopped by one. Low risk; it only ever runs when `Gemfile*` changes.
 
-### 9. Set a Firebase budget alert
-The only watchdog that would have caught the 37-hour outage of 2026-08-09→11.
-Billing itself is **fine** (restored 2026-08-11, verified).
+### 9. Set a Firebase budget alert — ⚠️ this is now the item that would have saved six days
+The only watchdog that would have caught the 37-hour outage of 2026-08-09→11 —
+**and it would have caught the current one too.** It was left unset after that
+incident, and the same failure recurred on 2026-08-22 and ran for **six days**
+before anyone looked. Billing is **NOT** fine: see item 1 ①.
+
+A budget alert catches the *cause* (the card) days before anything catches the
+*symptom* (a dead sweep). It is the cheapest control in this document.
 
 ### 10. Enable Dependabot **alerts** (~1 min)
 Settings → Advanced Security → Dependabot alerts → Enable.
@@ -416,10 +471,16 @@ than implied.
 
 ## Current Blockers
 
-Nothing blocks the *next session's engineering*. These block **launch**:
+🔴 **Production itself is down** — the billing account is closed (item 1 ①). That
+blocks the next session's engineering too: nothing that spans a deploy boundary
+can be verified against prod until it is restored.
 
-1. **Payments cannot complete** — the RevenueCat webhook is not invocable (#115, item 2).
-2. **Push has never been delivered** — no device has ever registered (item 1).
+These block **launch**:
+
+1. **Nothing runs on the server at all** — billing account closed since
+   2026-08-22 (item 1 ①). Every item below is downstream of this one.
+2. **Payments cannot complete** — the RevenueCat webhook is not invocable (#115, item 2) — *and* would be refused by the serving layer anyway until ① is done.
+3. **Push has never been delivered** — no device has ever registered (item 1 ②).
 3. **Prod-vs-`main` drift is unmeasured**, not passing — both drift checks SKIPPED for want of one read-only secret (item 4).
 4. **Legal documents are unreviewed** with three blanks (items 5, 14, 15) — **and the ones in force are wrong about push**: a correction is drafted and waiting on you (item 16). This is the only launch blocker whose fix is written and sitting still.
 5. **Content is ~2% authored** — MVP scope item 3.
@@ -427,22 +488,36 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Begin **S087 / the 9 a.m. daily question** — founder-set, 2026-08-27. **Action ①
-above is yours and it is the only thing standing between the feature and a real
-notification.**
+**Item 1 ① — restore billing.** It is the only thing in this document that stops
+everything else from being true, and it is entirely yours. One console visit.
+
+S087 found it, fixed the instrument that should have found it six days ago,
+corrected six comments across the notification feature that told every reader the
+device half could not work, and proved the 9 a.m. payload end to end in the
+emulator (ADR-063). **None of that can be observed on a phone until ① is done.**
 
 S086 is closed: **#243** decided (ADR-062), nothing built, **no identifier
-created**, issue stays open for your one sentence (action ②).
+created**, issue stays open for your one sentence (the question under item 16).
 
 ## Next Session Goal
 
-**Make the 9 a.m. question actually arrive.** The honest headline: *the feature is
+**Watch the loop, so a closed card is never again found six days late.** #219's own
+follow-up list said this in August and both of its residual items were left open:
+the budget alert (item 9) and *"`prod_pulse` is a local/manual instrument… A cron
+that calls it and notifies would close the detection gap properly; that needs a
+credential decision."* The residuals of the last outage are the cause of this one.
+
+That work is partly yours (item 9, and the read-only secret in item 4) and partly
+a session's. Superseded goal, kept for the record:
+
+*Make the 9 a.m. question actually arrive.* The honest headline was *the feature is
 finished and has never fired once.* The server picks 9 a.m. in each couple's own
 timezone, writes the message and sends it; the app knows how to receive one; both
-halves are tested. **Zero of four phones have ever said where to send it.**
+halves are tested. **Zero of four phones have ever said where to send it** — and,
+it turns out, no server has been running to send anything to them.
 
-So the session will not "build notifications" — it will find out why a complete
-chain has delivered nothing, remove everything a session can remove, and hand you
+So the session did not "build notifications" — it found out why a complete
+chain has delivered nothing, removed everything a session can remove, and hands you
 back a single instruction instead of a list. Two documentation defects were
 already found while measuring, and both are exactly what a person debugging this
 would read first: one comment says the question goes out at **8** when the code

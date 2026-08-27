@@ -55,7 +55,7 @@ final class InviteShareControllerProvider
 }
 
 String _$inviteShareControllerHash() =>
-    r'9a14c26b61b581407a18d6bd234a56967a8adf43';
+    r'ec2b2f19f7ad4f4d73ecba4f21bf3375aa6cbd43';
 
 /// Drives the invite share screen. [build] issues the invite once (the
 /// resulting `AsyncValue<IssuedInvite>` drives the three screen states, same

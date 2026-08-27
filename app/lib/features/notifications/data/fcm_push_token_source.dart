@@ -23,17 +23,23 @@ import '../domain/push_token_source.dart';
 /// fail-open and D2 bounds every wait on the launch→paired path; a permission
 /// prompt is an indefinite wait on a human and iOS gives one shot per install.
 /// ADR-042 D6 puts the ask after pairing, on a screen that can explain itself —
-/// so it belongs to a UI surface, not to this adapter. Until that ships,
-/// [currentToken] simply returns null on iOS, which is the normal pre-permission
-/// state and exactly what the fail-open path is for.
+/// so it belongs to a UI surface, not to this adapter. **That surface shipped**:
+/// `PairedHomeScreen.initState` calls `promptForPermissionAndRegister()` from a
+/// post-frame callback. Before a grant, [currentToken] simply returns null on
+/// iOS, which is the normal pre-permission state and what the fail-open path is
+/// for.
 ///
-/// **It does not assume APNs works.** Without `aps-environment` in the
-/// entitlements — absent by design until the App ID capability is ticked
-/// (measured absent 2026-08-06) — iOS never hands Firebase an APNs token, so
-/// `getToken()` returns null or throws. Both collapse to "no token yet", the
-/// same state as a user who has not granted permission. **This class is
-/// therefore correct and inert today, and becomes live the moment the
-/// entitlement lands, with no code change.**
+/// **It does not assume APNs works.** iOS hands Firebase an APNs token
+/// asynchronously and only after a permission grant; before that `getToken()`
+/// returns null or throws. Both collapse to "no token yet", the same state as a
+/// user who has not granted permission — which is why `isReadyForToken` exists
+/// and why `PushTokenSync` owns the bounded retry (ADR-044).
+///
+/// ⚠️ This paragraph used to end *"This class is therefore correct and inert
+/// today, and becomes live the moment the entitlement lands"*. **The entitlement
+/// landed 2026-08-07** and the sentence stayed for twenty days (ADR-063). It is
+/// not inert. What a phone actually reports is measured, never assumed:
+/// `python3 tool/ci/push_delivery_probe.py --from-firebase-cli`.
 class FcmPushTokenSource implements PushTokenSource {
   FcmPushTokenSource({FirebaseMessaging? messaging})
     : _messaging = messaging ?? FirebaseMessaging.instance;

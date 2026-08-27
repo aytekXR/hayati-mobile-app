@@ -89,7 +89,7 @@ final class CoachSendControllerProvider
 }
 
 String _$coachSendControllerHash() =>
-    r'327c2eacf91eb82851233108a3118db3bad2c802';
+    r'82f051ba8e84720b7c510e517058eb7118b3ee80';
 
 /// Drives [CoachRepository.sendMessage] for ONE persona conversation with the
 /// manual-op discipline of `SoloAnswerController` (ADR-017 Decision 8). An

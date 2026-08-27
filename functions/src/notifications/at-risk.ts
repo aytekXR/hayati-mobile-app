@@ -10,12 +10,14 @@
 // protects a RELATIONSHIP and must therefore fire for a couple with NO streak at
 // all. That is most couples in week one and every couple that ever broke one.
 //
-// So: hour 20 → 16, and the streak gate is GONE. The streak count still tunes the
+// So: hour 20 → 16 (and → 22 by ADR-045; see AT_RISK_LOCAL_HOUR below, which is
+// the constant, not this narrative). The streak gate is GONE. The streak count still tunes the
 // copy when a streak exists; when it does not, composePush returns a different
 // message rather than streak copy with the digits removed (payload-policy.ts).
 //
-// Re-pointed rather than duplicated: the 16:00 population is a strict SUPERSET of
-// the 20:00 one, so nothing is lost, and a second afternoon hour would give a
+// Re-pointed rather than duplicated at each step: the 16:00 population is a
+// strict SUPERSET of the 20:00 one (and 22:00 of that again), so nothing is lost
+// at any re-point, and a second evening hour would give a
 // couple with a streak two pushes in one evening. ADR-012 D3 deliberately has no
 // dedup state — double-sends are structurally absent, not guarded — so adding an
 // hour would have created exactly the class of duplicate that design avoids.
@@ -65,8 +67,9 @@ export interface AtRiskSummary {
   /** Couples with NO day doc for today (rollover failed earlier — nothing to
    *  answer, so NOT an at-risk state; counted separately). */
   skippedNoDay: number;
-  /** Sends dropped by the defense-in-depth quiet-hours check (0 at hour 16 by
-   *  construction; the counter exists so the guard is observable if it ever fires). */
+  /** Sends dropped by the defense-in-depth quiet-hours check (0 at hour 22 by
+   *  construction — and 22 is the LAST legal hour, so this counter going non-zero
+   *  is exactly how a one-hour drift in either direction would announce itself). */
   suppressedQuiet: number;
   /** Per-token send failures + per-couple processing errors, all swallowed. */
   failed: number;

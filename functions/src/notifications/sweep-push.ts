@@ -40,10 +40,17 @@ export interface SweepPushOutcome {
  * The quiet-hours check is DEFENSE IN DEPTH, and it is the reason this function
  * takes the timezone rather than trusting its caller: each pass already gates on
  * its own local hour, but the delivery function must be unable to emit inside
- * 22:00–08:00 no matter who calls it or from which pass. That guard is load-bearing
- * for the daily-question pass in particular, which fires at hour 8 — the first
- * legal hour of the day, one hour off the boundary in the direction that would
- * silently suppress the entire feature.
+ * **23:00–08:00** no matter who calls it or from which pass.
+ *
+ * ⚠️ THIS PARAGRAPH NAMED THE WRONG PASS AND THE WRONG WINDOW until 2026-08-28.
+ * It said the guard was load-bearing "for the daily-question pass in particular,
+ * which fires at hour 8 — the first legal hour". ADR-045 moved that pass to **9**,
+ * an hour clear of the boundary, and moved the window itself to 23:00–08:00. The
+ * fragile end did not vanish, it MOVED: it is now the **22:00 nudge** sitting
+ * against the 23:00 edge (`at-risk.ts`, which has said so since ADR-045 while
+ * this comment said the opposite). Move `AT_RISK_LOCAL_HOUR` or
+ * `isQuietLocalHour` by one in either direction and the nudge dies silently with
+ * every unrelated test green.
  */
 export async function deliverSweepPush(
   db: Firestore,

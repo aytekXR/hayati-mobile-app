@@ -8,7 +8,9 @@
 // ADR-042 does NOT amend it — a third pass is one more argument to the handler's
 // existing `bucket(db)`, not a new machine.
 //
-// "08.00 TSİ" is read as 08:00 COUPLE-LOCAL. It is TSİ for the founder couple, and
+// "08.00 TSİ" was read as 08:00 COUPLE-LOCAL — and ADR-045 later re-pointed the
+// hour itself to 9 (founder, 2026-08-10). The COUPLE-LOCAL reading is the part
+// that survived, and it is the load-bearing one. It is TSİ for the founder couple, and
 // every other time decision in this system runs off the couple's stored timezone
 // rather than a fixed offset (localHour, localDayKey, ADR-011). A literal
 // Europe/Istanbul constant would be correct for exactly one couple and silently
@@ -55,11 +57,11 @@ export interface DailyQuestionSummary {
   sent: number;
   /** Recipients with no fcm token — a loud skip (expected until the device slice). */
   skippedNoToken: number;
-  /** Couples with NO day doc for today: rollover failed at local midnight, eight
+  /** Couples with NO day doc for today: rollover failed at local midnight, nine
    *  hours before this pass, so there is no question to announce. Counted
    *  separately because it is an assignment failure surfacing here, not a push one. */
   skippedNoDay: number;
-  /** Sends dropped by the defense-in-depth quiet-hours check. MUST be 0 at hour 8
+  /** Sends dropped by the defense-in-depth quiet-hours check. MUST be 0 at hour 9
    *  — a non-zero value here means the boundary moved and the feature is dead. */
   suppressedQuiet: number;
   /** Per-token send failures + per-couple processing errors, all swallowed. */
@@ -69,13 +71,13 @@ export interface DailyQuestionSummary {
 /**
  * The daily-question pass over the shared timezone buckets (ADR-042 D3).
  *
- * For each bucket whose sweep-local hour is 8, reads today's day doc (one read per
+ * For each bucket whose sweep-local hour is 9, reads today's day doc (one read per
  * couple) and announces the new question to whichever members have not already
  * answered it. Every per-couple/per-send problem is a logged skip counted in the
  * summary; the pass never throws for a single couple.
  *
- * **Why non-answerers rather than both members.** At local 08:00 the day doc was
- * created eight hours earlier at local midnight, so in the ordinary case nobody
+ * **Why non-answerers rather than both members.** At local 09:00 the day doc was
+ * created nine hours earlier at local midnight, so in the ordinary case nobody
  * has answered and both get it. But an early bird who already answered does not
  * need to be told a question exists — announcing it to them is the small kind of
  * wrongness that makes an app feel like it is not paying attention. The cost is
@@ -125,7 +127,7 @@ export async function runDailyQuestion(
           continue;
         }
         if (daySnap.get('revealedAt') != null) {
-          // Both answered already — between local midnight and local 08:00, which
+          // Both answered already — between local midnight and local 09:00, which
           // is rare but legal. There is nothing new to announce.
           continue;
         }

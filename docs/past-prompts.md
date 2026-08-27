@@ -4167,3 +4167,107 @@ The founder set the next objective directly: **the daily question must arrive at
 **Two stale comments found in the same measurement**, both on the path a debugger reads first: `payload-policy.ts:115` calls `dailyQuestion` *"the hour-8 sweep push"* beside a constant that is **9** (ADR-045 re-pointed it and the comment did not move), and `push_token_source_provider.dart:9` says *"nothing overrides this yet"* when both entrypoints do. **Handed to S087 rather than fixed here** — they belong to that objective, and `session-rules.md` §2 says a session does one thing.
 
 **Operator action IS required, and it is the point:** one release-lane dispatch, one install, one permission tap.
+
+## Session 087 — 2026-08-28 — the loop stopped six days ago, and the instrument built to notice returned "could not measure" (ADR-063)
+
+**Objective (from resume-prompt.md, founder-set 2026-08-27):** the daily question must actually arrive on a phone at 09:00. *"Find out why a complete, tested chain has delivered nothing, and remove what a session can."*
+
+**Outcome:** the cause was found and it is **not** the one the objective assumed. **Production has been refusing every server-side invocation since 2026-08-22T02:00Z because the Google billing account is closed.** The instrument built after the last identical outage could not report it; it is fixed. Six false comments corrected, the 09:00 payload proven where the question is in scope, and `operator-expected.md` now carries two steps in an order that matters.
+
+### The objective's premise was wrong, and the objective's own first instruction is what found it
+
+The prompt said to run `push_delivery_probe.py` first. It did, and it says what it has said for weeks — **0 of 4 registered, four *"no report"*** — honestly, including that a no-report is not distinguishable from "no build carrying the diagnostic ran here" (lesson 65). So the prompt concluded: one operator step, cut a build.
+
+Then the **other** standing instrument ran:
+
+```
+$ python3 tool/ci/prod_pulse.py --from-firebase-cli          # exit 2
+could not measure: https://cloudscheduler.googleapis.com/...jobs returned HTTP 403
+```
+
+`prod_pulse.py` exists **because of #219** — 38 refused invocations over 37 hours in August while `operator-expected.md` reported *"Your app is running"*. Its whole job is to make that impossible. It met the identical outage and answered *"could not measure"*.
+
+**Measured by hand with the same credential:**
+
+| | |
+|---|---|
+| `billingAccounts/012195-7EF76F-3A9083` | **`"open": false`** — closed ("Firebase Payment", TRY) |
+| `projects/hayatiapp-prod/billingInfo` | `"billingEnabled": true` — still **linked**, so the project flag reads healthy |
+| the Cloud Scheduler 403 body | *"This API method requires billing to be enabled"* — the 403 **is** the billing symptom |
+| `questionRollover` error stream | *"The request failed because billing is disabled for this project."* — **every hour since 2026-08-22T02:00:01Z** |
+| last `question_rollover: sweep complete` | **2026-08-25T15:00:11Z** (`assigned:1`), one lone recovery; before it, **2026-08-22T01:00:06Z** |
+| `hayatiapp-dev` | linked to the **same closed account** |
+
+So no day doc is created at local midnight, and **no 09:00 push can be composed for anyone, token or not**. Every link downstream of the sweep was irrelevant.
+
+### Three defects in the instrument, all in the wiring rather than in the well-tested part
+
+Confirmed by calling its own functions: `measure_billing` → **`True`**, `measure_job` → raise, `measure_last_sweep` → never ran.
+
+1. **One `try` around three independent probes.** The first failure discarded a fact already in hand. And the abort was not bad luck — **Cloud Scheduler 403s *because* billing is off**, so the one state the tool exists to detect is the one state that guarantees it cannot report (lesson **114**, aimed at its own subject).
+2. **The wrong billing fact.** `billingEnabled` means *linked*. It read `true` throughout. Had the 403 not aborted first, the tool would have printed the reassuring `billing: enabled` mid-incident — and `prod_pulse_test.py`'s central `test_the_actual_outage` passes `billing_enabled=False`, **an input the production path could no longer produce**. Every test in that file targeted `verdict()`; nothing tested `main()`.
+3. **It never read the reason**, only the absence — though its own docstring notes the `I` and `E` lines sit one letter apart, and the `E` line carries the cause verbatim.
+
+**Before / after, against production:**
+
+```
+before:  exit 2 — could not measure: ...cloudscheduler... HTTP 403
+after:   exit 1 — FINDING: the linked billing account is CLOSED ...
+                  FINDING: the last COMPLETED sweep was 55.3h ago (2026-08-25T15:00Z)
+                  most recent refusal (2026-08-27T22:00:01Z): The request failed
+                    because billing is disabled for this project.
+                  COULD NOT MEASURE scheduler: ... HTTP 403
+```
+
+### The design review changed three things, and refuted me on the one that mattered most
+
+4 lenses × 2 independent verifiers. **`agents_error=0`, `agents_empty_result=0`, 11 findings raised, 11 verified, 0 dropped unverified, 3 surfaced.** All three were folded into revision 2 **before any code**:
+
+* **Blocking.** Revision 1's exit rule left **exit 0** covering *"nothing found, and the decisive fact unmeasured"* — billing healthy + scheduler ENABLED + Logging 403 would have printed *"the daily loop is running"* over a six-day-dead sweep. ADR-041 says **never 0 without having compared**. Rewritten: findings → 1, else **any gap → 2**, else 0.
+* **Major.** The design was **unimplementable against `verdict()`**: `job_state=None` already means *"I looked and there is no job"*, so there was no value for *"I could not look"* — and today's 403 would have arrived as `None` and printed the flatly false *"the sweep has no trigger"*. Gaps became a first-class input that **suppresses the paired absence-finding**. Without that catch the fix would have been worse than the bug.
+* **Major, and it corrected me.** Revision 1's Finding 4 said the founder's permission grant would be *"spent for nothing"* if they cut the build first. **False.** `_syncFrom` (`push_token_sync.dart:237-258`) runs on every `AuthSignedIn` including a cold launch — `build()` syncs the value already present before it listens — and calls `_captureAndRegister()` unconditionally. iOS keeps the grant; the app re-registers itself on the next launch. The grant is **deferred, not destroyed**, and D1 no longer rests on irreversibility. The ordering argument survives on weaker and truer grounds: ② first cannot deliver a question and would manufacture a **fifth** indistinguishable silence.
+
+Eight refuted findings were left alone, correctly — including a claim that the ADR's own site counts were overstated (they were **understated**; see below).
+
+### Six comments told a reader the feature could not work. All six were false
+
+| file | claim | reality |
+|---|---|---|
+| `push_token_source_provider.dart` | *"Nothing overrides this yet"* | both entrypoints override it |
+| `main_dev.dart` | *"INERT until the entitlement lands"* | landed 2026-08-07 |
+| `push_token_source.dart` | *"no implementation of this yet"* | `FcmPushTokenSource` exists |
+| `fcm_push_token_source.dart` | *"correct and inert today"* | it is live |
+| `recipients.ts` | *"NOTHING writes this field yet"* | `push-token-service.ts` does |
+| `fcm_push_token_source.dart` | *"Until that ships"* (the post-pairing ask) | `PairedHomeScreen` calls it |
+
+**`main_prod.dart:217` already carries a ⚠️ recording that this exact sentence "HAD BEEN FALSE FOR NINE DAYS"** and naming it *"the fourth indistinguishable explanation for silence"*. **The correction was applied to one file of six.** A warning about stale comments is itself a comment (lesson **132**).
+
+Plus **21 hour-family sites in 8 files** still saying the announcement is hour 8 and the nudge hour 16; ADR-045 made them 9 and 22. Two were worse than stale: `sweep-push.ts:43` stated the load-bearing quiet-guard claim **backwards** (and named the old 22:00–08:00 window), and `at-risk.test.ts`'s `describe`/`it` names said *"hour-16 gate"* twelve lines below a fixture reading 22:00 and an assertion `expect(AT_RISK_LOCAL_HOUR).toBe(22)` — lesson **121** recurring inside one file.
+
+Historical narrative was deliberately kept. Corrected comments now **name the instrument** instead of restating its last answer, which is the only form that cannot go stale.
+
+### The 09:00 payload is now proven by what it sends
+
+Every prior assertion read `summary.sent` or `port.sent[].token`. **None read `title` or `body`** — so the suite proved *who* gets a push at hour 9 and never *what* was in it, at the one seam (`runDailyQuestion`) where the day doc and its `questionId` are in scope.
+
+Mutation-checked, each described by what it **changes** (lesson 112):
+
+| mutant | result |
+|---|---|
+| **A** `deliverSweepPush(..., 'dailyQuestion')` → `'reveal'` | 3 new assertions RED — **29 pre-existing tests GREEN**, including *"fires at the couple-local 09:00 sweep"*. **That is the gap** |
+| **B** body gains `' [${kind}]'` | the two equality assertions RED; the no-content one **GREEN, correctly** — it leaked the *kind*, not the question, so it never exercised that guard |
+| **C** thread the day doc's `questionId` into `MessagingPort.send` (the founder's own ask was *"send new questions at 08.00 TSI **with a question**"*, so this is the refactor the guard exists for) | all three RED including no-content — **19 pre-existing tests GREEN** while the question id rode out on the lock screen |
+
+Eight further mutants were run against `prod_pulse.py`; seven reddened a named assertion first time. **The eighth stayed green because the mutant was a no-op** — dead code inserted rather than behaviour changed — and was rewritten as the real reordering (gaps beat findings), which reddened two named checks. Lesson 112, met from the other side.
+
+### Verification
+
+`flutter analyze` clean · `dart format --set-exit-if-changed` clean · `prod_pulse_test.py` + 5 sibling tool suites GREEN · **51/51** across `daily-question`, `question-rollover-handler` and `payload-policy` in the emulator · `build_runner` idempotent at a fixed point.
+
+**The first emulator run failed 1 of 51 on a `beforeEach` hook timing out at 10s.** Clock-shaped on a loaded box, not behavioural — re-run clean at 51/51, **and said so rather than quietly re-running to green.**
+
+### Operator
+
+`operator-expected.md` item 1 is now **two ordered steps**, item numbers elsewhere untouched (they are cross-referenced 40+ times). **① restore billing, ② cut the build** — with why the order is not optional, and an explicit note that if ② is already done nothing is lost. Item 9 (the budget alert) was promoted: it is the control that would have caught **both** outages, and it was left unset after the first.
+
+**#219's own residual list named both causes of this recurrence** — the unset budget alert, and *"`prod_pulse` is a local/manual instrument… A cron that calls it and notifies would close the detection gap properly; that needs a credential decision."* **The residuals of the last incident are the cause of this one**, which is the next session's subject.
