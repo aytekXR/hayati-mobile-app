@@ -103,7 +103,7 @@ fact that **only a human running a command locally ever asks it.**
 | **Production** | 🔴 **DOWN since 2026-08-22T02:00Z.** Billing account closed. No day doc assigned, no push composed, no purchase processable. **The single most important line in this table** |
 | **`prod_pulse.py`** | **FIXED (ADR-063).** Was exit 2 *"could not measure"* during the outage; now exit 1 naming the closed account, the 55h-stale sweep, and the refusal in Google's own words. 8 mutants, each reddening a named assertion |
 | **The 09:00 chain** | **Complete, and now proven by what it SENDS** — the port receives the `dailyQuestion` copy per recipient language, carrying no `questionId`. Mutation-checked: the old suite stayed green with the question id on the lock screen |
-| **The comment family** | **6 "this cannot work yet" claims and 21 wrong-hour sites corrected** (ADR-063 D7/D9). Corrected comments now name the instrument instead of restating its answer |
+| **The comment family** | **6 "this cannot work yet" claims and 24 wrong-hour hunks across 9 files corrected** (ADR-063 D7/D9), the second number counted from the merged diff rather than estimated. Corrected comments now name the instrument instead of restating its answer |
 | **Push, device side** | **STILL 0 of 4 registered**, four *"no report"*. Unchanged, and now known to be the *second* problem, not the first |
 | **The build gap** | Last `release.yml` run **2026-08-09, build 119**. Operator item 1 ② — and correctly ordered AFTER ① |
 | **#226** | **DRAFT on `main`, revision NOT landed.** `CURRENT_LEGAL_VERSION` still **2**, a test asserts it. Founder + lawyer |

@@ -4242,7 +4242,7 @@ Eight refuted findings were left alone, correctly — including a claim that the
 
 **`main_prod.dart:217` already carries a ⚠️ recording that this exact sentence "HAD BEEN FALSE FOR NINE DAYS"** and naming it *"the fourth indistinguishable explanation for silence"*. **The correction was applied to one file of six.** A warning about stale comments is itself a comment (lesson **132**).
 
-Plus **21 hour-family sites in 8 files** still saying the announcement is hour 8 and the nudge hour 16; ADR-045 made them 9 and 22. Two were worse than stale: `sweep-push.ts:43` stated the load-bearing quiet-guard claim **backwards** (and named the old 22:00–08:00 window), and `at-risk.test.ts`'s `describe`/`it` names said *"hour-16 gate"* twelve lines below a fixture reading 22:00 and an assertion `expect(AT_RISK_LOCAL_HOUR).toBe(22)` — lesson **121** recurring inside one file.
+Plus **24 hour-family hunks across 9 files** still saying the announcement is hour 8 and the nudge hour 16 (counted from the merged diff — the ADR first said *21 in 8*, an estimate carried from the pre-edit grep, and the correction is recorded in D9 rather than quietly applied); ADR-045 made them 9 and 22. Two were worse than stale: `sweep-push.ts:43` stated the load-bearing quiet-guard claim **backwards** (and named the old 22:00–08:00 window), and `at-risk.test.ts`'s `describe`/`it` names said *"hour-16 gate"* twelve lines below a fixture reading 22:00 and an assertion `expect(AT_RISK_LOCAL_HOUR).toBe(22)` — lesson **121** recurring inside one file.
 
 Historical narrative was deliberately kept. Corrected comments now **name the instrument** instead of restating its last answer, which is the only form that cannot go stale.
 
@@ -4262,7 +4262,7 @@ Eight further mutants were run against `prod_pulse.py`; seven reddened a named a
 
 ### Verification
 
-`flutter analyze` clean · `dart format --set-exit-if-changed` clean · `prod_pulse_test.py` + 5 sibling tool suites GREEN · **51/51** across `daily-question`, `question-rollover-handler` and `payload-policy` in the emulator · `build_runner` idempotent at a fixed point.
+`flutter analyze` clean · `dart format --set-exit-if-changed` clean · **`flutter test` 1880 passed** · `prod_pulse_test.py` + 5 sibling tool suites GREEN · **the full Functions suite: 55 files / 1135 tests passed**, coverage **97.38% stmts / 92.68% branches / 97.72% funcs / 97.64% lines** (gate 85 target / 80 hard) · `build_runner` idempotent at a fixed point.
 
 **The first emulator run failed 1 of 51 on a `beforeEach` hook timing out at 10s.** Clock-shaped on a loaded box, not behavioural — re-run clean at 51/51, **and said so rather than quietly re-running to green.**
 

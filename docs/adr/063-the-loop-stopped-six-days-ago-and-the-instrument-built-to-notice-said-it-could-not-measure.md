@@ -117,13 +117,13 @@ explanation for silence"*. **The correction was applied to one file of six.** It
 has now been false in the other five for twenty days, and it is the sentence that
 tells a session to stop looking.
 
-A second, larger family says the wrong hour: **21 sites** across
-`payload-policy.ts`, `question-rollover.ts`, `daily-question.ts`, `sweep-push.ts`,
-`at-risk.ts`, `messaging_bootstrap.dart`, `daily-question.test.ts`,
-`at-risk.test.ts` and `payload-policy.test.ts` still describe
-the announcement as **hour 8** and the nudge as **hour 16**. ADR-045 re-pointed them
-to **9** and **22** and moved the quiet window with them; the constants moved and the
-prose did not. `sweep-push.ts:43` states the load-bearing claim **backwards** — it
+A second, larger family says the wrong hour: **24 comment hunks across 9 files**
+(counted from the merged diff, not estimated — see D9). `payload-policy.ts`,
+`question-rollover.ts`, `daily-question.ts`, `sweep-push.ts`, `at-risk.ts`,
+`messaging_bootstrap.dart`, `daily-question.test.ts`, `at-risk.test.ts` and
+`payload-policy.test.ts` still describe the announcement as **hour 8** and the nudge
+as **hour 16**. ADR-045 re-pointed the constants to **9** and **22** and moved the
+quiet window with them; the constants moved and the prose did not. `sweep-push.ts:43` states the load-bearing claim **backwards** — it
 says the quiet guard matters most for the daily-question pass "which fires at hour 8,
 the first legal hour", when since ADR-045 that role belongs to the **22:00 nudge**
 sitting against the 23:00 edge, exactly as `at-risk.ts` says 35 lines later.
@@ -320,7 +320,16 @@ language, and that **neither `title` nor `body` carries the question id**.
 Mutation-checked: flipping the kind literal must redden it, and the existing suite
 must stay green — which is the measurement that shows the gap was real.
 
-**D9 — The hour-8/hour-16 family is corrected in one pass: 21 sites in 8 files.**
+**D9 — The hour-8/hour-16 family is corrected in one pass: 24 hunks across 9 files.**
+
+*(Revision 2 said "21 sites in 8 files". **That was an estimate carried from the
+pre-edit grep, and it was wrong** — the review's lens 4 challenged the count and
+both verifiers refuted the challenge, correctly, because the error ran **under**
+rather than over. The number here is counted from the merged diff:
+`git diff origin/main...HEAD -U0` over the notification and rollover sources plus
+`messaging_bootstrap.dart`, counting hunks whose removed lines name an hour.
+Lesson **111** — a number typed next to working code inherits the code's
+credibility — met inside the document that cites it.)*
 Historical narrative ("re-pointed from the 8 of ADR-042 D3") stays and is valuable;
 present-tense claims are corrected. Two of them are worse than stale:
 
