@@ -4116,3 +4116,54 @@ drift therefore remains **unmeasured**, exactly as the blocker list says.
 `codegraph sync` reported already-up-to-date against merged `main`.
 
 **#246 closed by the merge.**
+
+---
+
+## Session 086 — 2026-08-27 — #243: the gate nobody can compute, and the identifier that would not fix it (ADR-062)
+
+**Objective (from resume-prompt.md):** #243 — record the options and their honest costs for Gate 3's `install→paid`. **Do not mint an identifier.**
+
+**Outcome:** decided and recorded (ADR-062, `Proposed`). **Nothing built, no identifier created.** #243 stays open for one founder sentence. **Session cut short by a founder redirect** — see the closing note.
+
+### The issue asked about identity; the arithmetic was the bigger problem
+
+#243 frames the gap as "the two emitters share no identity". True, and re-affirmed twice (ADR-057 D3, ADR-060 D3). But asking what each event **counts** — rather than what it is keyed by — found something no identifier fixes:
+
+| event | counts one per |
+|---|---|
+| `install` | **device** (`DeviceFlag.install`, once per phone) |
+| `signup` / `paired` | **uid** |
+| `paid` | **couple** (`subscriptions/{coupleId}`, ADR-013 D5 — one purchase entitles both) |
+
+**`install→paid` divides a couple count by a device count.** A couple who both install and subscribe once is two installs and one payment: the gate's own arithmetic halves itself for exactly the users the product is for, and it is invisible because both numbers are individually correct. A distinct id tells you which installs became which users; it does not tell you whether the founder means *2% produce a payment* or *2% become a paying user*, and with a couple-scoped subscription those differ by **2×** — 100% of the threshold's own value.
+
+### And a go/no-go threshold does not need the join — but the review refuted which aggregate
+
+Revision 1 recommended a **lagged** window ratio, arguing its error *"runs the safe way"* under growth. **The design review refuted that at high confidence on both verifiers, and it was right.** The dilution argument is a property of the **same-window** ratio; applying a lag is exactly what removes it, and with a distributed conversion lag the lagged numerator collects payments from later, larger cohorts than its denominator — so by Jensen it **overstates**, in the one direction a spend gate must not fail.
+
+Worked rather than asserted, because the sign of an error is not a thing to reason about loosely. A product whose true cohort conversion is **1.5%** — which should **fail** a ≥2% gate — with installs doubling and half the cohort converting after one window, half after two:
+
+| lag | reads | gate verdict |
+|---|---|---|
+| **0 (same window)** | 0.56% | **fails** ✅ correct |
+| 1 | 1.13% | fails ✅ |
+| **2** | **2.25%** | **PASSES** ❌ green-lights spend on a product below the bar |
+| 3 | 4.50% | PASSES ❌ |
+
+With flat installs every lag is exact — which is why the error is invisible in a steady state and appears exactly when a launch is working. **The recommendation inverted**: the gate's number is the **same-window** ratio, *because* it is the one that cannot falsely pass, with the lagged ratio reported beside it as the optimistic bound. Revision 1 had the right instinct — prefer the estimator that fails safe — and named the wrong estimator.
+
+**The design review:** 4 lenses × 2 verifiers, `agents_error=0`, `agents_empty_result=0`, 6 findings, 6 verified, **0 dropped unverified**, 3 surviving. The other two were minor and both real: *"once per phone"* contradicted ADR-057 D4's own recorded bound that **a reinstall re-emits** (`SharedPreferences` does not survive app deletion), and Decision 4 mischaracterised **#115** — it is the precedent for *"making a prod endpoint world-reachable is a founder-gated security decision"*, not an abuse-resistance example. Three were killed: an unspecified lag (a decision-only ADR does not pin implementation parameters), store-provided metrics as a missed fourth option (they inherit Finding 2's ambiguity and are not ours to define), and Crashlytics' installation ID as a counterexample to the survives-sign-out claim (SDK-internal, not an identifier the app mints or can join on).
+
+**Decision 1** recommends the ratio and mints nothing. **Decision 2** hands the founder the definitional sentence *first*, because it is free and larger. **Decision 3** prices the identifier for the day it is reconsidered — it is collection, it needs a `CURRENT_LEGAL_VERSION` bump that re-gates every existing user, it reopens a line held twice, and it would be the only identifier here that survives sign-out in a product whose threat model is a partner holding the phone. **Decision 4** refuses the install-time server ping: it is the distinct id with extra steps, plus an unauthenticated pre-account write surface.
+
+**`mvp.md` was deliberately NOT edited.** Gate thresholds and their definitions are the founder's (ADR-007); a session that quietly rewrote one would be deciding launch posture by commit.
+
+### Closing note — the session was redirected mid-flight, and this is what that means
+
+The founder set the next objective directly: **the daily question must arrive at 09:00 every morning.** ADR-062 was committed before the redirect and its design review was launched; **the review's outcome is folded below or the ADR carries `Proposed` with the gap named.** No implementation work for #243 existed to abandon — the session's whole deliverable was the record.
+
+**What the redirect surfaced, measured immediately:** the 09:00 feature is **complete on both sides and has never fired once.** `DAILY_QUESTION_LOCAL_HOUR = 9`, the composer, the sweep call, an emulator test, `firebase_messaging ^16.4.3`, `FcmPushTokenSource`, both entrypoints overriding the provider, `aps-environment` present — and **0 of 4 accounts registered**, all four *"no report"*, because the last build predates ADR-049's diagnostic. That is one operator action, and `operator-expected.md` now leads with it as a single numbered step.
+
+**Two stale comments found in the same measurement**, both on the path a debugger reads first: `payload-policy.ts:115` calls `dailyQuestion` *"the hour-8 sweep push"* beside a constant that is **9** (ADR-045 re-pointed it and the comment did not move), and `push_token_source_provider.dart:9` says *"nothing overrides this yet"* when both entrypoints do. **Handed to S087 rather than fixed here** — they belong to that objective, and `session-rules.md` §2 says a session does one thing.
+
+**Operator action IS required, and it is the point:** one release-lane dispatch, one install, one permission tap.

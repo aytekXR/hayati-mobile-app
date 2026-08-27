@@ -1,12 +1,13 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-26 UTC (S085)
+**Last Updated:** 2026-08-27 UTC (S086)
 
 ## Current Status
 
-- Session: **085**
-- Goal: **#246 — make "Delete account and data" reach the markers left on the phone**
-- Status: **Shipped and closed.** Deleting your account now also removes the app's own private notes-to-self about your account from the phone you delete it on
+- Session: **086**
+- Goal: **#243 — decide how (or whether) to measure "installs that become paying users"**
+- Status: **Decided and recorded** (ADR-062). **Nothing built and no identifier created**, deliberately. One question below is yours
+- ⚠️ **NEW AND TIME-SENSITIVE: the 9 a.m. daily question needs ONE action from you before it can ever arrive. See "The one thing that unblocks notifications" below.**
 - ⚠️ **Item 16 is still waiting on you, and it is the oldest open honesty gap in the repo**
 - ⚠️ **The privacy document waiting for your lawyer now carries THREE small notes, not one — see item 16**
 - Completion: **~60%** of the iOS MVP as specified, to public launch
@@ -24,6 +25,68 @@
 The engineering is nearly done. **Content and instrumentation are the gap**, and most of what is left is yours rather than a session's.
 
 ## Latest Checkpoint
+
+**The one thing that unblocks notifications — please do this one first.**
+
+You asked for the daily question to arrive every morning at 9. **It is already
+written, on both sides, and tested.** The server picks 9 a.m. in each couple's own
+timezone, composes the message, and sends it; the app knows how to receive one.
+None of that is missing.
+
+**What is missing is that no phone has ever told us where to send it.** Measured
+today: **0 of 4 accounts have registered a device.** All four also say *"no
+report"*, which means their phones have never even reported *why* — because the
+last build was cut **2026-08-09** and the self-reporting was added after it.
+
+So one action unblocks everything:
+
+> **① Dispatch the release lane so a current build reaches TestFlight, install it,
+> open the app, and accept the notification prompt when it appears.**
+
+I cannot do this: the lane uploads a real binary under your developer account
+(§7), and the permission prompt has to be accepted on a real phone. **⚠️ If that
+prompt was ever declined on your phone, iOS will not show it again** — the app's
+Settings screen has a row that sends you to the system settings to re-enable it.
+
+Once that lands, `push_delivery_probe.py` stops saying *"no report"* and starts
+saying which link broke — or that it works. Everything after that is mine.
+
+*(A functions deploy may also be needed — prod has drifted from `main` since S077.
+That is item 4's territory and I will confirm it the moment a device registers,
+so you are not asked for two things when one may do.)*
+
+**S086 (2026-08-27) — a launch metric that cannot be measured, and the identifier I did not create.**
+
+Your Gate 3 targets include *install → paid ≥ 2%*. The app counts an install
+before anyone has an account, and a payment against a couple — **and there is
+deliberately no thread joining them**, because this product refuses to put an
+account identifier on anything it counts. That refusal is a safety choice for
+people for whom being identifiable is dangerous, and it has now been made three
+times.
+
+I did **not** create an identifier. Two findings say the question is smaller than
+it looks:
+
+**First, and this one needs a sentence from you.** *Install* counts **phones**.
+*Paid* counts **couples** — one subscription covers both partners. So a couple who
+both install and then subscribe once is **two installs and one payment**, and the
+number halves itself for exactly the people this app is for. **Does "2% of
+installs end up paying" mean 2% produce a payment, or 2% become a paying person?**
+Those differ by exactly 2×, which is the whole value of the threshold. No
+identifier fixes this — it is a definition, and it is free to settle now.
+
+**Second, the number may not need the join at all.** Comparing installs and
+payments **over the same month** answers *"is acquisition worth paying for"*
+without identifying anybody, and it errs on the cautious side — it can only ever
+tell you to spend *less* than the truth, never more. *(My first draft suggested
+comparing this month's installs against next month's payments. A review caught
+that: while installs are growing that version flatters the number and could tell
+you to spend on a product that has not earned it. The safe version is the plain
+same-month one.)*
+
+> **② When you next look at the privacy documents, answer one sentence: does
+> `install→paid` count payments, or paying people?** *(No rush, no cost, nothing
+> waits on it except the eventual dashboard.)*
 
 **S085 (2026-08-26) — "delete my account" now reaches the phone, and nothing here needs you.**
 
@@ -364,35 +427,29 @@ Nothing blocks the *next session's engineering*. These block **launch**:
 
 ## Next Step
 
-Begin **S086 / #243** — one of the launch numbers you asked for cannot be
-computed, and fixing it would mean collecting something new. **The session will
-lay out the options; the choice is yours.**
+Begin **S087 / the 9 a.m. daily question** — founder-set, 2026-08-27. **Action ①
+above is yours and it is the only thing standing between the feature and a real
+notification.**
 
-S085 is closed: **#246** shipped and closed, deletion now reaches the phone.
-
-**Nothing blocks the next session's engineering.** The queue waiting on **you**
-is unchanged, and item **16** remains the one that matters most: a correction to
-your privacy policy, written and reviewed twice, sitting still — now with three
-small notes attached rather than one.
+S086 is closed: **#243** decided (ADR-062), nothing built, **no identifier
+created**, issue stays open for your one sentence (action ②).
 
 ## Next Session Goal
 
-**#243 — "how many people who install end up paying?" has no answer, on purpose.**
-Your Gate 3 targets include *install → paid ≥2%*. The app counts an install
-before anyone has an account, and a payment is recorded against a couple. **There
-is no shared thread between the two**, because the app deliberately refuses to put
-an account identifier on anything it counts — a choice made because this product
-is used by people for whom being identifiable is a safety question.
+**Make the 9 a.m. question actually arrive.** The honest headline: *the feature is
+finished and has never fired once.* The server picks 9 a.m. in each couple's own
+timezone, writes the message and sends it; the app knows how to receive one; both
+halves are tested. **Zero of four phones have ever said where to send it.**
 
-Joining them means giving every phone a lasting identifier at install and tying
-it to the account later. That is **collecting something new**: it goes in the App
-Store privacy answers, in the policy your lawyer is holding, and in the processor
-register. It is also the one identifier that would survive signing out.
+So the session will not "build notifications" — it will find out why a complete
+chain has delivered nothing, remove everything a session can remove, and hand you
+back a single instruction instead of a list. Two documentation defects were
+already found while measuring, and both are exactly what a person debugging this
+would read first: one comment says the question goes out at **8** when the code
+says **9**, and another says the phone-address code *"is not wired up yet"* when
+it has been for weeks.
 
-The next session writes the options down with honest costs — including simply
-**accepting that this one number cannot be measured**, which is a real answer and
-costs nothing. **It will not create any identifier.** That decision is yours, and
-it belongs beside the privacy-policy review you already have.
+**What it cannot do is put a build on your phone.** That stays action ①.
 
-**No accounts, no keys, no money, no phone — for the session. One decision, for
-you, whenever the policy review happens.**
+**No accounts, no keys, no money — for the session. One build install and one
+permission tap, for you.**
