@@ -101,7 +101,7 @@ nothing at 09:00: `runDailyQuestion` would read a missing day doc, count
 `skippedNoDay`, and send zero pushes. **Every link downstream of the sweep is
 irrelevant while this is true.**
 
-### 4. Four comments tell a reader the device half cannot work yet. All four are false
+### 4. Five comments tell a reader the device half cannot work yet. All five are false
 
 | file | claim | since |
 |---|---|---|
@@ -113,8 +113,8 @@ irrelevant while this is true.**
 
 `main_prod.dart:217` already carries a ⚠️ recording that this exact sentence *"HAD
 BEEN FALSE FOR NINE DAYS"* and calling it *"the fourth indistinguishable
-explanation for silence"*. **The correction was applied to one file of five.** It
-has now been false in the other four for twenty days, and it is the sentence that
+explanation for silence"*. **The correction was applied to one file of six.** It
+has now been false in the other five for twenty days, and it is the sentence that
 tells a session to stop looking.
 
 A second, larger family says the wrong hour: **21 sites** across

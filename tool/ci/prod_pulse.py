@@ -25,10 +25,41 @@ punctually for all 38 of those failures.
 
 EXIT CODES ARE A TAXONOMY (the `rules_drift.py` rule, restated):
 
-    0   the sweep completed within --max-age-minutes. The loop is running.
-    1   FINDING — it did not, or billing is off, or the job is paused/erroring.
-    2   COULD NOT MEASURE — no credential, an API error, an unparseable
-        response. NEVER 0.
+    0   EVERY fact was measured and none of them is a finding. The loop is
+        running, and we looked at all of it.
+    1   FINDING — the sweep is stale/absent, or billing is off, or the job is
+        paused/erroring. Findings BEAT gaps: a real finding is reported at 1
+        even when some other fact could not be read, with the gap printed
+        beside it.
+    2   COULD NOT MEASURE — no credential, or nothing was found AND at least
+        one fact could not be read. NEVER 0.
+
+⚠️ **A GAP CAN NEVER PRODUCE A GREEN, AND A GAP IS NOT AN ABSENCE** (ADR-063,
+after this tool met the identical outage on 2026-08-22 and returned exit 2).
+
+Revision 1 measured all three facts inside ONE `try`, so the first failure threw
+away every fact already in hand. On 2026-08-27 that meant: `measure_billing`
+SUCCEEDED, `measure_job` raised HTTP 403, `measure_last_sweep` never ran — and
+the tool printed `could not measure` while holding the answer. Worse, the 403 was
+not bad luck: **Cloud Scheduler returns 403 BECAUSE billing is off** ("This API
+method requires billing to be enabled"), so the one state this tool exists to
+detect was the one state that guaranteed it could not report. A health check
+whose blind spot is its own subject (lesson 114).
+
+Two rules follow, and both are asserted in the test file:
+
+  * a fact that could not be measured **can never contribute to a green** — no
+    finding plus any gap is **2**, never 0 (ADR-041: "never 0 without having
+    compared");
+  * a gap is **not** an absence — `job_state=None` means "I looked and there is
+    no job", so an unreadable scheduler must NOT raise that finding, or the
+    report invents a cause.
+
+⚠️ **`billingEnabled` IS NOT WHETHER BILLING WORKS.** It says the project is
+LINKED to an account. Through the whole 2026-08-22 outage it read `true` while
+the account behind it was `"open": false` and Cloud Run refused every invocation
+with "billing is disabled for this project". Healthy is **linked AND open**;
+linked-but-closed is its own finding.
 
 CREDENTIAL. `--from-firebase-cli` only. The service-account path `rules_drift`
 offers is deliberately NOT wired here: its `firebase.readonly` scope cannot read
@@ -64,10 +95,23 @@ EXIT_CANNOT_MEASURE = 2
 # cold start is a real finding; anything under that is ordinary jitter.
 DEFAULT_MAX_AGE_MINUTES = 90
 
+# How far back to SEARCH for the last completed sweep. Deliberately much wider
+# than DEFAULT_MAX_AGE_MINUTES, which is what decides the verdict: the window
+# only decides whether the report can say WHEN the loop stopped. At the old 48h
+# the 2026-08-22 outage (55h old when it was found) could only be reported as
+# "none in the searched window" — true, and useless for writing the operator
+# instruction, which is built from the date (ADR-063 D6).
+DEFAULT_LOOKBACK_HOURS = 168
+
 # Emitted by question-rollover.ts after the assignment pass returns. Matching the
 # message rather than the severity is deliberate: an ERROR line and an INFO line
 # both carry the function's name, and only this string carries its COMPLETION.
 SWEEP_COMPLETE = "question_rollover: sweep complete"
+
+# Cloud Run lowercases the function name into the service label. This is the
+# label the REFUSALS carry — they are emitted by the serving layer before the
+# container starts, so they carry no jsonPayload.message at all.
+SWEEP_SERVICE = "questionrollover"
 
 
 # --------------------------------------------------------------------------
@@ -81,6 +125,36 @@ def sweep_age_minutes(last_sweep: dt.datetime | None, now: dt.datetime) -> float
     return (now - last_sweep).total_seconds() / 60.0
 
 
+def billing_findings(*, billing_enabled: bool, account_open: bool | None) -> list[str]:
+    """The billing verdict, as a list of findings (empty = healthy).
+
+    TWO facts, and the shipped tool only had the first. `billingEnabled` says the
+    project is LINKED to a billing account; `open` says that account still pays
+    for anything. On 2026-08-22 they disagreed for six days — linked, closed, and
+    every Cloud Run invocation refused — which is why the reassuring one is not
+    the authoritative one (ADR-063 D4).
+
+    `account_open is None` means the account document could not be read. That is
+    a GAP for the caller to name, never an assumption in either direction, so no
+    finding is raised here.
+    """
+    if not billing_enabled:
+        return [
+            "BILLING IS OFF for this project — no billing account is linked. Cloud Run "
+            "will refuse every invocation at the serving layer (HTTP 500, container "
+            "never starts) and nothing else here can be true until it is restored."
+        ]
+    if account_open is False:
+        return [
+            "the linked billing account is CLOSED. The project still reports "
+            "billingEnabled:true — that only means it is LINKED — while Cloud Run "
+            "refuses every invocation with 'billing is disabled for this project'. "
+            "Nothing else here can be true until the account is reopened or the "
+            "project is linked to an open one."
+        ]
+    return []
+
+
 def verdict(
     *,
     billing_enabled: bool,
@@ -90,25 +164,46 @@ def verdict(
     last_summary: dict | None,
     now: dt.datetime,
     max_age_minutes: float = DEFAULT_MAX_AGE_MINUTES,
+    billing_account_open: bool | None = None,
+    last_refusal: tuple[dt.datetime, str] | None = None,
+    gaps: dict[str, str] | None = None,
 ) -> tuple[int, list[str]]:
-    """The whole decision, as a pure function of measured facts.
+    """The whole decision, as a pure function of measured facts AND named gaps.
 
     Findings accumulate — a paused job AND a stale sweep are two lines, not one,
     because the second is the consequence and the first is the cause, and a
     report that prints only the consequence sends the reader to the wrong place.
+
+    `gaps` maps a fact name ("billing", "account", "scheduler", "sweep",
+    "refusal") to the reason it could not be measured. A fact named there is
+    NEVER turned into a finding: `job_state=None` means "I looked and there is
+    no job", and reporting that for a scheduler that merely returned 403 invents
+    a cause. The gap is printed on its own line instead.
     """
     findings: list[str] = []
     notes: list[str] = []
+    gaps = gaps or {}
 
-    if not billing_enabled:
-        findings.append(
-            "BILLING IS OFF for this project. Cloud Run will refuse every invocation "
-            "at the serving layer (HTTP 500, container never starts) and nothing else "
-            "here can be true until it is restored.")
+    # --- billing -----------------------------------------------------------
+    if "billing" in gaps:
+        pass  # named below; no assumption in either direction
     else:
-        notes.append("billing: enabled")
+        billing = billing_findings(
+            billing_enabled=billing_enabled, account_open=billing_account_open
+        )
+        findings.extend(billing)
+        if not billing:
+            if billing_account_open is True:
+                notes.append("billing: linked to an OPEN account")
+            elif "account" in gaps:
+                notes.append("billing: linked (the account's open flag is a gap below)")
+            else:
+                notes.append("billing: enabled")
 
-    if job_state is None:
+    # --- the scheduler job -------------------------------------------------
+    if "scheduler" in gaps:
+        pass
+    elif job_state is None:
         findings.append(
             "no Cloud Scheduler job for questionRollover — the sweep has no trigger.")
     elif job_state != "ENABLED":
@@ -118,14 +213,17 @@ def verdict(
 
     # gRPC status on the LAST attempt. 0/absent is success; 13 (INTERNAL) is what
     # the billing refusal produced for 38 consecutive hours.
-    if job_status_code:
+    if "scheduler" not in gaps and job_status_code:
         findings.append(
             f"the scheduler's LAST attempt failed (gRPC status {job_status_code}). "
             "Note this is the ATTEMPT, not the sweep — see the age line below for "
             "whether any sweep has since completed.")
 
+    # --- the sweep itself, which is the question in this tool's title -------
     age = sweep_age_minutes(last_sweep, now)
-    if age is None:
+    if "sweep" in gaps:
+        pass
+    elif age is None:
         findings.append(
             f"no {SWEEP_COMPLETE!r} record found in the searched window — the sweep "
             "has not completed once. An hourly line in `functions:log` is NOT this.")
@@ -143,8 +241,26 @@ def verdict(
             + ", ".join(f"{k}={last_summary[k]}" for k in sorted(last_summary)
                         if k not in ("message", "at")))
 
+    # --- WHY, in the function's own words ----------------------------------
+    # The absence says the loop stopped; only this says what stopped it. Printed
+    # WITH its timestamp so a reader can place it against the last sweep instead
+    # of having to trust that it is current (ADR-063 D5).
+    if last_refusal is not None:
+        when, message = last_refusal
+        notes.append(f"most recent refusal ({when.isoformat()}): {message}")
+
+    # --- the exit rule (ADR-063 D2) ----------------------------------------
+    # A fact that could not be measured can never contribute to a green.
+    for name in sorted(gaps):
+        notes.append(f"COULD NOT MEASURE {name}: {gaps[name]}")
+
     if findings:
         return EXIT_FINDING, ["FINDING: " + f for f in findings] + notes
+    if gaps:
+        return EXIT_CANNOT_MEASURE, [
+            "no finding in what could be read — but SOMETHING COULD NOT BE READ, "
+            "so this is not a green."
+        ] + notes
     return EXIT_OK, ["the daily loop is running."] + notes
 
 
@@ -198,9 +314,24 @@ def parse_http_date(value: str | None) -> dt.datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
 
 
-def measure_billing(api: GoogleApi, project: str) -> bool:
+def measure_billing(api: GoogleApi, project: str) -> tuple[bool, str | None]:
+    """Whether the project is LINKED, and to WHICH account.
+
+    Deliberately NOT the whole billing answer — see measure_billing_account. This
+    call is the one that reads `true` while the account behind it is closed.
+    """
     info = api.call(f"{BILLING_API}projects/{project}/billingInfo")
-    return bool(info.get("billingEnabled"))
+    return bool(info.get("billingEnabled")), info.get("billingAccountName") or None
+
+
+def measure_billing_account(api: GoogleApi, account_name: str) -> bool:
+    """Whether the linked account is still OPEN — the authoritative fact.
+
+    `account_name` is the resource path billingInfo returned
+    ("billingAccounts/012195-7EF76F-3A9083"), never a hand-built id.
+    """
+    account = api.call(f"{BILLING_API}{account_name}")
+    return bool(account.get("open"))
 
 
 def measure_job(api: GoogleApi, project: str, region: str) -> tuple[str | None, int]:
@@ -229,12 +360,48 @@ def measure_last_sweep(
     if not entries:
         return None, None
     entry = entries[0]
+    return _entry_time(entry), entry.get("jsonPayload") or None
+
+
+def _entry_time(entry: dict) -> dt.datetime:
     stamp = entry.get("timestamp")
     try:
-        when = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
     except (AttributeError, ValueError):
         raise MeasurementError(f"log entry carried an unparseable timestamp: {stamp!r}") from None
-    return when, entry.get("jsonPayload") or None
+
+
+def measure_last_refusal(
+    api: GoogleApi, project: str, lookback_hours: int
+) -> tuple[dt.datetime, str] | None:
+    """The most recent ERROR the sweep's own service emitted, and when.
+
+    The absence of a completion says the loop stopped; only this says WHAT
+    stopped it, and it says it in the platform's own words — on 2026-08-22 that
+    was "The request failed because billing is disabled for this project."
+    Returned WITH its timestamp (ADR-063 D5): a reason with no time cannot be
+    placed against the last completed sweep, and a stale reason read as current
+    is how a fixed outage gets re-diagnosed.
+    """
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=lookback_hours))
+    body = {
+        "resourceNames": [f"projects/{project}"],
+        "filter": (
+            f'timestamp >= "{since.strftime("%Y-%m-%dT%H:%M:%SZ")}" AND '
+            f'resource.labels.service_name="{SWEEP_SERVICE}" AND severity>=ERROR'
+        ),
+        "orderBy": "timestamp desc",
+        "pageSize": 1,
+    }
+    entries = api.call(f"{LOGGING_API}entries:list", body).get("entries") or []
+    if not entries:
+        return None
+    entry = entries[0]
+    payload = entry.get("textPayload")
+    if not isinstance(payload, str) or not payload.strip():
+        json_payload = entry.get("jsonPayload") or {}
+        payload = str(json_payload.get("message") or json_payload or "").strip()
+    return _entry_time(entry), payload or "(an error with no message)"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -242,31 +409,72 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--project", default="hayatiapp-prod")
     parser.add_argument("--region", default="europe-west1")
     parser.add_argument("--max-age-minutes", type=float, default=DEFAULT_MAX_AGE_MINUTES)
-    parser.add_argument("--lookback-hours", type=int, default=48)
+    parser.add_argument("--lookback-hours", type=int, default=DEFAULT_LOOKBACK_HOURS)
     parser.add_argument("--from-firebase-cli", action="store_true", required=True,
                         help="the only supported credential; see the module docstring")
     args = parser.parse_args(argv)
 
+    # The credential is the ONE thing whose absence really does mean "nothing
+    # could be measured". Everything after it is measured independently.
     try:
         api = GoogleApi(token_from_firebase_cli())
-        billing = measure_billing(api, args.project)
-        state, status = measure_job(api, args.project, args.region)
-        last, summary = measure_last_sweep(api, args.project, args.lookback_hours)
     except MeasurementError as exc:
         print(f"could not measure: {exc}", file=sys.stderr)
         return EXIT_CANNOT_MEASURE
 
+    gaps: dict[str, str] = {}
+
+    def probe(name: str, fn, *fn_args, default):
+        """Measure one fact. A failure is a NAMED GAP, never a discarded run.
+
+        This is the whole of ADR-063 D2. The shipped version ran all three
+        measurements inside one `try`, so `measure_job`'s HTTP 403 on 2026-08-27
+        threw away a `measure_billing` that had already succeeded — and the 403
+        was CAUSED by the very thing that billing read would have revealed.
+        """
+        try:
+            return fn(*fn_args)
+        except MeasurementError as exc:
+            gaps[name] = str(exc)
+            return default
+
+    billing_enabled, account_name = probe(
+        "billing", measure_billing, api, args.project, default=(False, None))
+    if "billing" in gaps:
+        account_open = None
+    elif account_name is None:
+        # Not linked at all: there is no account document to ask about, and
+        # billing_findings already calls the unlinked project a finding.
+        account_open = None
+    else:
+        account_open = probe(
+            "account", measure_billing_account, api, account_name, default=None)
+
+    state, status = probe(
+        "scheduler", measure_job, api, args.project, args.region, default=(None, 0))
+    last, summary = probe(
+        "sweep", measure_last_sweep, api, args.project, args.lookback_hours,
+        default=(None, None))
+    refusal = probe(
+        "refusal", measure_last_refusal, api, args.project, args.lookback_hours,
+        default=None)
+
     now = api.server_now or dt.datetime.now(dt.timezone.utc)
     code, lines = verdict(
-        billing_enabled=billing,
+        billing_enabled=billing_enabled,
+        billing_account_open=account_open,
         job_state=state,
         job_status_code=status,
         last_sweep=last,
         last_summary=summary,
+        last_refusal=refusal,
+        gaps=gaps,
         now=now,
         max_age_minutes=args.max_age_minutes,
     )
     print(f"{args.project} ({args.region})")
+    if account_name:
+        print(f"  billing account: {account_name}")
     if api.server_now is None:
         print("  note: no Date header on the API response — aged against the LOCAL clock")
     for line in lines:
