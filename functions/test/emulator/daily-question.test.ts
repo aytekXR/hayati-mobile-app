@@ -23,6 +23,7 @@ import {
   runDailyQuestion,
 } from '../../src/notifications/daily-question';
 import { isQuietLocalHour } from '../../src/notifications/local-hour';
+import { composePush } from '../../src/notifications/payload-policy';
 import type { BucketedCouple, CoupleBuckets } from '../../src/rollover/rollover-service';
 import { FakeMessagingPort } from '../support/fake-messaging-port';
 import { clearNoTriggerFirestore, noTriggerFirestore } from '../support/admin';
@@ -307,6 +308,96 @@ describe('failure isolation — a sweep must survive every couple', () => {
 
     expect(summary.sent).toBe(0);
     expect(summary.failed).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-063 D8. What LEAVES at 09:00, not only who receives it.
+//
+// Every assertion above this block reads `summary.sent` or `port.sent[].token`.
+// None of them has ever read `title` or `body` — so the suite proved WHO gets a
+// push at hour 9 and never WHAT was in it. `payload-policy.test.ts` pins the copy,
+// but at the pure-function level, where the question is not in scope at all.
+//
+// THIS pass is the one seam where it IS: `runDailyQuestion` reads the day doc,
+// which holds `questionId`, and then chooses a kind. Swapping that kind literal
+// to 'reveal' left the entire suite green — measured, not assumed (ADR-063 D8's
+// mutation check).
+describe('the payload — the half the suite never read (ADR-063 D8)', () => {
+  it('sends the dailyQuestion copy, in each RECIPIENT\'s own language', async () => {
+    await seedDay();
+    // Two members, two languages: the pass must resolve the language per
+    // recipient, not once per couple. AR is deliberately not used here — it
+    // defaults to discreet (PRD F6), which is its own case below.
+    await db.collection('users').doc(UID_A).set({ fcmTokens: [`token-${UID_A}`], contentLanguage: 'en' });
+    await db.collection('users').doc(UID_B).set({ fcmTokens: [`token-${UID_B}`], contentLanguage: 'tr' });
+    const port = new FakeMessagingPort();
+
+    await runDailyQuestion(db, AT_09, port, oneCouple());
+
+    // EXACTLY one message per recipient — no duplicate send, which ADR-012 D3
+    // has no dedup state to catch.
+    expect(port.sent).toHaveLength(2);
+    expect(port.sent.map((m) => m.token).sort()).toEqual([`token-${UID_A}`, `token-${UID_B}`]);
+
+    const byToken = new Map(port.sent.map((m) => [m.token, m]));
+    for (const [uid, language] of [[UID_A, 'en'], [UID_B, 'tr']] as const) {
+      const message = byToken.get(`token-${uid}`)!;
+      // The oracle is composePush called with the kind this pass is FOR. The
+      // pass picks the kind and the language; the test states both independently,
+      // so a pass that composed `reveal` — or resolved one language for both
+      // members — fails here and nowhere else.
+      expect({ title: message.title, body: message.body }).toEqual(
+        composePush({ kind: 'dailyQuestion', language, discreet: false }),
+      );
+    }
+  });
+
+  it('never carries the question — the day doc is READ here and must not travel', async () => {
+    // A questionId that cannot collide with ordinary copy, so the assertion is
+    // about leakage rather than about a short id appearing by chance.
+    const QUESTION_ID = 'solo_tr_001_UNIQUEMARKER';
+    await seedDay({ questionId: QUESTION_ID });
+    const port = new FakeMessagingPort();
+
+    await runDailyQuestion(db, AT_09, port, oneCouple());
+
+    expect(port.sent).toHaveLength(2);
+    for (const message of port.sent) {
+      // The privacy invariant (PRD F6) at the ONE layer where the question is in
+      // scope. composePush has no question parameter, so this is structural — and
+      // structure is exactly what a refactor changes.
+      for (const field of [message.title, message.body]) {
+        expect(field).not.toContain(QUESTION_ID);
+        expect(field).not.toContain('UNIQUEMARKER');
+        expect(field).not.toContain(DAY_KEY);
+      }
+    }
+  });
+
+  it('an AR recipient gets the discreet payload, resolved at this seam', async () => {
+    await seedDay();
+    await db.collection('users').doc(UID_A).set({ fcmTokens: [`token-${UID_A}`], contentLanguage: 'ar' });
+    await db.collection('users').doc(UID_B).set({ fcmTokens: [`token-${UID_B}`], contentLanguage: 'en' });
+    const port = new FakeMessagingPort();
+
+    await runDailyQuestion(db, AT_09, port, oneCouple());
+
+    const byToken = new Map(port.sent.map((m) => [m.token, m]));
+    // Discreet defaults ON in AR (PRD F6) — the same neutral payload every kind
+    // produces, and NOT the Arabic dailyQuestion copy.
+    const arabic = byToken.get(`token-${UID_A}`)!;
+    expect({ title: arabic.title, body: arabic.body }).toEqual(
+      composePush({ kind: 'dailyQuestion', language: 'ar', discreet: true }),
+    );
+    expect(arabic.title).not.toBe(
+      composePush({ kind: 'dailyQuestion', language: 'ar', discreet: false }).title,
+    );
+    // ...while the EN member in the same couple still gets the normal copy, so
+    // the resolution is per recipient rather than per couple.
+    expect(byToken.get(`token-${UID_B}`)!.title).toBe(
+      composePush({ kind: 'dailyQuestion', language: 'en', discreet: false }).title,
+    );
   });
 });
 

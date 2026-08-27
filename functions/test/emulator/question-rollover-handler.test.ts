@@ -9,6 +9,7 @@ import { logger } from 'firebase-functions';
 import type { ScheduledEvent } from 'firebase-functions/v2/scheduler';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { composePush } from '../../src/notifications/payload-policy';
 import { makeQuestionRolloverHandler } from '../../src/rollover/question-rollover';
 import { adminFirestore, clearFirestoreData } from '../support/admin';
 import { FakeMessagingPort } from '../support/fake-messaging-port';
@@ -182,6 +183,17 @@ describe('makeQuestionRolloverHandler', () => {
     await handler(scheduledEvent(DAILY_QUESTION_TIME));
 
     expect(port.sent.map((m) => m.token).sort()).toEqual(['tok-a', 'tok-b']);
+    // ADR-063 D8 — what LEAVES, not only who receives it. This is the ONLY
+    // assertion in the suite that reads the payload at the end of the whole
+    // chain (scheduled event -> shared buckets -> pass -> port), and it is the
+    // chain's one point where the day doc's `questionId` is in scope.
+    for (const message of port.sent) {
+      expect({ title: message.title, body: message.body }).toEqual(
+        composePush({ kind: 'dailyQuestion', language: 'en', discreet: false }),
+      );
+      expect(message.body).not.toContain('solo_tr_001');
+      expect(message.title).not.toContain('solo_tr_001');
+    }
     expect(infoSpy).toHaveBeenCalledWith(
       'question_rollover: daily-question sweep complete',
       expect.objectContaining({ checked: 1, sent: 2 }),
