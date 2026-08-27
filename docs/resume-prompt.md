@@ -7,8 +7,8 @@
 > never-without-asking list) and `session-lessons.md` (numbered to **132**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: nothing watches production. Build the watcher — and arm every part of
-it that does not need the founder.**
+**Objective: #263 — nothing watches production. Build the watcher, and arm every
+part of it that does not need the founder.**
 
 ### ⚠️ Before planning: run this, and put its output in your first message
 
@@ -112,7 +112,7 @@ fact that **only a human running a command locally ever asks it.**
 | **#136** | Autonomous half DONE (ADR-059); step 1 is device-blocked |
 | **#242** | DECIDED, not built (ADR-060); waits on a sink |
 | **Deployed rules vs `main`** | **DRIFTED** — `rules_drift.py` exits 1 today with a real diff (the `pushDiagnostic` clauses are not deployed). A deploy is a **§7 founder ask**, and is downstream of billing |
-| **Open issues** | **#242**, **#243**, **#247**–**#250**, **#253**, **#258**, plus the older set |
+| **Open issues** | **#242**, **#243**, **#247**–**#250**, **#253**, **#258**, **#263** (new, this session's subject), plus the older set |
 
 ### What S087 changed that a later session will trip over
 

@@ -347,7 +347,7 @@ present-tense claims are corrected. Two of them are worse than stale:
 | A CI gate for stale comments | Needs an allowlist to tell history from claim (lesson **128**); grammar is not scannable. D5 removes the *claim* instead of gating it |
 | Cut the build now, fix billing after | Spends the one-shot iOS dialog against a dead backend (Finding 4) |
 | The session restores billing | A closed billing account is a payment instrument on the founder's Google identity. Not reachable, and not a session's to reach |
-| Add a scheduled watcher for the sweep now | Correct and **out of this session's scope**. `slack_notify.sh` is the single notifier (ADR-024 D1) and has no signal for *"prod is dead"*; `prod_pulse` is local-credential by design. **Filed as an issue** rather than improvised |
+| Add a scheduled watcher for the sweep now | Correct and **out of this session's scope**. `slack_notify.sh` is the single notifier (ADR-024 D1) and has no signal for *"prod is dead"*; `prod_pulse` is local-credential by design. **Filed as #263** rather than improvised, with the credential and cron-decay decisions named |
 
 ## Consequences
 
@@ -366,5 +366,5 @@ present-tense claims are corrected. Two of them are worse than stale:
   have caught the cause rather than the symptom"* and *"`prod_pulse` is a
   local/manual instrument… A cron that calls it and notifies would close the
   detection gap properly; that needs a credential decision."* **The residuals of
-  the last incident are the cause of this one.** Filed again, and item 9 in
+  the last incident are the cause of this one.** Filed as **#263**, and item 9 in
   `operator-expected.md` is promoted rather than restated.
