@@ -72,8 +72,9 @@ describe('composePush', () => {
     ]);
   });
 
-  // ADR-042 D3. The founder's first ask: "It needs to be send new questions at
-  // 08.00 TSI with a question." The push announces that a question EXISTS; the
+  // ADR-042 D3, hour re-pointed to 9 by ADR-045. The founder's first ask: "It
+  // needs to be send new questions at 08.00 TSI with a question." The push
+  // announces that a question EXISTS; the
   // question itself never travels — composePush has no question parameter, so
   // this is structural rather than a copy rule.
   describe('dailyQuestion (ADR-042 D3)', () => {
@@ -89,7 +90,7 @@ describe('composePush', () => {
       }
     });
 
-    it('never claims the partner did anything — nobody has answered yet at 08:00', () => {
+    it('never claims the partner did anything — nobody has answered yet at 09:00', () => {
       for (const language of LANGUAGES) {
         const daily = composePush({
           kind: 'dailyQuestion',
@@ -114,7 +115,7 @@ describe('composePush', () => {
     });
   });
 
-  // ADR-042 D4. The 16:00 nudge fires for a couple with NO streak — that is the
+  // ADR-042 D4 (hour 22 since ADR-045). The nudge fires for a couple with NO streak — that is the
   // whole point of dropping the streak gate. The count-free copy therefore may
   // not talk about a streak: "Your streak together is still alive" is FALSE for
   // the population this change exists to reach, and telling someone their streak

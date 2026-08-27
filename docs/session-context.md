@@ -62,7 +62,7 @@ _Environment facts below were last re-measured **2026-08-05**._
   | | |
   |---|---|
   | `firebase functions:log --project hayatiapp-prod --only <fn>` | **reads PRODUCTION logs.** This is what caught S063's silent failure: four hourly sweeps logged two of the three per-pass summaries, and the missing line was the whole diagnosis. Free, read-only, instant. ⚠️ **A line per hour is not health** — S067 read 38 consecutive `E` lines as "the job fired". |
-  | `python3 tool/ci/prod_pulse.py --from-firebase-cli` | **"is the daily loop actually RUNNING?"** — the question `functions:list` and `functions_drift` cannot answer. Keyed on the sweep's own `sweep complete` record, so a punctual scheduler over a dead backend reads red. Exit 0/1/2. |
+  | `python3 tool/ci/prod_pulse.py --from-firebase-cli` | **"is the daily loop actually RUNNING?"** — the question `functions:list` and `functions_drift` cannot answer. Keyed on the sweep's own `sweep complete` record, so a punctual scheduler over a dead backend reads red. Exit 0/1/2. ⚠️ **Rebuilt at S087 (ADR-063) after it answered `2 — could not measure` through a six-day outage**: it now probes each fact separately (a failure is a *named gap*, never a discarded run), reads the billing **account's `open`** rather than the project's `billingEnabled` — which said `true` for the whole outage — and quotes the refusal from the function's own error stream. **A gap can never produce a green**: findings → 1, else any gap → **2**, else 0. |
   | `firebase functions:list --project hayatiapp-prod` | the deployed function inventory. Set-compare it against the exports in `functions/src/index.ts`. |
   | `python3 tool/ci/rules_drift.py --project hayatiapp-prod --from-firebase-cli` | verifies deployed rules against this ref **with no `FIREBASE_SERVICE_ACCOUNT`** — the CI lane needs that secret, this path does not. |
   | `firebase deploy --only functions` / `--only firestore:rules` | the deploy. **§7 applies — ask first.** |
@@ -241,7 +241,10 @@ firebase functions:list --project hayatiapp-prod
 
 # Is the daily loop actually RUNNING? (not "is it deployed" — keyed on the
 # sweep's own `sweep complete` record, so a punctual scheduler over a dead
-# backend reads RED.) Exit 0/1/2. This is the instrument #219 was missing.
+# backend reads RED.) Exit 0/1/2. This is the instrument #219 was missing —
+# and ADR-063 is why it can now answer during the outage rather than after it.
+# A `COULD NOT MEASURE <fact>` line is a NAMED GAP, not a failed run; exit 2
+# means "nothing found AND something was unread", never "one probe threw".
 python3 tool/ci/prod_pulse.py --from-firebase-cli
 
 # Has any device EVER registered a push token — and, since ADR-049, what does

@@ -31,14 +31,14 @@ export interface QuestionRolloverDeps {
   bucket?: (db: Firestore) => Promise<CoupleBuckets>;
   /** The assignment pass over the shared buckets (create-if-absent day docs). */
   run?: (db: Firestore, at: Date, buckets: CoupleBuckets) => Promise<RolloverSummary>;
-  /** The unanswered-day nudge over the shared buckets (hour-16 since ADR-042 D4). */
+  /** The unanswered-day nudge over the shared buckets (hour-22 since ADR-045). */
   atRisk?: (
     db: Firestore,
     at: Date,
     buckets: CoupleBuckets,
     messaging: MessagingPort,
   ) => Promise<AtRiskSummary>;
-  /** The daily-question announcement over the shared buckets (hour-8, ADR-042 D3). */
+  /** The daily-question announcement over the shared buckets (hour-9, ADR-045). */
   dailyQuestion?: (
     db: Firestore,
     at: Date,
@@ -102,12 +102,12 @@ export function makeQuestionRolloverHandler(
     }
 
     // The two push passes (ADR-012 D3, ADR-042 D3/D4), piggybacked on the SAME
-    // buckets: hour-8 announces the new question, hour-16 nudges an unanswered day.
+    // buckets: hour-9 announces the new question, hour-22 nudges an unanswered day.
     // Both are fully ISOLATED and best-effort — a failure in either must never fail
     // the assignment run (a missed push is recovered tomorrow; an unassigned
     // question is not) and must not stop the other from running.
     //
-    // They are mutually exclusive in practice — a bucket reads either 8 or 16, never
+    // They are mutually exclusive in practice — a bucket reads either 9 or 22, never
     // both — so running both every sweep costs one no-op iteration over the buckets,
     // not a second set of reads. Gating one on the other's hour would move the hour
     // policy out of the passes that own it and into the handler.

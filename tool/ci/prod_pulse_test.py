@@ -23,6 +23,24 @@ So the assertions below aim at the DISCRIMINATION, not at the happy path:
 * **The cause is reported alongside the consequence**: billing-off must not
   silently swallow the stale-sweep line, because the reader needs to know the
   loop stopped, not only that the card expired.
+
+ADDED BY ADR-063 (S087), after the outage RECURRED on 2026-08-22 and this tool
+answered `could not measure`:
+
+* **A gap can never produce a green.** The single most dangerous output this file
+  can fail to forbid is exit 0 while the decisive fact was never read. Billing
+  healthy + scheduler ENABLED + Logging unreadable must be **2**, not 0.
+* **A gap is not an absence.** `job_state=None` means *"I looked and there is no
+  job"*; a scheduler that 403'd must NOT produce that finding, or the report
+  invents a cause. Same for the sweep.
+* **Findings still beat gaps.** A closed billing account plus an unreadable
+  scheduler is exit **1**, because something real was found — with the gap
+  printed on its own line beside it.
+* **linked ≠ open.** `billingInfo.billingEnabled` was `true` throughout the
+  2026-08-22 outage while the ACCOUNT behind it was closed and Cloud Run refused
+  every invocation. A test replays that exact pair.
+* **`main()` is exercised, not just `verdict()`.** Every assertion in revision 1
+  targeted the pure function; both defects lived in the wiring around it.
 """
 from __future__ import annotations
 
@@ -30,9 +48,11 @@ import datetime as dt
 import sys
 
 from prod_pulse import (
+    DEFAULT_LOOKBACK_HOURS,
     EXIT_CANNOT_MEASURE,
     EXIT_FINDING,
     EXIT_OK,
+    billing_findings,
     parse_http_date,
     sweep_age_minutes,
     verdict,
@@ -172,6 +192,264 @@ def test_http_date_is_the_clock() -> None:
                   last_sweep=stale, last_summary=None, now=skewed_local)[0] == EXIT_OK,
           "fixture check: the skewed local clock really would have passed it — "
           "which is why the Date header is not optional")
+
+
+
+# --------------------------------------------------------------------------
+# ADR-063: the gap rules. Everything below is about the 2026-08-22 recurrence.
+# --------------------------------------------------------------------------
+
+def test_a_gap_can_never_produce_a_green() -> None:
+    """THE one output this tool must never produce.
+
+    Billing reads healthy, the scheduler reads ENABLED and punctual, and the
+    Logging API cannot be read — so the sweep age, the only fact that answers
+    the question in the tool's title, was never measured. Revision 1's exit rule
+    made this exit 0 and printed "the daily loop is running".
+    """
+    code, lines = verdict(
+        billing_enabled=True,
+        billing_account_open=True,
+        job_state="ENABLED",
+        job_status_code=0,
+        last_sweep=None,
+        last_summary=None,
+        gaps={"sweep": "logging.googleapis.com returned HTTP 403"},
+        now=NOW,
+    )
+    check("gap-green/exit", code == EXIT_CANNOT_MEASURE,
+          f"a green with an unmeasured decisive fact got {code}, must be 2")
+    joined = " ".join(lines)
+    check("gap-green/named", "COULD NOT MEASURE sweep" in joined,
+          "the gap must be named in the report, not implied by the exit code")
+    check("gap-green/no-false-claim", "the daily loop is running" not in joined,
+          "a tool that could not look must not claim the loop is running")
+
+
+def test_a_gap_is_not_an_absence() -> None:
+    """A scheduler that 403'd must not be reported as a scheduler that is missing.
+
+    Without this, the fix is WORSE than the bug: today's 403 arrives as
+    job_state=None and prints "no Cloud Scheduler job — the sweep has no
+    trigger", which is a confidently stated false cause.
+    """
+    code, lines = verdict(
+        billing_enabled=True,
+        billing_account_open=True,
+        job_state=None,                 # could not look, NOT "there is no job"
+        job_status_code=0,
+        last_sweep=NOW - dt.timedelta(minutes=10),
+        last_summary=None,
+        gaps={"scheduler": "cloudscheduler.googleapis.com returned HTTP 403"},
+        now=NOW,
+    )
+    joined = " ".join(lines)
+    check("gap-absence/no-invented-cause",
+          "no Cloud Scheduler job" not in joined and "no trigger" not in joined,
+          "an unreadable scheduler must not be reported as a missing one")
+    check("gap-absence/named", "COULD NOT MEASURE scheduler" in joined)
+    check("gap-absence/exit", code == EXIT_CANNOT_MEASURE,
+          f"nothing found and one fact unread must be 2, got {code}")
+
+
+def test_a_gap_does_not_suppress_a_real_finding() -> None:
+    """TODAY's run, replayed: closed account + unreadable scheduler.
+
+    Findings beat gaps. The closed account is a real, measured finding and must
+    produce exit 1 — with the scheduler gap printed beside it, not instead of it.
+    """
+    code, lines = verdict(
+        billing_enabled=True,           # the project is still LINKED...
+        billing_account_open=False,     # ...to a CLOSED account
+        job_state=None,
+        job_status_code=0,
+        last_sweep=None,
+        last_summary=None,
+        gaps={"scheduler": "cloudscheduler.googleapis.com returned HTTP 403"},
+        now=NOW,
+    )
+    check("today/exit", code == EXIT_FINDING,
+          f"a measured finding must beat a gap; got {code}")
+    joined = " ".join(lines)
+    check("today/names-closed-account", "CLOSED" in joined,
+          "the closed account is the cause and must be named")
+    check("today/keeps-the-gap-line", "COULD NOT MEASURE scheduler" in joined,
+          "the gap must still be reported next to the finding")
+
+
+def test_linked_is_not_open() -> None:
+    """The exact pair that made the shipped tool report health during an outage.
+
+    `billingInfo.billingEnabled` was true for the whole 2026-08-22 outage. The
+    account behind it was closed and Cloud Run refused every invocation.
+    """
+    findings = billing_findings(billing_enabled=True, account_open=True)
+    check("linked-open/healthy", findings == [],
+          f"linked AND open is healthy; got {findings}")
+
+    closed = billing_findings(billing_enabled=True, account_open=False)
+    check("linked-closed/is-a-finding", len(closed) == 1,
+          "linked-but-closed must be a finding of its own")
+    check("linked-closed/names-both",
+          any("CLOSED" in f for f in closed),
+          f"the finding must say the account is closed; got {closed}")
+
+    unlinked = billing_findings(billing_enabled=False, account_open=None)
+    check("unlinked/is-a-finding", len(unlinked) == 1,
+          "an unlinked project is still a finding")
+
+    # Unreadable account document: NOT an assumption in either direction.
+    unknown = billing_findings(billing_enabled=True, account_open=None)
+    check("linked-unknown/no-finding", unknown == [],
+          "an unreadable account must be a gap for the caller, never a finding here")
+
+
+def test_main_reports_a_finding_when_one_probe_fails() -> None:
+    """`main()` is the wiring, and the wiring is where both defects lived.
+
+    Replays 2026-08-27 exactly: billing reads (project linked, account CLOSED),
+    the scheduler raises, logging returns a stale sweep. The shipped code threw
+    the closed account away and returned 2.
+    """
+    import prod_pulse
+
+    class FakeApi:
+        server_now = NOW
+
+        def __init__(self, *_a, **_k) -> None:
+            pass
+
+    calls: list[str] = []
+
+    def fake_billing(_api, _project):
+        calls.append("billing")
+        return True, "billingAccounts/012195-7EF76F-3A9083"
+
+    def fake_account(_api, _name):
+        calls.append("account")
+        return False                                  # CLOSED
+
+    def fake_job(_api, _project, _region):
+        calls.append("job")
+        raise prod_pulse.MeasurementError("cloudscheduler returned HTTP 403")
+
+    def fake_sweep(_api, _project, _hours):
+        calls.append("sweep")
+        return NOW - dt.timedelta(hours=55), None
+
+    def fake_refusal(_api, _project, _hours):
+        calls.append("refusal")
+        return NOW - dt.timedelta(minutes=59), "billing is disabled for this project"
+
+    saved = (prod_pulse.GoogleApi, prod_pulse.token_from_firebase_cli,
+             prod_pulse.measure_billing, prod_pulse.measure_billing_account,
+             prod_pulse.measure_job, prod_pulse.measure_last_sweep,
+             prod_pulse.measure_last_refusal)
+    prod_pulse.GoogleApi = FakeApi
+    prod_pulse.token_from_firebase_cli = lambda: "t"
+    prod_pulse.measure_billing = fake_billing
+    prod_pulse.measure_billing_account = fake_account
+    prod_pulse.measure_job = fake_job
+    prod_pulse.measure_last_sweep = fake_sweep
+    prod_pulse.measure_last_refusal = fake_refusal
+    try:
+        code = prod_pulse.main(["--from-firebase-cli"])
+    finally:
+        (prod_pulse.GoogleApi, prod_pulse.token_from_firebase_cli,
+         prod_pulse.measure_billing, prod_pulse.measure_billing_account,
+         prod_pulse.measure_job, prod_pulse.measure_last_sweep,
+         prod_pulse.measure_last_refusal) = saved
+
+    check("main/exit", code == EXIT_FINDING,
+          f"a measured closed account must survive a failing sibling probe; got {code}")
+    check("main/kept-going-after-the-raise", "sweep" in calls,
+          f"a raise in one probe must not skip the others; ran {calls}")
+    check("main/read-the-account", "account" in calls,
+          "the account's open flag is the authoritative billing fact (ADR-063 D4)")
+
+
+def test_main_cannot_measure_only_when_it_found_nothing() -> None:
+    """Everything readable is healthy, one probe raises -> 2, never 0."""
+    import prod_pulse
+
+    class FakeApi:
+        server_now = NOW
+
+        def __init__(self, *_a, **_k) -> None:
+            pass
+
+    def raising(*_a, **_k):
+        raise prod_pulse.MeasurementError("logging returned HTTP 403")
+
+    saved = (prod_pulse.GoogleApi, prod_pulse.token_from_firebase_cli,
+             prod_pulse.measure_billing, prod_pulse.measure_billing_account,
+             prod_pulse.measure_job, prod_pulse.measure_last_sweep,
+             prod_pulse.measure_last_refusal)
+    prod_pulse.GoogleApi = FakeApi
+    prod_pulse.token_from_firebase_cli = lambda: "t"
+    prod_pulse.measure_billing = lambda *_a: (True, "billingAccounts/x")
+    prod_pulse.measure_billing_account = lambda *_a: True
+    prod_pulse.measure_job = lambda *_a: ("ENABLED", 0)
+    prod_pulse.measure_last_sweep = raising
+    prod_pulse.measure_last_refusal = raising
+    try:
+        code = prod_pulse.main(["--from-firebase-cli"])
+    finally:
+        (prod_pulse.GoogleApi, prod_pulse.token_from_firebase_cli,
+         prod_pulse.measure_billing, prod_pulse.measure_billing_account,
+         prod_pulse.measure_job, prod_pulse.measure_last_sweep,
+         prod_pulse.measure_last_refusal) = saved
+
+    check("main/no-green-over-a-gap", code == EXIT_CANNOT_MEASURE,
+          f"healthy-so-far plus an unread decisive fact must be 2, got {code}")
+
+
+def test_no_credential_is_still_exit_2() -> None:
+    """The one case that legitimately measures NOTHING keeps its old meaning."""
+    import prod_pulse
+
+    def no_token():
+        raise prod_pulse.MeasurementError("no firebase CLI credential")
+
+    saved = prod_pulse.token_from_firebase_cli
+    prod_pulse.token_from_firebase_cli = no_token
+    try:
+        code = prod_pulse.main(["--from-firebase-cli"])
+    finally:
+        prod_pulse.token_from_firebase_cli = saved
+    check("main/no-credential", code == EXIT_CANNOT_MEASURE, f"got {code}")
+
+
+def test_the_lookback_outlives_an_outage() -> None:
+    """ADR-063 D6. The 2026-08-22 outage was 55h old when it was found.
+
+    At the shipped 48h default the tool could say "none in the window" but not
+    WHEN the loop stopped, and the date is what an operator instruction is
+    built from.
+    """
+    check("lookback/covers-a-week", DEFAULT_LOOKBACK_HOURS >= 168,
+          f"a 55h-old outage must be datable; default is {DEFAULT_LOOKBACK_HOURS}h")
+
+
+def test_the_refusal_reason_is_reported_with_its_timestamp() -> None:
+    """ADR-063 D5. A reason with no time cannot be placed against the last sweep."""
+    code, lines = verdict(
+        billing_enabled=True,
+        billing_account_open=False,
+        job_state="ENABLED",
+        job_status_code=13,
+        last_sweep=NOW - dt.timedelta(hours=55),
+        last_summary=None,
+        last_refusal=(NOW - dt.timedelta(minutes=59),
+                      "The request failed because billing is disabled for this project."),
+        now=NOW,
+    )
+    joined = " ".join(lines)
+    check("refusal/exit", code == EXIT_FINDING, f"got {code}")
+    check("refusal/quoted", "billing is disabled" in joined,
+          "the function's own words are the diagnosis; print them")
+    check("refusal/timestamped", (NOW - dt.timedelta(minutes=59)).isoformat() in joined,
+          "a reason with no timestamp cannot be placed against the last sweep")
 
 
 for name, fn in list(globals().items()):

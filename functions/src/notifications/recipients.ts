@@ -43,12 +43,17 @@ export function notificationPrivacyOf(userData: unknown): string | undefined {
 
 /**
  * The recipient's FCM registration tokens from `users/{uid}.fcmTokens`, as a
- * clean string array. Defensive by contract: NOTHING writes this field yet —
- * app-side capture is a platform-channel task deferred to the on-device slice
- * (ADR-012, operator-expected item 4) — so absent, non-array, or junk shapes are
- * expected, not exceptional. Absent / non-array / contains-non-strings / empty
- * all collapse to `[]`; the CALLER treats an empty result as a skip and counts
- * it loudly in the trigger/sweep summary.
+ * clean string array.
+ *
+ * ⚠️ This doc said *"NOTHING writes this field yet"* until 2026-08-28 (ADR-063).
+ * `push-token-service.ts` has written it since the `registerPushToken` callable
+ * shipped; the field is server-owned and a client cannot mint it. Whether any
+ * DEVICE has yet produced a token is a separate question with its own
+ * instrument: `python3 tool/ci/push_delivery_probe.py --from-firebase-cli`.
+ *
+ * Defensive by contract regardless of who writes it: absent / non-array /
+ * contains-non-strings / empty all collapse to `[]`, and the CALLER treats an
+ * empty result as a skip and counts it loudly in the trigger/sweep summary.
  */
 export function fcmTokensOf(userData: unknown): string[] {
   if (typeof userData !== 'object' || userData === null) {

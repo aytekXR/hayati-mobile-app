@@ -110,7 +110,7 @@ beforeEach(async () => {
   await clearNoTriggerFirestore();
 });
 
-describe('runStreakAtRisk — hour-16 gate (ADR-042 D4)', () => {
+describe('runStreakAtRisk — hour-22 gate (ADR-042 D4, re-pointed by ADR-045)', () => {
   it('AT_RISK_LOCAL_HOUR is 22 — the hour the founder asked for (ADR-045)', () => {
     expect(AT_RISK_LOCAL_HOUR).toBe(22);
   });
@@ -125,12 +125,12 @@ describe('runStreakAtRisk — hour-16 gate (ADR-042 D4)', () => {
     expect(isQuietLocalHour(AT_RISK_LOCAL_HOUR + 1)).toBe(true);
   });
 
-  it('fires ONLY for the bucket at couple-local hour 16; a same-instant off-16 zone and a corrupt zone are untouched', async () => {
+  it('fires ONLY for the bucket at couple-local hour 22; a same-instant off-22 zone and a corrupt zone are untouched', async () => {
     await seedCouple('ist', { timezone: 'Europe/Istanbul', streak: streakOf(3) });
     await seedDay('ist');
     await seedUser(UID_A);
     await seedUser(UID_B);
-    // Same instant, New York is 13:00 (not 20) — eligible in every other way but
+    // Same instant, New York is 15:00 (not 22) — eligible in every other way but
     // never evaluated because its bucket is off-hour.
     await seedCouple('nyc', { timezone: 'America/New_York', streak: streakOf(5) });
     await seedDay('nyc');

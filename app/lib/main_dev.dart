@@ -225,14 +225,17 @@ Future<void> main() async {
         // ADR-042 D1/D2. Both halves are real now: the repository calls the
         // deployed callables, and the source is FCM.
         //
-        // It is INERT until the entitlement lands. `aps-environment` is absent
-        // from Runner.entitlements by design — the Push Notifications capability
-        // is not ticked on the App ID (measured 2026-08-06), and a build claiming
-        // the entitlement without it fails at CODESIGN in the macOS release job
-        // (ADR-040, one capability over). Without it iOS never registers with
-        // APNs, so getToken() yields nothing and PushTokenSync logs a no-op.
-        // Nothing here changes when the tick happens except that tokens start
-        // flowing.
+        // ⚠️ THIS COMMENT SAID "INERT — `aps-environment` is absent" UNTIL
+        // 2026-08-28, AND IT HAD BEEN FALSE FOR TWENTY DAYS. `main_prod.dart`
+        // carries the same warning and was corrected on 2026-08-16; the
+        // correction was never applied here, so the dev entrypoint went on
+        // telling every reader that push could not work (ADR-063).
+        //
+        // The capability was ticked on the App ID on 2026-08-06 and the
+        // entitlement landed in Runner.entitlements on 2026-08-07 (2a12a07).
+        // Re-measure, do not inherit:
+        //     gh workflow run appid-capabilities.yml -f require=PUSH_NOTIFICATIONS
+        //     python3 tool/ci/push_delivery_probe.py --from-firebase-cli
         pushTokenRepositoryProvider.overrideWith(
           (ref) => FunctionsPushTokenRepository(),
         ),

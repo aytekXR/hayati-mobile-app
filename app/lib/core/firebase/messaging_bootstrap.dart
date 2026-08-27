@@ -14,8 +14,8 @@ import 'package:flutter/foundation.dart';
 /// That matters unevenly across the three pushes, which is why it is worth
 /// fixing rather than filing:
 ///
-/// * the **08:00 daily question** lands when the app is almost certainly
-///   backgrounded, so it was never affected;
+/// * the **09:00 daily question** (ADR-045, re-pointed from 08:00) lands when the
+///   app is almost certainly backgrounded, so it was never affected;
 /// * **"your partner answered"** fires the instant the other member submits —
 ///   precisely when the recipient is most likely to have the app open. The
 ///   founder's own words for this feature were *"or your partner is answered"*,

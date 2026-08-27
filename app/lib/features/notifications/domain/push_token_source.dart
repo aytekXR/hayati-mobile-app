@@ -6,14 +6,18 @@
 /// key, which is the same trade ADR-012 D3 made for the send side and the reason
 /// its Functions half was provable at all.
 ///
-/// **There is deliberately no implementation of this yet.** ADR-042 D2 orders the
-/// device work behind a measured fact: `PUSH_NOTIFICATIONS` is not ticked on the
-/// App ID (measured 2026-08-06), `match` fetches provisioning profiles readonly
-/// (ADR-032), and a build claiming `aps-environment` without the capability fails
-/// at codesign — in the macOS release job, because `ios-build-smoke` runs
-/// `--no-codesign` and cannot see it coming. So the FCM adapter is one class
-/// written when the plugin lands, and everything that decides anything is here
-/// and tested now.
+/// **The implementation exists**: `FcmPushTokenSource` (`../data/`), wired by both
+/// flavor entrypoints. ADR-042 D2 ordered the device work behind the App ID
+/// capability — `PUSH_NOTIFICATIONS` was ticked on 2026-08-06 and
+/// `aps-environment` landed in `Runner.entitlements` on 2026-08-07 — and that
+/// ordering is now history rather than a constraint.
+///
+/// ⚠️ This paragraph said *"There is deliberately no implementation of this yet"*
+/// until 2026-08-28, twenty days after there was one (ADR-063). Re-measure rather
+/// than trusting any comment here:
+/// `gh workflow run appid-capabilities.yml -f require=PUSH_NOTIFICATIONS`, and
+/// `python3 tool/ci/push_delivery_probe.py --from-firebase-cli` for what the
+/// phones themselves report.
 /// What the OS currently says about notification permission, with no dialog
 /// shown to ask it (ADR-046 D1).
 enum PushPermission {
