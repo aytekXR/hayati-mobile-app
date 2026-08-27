@@ -142,8 +142,10 @@ about; it cannot do them.
 
 ## 2. Then, in priority order
 
-**1 — #243's remaining half** (ADR-062, S086): the ADR is written and recommends
-**minting no identifier**. It stays open for **one founder sentence** — whether
+**1 — #243's remaining half** (ADR-062 **revision 2**, S086): the ADR recommends
+**minting no identifier**, and — after its design review refuted revision 1 —
+the **same-window** ratio rather than a lagged one, because a lagged ratio
+*overstates* under growth and can pass a gate the truth fails. It stays open for **one founder sentence** — whether
 Gate 3's `install→paid` numerator counts *payments* or *paying users*, which
 differ by **2×** on the paired population because `install` counts **devices** and
 `paid` counts **couples**. Nothing to build.

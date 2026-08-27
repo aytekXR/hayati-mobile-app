@@ -75,10 +75,14 @@ installs end up paying" mean 2% produce a payment, or 2% become a paying person?
 Those differ by exactly 2×, which is the whole value of the threshold. No
 identifier fixes this — it is a definition, and it is free to settle now.
 
-**Second, the number may not need the join at all.** For a go/no-go decision,
-installs this month against payments next month answers *"is acquisition worth
-paying for"* without identifying anybody — and it errs on the cautious side, so it
-can only ever tell you to spend *less* than the truth, never more.
+**Second, the number may not need the join at all.** Comparing installs and
+payments **over the same month** answers *"is acquisition worth paying for"*
+without identifying anybody, and it errs on the cautious side — it can only ever
+tell you to spend *less* than the truth, never more. *(My first draft suggested
+comparing this month's installs against next month's payments. A review caught
+that: while installs are growing that version flatters the number and could tell
+you to spend on a product that has not earned it. The safe version is the plain
+same-month one.)*
 
 > **② When you next look at the privacy documents, answer one sentence: does
 > `install→paid` count payments, or paying people?** *(No rush, no cost, nothing
