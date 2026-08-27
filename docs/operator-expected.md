@@ -297,9 +297,10 @@ Allow Notifications ON**.
 
 *Blocked by this:* every push reaching a phone. **0 of 4 accounts have ever
 registered a device token**, and all four report *"no report"* — measured again
-today. ⚠️ Build 119 was cut **2026-08-09**; eight merged client slices are on
-**nobody's phone**, including the push self-diagnostic that would say which link
-broke. **Cutting a new build is yours** (the release lane uploads a real binary; a
+today. ⚠️ Build 119 was cut **2026-08-09**; **seven** merged client slices are on
+**nobody's phone** — ADR-049, 051, 052, 053, 054, 057 and 061, counted from
+`git log --since=2026-08-09 -- app/lib app/ios` rather than estimated — including
+the push self-diagnostic that would say which link broke. **Cutting a new build is yours** (the release lane uploads a real binary; a
 session must never dispatch it).
 
 **Why ① before ②:** ② cannot deliver a 9 a.m. question while ① is unfixed — there
@@ -481,10 +482,10 @@ These block **launch**:
    2026-08-22 (item 1 ①). Every item below is downstream of this one.
 2. **Payments cannot complete** — the RevenueCat webhook is not invocable (#115, item 2) — *and* would be refused by the serving layer anyway until ① is done.
 3. **Push has never been delivered** — no device has ever registered (item 1 ②).
-3. **Prod-vs-`main` drift is unmeasured**, not passing — both drift checks SKIPPED for want of one read-only secret (item 4).
-4. **Legal documents are unreviewed** with three blanks (items 5, 14, 15) — **and the ones in force are wrong about push**: a correction is drafted and waiting on you (item 16). This is the only launch blocker whose fix is written and sitting still.
-5. **Content is ~2% authored** — MVP scope item 3.
-6. **The funnel emits into a no-op in prod** — item 11 is instrumented but not *measured*, and turning that on is item 18 plus item 16.
+4. **Prod-vs-`main` drift is unmeasured**, not passing — both drift checks SKIPPED for want of one read-only secret (item 4).
+5. **Legal documents are unreviewed** with three blanks (items 5, 14, 15) — **and the ones in force are wrong about push**: a correction is drafted and waiting on you (item 16). This is the only launch blocker whose fix is written and sitting still.
+6. **Content is ~2% authored** — MVP scope item 3.
+7. **The funnel emits into a no-op in prod** — item 11 is instrumented but not *measured*, and turning that on is item 18 plus item 16.
 
 ## Next Step
 

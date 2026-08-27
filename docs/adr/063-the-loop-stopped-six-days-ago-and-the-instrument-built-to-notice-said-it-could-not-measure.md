@@ -1,6 +1,6 @@
 # ADR-063: the loop stopped six days ago, and the instrument built to notice returned "could not measure"
 
-- **Status:** Proposed
+- **Status:** Accepted — **revision 3** (2026-08-28, after the built-diff review)
 - **Date:** 2026-08-27 (Session 087) · **Revision 2, 2026-08-28** — the design review found a **blocking** hole in D2's exit rule, showed D2 could not be implemented against `verdict()`'s signature, and **refuted Finding 4's central claim**; all three are folded in below
 - **Deciders:** the session agent for the instrument, the comments and the proof; **the founder** for the billing account — a closed account is a payment action on their Google identity and nothing here can reach it
 - **Related:** **#219** (the *first* time this happened, 2026-08-09→11, and the reason `prod_pulse.py` exists), **ADR-041** (exit codes are a taxonomy: 0 / 1 finding / **2 could not measure**), **ADR-011** (the hourly sweep), **ADR-012 D3** (both push passes ride ONE couples read; the injectable `MessagingPort`), **ADR-042 D2/D3** (the token lifecycle and the hour the founder asked for), **ADR-044** (APNs readiness and the bounded capture), **ADR-045** (the hours re-pointed to **9** and **22**, and the quiet window moved to 23:00–08:00 so they could exist), **ADR-046** (the permission state is app state — and iOS gives **one** dialog per install), **ADR-049** (the device reports *why*, and a no-report is not a reason), **ADR-025 D8** (a declaration can be discipline rather than a CI gate), issues **#136**, **#253**
@@ -11,6 +11,20 @@
 > `agents_empty_result=0`**, 11 findings raised, **11 verified, 0 dropped
 > unverified**, **3 surfaced**. Every number below was measured on 2026-08-27/28
 > with the commands recorded inline; none is inherited.
+>
+> **The built-diff review** then ran on the merged diff: 5 lenses × 2 verifiers,
+> **`agents_error=0`**, **`agents_empty_result=4`**, 2 findings raised, **2
+> verified, 0 dropped unverified**, **1 surfaced** (a duplicate item number in
+> `operator-expected.md`'s blocker list — fixed). The four empty lenses were
+> **considered-empty, not failed-empty**: each ran `prod_pulse_test.py`, traced
+> every exception path through `probe()`/`GoogleApi.call`/`_entry_time`,
+> re-derived every corrected comment against the source *and* against git history
+> (confirming the 2026-08-06 capability run ids and that `2a12a07` is dated
+> 2026-08-07), and confirmed the `functions/src` changes are comment-only. The one
+> refuted finding claimed a client-slice count was inconsistent; both verifiers
+> refuted it — and the count was **re-measured anyway** and corrected from eight to
+> **seven** (`git log --since=2026-08-09 -- app/lib app/ios`), because a number
+> nobody can reproduce is worth less than one anybody can.
 
 ## Revision 2 — what the review changed
 

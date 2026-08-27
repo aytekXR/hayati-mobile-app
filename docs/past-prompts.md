@@ -4266,6 +4266,16 @@ Eight further mutants were run against `prod_pulse.py`; seven reddened a named a
 
 **The first emulator run failed 1 of 51 on a `beforeEach` hook timing out at 10s.** Clock-shaped on a loaded box, not behavioural — re-run clean at 51/51, **and said so rather than quietly re-running to green.**
 
+### The built-diff review — the second required pass
+
+5 lenses × 2 verifiers on the merged diff. **`agents_error=0`, `agents_empty_result=4`, 2 raised, 2 verified, 0 dropped unverified, 1 surfaced.**
+
+The four empty lenses were **considered-empty, not failed-empty**, and saying which it was is the point (§5 item 5): each ran the hermetic `prod_pulse_test.py`, traced every exception path through `probe()` / `GoogleApi.call` / `_entry_time` looking for a raise that is not a `MeasurementError` (there is none — that was the sharpest thing to attack, and it held), diffed the OLD `verdict()` and the OLD test file against the new ones assertion by assertion (lesson **129**), verified the `functions/src` changes are comment-only, and re-derived every corrected comment against source **and git history** — confirming `2a12a07` really is dated 2026-08-07 and that the two App-ID capability run ids in `Runner.entitlements` are real.
+
+**The one surfaced finding was mine and it was in the founder-facing document**: inserting a new blocker at position 1 renumbered 1→2 and 2→3 but left the tail alone, so `operator-expected.md` had **two items numbered 3**. Fixed.
+
+The one refuted finding claimed a client-slice count was inconsistent between two documents; both verifiers refuted it on the merits (ADRs ≠ client slices; ADR-059 touches no `app/` file). **The number was re-measured anyway** and was wrong for a different reason — eight → **seven**, now named (ADR-049/051/052/053/054/057/061) and derived by a command a reader can run. Same discipline as the hour count: the review challenged a number in one direction, and measuring found the error in the other.
+
 ### Operator
 
 `operator-expected.md` item 1 is now **two ordered steps**, item numbers elsewhere untouched (they are cross-referenced 40+ times). **① restore billing, ② cut the build** — with why the order is not optional, and an explicit note that if ② is already done nothing is lost. Item 9 (the budget alert) was promoted: it is the control that would have caught **both** outages, and it was left unset after the first.
