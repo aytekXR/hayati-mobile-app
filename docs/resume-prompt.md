@@ -1,4 +1,4 @@
-# Resume Prompt — Session 086
+# Resume Prompt — Session 087
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
@@ -7,52 +7,92 @@
 > never-without-asking list) and `session-lessons.md` (numbered to **129**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #243 — Gate 3's `install→paid ≥2%` cannot be computed, because the
-two emitters share no identity. Record the options and their honest costs in an
-ADR. Do NOT mint an identifier.**
+**Objective (founder-set, 2026-08-27): the daily question must actually arrive on
+a phone at 09:00 every morning. Close the gap between "built" and "delivered" —
+and make the one operator step that remains a single, unambiguous instruction.**
 
-`install` is a **client** event fired before any account exists. `paid` is a
-**server** event keyed to a `coupleId` the RevenueCat webhook resolves. Nothing
-joins them — and the obvious join was removed on purpose: **ADR-057 D3 forbids a
-uid or `coupleId` on any client event, ever**, which is stronger than ADR-016
-requires because this is a DV-aware product.
+### ⚠️ Read this before planning: the feature is WRITTEN. It has never fired once.
 
-**This is a decision session, like S084/ADR-060 — decide and record, build
-nothing.** Minting a device-scoped id is **collection**, it lands in
-`PrivacyInfo.xcprivacy`, the #226 policy revision and `docs/dpa-inventory.md`'s
-processor register, and it is the one identifier that **survives sign-out**,
-which in a DV threat model is a property to decide deliberately rather than
-inherit from an SDK default. **That call is the founder's, alongside #226.**
+Measured 2026-08-27, not inherited:
 
-**The three options the ADR must price honestly**, per the issue: a device-scoped
-id aliased to the account at signup · **accepting the metric is uncomputable**
-and saying so in `mvp.md` · an install-time server ping. The second is a real
-answer, not a failure — Gate 2 and Gate 3's `trial→paid` are both computable
-without it (the issue's own table says so), so what is at stake is **one**
-headline threshold, and the ADR should say what the founder loses by dropping it.
+| link | state |
+|---|---|
+| `DAILY_QUESTION_LOCAL_HOUR` | **9**, `functions/src/notifications/daily-question.ts:48` — couple-local, ADR-045 |
+| the composer | `dailyQuestion` is a `PushKind`; `payload-policy.ts` composes it; content never travels |
+| the sweep | `question-rollover.ts:115` calls `runDailyQuestion` each hourly pass |
+| emulator proof | `functions/test/emulator/daily-question.test.ts` exists |
+| `firebase_messaging` | **^16.4.3, a real dependency** |
+| the token adapter | `FcmPushTokenSource` exists and **both entrypoints override the provider** (`main_dev.dart:239`, `main_prod.dart:234`) |
+| `aps-environment` | **present** in `Runner.entitlements` |
+| **devices registered** | **0 of 4.** All four accounts: *"no report"* |
 
-⚠️ **ADR-060 D2 deliberately left #243 open** and resolved the identity question
-*conservatively* (neither identifier on the server three), handing the
-**relaxation** to this issue. Read that decision before re-opening it.
+**So the objective is not "build the 9am notification". It is "find out why a
+complete, tested chain has delivered nothing, and remove what a session can."**
 
-**Acceptance:** an ADR that states which option is recommended and why, what each
-costs in paperwork that already exists, and exactly what the founder must decide.
-`operator-expected.md` gains the decision. **No identifier is minted, no
-`PrivacyInfo.xcprivacy` edit, no legal-version bump.**
+`python3 tool/ci/push_delivery_probe.py --from-firebase-cli` is the instrument.
+**Run it first.** Today it says: 0/4 registered, four *"no report"* — and ADR-049's
+own text says a no-report is **not distinguishable** from "no build carrying the
+diagnostic ever ran here" (lesson **65**). **The last build was cut 2026-08-09;
+ADR-049 merged after it.** That single fact explains all four rows, and it is why
+the operator step below is the whole game.
 
-## 1. Where things stand *(measured 2026-08-26 — re-measure, do not inherit)*
+### Two stale comments found while measuring — fix them, they are about this hour
+
+* `functions/src/notifications/payload-policy.ts:115` says *"dailyQuestion is the
+  **hour-8** sweep push"* — beside a constant that is **9**. ADR-045 re-pointed it
+  and the comment did not move. A reader debugging "why didn't it arrive at 9"
+  meets a comment saying 8.
+* `app/lib/features/notifications/domain/push_token_source_provider.dart:9` says
+  *"**Nothing overrides this yet**, and that is the design"* — **false since the
+  adapter landed**; both entrypoints override it. Lesson **123**'s exact shape.
+
+**Neither is cosmetic**: both are the first thing a session reads when this
+feature fails to deliver, and both would send it the wrong way.
+
+### Acceptance
+
+1. **The probe is run and its output quoted**, before anything is changed.
+2. **The two stale comments are corrected**, and the tree grepped for others in
+   the same family (lesson **126**).
+3. **The 09:00 path is proven end to end where a session CAN prove it** — the
+   emulator: a couple with a registered token, the sweep at couple-local hour 9,
+   the messaging port receiving exactly one `dailyQuestion` and no content. If
+   `daily-question.test.ts` already proves it, **say so and do not re-prove it**;
+   if it proves less than that, extend it and mutation-check the extension.
+4. **`operator-expected.md` carries ONE numbered step** the founder can do in
+   five minutes without reading anything else, and states what it unblocks.
+5. **No `UIBackgroundModes: remote-notification`** — see the warning below.
+
+### What is NOT this session's, and why
+
+**A delivered notification.** It needs a **release build** (§7, founder-only — the
+lane uploads a real binary) and **one permission grant on a real phone**, and if
+that prompt was ever declined iOS will not show it again. It may also need a
+**functions deploy** (§7). A session can make all three unnecessary to *think*
+about; it cannot do them.
+
+## 1. Where things stand *(measured 2026-08-27 — re-measure, do not inherit)*
 
 | | State |
 |---|---|
 | **#246** | **CLOSED by S085** (ADR-061). The delete path sweeps the device; the flag seam is typed so a flag cannot exist unclassified |
 | **#226** | **DRAFT on `main`, revision NOT landed.** `docs/legal/proposed/` holds version 3; `CURRENT_LEGAL_VERSION` is **still 2** and a test asserts it. Closes only when founder + lawyer approve |
-| **The legal-review cluster** | **#249**, **#258** and this objective all end at the same desk. Two are one-line notes already written into `docs/legal/proposed/README.md`; #243 is the one that needs a decision, not a clause |
+| **#243** | **DECIDED, nothing built** (ADR-062, S086). Recommends **no identifier**; stays open for one founder sentence (`install→paid` counts payments or paying users — they differ by **2×**) |
+| **The legal-review cluster** | **#249**, **#258** and **#243** all end at the same desk. Two are one-line notes already written into `docs/legal/proposed/README.md`; #243 needs a decision, not a clause |
 | **#136** | **Autonomous half DONE** (ADR-059). Stays open for **step 1** — whether the notification shade honours `U+2068`/`U+2069` — which is device-blocked |
 | **#242** | **DECIDED, not built** (ADR-060). Stays open for the emitter, which waits on a sink. `ProcessOutcome` must grow to carry the previous lane state first |
-| **Push, device side** | **STILL ZERO.** 0/4 accounts registered, all four "no report" |
-| **The build gap** | Last `release.yml` run is **2026-08-09, build 119**. ADR-046/049/051/052/053/057/059/**061** are on **nobody's phone** |
+| **Push, device side** | **STILL ZERO** — re-measured today with `push_delivery_probe.py`. 0/4 accounts registered, all four *"no report"*. **This objective's whole subject** |
+| **The 09:00 path itself** | **Fully written and emulator-tested, server AND client.** Hour constant 9, composer, sweep call, `firebase_messaging` ^16.4.3, `FcmPushTokenSource`, both entrypoints overriding, `aps-environment` present. Nothing is missing except a build on a phone |
+| **The build gap** | Last `release.yml` run is **2026-08-09, build 119**. ADR-046/049/051/052/053/057/059/**061** are on **nobody's phone** — and **ADR-049's push diagnostic is among them**, which is exactly why all four accounts read *"no report"* rather than a reason |
 | **Deployed rules / functions vs `main`** | Both **drifted or unmeasured** since S071/S077. A deploy is a **§7 founder ask** |
-| **Open issues** | **#242**, **#243**, **#247**–**#250**, **#253**, **#258**, plus the older set |
+| **Open issues** | **#242**, **#243**, **#247**–**#250**, **#253**, **#258**, plus the older set. **#246 closed by S085** |
+
+### What S086 left (one commit, no code)
+
+* **ADR-062 is `Proposed`**, decision-only. It recommends the aggregate ratio and
+  **mints no identifier**, and its two load-bearing findings are that the funnel's
+  events count **three different entities** (device / uid / couple) and that a
+  go/no-go threshold does not need a per-user join at all.
 
 ### What S085 changed that a later session will trip over
 
@@ -102,18 +142,23 @@ costs in paperwork that already exists, and exactly what the founder must decide
 
 ## 2. Then, in priority order
 
-**1 — #249** (the consent record is named in no collection list — the third note
-for the same legal desk) · **#248** (**thirteen** ADRs missing from the index now,
-049–061; the issue body was re-measured in S085 and the proposed fix is a test
-that asserts the file set equals the linked set — it would have failed thirteen
-sessions ago).
+**1 — #243's remaining half** (ADR-062, S086): the ADR is written and recommends
+**minting no identifier**. It stays open for **one founder sentence** — whether
+Gate 3's `install→paid` numerator counts *payments* or *paying users*, which
+differ by **2×** on the paired population because `install` counts **devices** and
+`paid` counts **couples**. Nothing to build.
 
 **2 — #253** (`partnerAnswered` names nobody: **no caller supplies
 `partnerName`**, which is also why ADR-059's `sanitizePushName` sits in a branch
-nothing calls — closing #253 is what activates it) · **#204** (`deliver` has
-failed to create the `tr` localization on **every** release since build 112, but
-the **name** is what Apple refuses, so its fix is founder-blocked) · **#165**
-(`rules-drift` built but unarmed) · **#121** · **#115** · **#41** · **#63/#71**.
+nothing calls — closing #253 is what activates it, and it is the *same feature
+family* as this session's objective) · **#249** (the consent record is named in no
+collection list) · **#248** (**fourteen** ADRs missing from the index now,
+049–062).
+
+**3 — #204** (`deliver` has failed to create the `tr` localization on **every**
+release since build 112, but the **name** is what Apple refuses, so its fix is
+founder-blocked) · **#165** (`rules-drift` built but unarmed) · **#121** · **#115**
+· **#41** · **#63/#71**.
 
 ⚠️ **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3
 first. Token capture needs none of it; only background *delivery* does.
