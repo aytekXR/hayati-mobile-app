@@ -4362,6 +4362,35 @@ Two more measured and counterintuitive: **`roles/viewer` (6064 perms) cannot rea
 
 Item 4 becomes **three** secrets. Item 9 (budget alert) explicitly **not** closed by this: the watcher catches the *symptom*, the alert catches the *cause* days earlier.
 
+### The CI result — a red post-merge run, and the containment argument that cleared it
+
+**The post-merge `main` run for #264 went RED on `integration-emulator`**, and it was not waved away. ADR-055's watchdog did exactly its job — it made a hang **fail with a name** instead of being cancelled in silence:
+
+```
+watchdog: integration_test/auth_emulator_test.dart — 1110s elapsed, 590s since last output, 5817 bytes
+WATCHDOG: 'integration_test/auth_emulator_test.dart' SILENT for 600s (bound 600s) (ADR-055, #208).
+No tests ran.
+Error waiting for a debug connection: The log reader failed unexpectedly
+```
+
+`No tests ran` is literal: the app never reached a debug connection, so nothing asserted and nothing failed — the suite never started.
+
+**The investigation, in the order it was done, because the first two steps pointed the wrong way:**
+
+| step | result |
+|---|---|
+| re-run the job on `8784383` | **failed again**, byte-identical signature — not a one-off |
+| re-run the same job on the parent `7f8b59a` (a control with none of S088) | **passed** |
+| diff the `integration-emulator` job between the two commits | **byte-identical**; top-level `on`/`concurrency`/`permissions`/`env`/`defaults` unchanged |
+| does the S088 diff touch anything the suite executes? | **no** — nothing under `app/`, no `.dart`, no `functions/`, no `firebase.json` |
+| dispatch `ci.yml` on current `main` (`36f74a4`) | **GREEN, `integration-emulator` included** |
+
+**2/2 fail on my sha against 1/1 pass on its parent looked damning, and it was the wrong read.** What settles it is **containment, not absence of imagination**: `36f74a4` contains *every* change in `8784383` plus documentation, so a defect in S088 would still be present — and it passes. The failure was a transient cluster on one run, on `auth_emulator_test.dart`, which is the subject of **open ci-debt #15, *"phone-auth emulator suite crashes the app on the iOS simulator"*** — the same suite, already known to hang there.
+
+**What is deliberately NOT claimed: the mechanism was never found.** *"My change cannot have caused it because I cannot see how"* is precisely the reasoning this session caught being wrong twice, so it is not the argument being made. The argument is the containment run, and the residual — an integration suite that can hang twice in a row and then pass — is recorded on #15 rather than closed.
+
+**A second thing worth keeping**: the run *after* the failure (#265, docs-only) was **green with `integration-emulator` SKIPPED** by path filtering. Main therefore carried a green that measured nothing at all on this job — the repo's first recurring failure shape, met while investigating it. The dispatch was needed precisely because that green was empty.
+
 ### The lane was DISPATCHED after merge, so D5 is measured rather than asserted
 
 A schedule-triggered workflow is **not parsed until it reaches the default branch**, so its first real parse would otherwise be its first fire. After the merge, `gh workflow list` shows `prod-pulse` **active** (GitHub parsed it), and one manual dispatch produced exactly the shape D5 designs:
