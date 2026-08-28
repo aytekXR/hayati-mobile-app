@@ -297,8 +297,11 @@ jobs:
       # `prod_pulse` keys its verdict on the sweep's OWN completion log line, so
       # an ENABLED scheduler firing punctually into a dead backend — the exact
       # state a session published as "your app is running" — reads red. Only
-      # these tests are hermetic; the check needs the CLI credential and is a
-      # local/manual instrument (see its docstring on why no SA path exists).
+      # these tests are hermetic. ⚠️ This comment used to end "...is a local/manual
+      # instrument (see its docstring on why no SA path exists)"; ADR-064 D4 wired
+      # one, scoped to `logging.read` ONLY. The old sentence was true about
+      # `firebase.readonly`, not about service accounts, and the check now runs in
+      # `prod-pulse` below and on a 6-hourly cron in prod-pulse.yml.
       - name: prod pulse self-tests
         run: python3 tool/ci/prod_pulse_test.py
       # S068 (#219): the notification chain's last two links have never run, and
@@ -817,6 +820,71 @@ jobs:
   # gates on it and is therefore either MEASURED (green or red) or visibly
   # SKIPPED. There is deliberately no third outcome. A skipped job is an honest
   # gap that shows up in the checks list on every run; a green one is a claim.
+  # ADR-064 (#263) — the production watcher's POST-MERGE half. The cron half is
+  # prod-pulse.yml; this one is here so it feeds the existing single `slack-notify`
+  # fan-in rather than adding a second message per run.
+  #
+  # `main` only, like its two drift siblings, and for the same reason: whether
+  # production is answering is a property of the world, not of a contributor's
+  # diff, and a PR going red for a closed billing account is the cry-wolf shape
+  # ADR-024/ADR-034 refuse.
+  prod-pulse-preflight:
+    name: prod-pulse-preflight
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_credential: ${{ steps.probe.outputs.has_credential }}
+    steps:
+      - id: probe
+        env:
+          SA: ${{ secrets.PROD_PULSE_VIEWER_SA }}
+        run: |
+          if [ -n "$SA" ]; then
+            echo "has_credential=true" >> "$GITHUB_OUTPUT"
+            echo "PROD_PULSE_VIEWER_SA present — the production watcher will run."
+          else
+            echo "has_credential=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::PROD_PULSE_VIEWER_SA is not set, so prod-pulse will be"
+            echo "::warning::SKIPPED — not passed. NOTHING is watching whether the daily"
+            echo "::warning::sweep is still running in production; the last time that went"
+            echo "::warning::unwatched it cost six days (#219, #263)."
+          fi
+
+  prod-pulse:
+    name: prod-pulse
+    needs: prod-pulse-preflight
+    if: needs.prod-pulse-preflight.outputs.has_credential == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      findings: ${{ steps.pulse.outputs.findings }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: install pyjwt
+        run: python3 -m pip install --quiet 'pyjwt[crypto]==2.10.1'
+      # ADR-064 D2b — `continue-on-error` IS the "does not vote" mechanism. See
+      # prod-pulse.yml for the full argument; in short, prod_pulse exits 1 on a
+      # finding and 2 when it could not measure, and letting either redden `main`
+      # would report "this change broke the build" about a closed credit card.
+      - id: pulse
+        name: is the daily loop actually running?
+        continue-on-error: true
+        env:
+          PROD_PULSE_VIEWER_SA: ${{ secrets.PROD_PULSE_VIEWER_SA }}
+        run: |
+          set +e
+          findings="$(python3 tool/ci/prod_pulse.py --project hayatiapp-prod --notifier-findings)"
+          code=$?
+          set -e
+          {
+            echo "findings<<PULSE_EOF"
+            echo "$findings"
+            echo "PULSE_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "prod_pulse exited $code"
+          exit "$code"
+
   rules-drift-preflight:
     name: rules-drift-preflight
     # Post-merge and manual only — never on a PR. Drift is a property of `main`
@@ -995,7 +1063,7 @@ jobs:
     # whose red arrives AFTER the merge with no other reader — ADR-024's founding
     # case — and the notifier is generic over `needs`, so it costs no script
     # change and renders a skipped drift check as ⏭ rather than as a pass.
-    needs: [quality, functions-rules, ios-build-smoke, integration-emulator, rules-drift, functions-drift]
+    needs: [quality, functions-rules, ios-build-smoke, integration-emulator, rules-drift, functions-drift, prod-pulse]
     if: always()
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1014,6 +1082,13 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           NEEDS_JSON: ${{ toJson(needs) }}
+          # ADR-064 D2b. The production watcher's step is `continue-on-error`, so
+          # its job result is SUCCESS and `NEEDS_JSON` is structurally blind to a
+          # finding — this is the only channel that crosses that boundary. It is
+          # the same mechanism #204's store-metadata audit uses in release.yml,
+          # and its second producer, which is the first evidence EXTRA_FINDINGS is
+          # a general seam rather than a one-off.
+          EXTRA_FINDINGS: ${{ needs.prod-pulse.outputs.findings }}
           # Attacker-influenced text NEVER reaches a `run:` block through `${{ }}`.
           # On pull_request, head_commit does not exist — an implementer who wires
           # only the commit subject finds it blank on PRs and reaches for an

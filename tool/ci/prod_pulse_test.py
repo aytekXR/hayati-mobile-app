@@ -41,14 +41,33 @@ answered `could not measure`:
   every invocation. A test replays that exact pair.
 * **`main()` is exercised, not just `verdict()`.** Every assertion in revision 1
   targeted the pure function; both defects lived in the wiring around it.
+
+ADDED BY ADR-064 (S088), when this tool gained a CI lane:
+
+* **The notifier text is a pure function, and exit 2 does not read as an outage.**
+  D2c says a finding and a could-not-measure must reach a human as DIFFERENT
+  sentences; the distinction is worthless if the lane collapses them, so it is
+  computed here and asserted here.
+* **A green sends nothing.** The lane runs every 6h; if exit 0 produced text the
+  channel would carry four empty messages a day and get muted — which is the
+  outcome ADR-024 exists to prevent, arrived at from the other side.
+* **The CI credential is scoped to LOGGING ONLY.** ADR-064 D3: this repo is
+  public, and `roles/billing.viewer` carries `getPaymentInfo`,
+  `getSpendingInformation`, `credits.list`, `getIamPolicy` and an inventory of
+  every project on the account. The scope constant is pinned so widening it is a
+  deliberate act with a red test, not a convenience edit.
 """
 from __future__ import annotations
 
 import datetime as dt
+import os
 import sys
 
 from prod_pulse import (
     DEFAULT_LOOKBACK_HOURS,
+    PULSE_SCOPE,
+    PULSE_SECRET,
+    findings_for_notifier,
     EXIT_CANNOT_MEASURE,
     EXIT_FINDING,
     EXIT_OK,
@@ -450,6 +469,149 @@ def test_the_refusal_reason_is_reported_with_its_timestamp() -> None:
           "the function's own words are the diagnosis; print them")
     check("refusal/timestamped", (NOW - dt.timedelta(minutes=59)).isoformat() in joined,
           "a reason with no timestamp cannot be placed against the last sweep")
+
+
+
+# --------------------------------------------------------------------------
+# ADR-064: the notifier text, and the credential the CI lane is allowed to hold.
+# --------------------------------------------------------------------------
+
+def test_a_green_sends_nothing() -> None:
+    """Four runs a day that each post 'all fine' is how a channel gets muted."""
+    check("notifier/green-is-silent", findings_for_notifier(EXIT_OK, ["the daily loop is running.", "billing: enabled"]) == "",
+          "exit 0 must produce no notifier text at all")
+
+
+def test_a_finding_and_a_gap_are_DIFFERENT_sentences() -> None:
+    """ADR-064 D2c. Both reach a human; only one claims production is down."""
+    finding = findings_for_notifier(EXIT_FINDING, [
+        "FINDING: the linked billing account is CLOSED. …",
+        "FINDING: the last COMPLETED sweep was 55.3h ago …",
+        "COULD NOT MEASURE scheduler: … HTTP 403",
+    ])
+    gap = findings_for_notifier(EXIT_CANNOT_MEASURE, [
+        "no finding in what could be read — but SOMETHING COULD NOT BE READ, so this is not a green.",
+        "COULD NOT MEASURE sweep: … HTTP 403",
+    ])
+    check("notifier/finding-prefix", finding.startswith("production:"),
+          f"exit 1 must be prefixed 'production:'; got {finding[:40]!r}")
+    check("notifier/gap-prefix", gap.startswith("production (unmeasurable):"),
+          f"exit 2 must say it could not look; got {gap[:40]!r}")
+    check("notifier/prefixes-differ", finding.split(":")[0] != gap.split(":")[0],
+          "the two must not collapse into one sentence — that is the whole of D2c")
+    # The one thing a could-not-measure line must never do.
+    check("notifier/gap-does-not-claim-an-outage",
+          "FINDING" not in gap and "is CLOSED" not in gap,
+          f"a gap must not read as an outage; got {gap!r}")
+    # ...and the one thing a finding must always do.
+    check("notifier/finding-carries-the-cause", "CLOSED" in finding,
+          "the finding text must carry the cause, not just say 'there is a finding'")
+    check("notifier/finding-carries-the-gap-too", "COULD NOT MEASURE scheduler" in finding,
+          "a gap beside a finding must still reach the reader (ADR-063 D2)")
+
+
+def test_the_notifier_text_survives_slack() -> None:
+    """It is interpolated into a JSON payload and rendered as Slack text.
+
+    A finding is one line per fact; embedded newlines are the format, but a
+    payload-breaking character is not. Assert the shape rather than trusting it.
+    """
+    text = findings_for_notifier(EXIT_FINDING, ["FINDING: a\nb", "COULD NOT MEASURE x: y"])
+    check("notifier/no-cr", "\r" not in text, "a CR would split the line in the payload")
+    check("notifier/nonempty", text.strip() != "")
+    check("notifier/is-text-not-json", not text.lstrip().startswith("{"),
+          "the notifier takes text; emitting JSON here would render as JSON to a human")
+
+
+def test_the_ci_credential_cannot_read_billing() -> None:
+    """ADR-064 D3, pinned as a constant because widening it must be deliberate.
+
+    This repository is PUBLIC. `roles/billing.viewer` — measured — carries
+    getPaymentInfo, getSpendingInformation, credits.list, getIamPolicy and an
+    inventory of every project on the billing account. The CI lane is therefore
+    scoped to LOGGING ONLY, and the billing-account read stays on the local
+    firebase-CLI path where no key is stored anywhere.
+    """
+    check("scope/logging-only", PULSE_SCOPE == "https://www.googleapis.com/auth/logging.read",
+          f"the CI scope must be logging-read only; got {PULSE_SCOPE!r}")
+    for forbidden in ("cloud-platform", "billing", "firebase.readonly"):
+        check(f"scope/excludes({forbidden})", forbidden not in PULSE_SCOPE,
+              f"{forbidden!r} must not appear in the CI scope — ADR-064 D3")
+    check("scope/secret-name", PULSE_SECRET == "PROD_PULSE_VIEWER_SA",
+          f"got {PULSE_SECRET!r}")
+    # A DIFFERENT secret from the rules/functions viewer, deliberately: that one
+    # carries firebase.readonly, which cannot read Logging at all, and reusing
+    # its name would make an operator think one grant armed both.
+    from rules_drift import VIEWER_SECRET
+    check("scope/distinct-from-rules-viewer", PULSE_SECRET != VIEWER_SECRET,
+          "reusing the rules-viewer secret would hide that this needs a different grant")
+
+
+def test_a_malformed_secret_is_a_named_error_not_a_crash() -> None:
+    """The likeliest way this lane is ever mis-armed: a truncated paste.
+
+    `json.loads` raises JSONDecodeError, which `main()` does not catch — the
+    process would die with a traceback and an EMPTY stdout, and in
+    --notifier-findings mode the lane captures stdout, so the watcher would post
+    NOTHING while appearing to have run. A watcher that watches nothing is the
+    exact failure this lane exists to end, so it must be a MeasurementError.
+    """
+    import prod_pulse
+
+    class Args:
+        access_token = None
+        sa_file = None
+        from_firebase_cli = False
+
+    saved = dict(os.environ)
+    for junk, label in (("{not json", "truncated"), ('"a string"', "not an object"), ("", "empty")):
+        os.environ.clear()
+        os.environ.update(saved)
+        os.environ.pop("PROD_PULSE_ACCESS_TOKEN", None)
+        os.environ[PULSE_SECRET] = junk
+        try:
+            prod_pulse.resolve_credential(Args())
+            # An empty string is falsy, so it falls through to the no-credential
+            # error — also a MeasurementError, which is the point.
+            check(f"malformed/{label}", False, "expected MeasurementError")
+        except prod_pulse.MeasurementError as exc:
+            check(f"malformed/{label}-names-source",
+                  PULSE_SECRET in str(exc),
+                  f"the error must name WHERE the bad credential came from; got {exc!r}")
+            check(f"malformed/{label}-does-not-echo",
+                  junk not in str(exc) or junk == "",
+                  "the error must never echo the credential value")
+        except Exception as exc:  # noqa: BLE001 — the whole point of the test
+            check(f"malformed/{label}", False,
+                  f"raised {type(exc).__name__}, not MeasurementError — this is the crash")
+    os.environ.clear()
+    os.environ.update(saved)
+
+
+def test_no_credential_names_the_operator_item() -> None:
+    """A tool that cannot run must say which grant is missing, not just fail."""
+    import prod_pulse
+
+    class Args:
+        access_token = None
+        sa_file = None
+        from_firebase_cli = False
+
+    saved = dict(os.environ)
+    os.environ.pop(PULSE_SECRET, None)
+    os.environ.pop("PROD_PULSE_ACCESS_TOKEN", None)
+    try:
+        prod_pulse.resolve_credential(Args())
+        check("credential/none-raises", False, "expected MeasurementError")
+    except prod_pulse.MeasurementError as exc:
+        msg = str(exc)
+        check("credential/names-the-secret", PULSE_SECRET in msg, f"got {msg!r}")
+        check("credential/names-the-local-path", "--from-firebase-cli" in msg, f"got {msg!r}")
+        check("credential/does-not-pretend", "pretend" in msg or "cannot run" in msg,
+              f"it must say it will not pretend to pass; got {msg!r}")
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 for name, fn in list(globals().items()):

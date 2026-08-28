@@ -1,0 +1,126 @@
+# ADR-064 (#263) — the production watcher, on the trigger that CAN rot.
+#
+# WHY THIS FILE EXISTS SEPARATELY FROM ci.yml. The watcher needs two triggers and
+# they belong in different places. `ci.yml` already runs on every push to `main`,
+# so the post-merge half lives there as an ordinary job feeding the existing
+# single `slack-notify` fan-in — one message per run, no duplication. This file
+# carries the half `ci.yml` cannot: a CRON.
+#
+# WHY A CRON AT ALL, GIVEN ADR-034 D4 REJECTED ONE. D4's finding stands and is not
+# overturned: GitHub disables scheduled workflows after 60 days without repository
+# activity, so a cron intended to watch a quiet period switches itself off during
+# exactly that period — worse than no cron, because it looks like coverage. What
+# changed is that this cron is BACKED by a trigger that cannot be disabled. If it
+# is ever silently switched off, the watcher degrades to post-merge-only, which is
+# ADR-034 D4's own honest fallback rather than to silence.
+#
+# WHY IT IS WORTH HAVING BOTH. Measured on the outage that produced this ADR: the
+# loop died 2026-08-22T02:00Z and the first merge to `main` afterwards was
+# 2026-08-26 — a FOUR-DAY blind window for a post-merge-only watcher, on a product
+# whose entire feature is a daily notification. Six hours is the cadence that makes
+# the gap smaller than one product-day (ADR-064 D1a).
+name: prod-pulse
+
+on:
+  schedule:
+    # Every 6 hours. The sweep is hourly and prod_pulse's staleness threshold is
+    # 90 minutes, so this detects a dead loop within at most ~6h against the 4-day
+    # window post-merge alone would leave.
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+# A scheduled run must never queue behind another scheduled run.
+concurrency:
+  group: prod-pulse
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ADR-041 D6's shape, and it is not decoration: a job-level `if:` cannot read
+  # `secrets`, and a job whose every step skipped reports GREEN. So the credential
+  # probe is its own job publishing a boolean, and the watcher gates on it —
+  # MEASURED or visibly SKIPPED, with no third outcome.
+  preflight:
+    name: prod-pulse-preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_credential: ${{ steps.probe.outputs.has_credential }}
+    steps:
+      - id: probe
+        env:
+          SA: ${{ secrets.PROD_PULSE_VIEWER_SA }}
+        run: |
+          if [ -n "$SA" ]; then
+            echo "has_credential=true" >> "$GITHUB_OUTPUT"
+            echo "PROD_PULSE_VIEWER_SA present — the production watcher will run."
+          else
+            echo "has_credential=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::PROD_PULSE_VIEWER_SA is not set, so prod-pulse will be"
+            echo "::warning::SKIPPED — not passed. NOTHING is watching whether the"
+            echo "::warning::daily sweep is still running in production. The last time"
+            echo "::warning::that went unwatched it cost six days (#219, #263). See"
+            echo "::warning::docs/operator-expected.md."
+          fi
+
+  prod-pulse:
+    name: prod-pulse
+    needs: preflight
+    if: needs.preflight.outputs.has_credential == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      findings: ${{ steps.pulse.outputs.findings }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: install pyjwt
+        run: python3 -m pip install --quiet 'pyjwt[crypto]==2.10.1'
+      # ADR-064 D2b. `continue-on-error` is the MECHANISM of "does not vote", not
+      # decoration: prod_pulse exits 1 on a finding and 2 when it could not
+      # measure, and either would fail the step, the job and the run — reddening
+      # `main` for a closed credit card, which is the cry-wolf shape D2 exists to
+      # prevent. The tool's exit code is NOT changed to 0 (ADR-041's taxonomy is
+      # binding and the local operator command depends on it); the LANE absorbs
+      # it, and the finding crosses the boundary as a job output, which is the
+      # only channel `NEEDS_JSON` cannot see past a continue-on-error step.
+      - id: pulse
+        name: is the daily loop actually running?
+        continue-on-error: true
+        env:
+          PROD_PULSE_VIEWER_SA: ${{ secrets.PROD_PULSE_VIEWER_SA }}
+        run: |
+          set +e
+          findings="$(python3 tool/ci/prod_pulse.py --project hayatiapp-prod --notifier-findings)"
+          code=$?
+          set -e
+          {
+            echo "findings<<PULSE_EOF"
+            echo "$findings"
+            echo "PULSE_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "prod_pulse exited $code"
+          exit "$code"
+
+  slack-notify:
+    name: slack-notify
+    needs: [preflight, prod-pulse]
+    if: always()
+    # ADR-024 D3. Load-bearing, not decoration: the script's own exit-0 paths
+    # cannot cover a failure BEFORE it starts, and this job must never vote.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      # The SINGLE notifier (ADR-024 D1) — the same script ci.yml and release.yml
+      # call, with all policy inside it. A green scheduled run with no finding is
+      # suppressed by the script's own noise policy, so this lane is silent four
+      # times a day and speaks only when production is not answering.
+      - name: notify
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          NEEDS_JSON: ${{ toJson(needs) }}
+          EXTRA_FINDINGS: ${{ needs.prod-pulse.outputs.findings }}
+        run: bash tool/ci/slack_notify.sh

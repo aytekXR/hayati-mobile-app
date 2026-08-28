@@ -129,6 +129,20 @@ if [ "$outcome" = "success" ] \
   exit 0
 fi
 
+# A SCHEDULED run has no reader at all unless it has something to say, and it
+# recurs — ADR-064's production watcher fires every 6 hours, so a green that
+# posts anything is four messages a day into a channel that then gets muted, and
+# a muted channel swallows the post-merge `integration-emulator` red this whole
+# integration exists to deliver. Same shape as the PR clause above and for the
+# same reason; a FINDING is exempt from both, because a finding is the signal
+# with no other reader.
+if [ "$outcome" = "success" ] \
+  && [ "${GITHUB_EVENT_NAME:-}" = "schedule" ] \
+  && [ -z "$findings" ]; then
+  info "scheduled run, nothing to report — suppressed by the noise policy (D2)."
+  exit 0
+fi
+
 # ---------------------------------------------------------------------------
 # 3. Build the payload. Every dynamic field goes through `jq --arg`; the jq
 #    program strings below contain no shell expansion.

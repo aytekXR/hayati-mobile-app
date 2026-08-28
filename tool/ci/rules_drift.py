@@ -113,15 +113,23 @@ def refresh_token_from_configstore(store: dict) -> str:
     return token
 
 
-def sa_assertion_claims(sa: dict, now: int) -> dict:
-    """The JWT-bearer claims for a service-account token grant (pure, testable)."""
+def sa_assertion_claims(sa: dict, now: int, scope: str = READONLY_SCOPE) -> dict:
+    """The JWT-bearer claims for a service-account token grant (pure, testable).
+
+    `scope` defaults to this tool's `firebase.readonly` and is a parameter only
+    so a SIBLING tool can mint a token for a DIFFERENT, narrower scope without
+    re-implementing the OAuth dance (ADR-064 D4). `prod_pulse.py` passes
+    `logging.read`, which `firebase.readonly` cannot cover — that difference is
+    the entire reason the service-account path was once said to be impossible
+    there, and it was a statement about the SCOPE, not about service accounts.
+    """
     for field in ("client_email", "private_key"):
         if not sa.get(field):
             raise MeasurementError(
                 f"service-account JSON is missing {field!r} — it is not a service-account key")
     return {
         "iss": sa["client_email"],
-        "scope": READONLY_SCOPE,
+        "scope": scope,
         "aud": sa.get("token_uri") or TOKEN_URI,
         "iat": now,
         "exp": now + 3600,
@@ -145,14 +153,14 @@ def _post_token(payload: dict, token_uri: str = TOKEN_URI) -> str:
     return token
 
 
-def token_from_service_account(sa: dict) -> str:
+def token_from_service_account(sa: dict, scope: str = READONLY_SCOPE) -> str:
     try:
         import jwt  # pyjwt[crypto]; CI installs it for the testflight tool too
     except ImportError:
         raise MeasurementError(
             "pyjwt[crypto] is required for --sa-file — `python3 -m pip install "
             "'pyjwt[crypto]==2.10.1'`") from None
-    claims = sa_assertion_claims(sa, now=int(time.time()))
+    claims = sa_assertion_claims(sa, now=int(time.time()), scope=scope)
     assertion = jwt.encode(claims, sa["private_key"], algorithm="RS256")
     return _post_token({
         "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",

@@ -4280,4 +4280,84 @@ The one refuted finding claimed a client-slice count was inconsistent between tw
 
 `operator-expected.md` item 1 is now **two ordered steps**, item numbers elsewhere untouched (they are cross-referenced 40+ times). **① restore billing, ② cut the build** — with why the order is not optional, and an explicit note that if ② is already done nothing is lost. Item 9 (the budget alert) was promoted: it is the control that would have caught **both** outages, and it was left unset after the first.
 
+### The CI result
+
+**PR #262 green**, and the **post-merge `main` run green with `integration-emulator` actually RUN** — the main-only job (ADR-006 cost design) that a PR verdict can never speak for:
+
+```
+success  quality                    success  ios-build-smoke
+success  functions-rules            success  integration-emulator   <- main-only, RAN
+success  functions-drift-preflight  success  slack-notify
+success  rules-drift-preflight      skipped  rules-drift / functions-drift  (unarmed, 2(e)(iii))
+                                    skipped  gemfile-lock-verify (path-filtered)
+```
+
+`ios-build-smoke` was verified to have **actually compiled** rather than reading as covered — `build ios (no codesign)` succeeded over 6m26s plus both bundle assertions. That check exists because an earlier push in this session **cancelled** the first run and took the only macOS gate with it; the last commit was deliberately held back and pushed alone so the final run could not be superseded.
+
 **#219's own residual list named both causes of this recurrence** — the unset budget alert, and *"`prod_pulse` is a local/manual instrument… A cron that calls it and notifies would close the detection gap properly; that needs a credential decision."* **The residuals of the last incident are the cause of this one.** Filed as **#263** (#219 is closed, so a session reading `gh issue list` would never have seen it), and it is S088's objective.
+
+## Session 088 — 2026-08-28 — #263: the watcher that cannot rot, and the viewer role that cannot see billing (ADR-064)
+
+**Objective (from resume-prompt.md):** nothing watches production. Build the watcher, and arm every part of it that does not need the founder.
+
+**Outcome:** built and merged, **unarmed** behind one operator secret. Two triggers, no vote, and a credential deliberately too small to read billing — that last one because the design review's *refutation* was wrong about the fact it rested on.
+
+### The measurement that shaped every decision
+
+```
+$ python3 tool/ci/prod_pulse.py --from-firebase-cli                  # exit 1, still
+  FINDING: the linked billing account is CLOSED …
+  FINDING: the last COMPLETED sweep was 56.9h ago …
+```
+
+Production was still down at session start and still down at close — operator item 1 ①, and nothing here reaches it. ADR-063 made the instrument able to report *during* an outage; **nothing ever asked it.** #219 closed with two residuals, and both are why the same failure recurred and ran six days.
+
+### Neither trigger was sufficient, and the numbers said so
+
+| | |
+|---|---|
+| cron alone | GitHub disables scheduled workflows after **60 days** of repo inactivity — it switches itself off during exactly the quiet period it exists for, *and looks like coverage while dead* (ADR-034 D4, **not overturned**) |
+| post-merge alone | measured on this outage: loop died **08-22T02:00Z**, first merge to `main` was **08-26** — a **four-day** blind window on a product whose whole feature is a daily notification |
+
+So: both. The cron carries cadence (`0 */6 * * *`); the post-merge job cannot rot, so a disabled cron degrades to D4's own honest fallback rather than to silence.
+
+### "Does not vote" was a goal with no mechanism — the design review's blocking finding
+
+`EXTRA_FINDINGS` is non-voting **in the notifier**. The **producer** exits 1 and reddens the run. ADR-047 decides both halves for the store-metadata audit, and `slack_notify.sh`'s own comment says `EXTRA_FINDINGS` exists *because* a `continue-on-error` step produces a SUCCESS job result. New **D2b** writes both down. The **tool's exit code is deliberately unchanged** — ADR-041's taxonomy is binding and the local operator command depends on it; the lane absorbs it.
+
+`findings_for_notifier` is pure so the distinction survives: exit 0 → **nothing at all**, exit 1 → `production:`, exit 2 → `production (unmeasurable):`. A watcher posting "all fine" four times a day mutes the channel, and a muted channel swallows the `integration-emulator` red ADR-024 exists to deliver.
+
+### The credential: the review refuted a real finding on a false fact
+
+A lens raised *"`billing.viewer` exposes payment info the watcher does not need."* Its refuter dismissed it: *"`getPaymentInfo` is NOT in `roles/billing.viewer` — it is in `billing.admin`."*
+
+One IAM call:
+
+| permission | `roles/billing.viewer` |
+|---|---|
+| `billing.accounts.getPaymentInfo` | **YES** |
+| `getSpendingInformation` / `credits.list` / `getIamPolicy` | **YES** |
+| `resourceAssociations.list` — every project on the account | **YES** |
+| any write | none |
+
+**This repo is public.** Revision 1 had checked that role for *writes*, found none, and stopped. So **D3 was rewritten: the CI lane takes `roles/logging.viewer` and no billing permission at all** — the refusal reason is already in the log verbatim, and ADR-063's gap rule makes the reduction honest rather than optimistic: it says *less, out loud*, and a gap can never produce a green.
+
+Two more measured and counterintuitive: **`roles/viewer` (6064 perms) cannot read `billing.accounts.get`**, and **`roles/billing.user` (6 perms) is a WRITE role**. Smaller is not safer (lessons **134**, **135**).
+
+### The built-diff review found the hole the mutants could not
+
+5 lenses × 2 verifiers. **`agents_error=0`, `agents_empty_result=3` (all CONSIDERED-empty — each ran all three hermetic suites, diffed old-vs-new assertions, verified the pyjwt pin across eight workflows, and confirmed hyphenated `needs.` ids already ship on `main`), 3 raised, 3 verified, 0 dropped unverified, 3 surfaced.** All three were real:
+
+1. **The module docstring still said the service-account path was *"deliberately NOT wired here"*** — the exact class ADR-063 D7 made a rule against, left by the session that wrote the rule, in the file its own ADR named. Corrected.
+2. **`operator-expected.md` had no entry for the new secret**, while the workflow's `::warning::` says *"See docs/operator-expected.md"*. Item 4 now carries it.
+3. **A malformed secret crashed instead of reporting.** `json.loads` raises `JSONDecodeError`, which `main()` does not catch — traceback on stderr, **empty stdout** — and the lane captures stdout, so **the watcher would post nothing while appearing to have run.** A watcher that watches nothing is the failure this lane exists to end. Now a `MeasurementError` naming the source and never echoing the value.
+
+### Verification
+
+**Eight mutants, each reddening a NAMED assertion first time** (green emits text; exit 2 wearing exit 1's sentence; scope widened to `cloud-platform`; secret name reused; the no-credential error stripped of the grant; the finding dropping its gap lines; the `schedule` suppression removed; the `schedule` suppression widened to swallow findings).
+
+`prod_pulse_test.py` · `slack_notify_test.sh` (25) · `rules_drift_test.py` green · deploy-lane lint **PASS** (9 checks / 3 lanes) · release-lane lint **PASS** (12) · both workflows parse · run live against production.
+
+### Operator
+
+Item 4 becomes **three** secrets. Item 9 (budget alert) explicitly **not** closed by this: the watcher catches the *symptom*, the alert catches the *cause* days earlier. **Neither workflow has ever executed** — a schedule-triggered workflow is not parsed until it reaches the default branch, so its first real parse is its first fire, and that is stated rather than implied.

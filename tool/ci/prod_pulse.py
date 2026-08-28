@@ -61,17 +61,33 @@ the account behind it was `"open": false` and Cloud Run refused every invocation
 with "billing is disabled for this project". Healthy is **linked AND open**;
 linked-but-closed is its own finding.
 
-CREDENTIAL. `--from-firebase-cli` only. The service-account path `rules_drift`
-offers is deliberately NOT wired here: its `firebase.readonly` scope cannot read
-Cloud Logging, Cloud Scheduler or Cloud Billing, so wiring it would produce a
-confident exit 2 on every CI run. The founder's logged-in CLI carries
-`cloud-platform`, which is why this is a local instrument — the same one, and
-the same credential plumbing, `rules_drift.py --from-firebase-cli` already uses.
+CREDENTIAL — TWO PATHS, AND THEY SEE DIFFERENT THINGS (ADR-064 D3/D4).
+
+⚠️ This section said `--from-firebase-cli` ONLY, and that the service-account path
+was *"deliberately NOT wired here"* because `firebase.readonly` cannot read Cloud
+Logging, Scheduler or Billing. **That was a statement about that ROLE, not about
+service accounts**, and it went stale the moment a CI lane needed one — the exact
+class ADR-063 D7 made a rule against, left in the file whose own ADR wrote the rule.
+
+  * `--from-firebase-cli` — the founder's logged-in CLI, which carries
+    `cloud-platform` and is therefore the ONLY path that can read the billing
+    ACCOUNT's `open` flag. **Local only**, and the richer report.
+  * `--sa-file` / `$PROD_PULSE_VIEWER_SA` — the CI lane, scoped to
+    **`logging.read` and nothing else** (see PULSE_SCOPE below for why that is a
+    security decision on a PUBLIC repo, not minimalism). It reads the sweep's own
+    completion record and the refusal reason, which is the whole verdict; billing
+    and scheduler become NAMED GAPS, and a gap can never produce a green.
+
+Same credential plumbing either way: `rules_drift.py` owns the OAuth dance and
+takes the scope as a parameter, so one place learns that firebase-tools moved its
+constants.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
+import pathlib
 import email.utils as eut
 import json
 import sys
@@ -81,7 +97,7 @@ import urllib.request
 
 # The credential plumbing is rules_drift's, imported rather than re-implemented:
 # one place learns that firebase-tools moved its OAuth constants.
-from rules_drift import MeasurementError, token_from_firebase_cli
+from rules_drift import MeasurementError, token_from_firebase_cli, token_from_service_account
 
 BILLING_API = "https://cloudbilling.googleapis.com/v1/"
 SCHEDULER_API = "https://cloudscheduler.googleapis.com/v1/"
@@ -112,6 +128,41 @@ SWEEP_COMPLETE = "question_rollover: sweep complete"
 # label the REFUSALS carry — they are emitted by the serving layer before the
 # container starts, so they carry no jsonPayload.message at all.
 SWEEP_SERVICE = "questionrollover"
+
+# ---------------------------------------------------------------------------
+# The CI credential (ADR-064 D3). LOGGING ONLY, and that is a security decision
+# rather than a minimalism preference.
+#
+# THIS REPOSITORY IS PUBLIC. A leaked key is a leaked key, so the question is not
+# "can this role write" but "what does it let a reader SEE". Measured against the
+# IAM API on 2026-08-28, `roles/billing.viewer` — the obvious grant, and the one
+# an earlier draft of ADR-064 asked for — carries:
+#
+#     billing.accounts.getPaymentInfo         billing.accounts.getIamPolicy
+#     billing.accounts.getSpendingInformation billing.resourceAssociations.list
+#     billing.credits.list
+#
+# i.e. the founder's payment metadata, their spend, and an inventory of every
+# project attached to that billing account. It has no write permissions at all,
+# which is exactly why checking it for writes and stopping was not enough.
+#
+# The lane does not need it. The fact it must report — WHY the loop stopped — is
+# in Cloud Logging in the platform's own words ("The request failed because
+# billing is disabled for this project"), and under ADR-063 D2 the billing and
+# scheduler probes then degrade to NAMED GAPS rather than to silence, and a gap
+# can never produce a green. The reduced credential can only make this lane say
+# LESS, out loud.
+#
+# The billing-account read stays on `--from-firebase-cli`, where the founder's
+# own credential already has it and no key is stored anywhere. If CI precision is
+# ever wanted, the path is a CUSTOM role carrying only `billing.accounts.get`
+# (measured: customRolesSupportLevel = SUPPORTED), never `billing.viewer`.
+PULSE_SCOPE = "https://www.googleapis.com/auth/logging.read"
+
+# Deliberately NOT `FIREBASE_RULES_VIEWER_SA`. That secret carries
+# `firebase.readonly`, which cannot read Cloud Logging at all — sharing the name
+# would let an operator believe one grant armed both lanes.
+PULSE_SECRET = "PROD_PULSE_VIEWER_SA"
 
 
 # --------------------------------------------------------------------------
@@ -264,6 +315,87 @@ def verdict(
     return EXIT_OK, ["the daily loop is running."] + notes
 
 
+def findings_for_notifier(code: int, lines: list[str]) -> str:
+    """The text the CI lane hands `slack_notify.sh` as EXTRA_FINDINGS (ADR-064 D2c).
+
+    Pure, so the one distinction that matters can be asserted hermetically:
+
+      * exit 0 -> **the empty string**. The lane runs four times a day; a green
+        that posts anything is four messages a day into a channel that then gets
+        muted, and a muted channel swallows the `integration-emulator` red this
+        whole integration exists to deliver (ADR-024 D2).
+      * exit 1 -> prefixed `production:` — this IS an outage, and the cause rides
+        along verbatim.
+      * exit 2 -> prefixed `production (unmeasurable):` — a human is still told,
+        because a watcher that silently watches nothing is the failure this lane
+        was built after. But it must not read as an outage, because it is not
+        one: it is the same *"I looked and it is broken"* versus *"I could not
+        look"* pair ADR-041 made a taxonomy and ADR-063 D2 wrote into `verdict()`.
+    """
+    if code == EXIT_OK:
+        return ""
+    prefix = "production:" if code == EXIT_FINDING else "production (unmeasurable):"
+    body = " · ".join(line.strip().replace("\r", " ").replace("\n", " ")
+                      for line in lines if line.strip())
+    return f"{prefix} {body}".strip()
+
+
+def _service_account_json(raw: str, source: str) -> dict:
+    """Parse a service-account key, and fail as a MEASUREMENT ERROR, not a crash.
+
+    A truncated paste into a repository secret is the likeliest way this lane is
+    ever mis-armed, and `json.loads` raises `JSONDecodeError` — which `main()`
+    does NOT catch, so the process would die with a traceback on stderr and an
+    EMPTY stdout. In `--notifier-findings` mode the lane captures stdout, so the
+    watcher would post nothing while appearing to have run: a watcher that
+    watches nothing, which is the failure this whole lane exists to end.
+
+    The message deliberately names the SOURCE and never echoes the value.
+    """
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        raise MeasurementError(
+            f"the credential in {source} is not valid JSON — a service-account key is "
+            "a JSON document; check it was pasted whole") from None
+    if not isinstance(parsed, dict):
+        raise MeasurementError(
+            f"the credential in {source} parsed as {type(parsed).__name__}, not an object "
+            "— it is not a service-account key")
+    return parsed
+
+
+def resolve_credential(args: argparse.Namespace) -> str:
+    """First credential that resolves, most explicit first. No default.
+
+    `--from-firebase-cli` was `required=True` until ADR-064 D4, and the module
+    docstring said a service-account path was *"deliberately NOT wired here"*
+    because `firebase.readonly` cannot read Logging, Scheduler or Billing. That
+    was true, and it was a statement about **that role**, not about service
+    accounts: a key scoped to `logging.read` reads exactly the fact this tool's
+    verdict is keyed on.
+    """
+    if getattr(args, "access_token", None):
+        return args.access_token
+    if os.environ.get("PROD_PULSE_ACCESS_TOKEN"):
+        return os.environ["PROD_PULSE_ACCESS_TOKEN"]
+    if getattr(args, "sa_file", None):
+        return token_from_service_account(
+            _service_account_json(pathlib.Path(args.sa_file).read_text(), args.sa_file),
+            scope=PULSE_SCOPE)
+    if os.environ.get(PULSE_SECRET):
+        return token_from_service_account(
+            _service_account_json(os.environ[PULSE_SECRET], f"${PULSE_SECRET}"),
+            scope=PULSE_SCOPE)
+    if getattr(args, "from_firebase_cli", False):
+        return token_from_firebase_cli()
+    raise MeasurementError(
+        "no credential. This check cannot run without one and it will not pretend "
+        f"to pass: set the {PULSE_SECRET} repository secret (a service account with "
+        "roles/logging.viewer on both projects — see docs/operator-expected.md), or "
+        "pass --from-firebase-cli on a box where the firebase CLI is logged in.")
+
+
 # --------------------------------------------------------------------------
 # the API surface
 # --------------------------------------------------------------------------
@@ -410,14 +542,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--region", default="europe-west1")
     parser.add_argument("--max-age-minutes", type=float, default=DEFAULT_MAX_AGE_MINUTES)
     parser.add_argument("--lookback-hours", type=int, default=DEFAULT_LOOKBACK_HOURS)
-    parser.add_argument("--from-firebase-cli", action="store_true", required=True,
-                        help="the only supported credential; see the module docstring")
+    parser.add_argument("--from-firebase-cli", action="store_true",
+                        help="mint from the logged-in firebase CLI (the local path; "
+                             "the ONLY one that can read the billing account)")
+    parser.add_argument("--sa-file", help=f"service-account JSON; scoped to {PULSE_SCOPE}")
+    parser.add_argument("--access-token", help="a pre-minted OAuth token (testing)")
+    parser.add_argument("--notifier-findings", action="store_true",
+                        help="print ONLY the EXTRA_FINDINGS text for the CI lane "
+                             "(empty when healthy) — the report still goes to stderr")
     args = parser.parse_args(argv)
 
     # The credential is the ONE thing whose absence really does mean "nothing
     # could be measured". Everything after it is measured independently.
     try:
-        api = GoogleApi(token_from_firebase_cli())
+        api = GoogleApi(resolve_credential(args))
     except MeasurementError as exc:
         print(f"could not measure: {exc}", file=sys.stderr)
         return EXIT_CANNOT_MEASURE
@@ -472,13 +610,20 @@ def main(argv: list[str] | None = None) -> int:
         now=now,
         max_age_minutes=args.max_age_minutes,
     )
-    print(f"{args.project} ({args.region})")
+    # In --notifier-findings mode the REPORT goes to stderr and stdout carries
+    # only the EXTRA_FINDINGS text, so a lane can capture stdout without parsing
+    # anything. A healthy run prints an empty stdout, which is the signal that
+    # nothing should be sent (ADR-064 D2c).
+    out = sys.stderr if args.notifier_findings else sys.stdout
+    print(f"{args.project} ({args.region})", file=out)
     if account_name:
-        print(f"  billing account: {account_name}")
+        print(f"  billing account: {account_name}", file=out)
     if api.server_now is None:
-        print("  note: no Date header on the API response — aged against the LOCAL clock")
+        print("  note: no Date header on the API response — aged against the LOCAL clock", file=out)
     for line in lines:
-        print("  " + line)
+        print("  " + line, file=out)
+    if args.notifier_findings:
+        print(findings_for_notifier(code, lines))
     return code
 
 

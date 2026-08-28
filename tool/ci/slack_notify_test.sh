@@ -449,6 +449,38 @@ else
   ok "findings: absent EXTRA_FINDINGS changes nothing (the common case)"
 fi
 
+# ---------------------------------------------------------------------------
+# ADR-064: the SCHEDULED run. The production watcher fires every 6 hours, so the
+# same noise policy the PR clause applies has to cover `schedule` — otherwise the
+# channel takes four "all fine" messages a day and gets muted, which is the very
+# outcome ADR-024 exists to prevent, reached from the other side. A FINDING stays
+# exempt, because a finding is the signal with no other reader.
+#
+# The assertion is on the PAYLOAD, not on stdout: a suppressed run still prints
+# its own `info` diagnostic, and asserting silence-of-the-script rather than
+# silence-of-the-channel would fail for the wrong reason.
+# ---------------------------------------------------------------------------
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=schedule
+text="$(jq -r '.text' <<<"$STDOUT" 2>/dev/null || true)"
+if [ "$CODE" -ne 0 ]; then
+  bad "schedule: a green scheduled run must exit 0" "exit=$CODE"
+elif [ -n "$text" ] && [ "$text" != "null" ]; then
+  bad "schedule: a green scheduled run with no finding must post NO payload" "text=$text"
+else
+  ok "schedule: a green scheduled run with no finding posts nothing"
+fi
+
+run SLACK_DRY_RUN=1 NEEDS_JSON="$ALL_GREEN" GITHUB_EVENT_NAME=schedule \
+    EXTRA_FINDINGS='production: FINDING: the linked billing account is CLOSED.'
+text="$(jq -r '.text' <<<"$STDOUT" 2>/dev/null || true)"
+if [ "$CODE" -ne 0 ]; then
+  bad "schedule: a finding must still exit 0 — the notifier has no vote" "exit=$CODE"
+elif ! grep -qF 'billing account is CLOSED' <<<"$text"; then
+  bad "schedule: a FINDING on a scheduled run must NOT be suppressed" "text=$text"
+else
+  ok "schedule: a finding is exempt from the noise policy and reaches the channel"
+fi
+
 # A whitespace-only value is what an UNSET job output actually interpolates to in
 # YAML — the shape that would otherwise print an empty "Findings:" header on
 # every single release and train the reader to ignore it.
