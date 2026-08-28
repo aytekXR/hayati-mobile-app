@@ -70,7 +70,7 @@ real exercise** in the same change. Same feature family as S087 and S088.
 | | State |
 |---|---|
 | **Production** | 🔴 **DOWN since 2026-08-22T02:00Z**, billing account closed. No question assigned, no push composed, no purchase processable |
-| **The watcher** | **BUILT and MERGED (ADR-064), UNARMED.** 6-hourly cron + post-merge job, no vote, credential scoped to `logging.read` only. **Neither workflow has ever executed** — a schedule-triggered workflow is not parsed until it reaches the default branch, so **its first real parse is its first fire**. Watch the first cron |
+| **The watcher** | **BUILT and MERGED (ADR-064), UNARMED.** 6-hourly cron + post-merge job, no vote, credential scoped to `logging.read` only. `prod-pulse.yml` **parses** (GitHub lists it active) and one dispatch proved the unarmed path — preflight success, watcher visibly skipped with real `warning:` annotations. **The ARMED path is still unexercised** and cannot run until `PROD_PULSE_VIEWER_SA` exists. Watch the first cron |
 | **`prod_pulse.py`** | Reports correctly during an outage (ADR-063); now has a CI path and a pure `findings_for_notifier` |
 | **Push, device side** | **STILL 0 of 4 registered**, four *"no report"* |
 | **#253** | **OPEN — this session.** No caller supplies `partnerName`; `sanitizePushName` is unreached |
