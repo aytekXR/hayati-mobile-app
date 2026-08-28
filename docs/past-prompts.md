@@ -4280,4 +4280,18 @@ The one refuted finding claimed a client-slice count was inconsistent between tw
 
 `operator-expected.md` item 1 is now **two ordered steps**, item numbers elsewhere untouched (they are cross-referenced 40+ times). **① restore billing, ② cut the build** — with why the order is not optional, and an explicit note that if ② is already done nothing is lost. Item 9 (the budget alert) was promoted: it is the control that would have caught **both** outages, and it was left unset after the first.
 
+### The CI result
+
+**PR #262 green**, and the **post-merge `main` run green with `integration-emulator` actually RUN** — the main-only job (ADR-006 cost design) that a PR verdict can never speak for:
+
+```
+success  quality                    success  ios-build-smoke
+success  functions-rules            success  integration-emulator   <- main-only, RAN
+success  functions-drift-preflight  success  slack-notify
+success  rules-drift-preflight      skipped  rules-drift / functions-drift  (unarmed, 2(e)(iii))
+                                    skipped  gemfile-lock-verify (path-filtered)
+```
+
+`ios-build-smoke` was verified to have **actually compiled** rather than reading as covered — `build ios (no codesign)` succeeded over 6m26s plus both bundle assertions. That check exists because an earlier push in this session **cancelled** the first run and took the only macOS gate with it; the last commit was deliberately held back and pushed alone so the final run could not be superseded.
+
 **#219's own residual list named both causes of this recurrence** — the unset budget alert, and *"`prod_pulse` is a local/manual instrument… A cron that calls it and notifies would close the detection gap properly; that needs a credential decision."* **The residuals of the last incident are the cause of this one.** Filed as **#263** (#219 is closed, so a session reading `gh issue list` would never have seen it), and it is S088's objective.
