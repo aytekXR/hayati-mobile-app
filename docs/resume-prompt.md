@@ -1,150 +1,114 @@
-# Resume Prompt — Session 088
+# Resume Prompt — Session 089
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **132**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **135**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #263 — nothing watches production. Build the watcher, and arm every
-part of it that does not need the founder.**
+**Objective: #253 — `partnerAnswered` is supposed to name the partner and never
+does, because no caller supplies `partnerName`. Close it, and ADR-059's
+`sanitizePushName` stops being a branch nothing calls.**
 
-### ⚠️ Before planning: run this, and put its output in your first message
+### ⚠️ First, two commands. Quote both before planning.
 
 ```sh
-python3 tool/ci/prod_pulse.py --from-firebase-cli
+python3 tool/ci/prod_pulse.py --from-firebase-cli     # 0 = restored, 1 = still down
+python3 tool/ci/push_delivery_probe.py --from-firebase-cli
 ```
 
-**Exit 0 = the founder restored billing and the loop is running again.**
-**Exit 1 = still down; read the FINDING lines, they name the cause.**
+Measured 2026-08-28 (S088) — **re-measure, do not inherit**: the first exits **1**
+(billing account `012195-7EF76F-3A9083` is `"open": false`; last completed sweep
+**2026-08-25T15:00:11Z**), the second exits **1** (0/4 registered, four *"no
+report"*). **Neither is this session's to fix** — they are operator items 1 ① and
+1 ② — but both bound what you can claim: **nothing you build here can be observed
+on a phone until billing is restored.** Say so once and build anyway; the work is
+correct or not regardless, and it is proven in the emulator.
 
-Measured 2026-08-28 (S087) — **re-measure, do not inherit**:
+### Why #253 is next
 
-| | |
-|---|---|
-| `billingAccounts/012195-7EF76F-3A9083` | **`"open": false`** — the account is CLOSED |
-| `projects/hayatiapp-prod/billingInfo` | `"billingEnabled": true` — still LINKED, so the project flag reads healthy |
-| `questionRollover` | refused **every hour since 2026-08-22T02:00:01Z**: *"The request failed because billing is disabled for this project."* |
-| last completed sweep | **2026-08-25T15:00:11Z** — one lone recovery; before it, 2026-08-22T01:00Z |
-| `hayatiapp-dev` | linked to the **same closed account** |
-
-If it is still exit 1, **that is not this session's to fix** — it is operator item
-1 ①, it is a payment action on the founder's Google identity, and no amount of
-engineering reaches it. Say so once, in the log, and do the objective below.
-
-### Why THIS is the objective
-
-**Production died on 2026-08-22 and nobody noticed for six days.** That is the
-second total outage in nineteen days from the same cause. #219 closed with a
-residual list, and **its two open items are precisely why this recurrence went
-unseen** — quote it, do not paraphrase it:
-
-> - [ ] **Budget alert (operator item 2(a))** is still unset — the one control that
->       would have caught the cause rather than the symptom.
-> - [ ] `prod_pulse` is a local/manual instrument. It has no scheduled lane, so it
->       only runs when someone runs it. A cron that calls it and notifies would
->       close the detection gap properly; that needs a credential decision
->       (`firebase.readonly` is insufficient — it needs logging/scheduler/billing
->       read).
-
-**The residuals of the last incident are the cause of this one.** S087 fixed the
-instrument so it can now *report* the outage (ADR-063); it did nothing about the
-fact that **only a human running a command locally ever asks it.**
-
-### The two hard parts, both real, neither a reason to skip the session
-
-1. **The credential.** `prod_pulse` is `--from-firebase-cli` only, by design: the
-   `firebase.readonly` scope its two siblings use **cannot** read Cloud Logging,
-   Cloud Scheduler or Cloud Billing, so wiring that SA would produce a confident
-   `exit 2` on every run. Decide what the lane needs and **name it as an operator
-   item**, exactly as `rules-drift` (2(e)(iii)) and `deploy-functions` did. The
-   repo's established pattern is **build it unarmed and say so** — three lanes ship
-   that way today, and `session-context.md` §2 says saying so is the point.
-2. **A cron here is not free.** ADR-034 D4's finding is on the record and
-   transfers: **GitHub disables scheduled workflows after 60 days of repository
-   inactivity** — i.e. during exactly the quiet period a watcher would exist for.
-   Decide this in the ADR rather than discovering it. `rules-drift` and
-   `functions-drift` both chose *post-merge on `main`* over a cron for this reason;
-   a push-triggered watcher catches an outage only when someone commits, which for
-   this failure mode may be worse than useless. **Say which trade you take and why.**
+It is the last piece of the notification feature that is *wrong* rather than
+*unshipped*. `partnerAnswered` is the one push that fires when the recipient is
+most likely to be looking, and it is name-free in every language because **no call
+site passes `partnerName`** — so ADR-059's `sanitizePushName`, written to stop a
+partner's name choosing the paragraph direction (#136), sits in a branch nothing
+reaches. Closing #253 activates it, which means **#136's bidi work gets its first
+real exercise** in the same change. Same feature family as S087 and S088.
 
 ### Acceptance
 
-1. **`prod_pulse.py` is run and its output quoted** before anything is designed.
-2. **An ADR, written and committed BEFORE code** (`session-context.md` §5 item 1,
-   lesson **115**), deciding: the trigger, the credential, the vote, and what the
-   notifier says. `slack_notify.sh` is the **single** notifier with **no vote on
-   the build and all policy in the script** (ADR-024 D1) — read it before assuming
-   it can carry this.
-3. **Exit codes stay a taxonomy** (ADR-041, binding): a watcher that cannot
-   measure must not report *"broken"*, and must never report green. ADR-063 D2's
-   rule already exists in `verdict()`; do not re-derive it differently in a lane.
-4. **The lane is proven to the limit a session can reach** — its command sequence
-   exercised locally, its self-test hermetic, and **whether it has ever executed
-   stated plainly.** A dispatch-only workflow is **unparsed until it reaches the
-   default branch** (memory: its first real parse is someone's first dispatch).
-5. **`operator-expected.md` names exactly what the founder must add**, and item 9
-   (the budget alert) keeps its promoted position — it catches the *cause*, this
-   lane catches the *symptom*, and the ADR should say which one it is not.
+1. **The two probes are run and quoted** before anything is designed.
+2. **An ADR written and committed BEFORE code** (`session-context.md` §5 item 1,
+   lesson **115**), deciding at minimum: **where the name comes from** (the
+   partner's `users/{uid}` document — which field, and what happens when it is
+   absent, empty, or junk), **whether reading it is a new read on a hot path**
+   (the reveal trigger already reads documents here — do not add one without
+   saying so), and **what the push says when there is no name** (there is already
+   a name-free variant; it must stay reachable and tested).
+3. **The privacy question is answered explicitly, not inherited.** A name on a
+   lock screen is content. ADR-012's discreet mode already suppresses it and
+   defaults ON for AR — assert that, do not assume it.
+4. **`sanitizePushName` is exercised end to end for the first time**, and the
+   bidi property it exists for is asserted at the seam that now reaches it, not
+   only in its own unit test. **Mutation-check it**: removing the sanitiser must
+   redden a named assertion.
+5. **The payload proof pattern from ADR-063 D8 is followed** — assert what the
+   port RECEIVES, not only who receives it. That gap was found on the
+   daily-question pass and the same shape applies here.
 
 ### What is NOT this session's
 
-* **Restoring billing.** Operator item 1 ①.
-* **The budget alert.** Operator item 9.
-* **Cutting a build.** Operator item 1 ②, and it is downstream of ①.
+* **Restoring billing** (operator 1 ①) and **cutting a build** (operator 1 ②).
+* **Arming the watcher** — operator item 4's new `PROD_PULSE_VIEWER_SA`.
+* **The budget alert** (operator item 9), which S088 explicitly did not close.
 
 ---
 
-## 1. Where things stand *(measured 2026-08-27/28 — re-measure, do not inherit)*
+## 1. Where things stand *(measured 2026-08-28 — re-measure, do not inherit)*
 
 | | State |
 |---|---|
-| **Production** | 🔴 **DOWN since 2026-08-22T02:00Z.** Billing account closed. No day doc assigned, no push composed, no purchase processable. **The single most important line in this table** |
-| **`prod_pulse.py`** | **FIXED (ADR-063).** Was exit 2 *"could not measure"* during the outage; now exit 1 naming the closed account, the 55h-stale sweep, and the refusal in Google's own words. 8 mutants, each reddening a named assertion |
-| **The 09:00 chain** | **Complete, and now proven by what it SENDS** — the port receives the `dailyQuestion` copy per recipient language, carrying no `questionId`. Mutation-checked: the old suite stayed green with the question id on the lock screen |
-| **The comment family** | **6 "this cannot work yet" claims and 24 wrong-hour hunks across 9 files corrected** (ADR-063 D7/D9), the second number counted from the merged diff rather than estimated. Corrected comments now name the instrument instead of restating its answer |
-| **Push, device side** | **STILL 0 of 4 registered**, four *"no report"*. Unchanged, and now known to be the *second* problem, not the first |
-| **The build gap** | Last `release.yml` run **2026-08-09, build 119**. Operator item 1 ② — and correctly ordered AFTER ① |
-| **#226** | **DRAFT on `main`, revision NOT landed.** `CURRENT_LEGAL_VERSION` still **2**, a test asserts it. Founder + lawyer |
-| **#243** | **DECIDED, nothing built** (ADR-062). One founder sentence: does `install→paid` count *payments* or *paying users* — they differ by **2×** |
-| **#248** | **Now FIFTEEN ADRs behind** (049–063), not nine. `docs/adr/README.md` stops at 048. S087 deliberately did **not** add its own row — one row into a 15-row gap is worse than the gap |
-| **#136** | Autonomous half DONE (ADR-059); step 1 is device-blocked |
-| **#242** | DECIDED, not built (ADR-060); waits on a sink |
-| **Deployed rules vs `main`** | **DRIFTED** — `rules_drift.py` exits 1 today with a real diff (the `pushDiagnostic` clauses are not deployed). A deploy is a **§7 founder ask**, and is downstream of billing |
-| **Open issues** | **#242**, **#243**, **#247**–**#250**, **#253**, **#258**, **#263** (new, this session's subject), plus the older set |
+| **Production** | 🔴 **DOWN since 2026-08-22T02:00Z**, billing account closed. No question assigned, no push composed, no purchase processable |
+| **The watcher** | **BUILT and MERGED (ADR-064), UNARMED.** 6-hourly cron + post-merge job, no vote, credential scoped to `logging.read` only. **Neither workflow has ever executed** — a schedule-triggered workflow is not parsed until it reaches the default branch, so **its first real parse is its first fire**. Watch the first cron |
+| **`prod_pulse.py`** | Reports correctly during an outage (ADR-063); now has a CI path and a pure `findings_for_notifier` |
+| **Push, device side** | **STILL 0 of 4 registered**, four *"no report"* |
+| **#253** | **OPEN — this session.** No caller supplies `partnerName`; `sanitizePushName` is unreached |
+| **#136** | Autonomous half done (ADR-059); its seam is unexercised until #253 lands. Step 1 is device-blocked |
+| **#248** | **SIXTEEN ADRs behind** (049–064). `docs/adr/README.md` stops at 048 |
+| **#263** | **CLOSED by S088** (ADR-064) |
+| **#226 / #243 / #242 / #247 / #249 / #250 / #258** | Unchanged; #226 and #243 need the founder |
+| **Deployed rules vs `main`** | **DRIFTED** — `rules_drift.py` exits 1 with a real diff. Downstream of billing; §7 founder ask |
 
-### What S087 changed that a later session will trip over
+### What S088 changed that a later session will trip over
 
-* **`verdict()` in `prod_pulse.py` takes `gaps: dict[str, str]`**, and a fact named
-  there is **never** turned into a finding. If you add a fact, add its gap
-  suppression too, or an unreadable probe will print a confident false cause.
-* **`measure_billing` returns `(linked, account_name)`**, not a bool. The
-  authoritative fact is `measure_billing_account(...)` → `open`.
-* **Exit 2 now means "no finding, and something was unread"** — not "one probe
-  threw". A raising probe alone no longer aborts the run.
-* **`DEFAULT_LOOKBACK_HOURS` is 168**, deliberately much wider than the 90-minute
-  `--max-age-minutes` that decides the verdict. The window only decides whether the
-  report can **date** the outage.
-* **`daily-question.test.ts` imports `composePush`** as an independent oracle. It is
-  not a tautology: the pass chooses the kind and the language, the test states both.
-* **A comment may not carry a measured fact about build/device/portal state**
-  (ADR-063 D7). Name the instrument instead. This is discipline, **not** a CI gate,
-  and the ADR says why a scan cannot do it.
+* **`slack_notify.sh` suppresses a green `schedule` run**, exactly as it suppresses
+  a green PR. A finding is exempt from both. If you add a scheduled lane, that is
+  why it is quiet.
+* **`ci.yml`'s `slack-notify` now `needs: prod-pulse`** and passes
+  `EXTRA_FINDINGS`. Adding a second producer means deciding how two findings
+  concatenate — nobody has.
+* **`rules_drift.py`'s `sa_assertion_claims`/`token_from_service_account` take a
+  `scope`** (default unchanged). Pass one rather than adding a second OAuth path.
+* **`PULSE_SCOPE` is pinned by a test.** Widening the CI credential past
+  `logging.read` is meant to be a deliberate act with a red build.
+* **A count in a document carries the command that produced it** (lesson **133**).
+  Three counts were wrong across S087/S088 and no habit caught any of them.
+* **A review agent's refutation is a claim** (lesson **135**). One was confident,
+  specific, and wrong about an IAM fact that a single API call settled.
 
 ### Still true from earlier sessions
 
-* **`architecture.md` §7 has a second paragraph** after the sentinel-parsed first
-  sentence. Appending there is safe and proven; **rewording the first sentence, or
-  renaming the heading, is not.** §8 and §9 are free-form.
-* **The emulator suite can fail on a loaded box.** Distinguish by SHAPE. S087 met
-  this: one `beforeEach` hook timed out at 10s with 50/51 passing, re-ran clean at
-  51/51, **and said so**. Do not re-run to green silently.
+* **`architecture.md` §7's first sentence is sentinel-parsed** — append after it,
+  never reword it or rename the heading. §8 and §9 are free-form.
+* **The emulator suite can fail on a loaded box.** Distinguish by SHAPE; if you
+  re-run, **say you re-ran**.
 * **`integration-emulator` never runs on a PR.** Prove a change to it with
   `gh workflow run ci.yml --ref <branch>` before merging.
-* **Do not probe a Firestore trigger** with `assert_emulator_functions.sh`.
-* **Do not hand-roll a Unicode range** (lesson 124). `\p{Script=…}`.
-* `app/lib/core/l10n/strong_bidi_ranges.dart` is **GENERATED — never edit it**.
+* **Repeated pushes cancel the macOS gate.** `ios-build-smoke` can read as covered
+  while never having compiled; hold the last commit and push it alone.
+* **Do not hand-roll a Unicode range** (lesson 124); `strong_bidi_ranges.dart` is
+  **GENERATED** (ADR-053).
 * `FORMAT_VERSION` is **3**, pinned by **four** assertions (lesson 108).
 * **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3.
 
@@ -152,16 +116,11 @@ fact that **only a human running a command locally ever asks it.**
 
 ## 2. Then, in priority order
 
-**1 — #253** (`partnerAnswered` names nobody: **no caller supplies `partnerName`**,
-which is also why ADR-059's `sanitizePushName` sits in a branch nothing calls —
-closing #253 is what activates it, and it is the same feature family as the last
-two sessions). **2 — #248** (fifteen ADRs missing from the index). **3 — #249**
-(the consent record is named in no collection list).
+**1 — #248** (sixteen ADRs missing from the index; cheap, and the index is how a
+session finds precedent). **2 — #249** (the consent record is named in no
+collection list). **3 — #242** (the server three have no emitter; waits on a sink).
 
-**4 — #204** (`deliver` has failed to create the `tr` localization on every release
-since build 112; the **name** is what Apple refuses, so founder-blocked) ·
-**#165** (`rules-drift` built but unarmed) · **#121** · **#115** · **#41** ·
-**#63/#71**.
+**4 — #204** · **#165** · **#121** · **#115** · **#41** · **#63/#71**.
 
 ---
 
@@ -169,21 +128,18 @@ since build 112; the **name** is what Apple refuses, so founder-blocked) ·
 
 | What | Blocked on | Why a session cannot take it alone |
 |---|---|---|
-| 🔴 **Restoring billing** | **founder** | A closed billing account is a payment instrument on their Google identity. **Everything server-side is downstream of this** |
-| **The budget alert** | founder | Operator item 9 — the control that would have caught **both** outages |
-| **A build carrying ADR-046/049/051/052/053/057/059/061/063** | founder | `release.yml` uploads a real binary — §7. Last build **119** |
-| **M3.4's last inch** | the founder's phone | One permission grant. Not destroyed if spent early — the app re-registers on the next launch — but it cannot deliver anything while billing is off |
-| **Deploying S071's rules and S077/S083's functions** | founder | §7, and downstream of billing |
-| **Landing the #226 revision** | founder/lawyer | The bump re-gates consent for **every** existing user |
-| **Minting the #243 identifier** | founder | Collection, and the one identifier that survives sign-out |
-| **#136 step 1** | the device | Whether the notification shade honours the isolates |
-| **An analytics vendor sink** | founder + lawyer | #226 is the other half — **#247** |
-| **#250** | M6.5 | Android backup exclusion, Gate-3 gated |
-| **`tr` App Store localization** | founder | Apple refuses the **name**, not the locale |
-| **operator 2(d) / 2(e)(ii)–(iv) / 2(a)** | founder | Domains, legal name, three secrets, the budget alert |
-| **#115**, **#41** | founder | A world-reachable prod endpoint; live billing identity |
-| **#48**, **#15** | the device | On-device observation nobody has made |
-| **#63**, **#71** | founder | Brandkit revisions |
+| 🔴 **Restoring billing** | **founder** | A closed account is a payment instrument on their Google identity. **Everything server-side is downstream** |
+| **Arming the watcher** | founder | `PROD_PULSE_VIEWER_SA`, operator item 4 |
+| **The budget alert** | founder | Operator item 9 — catches the *cause*; the watcher only catches the *symptom* |
+| **A build carrying ADR-046/049/051/052/053/057/059/061/063/064** | founder | §7. Last build **119**, cut 2026-08-09 |
+| **M3.4's last inch** | the founder's phone | One permission grant — deferred, not destroyed, if spent early |
+| **Deploying rules/functions** | founder | §7, downstream of billing |
+| **#226**, **#243** | founder / lawyer | A consent re-gate; a definitional sentence |
+| **#136 step 1**, **#48**, **#15** | the device | On-device observation nobody has made |
+| **An analytics vendor sink** | founder + lawyer | #247 |
+| **#250**, **#13** | M6.5 | Gate-3 gated |
+| **`tr` App Store localization** | founder | Apple refuses the **name** |
+| **#115**, **#41**, **#63**, **#71** | founder | A world-reachable endpoint; billing identity; brandkit |
 
 ---
 
@@ -193,28 +149,25 @@ Append to `past-prompts.md` → regenerate this file (one objective) → refresh
 `operator-expected.md` → commit + push → verify CI → **watch the post-merge `main`
 run** (`integration-emulator` is main-only) → `codegraph sync`.
 
-> ⚠️ **THE REVIEW RUNS TWICE**, and **S087's design pass earned its keep**: it found
-> a **blocking** hole in the exit rule that would have let the tool print *"the daily
-> loop is running"* over a dead sweep, showed the design was **unimplementable**
-> against the function it delegated to, and **refuted the ADR's own Finding 4** —
-> the claim that the founder's permission grant would be destroyed. It is not.
+> ⚠️ **THE REVIEW RUNS TWICE.** S088's design pass found a **blocking** hole — a
+> stated goal with no mechanism — and its built-diff pass found three more, one of
+> which was a **crash that would have been silent**: a malformed secret raised
+> `JSONDecodeError`, `main()` did not catch it, and the lane captures stdout, so
+> the watcher would have posted nothing while appearing to run.
 
-> ⚠️ **WRITE THE ADR FIRST** (`session-context.md` §5 item 1; lesson **115**).
+> ⚠️ **WRITE THE ADR FIRST** (lesson **115**).
 
-> ⚠️ **Report `agents_error` and `agents_empty_result` as numbers**, and say what
-> was **dropped unverified** at the cap. S087 ran **0 and 0**, 11 findings raised,
-> 11 verified, 0 dropped, 3 surfaced.
+> ⚠️ **Report `agents_error` and `agents_empty_result` as numbers**, and say
+> whether an empty lens was **considered**-empty or **failed**-empty. S088 ran
+> 0/0 on the design pass and 0/3-considered on the built-diff pass.
 
 > ⚠️ **FREEZE THE TREE BEFORE THE REVIEW** (lesson **113**); `git status` must be
-> EMPTY after every review workflow returns (§5 item 8).
+> EMPTY after every review workflow returns.
 
-> ⚠️ **Run the guard you just wrote, and mutation-check it — then check the MUTANT.**
-> S087 ran eleven. One "stayed green", and the mutant was the defect: it inserted
-> dead code instead of changing behaviour (lesson **112**, from the other side).
+> ⚠️ **Mutation-check the guard you wrote — then check the MUTANT.** S087 had one
+> "stay green" that was a no-op mutant, not a gap in the test (lesson 112).
 
-> ⚠️ **If a claim in the issue — or in THIS FILE — is load-bearing, measure it
-> yourself** (lesson **123**). S087's objective arrived asserting that one operator
-> step stood between the feature and a notification. **It was wrong**, and the
-> instrument that would have said so was one command away.
+> ⚠️ **A number is a claim; carry the command that produced it** (lesson **133**).
 
-> ⚠️ **Check the issue rows against `gh`, not against the last session's memory.**
+> ⚠️ **Measure the load-bearing claim yourself — including one a review agent
+> hands you** (lessons **123**, **135**).

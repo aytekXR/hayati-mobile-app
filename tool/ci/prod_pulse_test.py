@@ -547,6 +547,47 @@ def test_the_ci_credential_cannot_read_billing() -> None:
           "reusing the rules-viewer secret would hide that this needs a different grant")
 
 
+def test_a_malformed_secret_is_a_named_error_not_a_crash() -> None:
+    """The likeliest way this lane is ever mis-armed: a truncated paste.
+
+    `json.loads` raises JSONDecodeError, which `main()` does not catch — the
+    process would die with a traceback and an EMPTY stdout, and in
+    --notifier-findings mode the lane captures stdout, so the watcher would post
+    NOTHING while appearing to have run. A watcher that watches nothing is the
+    exact failure this lane exists to end, so it must be a MeasurementError.
+    """
+    import prod_pulse
+
+    class Args:
+        access_token = None
+        sa_file = None
+        from_firebase_cli = False
+
+    saved = dict(os.environ)
+    for junk, label in (("{not json", "truncated"), ('"a string"', "not an object"), ("", "empty")):
+        os.environ.clear()
+        os.environ.update(saved)
+        os.environ.pop("PROD_PULSE_ACCESS_TOKEN", None)
+        os.environ[PULSE_SECRET] = junk
+        try:
+            prod_pulse.resolve_credential(Args())
+            # An empty string is falsy, so it falls through to the no-credential
+            # error — also a MeasurementError, which is the point.
+            check(f"malformed/{label}", False, "expected MeasurementError")
+        except prod_pulse.MeasurementError as exc:
+            check(f"malformed/{label}-names-source",
+                  PULSE_SECRET in str(exc),
+                  f"the error must name WHERE the bad credential came from; got {exc!r}")
+            check(f"malformed/{label}-does-not-echo",
+                  junk not in str(exc) or junk == "",
+                  "the error must never echo the credential value")
+        except Exception as exc:  # noqa: BLE001 — the whole point of the test
+            check(f"malformed/{label}", False,
+                  f"raised {type(exc).__name__}, not MeasurementError — this is the crash")
+    os.environ.clear()
+    os.environ.update(saved)
+
+
 def test_no_credential_names_the_operator_item() -> None:
     """A tool that cannot run must say which grant is missing, not just fail."""
     import prod_pulse

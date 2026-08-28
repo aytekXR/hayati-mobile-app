@@ -61,12 +61,26 @@ the account behind it was `"open": false` and Cloud Run refused every invocation
 with "billing is disabled for this project". Healthy is **linked AND open**;
 linked-but-closed is its own finding.
 
-CREDENTIAL. `--from-firebase-cli` only. The service-account path `rules_drift`
-offers is deliberately NOT wired here: its `firebase.readonly` scope cannot read
-Cloud Logging, Cloud Scheduler or Cloud Billing, so wiring it would produce a
-confident exit 2 on every CI run. The founder's logged-in CLI carries
-`cloud-platform`, which is why this is a local instrument — the same one, and
-the same credential plumbing, `rules_drift.py --from-firebase-cli` already uses.
+CREDENTIAL — TWO PATHS, AND THEY SEE DIFFERENT THINGS (ADR-064 D3/D4).
+
+⚠️ This section said `--from-firebase-cli` ONLY, and that the service-account path
+was *"deliberately NOT wired here"* because `firebase.readonly` cannot read Cloud
+Logging, Scheduler or Billing. **That was a statement about that ROLE, not about
+service accounts**, and it went stale the moment a CI lane needed one — the exact
+class ADR-063 D7 made a rule against, left in the file whose own ADR wrote the rule.
+
+  * `--from-firebase-cli` — the founder's logged-in CLI, which carries
+    `cloud-platform` and is therefore the ONLY path that can read the billing
+    ACCOUNT's `open` flag. **Local only**, and the richer report.
+  * `--sa-file` / `$PROD_PULSE_VIEWER_SA` — the CI lane, scoped to
+    **`logging.read` and nothing else** (see PULSE_SCOPE below for why that is a
+    security decision on a PUBLIC repo, not minimalism). It reads the sweep's own
+    completion record and the refusal reason, which is the whole verdict; billing
+    and scheduler become NAMED GAPS, and a gap can never produce a green.
+
+Same credential plumbing either way: `rules_drift.py` owns the OAuth dance and
+takes the scope as a parameter, so one place learns that firebase-tools moved its
+constants.
 """
 from __future__ import annotations
 
@@ -326,6 +340,31 @@ def findings_for_notifier(code: int, lines: list[str]) -> str:
     return f"{prefix} {body}".strip()
 
 
+def _service_account_json(raw: str, source: str) -> dict:
+    """Parse a service-account key, and fail as a MEASUREMENT ERROR, not a crash.
+
+    A truncated paste into a repository secret is the likeliest way this lane is
+    ever mis-armed, and `json.loads` raises `JSONDecodeError` — which `main()`
+    does NOT catch, so the process would die with a traceback on stderr and an
+    EMPTY stdout. In `--notifier-findings` mode the lane captures stdout, so the
+    watcher would post nothing while appearing to have run: a watcher that
+    watches nothing, which is the failure this whole lane exists to end.
+
+    The message deliberately names the SOURCE and never echoes the value.
+    """
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        raise MeasurementError(
+            f"the credential in {source} is not valid JSON — a service-account key is "
+            "a JSON document; check it was pasted whole") from None
+    if not isinstance(parsed, dict):
+        raise MeasurementError(
+            f"the credential in {source} parsed as {type(parsed).__name__}, not an object "
+            "— it is not a service-account key")
+    return parsed
+
+
 def resolve_credential(args: argparse.Namespace) -> str:
     """First credential that resolves, most explicit first. No default.
 
@@ -342,10 +381,12 @@ def resolve_credential(args: argparse.Namespace) -> str:
         return os.environ["PROD_PULSE_ACCESS_TOKEN"]
     if getattr(args, "sa_file", None):
         return token_from_service_account(
-            json.loads(pathlib.Path(args.sa_file).read_text()), scope=PULSE_SCOPE)
+            _service_account_json(pathlib.Path(args.sa_file).read_text(), args.sa_file),
+            scope=PULSE_SCOPE)
     if os.environ.get(PULSE_SECRET):
         return token_from_service_account(
-            json.loads(os.environ[PULSE_SECRET]), scope=PULSE_SCOPE)
+            _service_account_json(os.environ[PULSE_SECRET], f"${PULSE_SECRET}"),
+            scope=PULSE_SCOPE)
     if getattr(args, "from_firebase_cli", False):
         return token_from_firebase_cli()
     raise MeasurementError(

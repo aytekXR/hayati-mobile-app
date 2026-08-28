@@ -38,6 +38,57 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**135 — A review agent's refutation is a claim, and a confident one is still a claim.** *(S088, ADR-064)*
+A design lens raised *"`roles/billing.viewer` exposes payment info the watcher does
+not need."* Its paired refuter dismissed it with a specific, checkable sentence:
+*"`billing.accounts.getPaymentInfo` is NOT included in `roles/billing.viewer` — it
+is in `roles/billing.admin`. Google Cloud explicitly separates billing metadata
+access from payment method access."* One IAM API call: **that role carries
+`getPaymentInfo`**, plus `getSpendingInformation`, `credits.list`, `getIamPolicy`
+and `resourceAssociations.list`. The finding was real, the refutation was wrong on
+the single fact it rested on, and the aggregation rule — *surface if EITHER verifier
+says real* — **cannot save you here**, because both verifiers can be wrong about the
+same external fact and neither is measuring it. Lesson **123** says to measure a
+load-bearing claim in an issue or a handoff document yourself; this is the same rule
+one level up: **a verifier's reasoning is an input to be checked, not an output to be
+trusted**, and the tell is the same — a *specific, checkable* assertion that nobody
+in the loop actually ran. Re-measure the ones a decision rests on, especially when
+they arrive as good news.
+
+**134 — Checking a role for what it can WRITE is not checking it for what it can SEE.** *(S088, ADR-064)*
+The first draft of the CI credential asked for `roles/billing.viewer`, having
+verified it has **zero** write permissions — which is true, and was the wrong
+question. This repository is **public**; a leaked key is a leaked key, so the
+question is exposure, not mutation. Three measurements, all counterintuitive, none
+of them guessable: `roles/viewer` — **6064 permissions, the broadest read role
+Google ships** — cannot read `billing.accounts.get` at all, so the most tempting
+grant blinds the instrument on its own subject while looking fully configured;
+`roles/billing.user` is **6 permissions and a WRITE role** (*"Can associate projects
+with billing accounts"*), so **smaller is not safer**; and `billing.viewer`'s 62
+read permissions include the founder's payment metadata and an inventory of every
+project on the account. The fix was not a narrower role but a **narrower question**:
+the lane never needed billing at all, because the reason the loop stopped is in
+Cloud Logging in the platform's own words. **When a credential looks expensive, ask
+what the tool actually has to READ before shopping for a role** — and ADR-041 D4's
+rule (*the tool must never be able to cause what it reports*) generalises further
+than the drift checks it was written for: a watcher for a closed billing account
+must not hold the permission to attach projects to billing accounts.
+
+**133 — I get counts wrong, and each one was caught by a different accident.** *(S087/S088)*
+Three numbers written next to correct work in two sessions: *"21 sites in 8 files"*
+(measured: 24 across 9), *"eight merged client slices"* (measured: seven), *"four
+unarmed lanes"* (measured: five). Every one was stated with the same confidence as
+the measured facts beside it, which is lesson **111** — *a number typed next to
+working code inherits the code's credibility* — recurring three times in the session
+that cited it. What is new is the pattern in the *catches*: one was found by
+re-deriving from the merged diff, one by a review finding that was **wrong in the
+opposite direction**, and one by a review finding that was right. **No habit caught
+any of them**, which is the actual defect. The rule that follows is mechanical, not
+attentional: **a count in a document is a claim, so it carries the command that
+produced it** — `git diff … | grep -c`, `git log --since=… -- <paths>` — and a count
+with no reproducible derivation should be written as *"several"* rather than as a
+number that will be quoted back as measured.
+
 **132 — A comment that states a measured fact goes stale; a comment that names the command does not.** *(S087, ADR-063)*
 Five separate comments across the notification feature told a reader the device
 half could not work: *"Nothing overrides this yet"*, *"It is INERT until the

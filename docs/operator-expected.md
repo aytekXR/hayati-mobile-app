@@ -332,7 +332,28 @@ it alone.
 control is precisely this notifier. Today a red on `main` reaches you only if you
 go looking.
 
-### 4. Two service-account secrets — one arms three deploy lanes, one arms two drift checks
+### 4. THREE service-account secrets — one arms three deploy lanes, one arms two drift checks, one arms the production watcher
+
+**⚠️ New (S088): `PROD_PULSE_VIEWER_SA`.** Without it, **nothing watches whether
+production is running** — which is how the current six-day outage went unnoticed.
+The grant is deliberately tiny:
+
+* a service account with **`roles/logging.viewer`** on `hayatiapp-prod` and
+  `hayatiapp-dev`, and nothing else;
+* paste its JSON key as the repository secret **`PROD_PULSE_VIEWER_SA`**.
+
+**It is scoped to reading logs and NOTHING ELSE, on purpose.** This repository is
+public, so the question is not "can the key write" but "what would a leaked key
+*see*". `roles/billing.viewer` — the obvious grant — carries your payment
+metadata, your spend, your credits and a list of every project on your billing
+account, so the watcher does **not** get it: the reason the loop stopped is already
+in the logs in Google's own words. The richer billing read stays on my local
+`--from-firebase-cli` path, where no key is stored anywhere.
+
+*Blocked by this:* the 6-hourly production watcher and its post-merge twin. Both
+ship **unarmed** and say so loudly in the run log until this secret exists.
+
+
 - **`FIREBASE_SERVICE_ACCOUNT`** (Firebase Admin, Service Account User, Cloud
   Scheduler Admin, Secret Manager Viewer) → `gh secret set FIREBASE_SERVICE_ACCOUNT < sa.json`.
   Arms `deploy-site.yml`, `deploy-rules.yml`, `deploy-functions.yml`. Point the
@@ -369,7 +390,7 @@ non-required check it is **visible, not enforcing**: a red result shows on the P
 without blocking the merge. This is the difference between seeing a broken lock
 and being stopped by one. Low risk; it only ever runs when `Gemfile*` changes.
 
-### 9. Set a Firebase budget alert — ⚠️ this is now the item that would have saved six days
+### 9. Set a Firebase budget alert — ⚠️ still the item that would have saved six days, and item 4's new secret does NOT replace it
 The only watchdog that would have caught the 37-hour outage of 2026-08-09→11 —
 **and it would have caught the current one too.** It was left unset after that
 incident, and the same failure recurred on 2026-08-22 and ran for **six days**
@@ -377,6 +398,11 @@ before anyone looked. Billing is **NOT** fine: see item 1 ①.
 
 A budget alert catches the *cause* (the card) days before anything catches the
 *symptom* (a dead sweep). It is the cheapest control in this document.
+
+**S088 built the symptom-catcher, and that is not this.** The new watcher (item 4)
+tells you production has *already* stopped. A budget alert tells you the card is
+about to fail while everything still works. They are not substitutes, and shipping
+the watcher must not be read as closing this item.
 
 ### 10. Enable Dependabot **alerts** (~1 min)
 Settings → Advanced Security → Dependabot alerts → Enable.
