@@ -4360,4 +4360,20 @@ Two more measured and counterintuitive: **`roles/viewer` (6064 perms) cannot rea
 
 ### Operator
 
-Item 4 becomes **three** secrets. Item 9 (budget alert) explicitly **not** closed by this: the watcher catches the *symptom*, the alert catches the *cause* days earlier. **Neither workflow has ever executed** — a schedule-triggered workflow is not parsed until it reaches the default branch, so its first real parse is its first fire, and that is stated rather than implied.
+Item 4 becomes **three** secrets. Item 9 (budget alert) explicitly **not** closed by this: the watcher catches the *symptom*, the alert catches the *cause* days earlier.
+
+### The lane was DISPATCHED after merge, so D5 is measured rather than asserted
+
+A schedule-triggered workflow is **not parsed until it reaches the default branch**, so its first real parse would otherwise be its first fire. After the merge, `gh workflow list` shows `prod-pulse` **active** (GitHub parsed it), and one manual dispatch produced exactly the shape D5 designs:
+
+```
+prod-pulse-preflight   success      <- probed, found no secret
+prod-pulse             skipped      <- gated on the boolean
+slack-notify           success
+```
+
+and the skip is **visibly** skipped rather than silently green — the run carries real `warning:` annotations (confirmed via the check-runs annotations API, not by reading the echo statements back):
+
+> *PROD_PULSE_VIEWER_SA is not set, so prod-pulse will be SKIPPED — not passed. NOTHING is watching whether the daily sweep is still running in production. The last time that went unwatched it cost six days (#219, #263).*
+
+So the ADR's "MEASURED or visibly SKIPPED, no third outcome" is a measurement now. **The armed path is still unexercised** — nothing has run `prod_pulse` under a service-account credential, and it cannot until the secret exists; that half is stated, not claimed.
