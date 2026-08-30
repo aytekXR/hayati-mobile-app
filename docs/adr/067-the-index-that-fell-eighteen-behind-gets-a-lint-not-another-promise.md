@@ -162,6 +162,17 @@ then *the lint*). It copies `store_metadata_lint.dart` deliberately:
    whose link resolves to `052-…md` is a copy-paste that reads correctly and
    sends the reader to the wrong decision.
 4. **No number appears twice** in the index.
+5. **Every row has exactly THREE cells.** ⚠️ **This assertion was not in revision
+   2 — it was found while building the lint, because the shipped index already
+   violated it.** Row 042 carries an unescaped `|` inside a code span
+   (`` `{kind:'ok'|'profile-missing'}` ``), and GitHub-flavored markdown does
+   **not** let a code span protect a pipe in a table: that row has been rendering
+   with its summary truncated and *"Accepted"* pushed into a fourth column since
+   it landed. **A row that silently loses its Status is the same class of defect
+   as a row that is missing** — the reader gets a confident-looking table with a
+   fact quietly removed. Escaping it (`\|`) is the fix, and the lint's own row
+   for this ADR needed the same fix, because I wrote an unescaped pipe into the
+   sentence describing the defect and the lint caught me.
 
 **Does NOT assert:**
 

@@ -157,6 +157,15 @@ jobs:
         run: dart tool/deploy_lane_lint_test.dart
       - name: deploy lane lint
         run: dart tool/deploy_lane_lint.dart
+      # ADR-067 (#248): the ADR index fell EIGHTEEN records behind before anyone
+      # counted, having been priority 1 in three consecutive session prompts.
+      # A habit that is correctly deferred three times is not a habit. This
+      # asserts a bijection between docs/adr/NNN-*.md and the index rows; it is
+      # NOT path-filtered, because an ADR ships in the same push as its code.
+      - name: adr index lint self-tests
+        run: dart tool/adr_index_lint_test.dart
+      - name: adr index lint
+        run: dart tool/adr_index_lint.dart
       # ADR-024 D1: the Slack notifier is bash, and bash gets neither
       # `dart format` (it silently ignores *.sh) nor `dart analyze`. shellcheck
       # is the static half of that gate (SC2086-class unquoted expansions); the
