@@ -1,12 +1,12 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-30 UTC (S089)
+**Last Updated:** 2026-08-30 UTC (S090)
 
 ## Current Status
 
-- Session: **089**
-- Goal: **the "your partner answered" notification finally says WHO — and the name is a string your partner types, so it is treated as untrusted input**
-- Status: **Done and proven in the emulator; unobservable on a phone until you do item 1.** The red box below is still the most urgent thing in this document, and it has got slightly worse since you last read it
+- Session: **090**
+- Goal: **the tool that tells you whether production is alive was telling you the wrong thing about WHY it is dead — fix that before anything else**
+- Status: **Done.** The command in item 1 now names which of the two billing switches is off and what to do about each. The red box below is still the most urgent thing in this document, and only you can act on it
 - 🔴 **PRODUCTION IS DOWN AND HAS BEEN SINCE 2026-08-22. Your Google billing account is CLOSED.** Nothing your app does on a server has worked for **eight days**: no daily question is being assigned, no push is composed, and purchases cannot be processed. **Item 1 ① is the whole fix and only you can do it.**
 - 🔴 **It has moved a step further since 2026-08-28, and this is the one new fact in this document you should act on.** Until then the projects still *reported* billing as enabled while the account behind them was closed. Re-measured **2026-08-30**: `billingEnabled` is now **`false` on BOTH `hayatiapp-prod` and `hayatiapp-dev`** — Google has now switched billing off at the project, not merely at the card. **Reopening the account may no longer be enough on its own; check that both projects are still linked to an open account afterwards**, and confirm with the command in item 1
 - ⚠️ **Last time this happened it cost 37 hours (2026-08-09→11). This time it has cost eight days**, because the tool built afterwards to catch it could not report during the outage. That tool was fixed at S087, S089 caught it printing the wrong sentence for the *new* state, and **S090 fixed that too (#267)** — so the command in item 1 now tells you exactly which of the two billing switches is off, and what to do about each
@@ -89,6 +89,27 @@ second API refused it. Both are fixed; ADR-063.)*
 *(A functions deploy may also be needed — prod has drifted from `main` since S077.
 That is item 4's territory and I will confirm it once the servers are running
 again, so you are not asked for two things when one may do.)*
+
+**S090 (2026-08-30) — the instrument was telling you to look for a link that was already there.**
+
+**Nothing here needs you, and it takes one paragraph.** The command this document
+gives you as *"how you will know billing is restored"* was printing **"no billing
+account is linked"** — directly underneath a line naming the linked account. It
+was wrong: the account **is** linked, it is **closed**, and since 2026-08-30
+billing is switched off at the project as well. A reader following that sentence
+would go to the console hunting for a missing link that is there.
+
+It could not have said anything better, and that is the interesting part: the
+function writing that sentence was never given the account **name**, so *"not
+linked"* and *"linked and switched off"* looked identical to it. It now knows the
+difference and has four sentences instead of one — including the one you will
+want if you reopen the account and the project takes a moment to catch up
+(*"billing is off at the project even though the account is open — enable billing
+on this project, or wait"*), rather than being told to re-link something already
+linked.
+
+**What you should take from it:** the wording in item 1 is now the tool's own
+wording, so you no longer need this document to translate it for you.
 
 **S089 (2026-08-30) — the notification finally says who answered, and the name is treated as something a stranger typed.**
 
@@ -612,22 +633,29 @@ lock screen — a line break, a reversed sentence, a payload too large to delive
 and closed all three. **None of it can be seen on a phone until ① is done**, and
 that is the whole of what stands between you and this working.
 
-It also found that the tool in the box above currently prints *"no billing account
-is linked"* when the truth is *"linked to a closed account"* — filed as **#267**
-and it is the next session's first job. **Trust item 1's wording, not that line.**
+It also found the tool in the box above printing *"no billing account is
+linked"* when the truth was *"linked to a closed account"*, and this document
+carried a note telling you to ignore that line. **S090 (2026-08-30) fixed the
+tool (#267), so the note is gone and the command speaks for itself again** — it
+now names which of the two billing switches is off and what to do about each.
 
 S086 is closed: **#243** decided (ADR-062), nothing built, **no identifier
 created**, issue stays open for your one sentence (the question under item 16).
 
 ## Next Session Goal
 
-**Fix the instrument before adding to it.** #267: `prod_pulse` measures two
-separate billing facts — whether the project is linked, and whether the account
-behind it still pays — and on the state production has been in since 2026-08-30 it
-prints a sentence that denies one of them while printing the other one line above.
-It is small, and it is first, because **this repo has now paid 37 hours and then
-eight days for instruments that could not report correctly.** After it: **#248**,
-the ADR index, seventeen decisions behind.
+**#248 — the decision index, eighteen entries behind.** `docs/adr/README.md`
+stops at ADR-048 while ADR-049 through ADR-066 exist. It is how a session finds
+what was already decided, and the last two sessions both leaned on precedent it
+does not list. Cheap, and entirely a session's.
+
+*Done, and kept here because it was the previous goal:* **#267** — `prod_pulse`
+measured two separate billing facts and, on the state production entered on
+2026-08-30, printed a sentence denying one of them one line beneath the other.
+Fixed at S090 (ADR-066); the command in the box above is now correct for all four
+billing states. It went first, not because it was large, but because **this repo
+has paid 37 hours and then eight days for instruments that could not report
+correctly.**
 
 **Nothing in either needs you.** Superseded goals are kept below for the record.
 

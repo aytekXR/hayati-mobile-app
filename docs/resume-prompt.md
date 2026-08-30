@@ -1,14 +1,14 @@
-# Resume Prompt — Session 090
+# Resume Prompt — Session 091
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **140**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **141**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #267 — `prod_pulse` measures two billing facts, prints a sentence
-that denies one of them, and it is the sentence the founder acts on.**
+**Objective: #248 — `docs/adr/README.md` stops at ADR-048 while ADR-066 exists.
+Eighteen decisions are not in the index a session uses to find precedent.**
 
 ### ⚠️ First, two commands. Quote both before planning.
 
@@ -17,68 +17,55 @@ python3 tool/ci/prod_pulse.py --from-firebase-cli     # 0 = restored, 1 = still 
 python3 tool/ci/push_delivery_probe.py --from-firebase-cli
 ```
 
-Measured 2026-08-30 (S089) — **re-measure, do not inherit**: both exit **1**. The
-first is also **this session's subject**, so read its output as evidence rather
-than as background.
+Measured 2026-08-30 (S090) — **re-measure, do not inherit**: both exit **1**.
+Production has been down since 2026-08-22, and 0 of 4 devices have ever
+registered. **Neither is this session's** — they are operator items 1 ① and 1 ② —
+but both bound what you can claim. Say so once and work anyway.
 
-### Why #267 is next, ahead of the ADR index
+*(The first command's wording changed at S090. If it now prints something other
+than a closed account, that is the founder having acted, not a regression.)*
 
-**The billing state changed between S088 and S089 and the tool started lying
-about it.** Read through `prod_pulse`'s own helpers on 2026-08-30:
+### Why #248 is next
 
-```
-hayatiapp-prod  billingEnabled=False  billingAccountName=billingAccounts/012195-7EF76F-3A9083  account open=False
-hayatiapp-dev   billingEnabled=False  billingAccountName=billingAccounts/012195-7EF76F-3A9083  account open=False
-```
+It has been the documented #1 priority for three sessions and has been deferred
+each time for something more urgent. Nothing more urgent is open now. Meanwhile
+the gap grew: **049–066, eighteen ADRs**, counted with
+`ls docs/adr/*.md | grep -oE '[0-9]{3}' | sort -u` against the index's own rows,
+not by eye.
 
-For the whole outage `billingEnabled` said **`true`** — the disagreement ADR-063
-D4 was written about. It is now **`false`**, and `billing_findings()`
-(`tool/ci/prod_pulse.py:178`) returns early on that branch with *"BILLING IS OFF
-for this project — **no billing account is linked**"*, **discarding the
-`account_open` fact it measured successfully in the same run**. So the report
-prints that sentence directly beneath the linked account's own id.
-
-That is not a wording nit. It is the instruction the founder acts on
-(`operator-expected.md` item 1 tells them to reopen the account *or* link one),
-and it sends them looking for a link that is already there. **This repo has paid
-37 hours and then eight days for instruments that could not report correctly**
-(#219, #263). Fixing the instrument outranks indexing the ADRs.
-
-It is also small, which is the point: it should leave room to do #248 properly
-next rather than stretching this one.
+**This is not cosmetic, and the last two sessions are the evidence.** S089 leaned
+on ADR-012 D3, ADR-033, ADR-053, ADR-059 and ADR-063 D8 to do its work; S090
+leaned on ADR-041, ADR-063 D2/D4 and ADR-064 D2b. **None of those five is in the
+index.** A session that cannot find a decision re-derives it, and re-deriving a
+decision is how a repo ends up with two.
 
 ### Acceptance
 
-1. **The two probes are run and quoted** before anything is designed — and for
-   this objective, the first one's output IS the defect. If billing has been
-   restored in the meantime, **the branch is no longer reachable live**: say so,
-   and prove the fix against `prod_pulse_test.py` fixtures instead. Do not wait
-   for an outage to test an outage path.
-2. **An ADR or slice design written and committed BEFORE code** (lesson **115**).
-   It is small enough that a slice design may be the right instrument — but say
-   which you wrote, and do not skip it (`session-context.md` §5 item 1).
-3. **Three states, three sentences**, because there are three and the code
-   currently has two: *not linked* (`billingAccountName` empty), *linked to a
-   CLOSED account* (today), and *linked, `open` unreadable* — the last one named
-   as a **gap**, never assumed in either direction (ADR-063's rule).
-4. **The exit-code taxonomy is NOT touched.** ADR-041's 0/1/2 is binding and the
-   local operator command depends on it. This is a reporting change; if you find
-   yourself editing `verdict()`, stop and re-read.
-5. **`prod_pulse_test.py` gains the state production is actually in.** There is
-   today **no fixture** where `billing_enabled=False` and `account_open=False`
-   together — which is why the defect shipped. Add it, and **mutation-check**:
-   restoring the old early-return must redden a *named* assertion.
-6. **Check the Slack path.** `--notifier-findings` feeds `EXTRA_FINDINGS` into
-   `slack_notify.sh` (ADR-064 D2b). Whatever sentence you write is what the
-   watcher would post, so assert the notifier text too, not only the report.
+1. **The two probes are run and quoted** before anything is designed.
+2. **Every ADR from 049 to 066 appears**, with whatever the index's existing rows
+   carry — read the file and match its shape rather than inventing a new one.
+   **Count the result with a command and quote the command** (lesson **133**);
+   the number in the issue title (*"nine ADRs (049-058)"*) is already stale, and
+   so is the "sixteen" and "seventeen" in the last two prompts.
+3. **A guard, or an explicit decision not to have one.** This index has now
+   fallen behind **eighteen** times, which is a process that does not work. A
+   test that fails when `docs/adr/*.md` and the index disagree is cheap and is
+   the obvious fix — `legal_assets_drift_test.dart` is the precedent for a
+   file-tree-versus-document check. If you decide against it, say why in writing;
+   do not simply not build it.
+4. **No ADR is required for this** unless you add the guard, which is a decision
+   and therefore is. Say which instrument you wrote (lesson 115 applies to the
+   guard, not to typing eighteen rows).
+5. **The review still runs.** An index is exactly the kind of change where a
+   review pass feels unnecessary and where an off-by-one is invisible.
 
 ### What is NOT this session's
 
 * **Restoring billing** (operator 1 ①) and **cutting a build** (operator 1 ②).
 * **Arming the watcher** — operator item 4's `PROD_PULSE_VIEWER_SA`.
-* **The budget alert** (operator item 9), still open, still the item that catches
-  the *cause* rather than the symptom.
-* **#248** — it is next, not now. See §2.
+* **The budget alert** (operator item 9).
+* **Rewriting any ADR's content.** The index points; it does not summarise
+  anything that is not already in the ADR's own title and status line.
 
 ---
 
@@ -86,62 +73,56 @@ next rather than stretching this one.
 
 | | State |
 |---|---|
-| **Production** | 🔴 **DOWN since 2026-08-22T02:00Z.** Account `012195-7EF76F-3A9083` is closed **and `billingEnabled` is now `false` on BOTH projects** — Google has switched billing off at the project, not only at the card. Last completed sweep **2026-08-25T15:00:11Z** |
-| **`prod_pulse`** | Reports during the outage (ADR-063) — and **#267, this session**: it discards the account-open fact on the `billingEnabled=false` branch |
-| **The watcher** | BUILT and MERGED (ADR-064), **UNARMED**. `prod-pulse.yml` parses; one dispatch proved the unarmed path. **The ARMED path is still unexercised** and cannot run until `PROD_PULSE_VIEWER_SA` exists |
+| **Production** | 🔴 **DOWN since 2026-08-22T02:00Z.** Account `012195-7EF76F-3A9083` closed **and `billingEnabled` now `false` on BOTH projects** — off at the project as well as the card. Last completed sweep **2026-08-25T15:00:11Z** |
+| **`prod_pulse`** | **Correct for all four billing states as of S090** (ADR-066). It names which switch is off and what to do about each |
+| **The watcher** | BUILT and MERGED (ADR-064), **UNARMED**. The ARMED path is still unexercised and cannot run until `PROD_PULSE_VIEWER_SA` exists |
 | **Push, device side** | **STILL 0 of 4 registered**, four *"no report"* |
-| **#253** | **CLOSED by S089** (ADR-065). `partnerAnswered` names the author; `sanitizePushName` is now a **security boundary** with five rules, not a formatter |
-| **#136** | Autonomous half **exercised for the first time** — the bidi property is asserted at the seam that now reaches it. **Step 1 is still device-blocked** |
-| **#263** | ⚠️ **OPEN.** `gh issue view 263` → `OPEN`, `closedAt=null`. The S089 prompt said "CLOSED by S088" and that was wrong; the watcher is merged and unarmed, so open is honest |
-| **#248** | **SEVENTEEN ADRs behind** (049–065; `docs/adr/README.md` stops at 048 — counted with `ls docs/adr/*.md`, not by eye) |
-| **#267** | **OPEN — this session** |
+| **#253** | **CLOSED by S089** (ADR-065). `sanitizePushName` is a **security boundary** with five rules |
+| **#267** | **CLOSED by S090** (ADR-066) |
+| **#136** | Autonomous half exercised for the first time at S089. **Step 1 is still device-blocked** |
+| **#263** | ⚠️ **OPEN.** The watcher is merged and unarmed, so open is honest. (S089 corrected an inherited prompt that claimed it was closed — verify with `gh`, not with prose) |
+| **#248** | **EIGHTEEN ADRs behind (049–066) — THIS SESSION** |
 | **#226 / #243 / #242 / #247 / #249 / #250 / #258** | Unchanged; #226 and #243 need the founder |
-| **Deployed rules vs `main`** | **DRIFTED** — downstream of billing; §7 founder ask |
+| **Deployed rules vs `main`** | **DRIFTED** — downstream of billing |
 
-### What S089 changed that a later session will trip over
+### What S090 changed that a later session will trip over
 
-* **`sanitizePushName` is a security boundary now, not a formatter.** Five rules,
-  and its unit suite is a **security** suite: 30 cases × 3 languages behind a
-  count floor. Adding a rule means adding a mutation check.
-* **`hasContent` disqualifies `Default_Ignorable_Code_Point`** — it does not
-  delete it. The distinction matters: the property covers characters real
-  orthography carries (Khmer U+17B4/U+17B5, variation selectors).
-* **`\p{Cs}` deletes only LONE surrogates.** Under `/u` an emoji is one `So` code
-  point and never matches. Do not "simplify" this to a code-unit check.
-* **`reveal-service.test.ts` now builds a `[DEFAULT]` Firebase app** so `getAuth()`
-  works beside the no-trigger Firestore project. Another suite that assumes no
-  default app exists will be surprised.
-* **The privacy draft's notification bullet has been rewritten three times, in
-  alternating directions** (ADR-058 → ADR-059 → ADR-065). Each was correct when
-  written. If you change what a notification contains, that bullet is the fourth.
-* **Two ARB strings now describe the push** (`nameCaptureHelper`,
-  `settingsNotificationPrivacySubtitle`). They are not in the frozen digest —
-  verified, not assumed — so nothing will stop you making them false.
+* **`billing_findings` takes THREE arguments now** — `billing_enabled`,
+  `account_name`, `account_open` — and `verdict()` threads `billing_account_name`
+  purely to reach it. Without the name, *"not linked"* and *"linked and switched
+  off"* are the same input; that was #267.
+* **Four billing sentences, and the tests assert ABSENCE.** All four states
+  produce exactly one finding, so a `len(findings) == 1` check passes on the bug.
+  The assertions are that the unlinked sentence must **not** appear in the other
+  three, behind a floor that the four stay four distinct strings.
+* **Row 4 (billing off, account OPEN) is defensive and UNMEASURED**, and the ADR
+  says so. Reaching it means reopening a closed account — operator item 1.
 
 ### Still true from earlier sessions
 
-* **`architecture.md` §7's first sentence is sentinel-parsed** — append after it,
-  never reword it or rename the heading.
-* **The emulator suite can fail on a loaded box.** Distinguish by SHAPE; if you
-  re-run, **say you re-ran**. S089 had to: a background-task stop killed the first
-  run before it reported, so it was never evidence of anything.
-* **`integration-emulator` never runs on a PR.** Prove a change to it with
-  `gh workflow run ci.yml --ref <branch>` before merging.
-* **Repeated pushes cancel the macOS gate.** Hold the last commit and push it alone.
+* **`architecture.md` §7's first sentence is sentinel-parsed** — append after it.
+* **The emulator suite can fail on a loaded box.** If you re-run, **say you
+  re-ran** (S089 had to: a background-task stop killed a run before it reported).
+* **`integration-emulator` never runs on a PR** — main-only by cost design. A
+  docs-only merge produces a green with it path-filtered away, measuring nothing.
+* **Repeated pushes cancel the macOS gate.** Hold the last commit and push alone,
+  and verify `ios-build-smoke` actually COMPILED via
+  `gh api repos/:owner/:repo/actions/jobs/<id>/logs` — `gh run view --job --log`
+  returns zero lines here.
 * **Do not hand-roll a Unicode range** (lesson 124); `strong_bidi_ranges.dart` is
-  **GENERATED** (ADR-053). S089 chose properties over lists twice more for the
-  same reason.
+  **GENERATED** (ADR-053).
 * `FORMAT_VERSION` is **3**, pinned by **four** assertions (lesson 108).
 * **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3.
+* **`main` is protected.** A close commit needs its own PR; a direct push is
+  rejected by the branch hook.
 
 ---
 
 ## 2. Then, in priority order
 
-**1 — #248** (seventeen ADRs missing from the index; cheap, and the index is how a
-session finds precedent — S089 leaned on ADR-012/033/053/059/063 to do its work).
-**2 — #249** (the consent record is named in no collection list). **3 — #242** (the
-server three have no emitter; waits on a sink).
+**1 — #249** (the consent record is named in no collection list). **2 — #242**
+(the server three have no emitter; waits on a sink). **3 — #258** (the legal draft
+under-describes deletion once #246 landed).
 
 **4 — #204** · **#165** · **#121** · **#115** · **#41** · **#63/#71**.
 
@@ -198,3 +179,7 @@ run** (`integration-emulator` is main-only) → `codegraph sync`.
 
 > ⚠️ **Grep the ARB files for what your change makes false** (lesson **140**). The
 > sentence that goes stale is rarely in the code.
+
+> ⚠️ **A CORRECTION IS NOT DONE UNTIL EVERY COPY OF IT IS GONE** (lesson **141**).
+> S090 removed one of two copies of a stale note and its commit message said the
+> note was removed. `grep` for the note's own words before claiming it.

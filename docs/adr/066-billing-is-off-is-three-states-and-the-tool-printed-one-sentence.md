@@ -12,6 +12,14 @@
 > finding, **all 4 surfaced (both verifiers real on every one), 0 refuted, 0
 > dropped unverified**. Revision 2 is what it produced.
 >
+> **The built-diff pass has now run too** — 4 lenses × 2 verifiers + a
+> completeness critic, **7 agents, 0 errored, 0 empty results, 0 skipped**; **3
+> lenses considered-empty** (all three ran fully — mechanism traced the argument
+> end to end, testability ran the suite, adversarial ran the live probe and
+> traced the string through `slack_notify.sh`); **1 finding, real to both
+> verifiers, 0 refuted, 0 dropped unverified**; 0 critic findings. See the
+> closing section.
+>
 > ⚠️ **It found a BLOCKING self-contradiction: revision 1 was unimplementable as
 > written.** D1 required `billing_findings` to receive the account name, and D2
 > forbade touching `verdict()` — but `verdict()` is `billing_findings`'s only
@@ -267,3 +275,35 @@ refutation (lesson **137**).
 sub-agents, `session-context.md` §3), so every claim here about a test *passing*
 is still a claim. The built-diff pass and the runs the diff itself performs are
 what settle them.
+
+## What the BUILT-DIFF pass changed
+
+4 lenses × 2 verifiers + a completeness critic; **7 agents, 0 errored, 0 empty
+results, 0 skipped**; **3 lenses considered-empty**; **1 finding, real to BOTH
+verifiers, 0 refuted, 0 dropped unverified**; **0 critic findings**.
+
+The three empty lenses are worth naming, because "considered-empty" is a claim
+and each of them earned it: *mechanism* traced `account_name` from `main()`
+through `verdict()` to `billing_findings()` and confirmed the value printed on
+the report line is the same one the finding interpolates; *testability* ran the
+hermetic suite and reconstructed the 8-assertion mutation count independently;
+*adversarial* ran the live probe, measured the notifier payload at 973 bytes, and
+followed the account name through `slack_notify.sh`'s `jq --arg` to confirm it
+cannot break the payload.
+
+| from | finding | what changed |
+|---|---|---|
+| lens *governance* (major) | The diff removed the S089 workaround note from item 1 and the commit message said so — but **a second copy survived** in `operator-expected.md`'s *Next Step* section (*"Trust item 1's wording, not that line"*), and *Next Session Goal* still named #267 as the work to do | both corrected; the goal advances to #248 |
+
+**This is the failure mode this ADR's own Alternatives section named**, which is
+why the adjudicator raised rather than lowered it: *"a document that corrects a
+tool is a note that goes stale."* The fix removed the tool's defect and left one
+of the two notes correcting it — telling the founder, in the same document, both
+that the tool is right again and that they should distrust it. **A correction is
+not done when the thing it corrects is fixed; it is done when every copy of the
+correction is gone**, and a `grep` for the note's own words is what finds them.
+
+**What this pass could not check.** No lens ran anything requiring a credential
+beyond the read-only probe, and none could reach the `billing_enabled=False,
+account_open=True` state — it needs a closed account to be reopened, which is
+operator item 1. That row remains defensive and unmeasured, as D1 says.

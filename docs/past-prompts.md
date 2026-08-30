@@ -4492,3 +4492,65 @@ firebase emulators:exec --only auth,firestore,functions --project demo-hayati 'c
 
 **Next objective written to resume-prompt.md:** Session 090 — **#248**, the ADR index, which now stops **seventeen** ADRs short (049–065).
 
+## Session 090 — 2026-08-30 — #267: "billing is off" is four states, and the tool had one sentence for them all (ADR-066)
+
+**Objective (from resume-prompt.md):** `prod_pulse` measures two billing facts, prints a sentence that denies one of them, and it is the sentence the founder acts on.
+
+**Outcome:** done. The instrument is correct again for all four billing states, and both review passes found something real — the design pass found the ADR **unimplementable**, the built-diff pass found the fix's own documentation contradicting itself.
+
+### The two probes, re-measured first
+
+```
+$ python3 tool/ci/prod_pulse.py --from-firebase-cli        # exit 1, sweep 110.6h stale
+$ python3 tool/ci/push_delivery_probe.py --from-firebase-cli   # exit 1, 0/4 registered
+```
+
+Production still down; nothing here changes that, and both are operator items.
+
+### The defect, and why it was structural rather than a typo
+
+The tool printed *"BILLING IS OFF for this project — no billing account is linked"* **directly beneath a line naming the linked account**. The account is linked; it is closed; and since some point between 2026-08-28 and 2026-08-30 `billingEnabled` flipped to `false` as well — so the pair `(billing_enabled=False, account_open=False)` is a state that did not exist when the code was written. ADR-063 D4's entire subject had been the opposite disagreement.
+
+Two things made it worse than a wording bug:
+
+* **The fact was in hand.** `main()` probes the account whenever one is *named*, regardless of the enabled flag, so `account_open=False` was measured successfully **in the same run**. `billing_findings()` returned early and never consulted it — ADR-063's own defect one layer up: D2 stopped the *measurement* discarding facts it held; the *reporting* still did.
+* **It could not have done otherwise, by signature.** `billing_findings` received two booleans and no account name, so *"not linked"* and *"linked and switched off"* were the same input. A missing discriminator, not a wrong string.
+
+And the sentence is load-bearing twice: it is what `operator-expected.md` item 1 names as *how you will know billing is restored*, and it is what the watcher posts to Slack (ADR-064 D2b) once operator item 4's secret exists.
+
+### The design pass found the ADR unimplementable
+
+4 lenses × 2 verifiers + a critic; **13 agents, 0 errored, 0 empty, 0 skipped**; **4 findings, all 4 real to BOTH verifiers, 0 refuted, 0 dropped unverified**; 1 critic finding (a duplicate).
+
+**BLOCKING:** revision 1's D1 required `billing_findings` to receive the account name, and its D2 said *"if a change to `verdict()` becomes necessary, that is the signal that this ADR has been misread"* — but `verdict()` is `billing_findings`'s **only** production caller, so the parameter cannot arrive without passing through it. The two decisions forbade each other. Re-measured before accepting it (lesson 123): `grep -n billing_findings tool/ci/prod_pulse.py` gives the definition at 179, **one call at 242, inside `verdict()`**, and a comment at 585. Revision 1's Consequences had asserted `main()` was the caller — the second finding, which the critic found independently.
+
+Revision 2 draws the whole chain instead of naming the destination, and replaces D2's prohibition with three invariants a reviewer can check: no branch returns a different exit code for any previously expressible input; the gap logic is untouched; only the sentence changes.
+
+The adversarial lens also caught row 4 telling the founder to **"re-link it"** for a state whose own precondition is that an account *is named* — the name is known only because the link exists. It now says *enable billing on this project, or wait for propagation*. And its reachability had been asserted as if observed; it has not been, because reaching it means reopening a closed account (operator item 1). It is now stated as **defensive and unmeasured**, with the asymmetry that justifies keeping it.
+
+### The built-diff pass found the fix's own docs contradicting themselves
+
+4 lenses × 2 verifiers + a critic; **7 agents, `agents_error=0`, `agents_empty_result=0`, 0 skipped**; **3 lenses considered-empty** — and each earned it: mechanism traced the argument end to end, testability ran the suite and reconstructed the mutation count independently, adversarial ran the live probe, measured the notifier payload at 973 bytes and followed the account name through `slack_notify.sh`'s `jq --arg`. **1 finding, real to both verifiers, 0 refuted; 0 critic findings.**
+
+**The finding:** the diff removed S089's *"ignore that line"* workaround note from `operator-expected.md` item 1 — and left **a second copy** in the same document's *Next Step* section, while *Next Session Goal* still named #267 as the work to do. The file said, simultaneously, that the tool is correct again and that the founder should distrust it. **The commit message asserted the removal in the singular.** This is the failure mode ADR-066's own Alternatives section had already named — *"a document that corrects a tool is a note that goes stale"* — left by the session that wrote the sentence. Lesson **141**.
+
+### Verification
+
+TDD: the tests were written **first** and failed for the right reason (`TypeError: billing_findings() got an unexpected keyword argument 'account_name'`), then the implementation made them pass.
+
+`prod_pulse_test.py` all checks passed · `slack_notify_test.sh` **25 passed** · `rules_drift_test.py` green · deploy-lane lint **PASS** (9 checks / 3 lanes) · release-lane lint **PASS** (12 checks) · run **live** against production: exit still **1**, and the report now names the closed account and the next step.
+
+⚠️ **A count-based test could not have caught this, which is why the new one asserts ABSENCE.** All four billing-off states produce exactly **one** finding, so `len(findings) == 1` passes on the defect. The assertions are that *"no billing account is linked"* appears in the unlinked case and **must not** appear in the other three — plus a floor that the four states stay four **distinct** sentences.
+
+**Mutation-checked twice, each proven to change behaviour BEFORE the suite ran** (lesson 112): restoring the early return reddens **8** named assertions including the floor and the notifier seam; re-introducing revision 1's *"re-link it"* wording reddens exactly the one check written for it. Both restore byte-exact (`md5sum`).
+
+**Commits:** `9806756` (ADR rev 1, before code) → `506f71e` (rev 2, design pass) → `21a9b6e` (the code) → the close commit (rev 3 record + the two stale notes).
+
+**CI:** appended at close, below.
+
+**Docs touched:** `docs/adr/066-*.md`, `docs/operator-expected.md`, `docs/test-suite.md`, `docs/session-lessons.md` (**141**), `docs/past-prompts.md`, `docs/resume-prompt.md`.
+
+**Notes / debt logged:** **#267 closed.** Row 4 of the state table is **defensive and unmeasured** and says so. Nothing here is observable on a phone — production down since 2026-08-22, 0 of 4 devices ever registered, both operator items.
+
+**Next objective written to resume-prompt.md:** Session 091 — **#248**, the ADR index, now **eighteen** decisions behind (049–066).
+

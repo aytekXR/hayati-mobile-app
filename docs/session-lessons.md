@@ -38,6 +38,24 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**141 — A correction is finished when every COPY of it is gone, not when the thing it corrected is fixed.** *(S090, ADR-066)*
+S089 found `prod_pulse` printing *"no billing account is linked"* beneath the
+linked account's own id, could not fix the tool in that session's scope, and put
+a note in `operator-expected.md` telling the founder to ignore that line. S090
+fixed the tool and removed the note — **one of the two copies of it.** The second
+sat in the same document's *Next Step* section (*"Trust item 1's wording, not
+that line"*), so the file simultaneously said the tool was correct again and that
+the founder should distrust it; the *Next Session Goal* section still named the
+issue the same commit closed. The commit message asserted the removal in the
+singular — *"loses the S089 note"* — which is how a `sed`-shaped edit reads when
+you wrote the note once and it was rendered twice. **This is the failure mode
+ADR-066's own Alternatives section had already named**: *"a document that corrects
+a tool is a note that goes stale"*, written by the session that then left one.
+**Grep for the note's own words before claiming it is gone** — the built-diff
+review found this and it costs one command. Related: lesson **140** (grep for
+what your change falsifies) — this is its mirror, greping for what your change
+makes *redundant*.
+
 **140 — The sentence a change makes false is usually in the translation files, not in the code.** *(S089, ADR-065 D6)*
 ADR-065 D5 spends a page on the right argument: this session makes a sentence in
 the privacy draft false, that is *"the same defect class, one session later"*, and
