@@ -601,9 +601,13 @@ shape: *the app holds or does something, and the notice does not say so.*
 | **#249** | the record of your consent — which version, when, and that you confirmed your age — is stored, is handed to a user who asks for their data, and is named nowhere. **Corrected in the draft by S092** |
 | **#258** | what deletion actually removes is under-described, since the delete-my-account work landed |
 
-All three were found by review passes reading the documents, all three are
-drafted, and **all three wait on the same decision from you**. Sending them
-together costs one round; sending them separately costs three.
+All three were found by review passes reading the documents, and **all three wait
+on the same decision from you**. Sending them together costs one round; sending
+them separately costs three.
+
+*(S092 wrote "all three are drafted" here and that was wrong — #258 had only been
+noted, not drafted. **S094 drafted it**, so the sentence is true now; it is
+corrected rather than quietly fixed because you may have read the wrong version.)*
 
 ⚠️ **Landing it bumps `CURRENT_LEGAL_VERSION` and re-prompts every existing user
 for consent.** That is why a session drafted it and stopped. **What is needed from
