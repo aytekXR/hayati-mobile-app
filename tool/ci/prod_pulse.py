@@ -176,24 +176,74 @@ def sweep_age_minutes(last_sweep: dt.datetime | None, now: dt.datetime) -> float
     return (now - last_sweep).total_seconds() / 60.0
 
 
-def billing_findings(*, billing_enabled: bool, account_open: bool | None) -> list[str]:
+# What Cloud Run does in every "billing is off" state. Written once because it
+# is the same consequence four times over; only the CAUSE and the next action
+# differ, and those are what the four branches below are for.
+_REFUSAL = (
+    "Cloud Run will refuse every invocation at the serving layer (HTTP 500, "
+    "container never starts) and nothing else here can be true until it is "
+    "restored."
+)
+
+
+def billing_findings(
+    *,
+    billing_enabled: bool,
+    account_name: str | None,
+    account_open: bool | None,
+) -> list[str]:
     """The billing verdict, as a list of findings (empty = healthy).
 
-    TWO facts, and the shipped tool only had the first. `billingEnabled` says the
-    project is LINKED to a billing account; `open` says that account still pays
-    for anything. On 2026-08-22 they disagreed for six days — linked, closed, and
-    every Cloud Run invocation refused — which is why the reassuring one is not
-    the authoritative one (ADR-063 D4).
+    THREE facts, and each shipped revision has had one fewer than it needed.
+
+    `billingEnabled` says the project is LINKED to a billing account; `open` says
+    that account still pays for anything. On 2026-08-22 they disagreed for six
+    days — linked, closed, and every Cloud Run invocation refused — which is why
+    the reassuring one is not the authoritative one (ADR-063 D4).
+
+    ⚠️ **`account_name` is the third, and without it this function cannot tell
+    "not linked" from "linked and switched off"** (ADR-066, #267). Revision 2
+    returned early on `not billing_enabled` with *"no billing account is
+    linked"*, never consulting `account_open` — which `main()` had already
+    measured in the same run. Measured 2026-08-30 on both projects:
+    `billingEnabled=False`, `billingAccountName=billingAccounts/012195-…`,
+    `open=False`, so the report printed that sentence directly beneath a line
+    naming the linked account. It is the instruction the founder acts on
+    (`operator-expected.md` item 1) and the text the watcher posts (ADR-064 D2b),
+    and it sent them looking for a link that was already there. This is ADR-063's
+    own defect one layer up: D2 stopped the MEASUREMENT discarding facts it held;
+    the REPORTING still did.
 
     `account_open is None` means the account document could not be read. That is
-    a GAP for the caller to name, never an assumption in either direction, so no
-    finding is raised here.
+    a GAP — named, never assumed in either direction. With billing ON it raises
+    no finding at all (the caller names the gap); with billing OFF it is still a
+    finding, because billing being off is itself the finding, but the sentence
+    says the account state is unknown rather than inventing one.
     """
     if not billing_enabled:
+        if account_name is None:
+            return [
+                "BILLING IS OFF for this project — no billing account is linked. "
+                + _REFUSAL
+            ]
+        if account_open is False:
+            return [
+                f"BILLING IS OFF for this project, and the account it is linked to "
+                f"({account_name}) is CLOSED. Reopen that account with a working "
+                f"payment method, or link this project to an open one — then check "
+                f"the project shows billing enabled again. " + _REFUSAL
+            ]
+        if account_open is None:
+            return [
+                f"BILLING IS OFF for this project. It is linked to {account_name}, "
+                f"whose own open/closed state COULD NOT BE READ, so the cause is "
+                f"not established here — check that account first. " + _REFUSAL
+            ]
         return [
-            "BILLING IS OFF for this project — no billing account is linked. Cloud Run "
-            "will refuse every invocation at the serving layer (HTTP 500, container "
-            "never starts) and nothing else here can be true until it is restored."
+            f"BILLING IS OFF for this project even though the account it is linked "
+            f"to ({account_name}) is OPEN — so this is the project's own billing "
+            f"switch, not the card. Enable billing on this project; if you have "
+            f"just reopened the account, it may still be propagating. " + _REFUSAL
         ]
     if account_open is False:
         return [
@@ -216,6 +266,7 @@ def verdict(
     now: dt.datetime,
     max_age_minutes: float = DEFAULT_MAX_AGE_MINUTES,
     billing_account_open: bool | None = None,
+    billing_account_name: str | None = None,
     last_refusal: tuple[dt.datetime, str] | None = None,
     gaps: dict[str, str] | None = None,
 ) -> tuple[int, list[str]]:
@@ -239,8 +290,13 @@ def verdict(
     if "billing" in gaps:
         pass  # named below; no assumption in either direction
     else:
+        # ⚠️ THREE arguments, not two. `billing_findings` needs the account NAME
+        # to tell "not linked" from "linked and switched off" (ADR-066 #267);
+        # `verdict` carries it for no other reason and decides nothing with it.
         billing = billing_findings(
-            billing_enabled=billing_enabled, account_open=billing_account_open
+            billing_enabled=billing_enabled,
+            account_name=billing_account_name,
+            account_open=billing_account_open,
         )
         findings.extend(billing)
         if not billing:
@@ -601,6 +657,7 @@ def main(argv: list[str] | None = None) -> int:
     code, lines = verdict(
         billing_enabled=billing_enabled,
         billing_account_open=account_open,
+        billing_account_name=account_name,
         job_state=state,
         job_status_code=status,
         last_sweep=last,

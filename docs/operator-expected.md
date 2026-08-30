@@ -9,7 +9,7 @@
 - Status: **Done and proven in the emulator; unobservable on a phone until you do item 1.** The red box below is still the most urgent thing in this document, and it has got slightly worse since you last read it
 - 🔴 **PRODUCTION IS DOWN AND HAS BEEN SINCE 2026-08-22. Your Google billing account is CLOSED.** Nothing your app does on a server has worked for **eight days**: no daily question is being assigned, no push is composed, and purchases cannot be processed. **Item 1 ① is the whole fix and only you can do it.**
 - 🔴 **It has moved a step further since 2026-08-28, and this is the one new fact in this document you should act on.** Until then the projects still *reported* billing as enabled while the account behind them was closed. Re-measured **2026-08-30**: `billingEnabled` is now **`false` on BOTH `hayatiapp-prod` and `hayatiapp-dev`** — Google has now switched billing off at the project, not merely at the card. **Reopening the account may no longer be enough on its own; check that both projects are still linked to an open account afterwards**, and confirm with the command in item 1
-- ⚠️ **Last time this happened it cost 37 hours (2026-08-09→11). This time it has cost eight days**, because the tool built afterwards to catch it could not report during the outage. That tool was fixed at S087 — and S089 found it now prints the WRONG SENTENCE for this new state (*"no billing account is linked"*, immediately under the linked account's own id). Filed as **#267**; it is a reporting bug, not a second outage, and item 1's instruction below is the corrected wording
+- ⚠️ **Last time this happened it cost 37 hours (2026-08-09→11). This time it has cost eight days**, because the tool built afterwards to catch it could not report during the outage. That tool was fixed at S087, S089 caught it printing the wrong sentence for the *new* state, and **S090 fixed that too (#267)** — so the command in item 1 now tells you exactly which of the two billing switches is off, and what to do about each
 - ⚠️ **Item 16 is still waiting on you, and it is the oldest open honesty gap in the repo**
 - ⚠️ **The privacy document waiting for your lawyer now carries FOUR small notes, not one — see item 16.** The newest is S089's, and it is the one that changed direction: the notification bullet said no notification names anyone, and that is no longer true
 - Completion: **~60%** of the iOS MVP as specified, to public launch
@@ -336,11 +336,17 @@ hayatiapp-dev   billingEnabled=False  billingAccountName=billingAccounts/012195-
 ```
 
 **What that changes for you:** reopening the account is still step one, but do not
-stop there — **confirm afterwards that each project is linked to an open account**
-(Firebase Console → ⚙ → Usage and billing, for both projects). ⚠️ `prod_pulse`
-currently narrates this state as *"no billing account is linked"*, which is wrong
-— the account IS linked and closed. That is **#267**, filed today; ignore that one
-sentence and trust the block above.
+stop there — **confirm afterwards that each project shows billing enabled again**
+(Firebase Console → ⚙ → Usage and billing, for both projects).
+
+*(S089 found `prod_pulse` narrating this state as "no billing account is linked",
+which was wrong — the account is linked and closed — and this document carried a
+note telling you to ignore that line. **S090 fixed the tool (#267), so the note is
+gone and the command's own words are correct again.** It now prints:*
+*"BILLING IS OFF for this project, and the account it is linked to
+(billingAccounts/012195-7EF76F-3A9083) is CLOSED. Reopen that account with a
+working payment method, or link this project to an open one — then check the
+project shows billing enabled again."*)
 
 The last **completed** sweep is still **2026-08-25 15:00 UTC** (**106.7 hours**
 before this measurement).
