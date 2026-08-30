@@ -1,14 +1,19 @@
-# Resume Prompt — Session 093
+# Resume Prompt — Session 095
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
-> Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **144**) first.
+> Read `session-context.md` and `session-lessons.md` (numbered to **145**) first.
 > Re-derive the session number from `git log`.
+>
+> ⚠️ **BEFORE PLANNING, OPEN THE ADR THAT OWNS THIS OBJECTIVE AND READ ITS
+> DECISION** (lesson **145**). S093 was handed an objective its own ADR had
+> already declined, because the prompt was written from the issue title and the
+> priority list. **This prompt makes a claim about #204's state; check it.**
+> The ADR to read is **ADR-047**.
 
-**Objective: #242 — the three server-side money events (`trial_start`, `paid`,
-`churn`) are specified, are named in `architecture.md` §7, and have no emitter.**
+**Objective: #204 — `deliver` has failed to create the `tr` App Store
+localization on EVERY release since build 112, and `continue-on-error` hid it.**
 
 ### ⚠️ First, two commands. Quote both before planning.
 
@@ -17,51 +22,48 @@ python3 tool/ci/prod_pulse.py --from-firebase-cli     # 0 = restored, 1 = still 
 python3 tool/ci/push_delivery_probe.py --from-firebase-cli
 ```
 
-Measured 2026-08-30 (S092) — **re-measure, do not inherit**: both exit **1**.
-**Neither is this session's** — operator items 1 ① and 1 ② — but both bound what
-you can claim. ⚠️ The first may report an **HTTP 429** gap on the Logging API;
-that is a named gap, not a finding, and re-running usually clears it.
+Measured 2026-08-30 (S094) — **re-measure, do not inherit**: both exit **1**.
+Neither is this session's — operator items 1 ① and 1 ② — but both bound what you
+can claim.
 
-### Why #242 is next, and the trap in it
+### Why #204, and the part of it that is NOT yours
 
-ADR-060 decided **where** the three events are emitted — at the RevenueCat
-webhook, *where the decision is made*, rather than inferred later from a mirror.
-The decision exists; the emitter does not. This is the same shape as #253 was
-before S089: **a feature that is wrong rather than unshipped.**
+ADR-047 built the instrument: **positive evidence of publication per locale**,
+expected from `fastlane/metadata/` and actual from App Store Connect, rather than
+grepping Apple's error string. It found more than the issue claimed — **`tr` is
+absent AND seven of `en-US`'s nine fields disagree with this ref**, so the
+committed copy has never been published at all.
 
-⚠️ **The trap is that it looks blocked and is only half-blocked.** There is no
-analytics sink in production (ADR-057: prod is wired to a no-op), and a vendor
-adapter needs a legal change first (**#247**, **#226**). So *delivering an event
-to a vendor* is blocked. **Emitting it into the port that already exists is
-not** — the app already does exactly that for eight events, into a no-op, and
-that is how #242's own body describes the gap. Decide explicitly which half you
-are doing and say so.
+⚠️ **Apple refuses the app NAME for `tr`**, and that is a founder decision
+(`resume-prompt` §3 has carried it for weeks). **Do not attempt to resolve the
+name.** What may be a session's: whether the audit is *armed and running*, whether
+the release lane still hides the failure, and whether `en-US`'s seven-field
+disagreement is a separate, unblocked defect. **Establish which half you are in
+before designing anything** — S093 was handed a similar shape and its objective
+turned out to be decided already.
 
 ### Acceptance
 
-1. **The two probes are run and quoted** before anything is designed.
-2. **Read ADR-060 first and say what it already decided.** #242 is its unbuilt
-   half. An ADR that re-decides what ADR-060 decided is the failure mode; an ADR
-   that says *"ADR-060 D-n covers this, here is only what it left open"* is the
-   shape.
-3. **An ADR or slice design committed BEFORE code** (lesson **115**), **with its
-   index row in the same commit** — the ADR-067 gate makes a missing row a red
-   build, and it has already caught one session.
-4. **The webhook is the one server path that handles money.** Any change to it
-   states what happens on a replayed event, an out-of-order event, and an event
-   for a couple that no longer exists. ADR-013/014/015 decided those; do not
-   re-decide them, but say which of them your emitter sits inside.
-5. **Do not create a join key.** ADR-062 refused one, twice, for a reason: this
-   product will not put an account identifier on anything it counts. If the
-   events feel unusable without one, that is #243 and it is a founder decision.
+1. **The two probes are run and quoted.**
+2. **ADR-047 read first**, and this prompt's characterisation of #204 checked
+   against it. Say plainly if the objective is already decided or already done —
+   that is a legitimate and valuable outcome, not a failed session (S093).
+3. **The store-metadata audit is RUN**, not assumed:
+   `gh workflow run testflight-testers.yml -f store_metadata_audit=true`. It rides
+   that workflow; there is no store-metadata workflow of its own.
+4. **An ADR or slice design committed BEFORE code** (lesson **115**) **with its
+   index row in the same commit** — ADR-067's gate makes a missing row a red
+   build, and it has already caught two sessions.
+5. **If the conclusion is "blocked on the founder", follow §4**: document the
+   blocker on the issue, regenerate this file for the next unblocked task, and
+   end. S093 did that; it is a clean outcome.
 
 ### What is NOT this session's
 
-* **Restoring billing** (operator 1 ①) and **cutting a build** (operator 1 ②).
-* **Arming the watcher** — operator item 4's `PROD_PULSE_VIEWER_SA`.
-* **Landing the privacy revision** — #226, and now the whole of operator item 16.
-* **Building a vendor adapter.** #247 says the legal change comes first, and
-  ADR-057 says prod ships a no-op deliberately.
+* **Restoring billing** (operator 1 ①), **cutting a build** (1 ②), **arming the
+  watcher** (item 4), **landing the privacy revision** (item 16).
+* **The `tr` app name.** Apple refuses it; the founder decides.
+* **Dispatching the release lane.** It uploads a real binary (§7).
 
 ---
 
@@ -70,41 +72,38 @@ are doing and say so.
 | | State |
 |---|---|
 | **Production** | 🔴 **DOWN since 2026-08-22T02:00Z**, account closed and `billingEnabled` false on both projects |
-| **`prod_pulse`** | Correct for all four billing states (ADR-066), verified in live use |
-| **The watcher** | BUILT, MERGED, **UNARMED**; the armed path is still unexercised |
 | **Push, device side** | **STILL 0 of 4 registered** |
-| **The ADR index** | **WHOLE — 68 records, 68 rows**, guarded (ADR-067). **An ADR without its row is a red build** |
-| **#248 / #249 / #253 / #267** | **CLOSED** by S091 / S092 / S089 / S090 |
-| **#263** | **OPEN** — the watcher is merged and unarmed, so open is honest |
-| **#226 / #258** | Open, and **operator item 16 now carries them with #249's landing as ONE decision** |
-| **#242** | **OPEN — this session** |
-| **#243 / #247 / #250** | Unchanged; #243 needs the founder |
-| **Deployed rules vs `main`** | **DRIFTED** — downstream of billing |
+| **The ADR index** | **WHOLE — 69 records, 69 rows**, gated (ADR-067) |
+| **The v3 privacy draft** | **All three disclosure items now DRAFTED** (#226 push, #249 consent record, #258 deletion). Operator item 16 asks for **one** decision. ⚠️ `CURRENT_LEGAL_VERSION` is **2** and all three sources agree; nothing has landed |
+| **#248 / #249 / #253 / #258 / #267** | **CLOSED** by S091 / S092 / S089 / S094 / S090 |
+| **#242** | **OPEN and correctly blocked** by ADR-060 D6 — no sink, #226 and #247 open. Do not re-derive; the reasoning is on the issue |
+| **#263** | **OPEN** — the watcher is merged and unarmed |
+| **#204** | **OPEN — this session** |
+| **#226 / #247 / #243 / #250** | Unchanged; #226 and #243 need the founder |
 
-### What S092 changed that a later session will trip over
+### What S093/S094 changed that a later session will trip over
 
-* **The v3 privacy draft gained a bullet** (the consent record). It is **draft
-  only** — `app/assets/legal/` is untouched, `CURRENT_LEGAL_VERSION` is still
-  **2**, and both are asserted in the diff. Do not "sync" them.
-* **`docs/legal/README.md` now has SIX lawyer questions**, not five. The sixth is
-  whether the age attestation is named separately or folded.
-* **A non-voting disclosure note sits above the export interfaces** in
-  `data-rights-core.ts`. If you add an export lane, it is asking you a question:
-  does the notice name it? There is deliberately **no check** — ADR-068 D3 says
-  why, and half of that reasoning was demolished by its own review, so read the
-  ADR rather than the summary.
+* **The v3 draft has now been corrected FOUR times without landing.** ADR-068 and
+  ADR-069 both flag it: **if the count keeps climbing, question the landing, not
+  the corrections.** A fifth correction should come with a hard look at whether
+  the draft is ever going to be sent.
+* **ADR-061 D5 is AMENDED, not overturned** (ADR-069). Its principle — do not
+  widen a revision under review — stands, with one recorded exception whose
+  premise is stated so it cannot be cited as general licence.
+* **A blocked session is a legitimate outcome.** S093 refused its objective
+  against ADR-060 D6 and ended per §4. Its entry in `past-prompts.md` has no
+  commits and no CI, and that is correct.
 
 ### Still true from earlier sessions
 
-* **Cite a SYMBOL, not a line number** (lesson **144**): S092 corrected a line
-  citation and its own diff made the correction stale in the same commit.
+* **Open the ADR that owns the objective before planning** (lesson **145**).
+* **Cite a SYMBOL, not a line number** (lesson **144**).
 * **A correction is finished when every COPY of it is gone** (lesson **141**) —
-  violated again in S092, in three places, by the session that wrote the lesson.
-  **Grep for the claim's own words before saying it is fixed.**
+  violated in S092 and again in S094. **Grep for the claim's own words.**
 * **`architecture.md` §7's first sentence is sentinel-parsed** — append after it.
 * **The emulator suite can fail on a loaded box.** If you re-run, **say you re-ran**.
-* **`integration-emulator` never runs on a PR**, and a docs-or-tooling-only merge
-  produces a `main` green with it path-filtered away, measuring nothing.
+* **`integration-emulator` never runs on a PR**, and a docs-only merge produces a
+  `main` green with it path-filtered away, measuring nothing.
 * **Repeated pushes cancel the macOS gate**; verify `ios-build-smoke` actually
   COMPILED via `gh api repos/:owner/:repo/actions/jobs/<id>/logs`.
 * `FORMAT_VERSION` is **3**, pinned by **four** assertions (lesson 108).
@@ -114,11 +113,11 @@ are doing and say so.
 
 ## 2. Then, in priority order
 
-**1 — #258** (the legal draft under-describes deletion; drafted alongside #226 in
-operator item 16). **2 — #204** (the `tr` store localization has failed on every
-release since build 112). **3 — #165**.
+**1 — #165** (rules-drift is skipped until one read-only secret exists).
+**2 — #121** (a dead step in the release lane). **3 — #63/#71** (brandkit).
 
-**4 — #121** · **#115** · **#41** · **#63/#71**.
+⚠️ **#242 is NOT in this list**, and that is deliberate: it is blocked by
+ADR-060 D6 until a sink exists, which runs through #226 → #247.
 
 ---
 
@@ -201,3 +200,14 @@ run** (`integration-emulator` is main-only) → `codegraph sync`.
 > a precedent that had **already been distinguished** (ADR-034, refused transfer
 > by ADR-041) and framed out the middle option ADR-034 itself chose. If your ADR
 > declines to build something, point a lens at that decision specifically.
+
+> ⚠️ **FIVE CONSECUTIVE SESSIONS SHIPPED AN ADR WHOSE WORST ERROR WAS A CLAIM
+> THAT FLATTERED ITS OWN ARGUMENT** (lesson **143**), caught every time by an
+> outside reader comparing the claim to its source and never by a lens reading
+> the diff. **Spend review agents on checking claims against sources.**
+
+> ⚠️ **IF YOUR ADR DECLINES TO BUILD SOMETHING, POINT A LENS AT THAT DECISION.**
+> A refusal is the easiest thing to get wrong because nothing fails when it is
+> wrong — the work simply does not happen. S092's refusal rested on a precedent
+> that had already been distinguished; S094's design pass found its ADR had
+> argued around `session-rules.md` §4 rather than through it.
