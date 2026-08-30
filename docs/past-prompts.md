@@ -4613,7 +4613,17 @@ The self-tests aim at the **quiet** direction: an index with no parseable rows i
 
 **Commits:** `499f4a7` (ADR rev 1, before code) → `d830c8e` (rev 2, design pass) → `6196a5b` (the rows and the lint) → `c77a107` (built-diff pass).
 
-**CI:** appended at close, below.
+**CI:** **green, PR and post-merge `main`, and the lint ran in both.** PR #272 — `quality` 5m28s, `functions-rules` 2m34s, `ios-build-smoke` 6m27s, `slack-notify`.
+
+**The lint's first run on someone else's machine is the only thing that proves it works**, so it was checked by reading the job's own output rather than the job's colour:
+
+```
+Run dart tool/adr_index_lint_test.dart
+adr_index_lint_test: all checks passed
+adr-index lint: PASS (67 record(s), 67 row(s), bijection holds)
+```
+
+**Post-merge `main` run `33302982604`: success — and `integration-emulator` RAN** (19 steps, simulator booted, `Integration tests (auth + firestore + functions emulators)` success), rather than being path-filtered away as it was on S090's tooling-only merge. This diff touched `.github/workflows/ci.yml`, which the filter does not exclude, so the run measured the full suite. Said explicitly because the two shapes are indistinguishable from a green tick.
 
 **Docs touched:** `docs/adr/067-*.md`, `docs/adr/README.md` (19 rows added, row 042 fixed), `tool/adr_index_lint.dart`, `tool/adr_index_lint_test.dart`, `.github/workflows/ci.yml`, `docs/test-suite.md`, `docs/session-lessons.md` (**142**, **143**), `docs/past-prompts.md`, `docs/resume-prompt.md`.
 
