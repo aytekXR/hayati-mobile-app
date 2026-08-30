@@ -258,6 +258,38 @@ export interface ExportPushDiagnostic {
   atMs: number | null;
 }
 
+/**
+ * ⚠️ **A LANE ADDED HERE IS A DISCLOSURE QUESTION, AND THIS IS WHERE IT IS ASKED**
+ * (ADR-068 Decision 3).
+ *
+ * Everything in this file is something a subject receives when they ask. The
+ * privacy notice's *"What we collect, and where it is kept"* list is what we tell
+ * them **without** being asked. **The two are supposed to agree, and three times
+ * they have not:**
+ *
+ *   - **#226** — `fcmTokens` and `pushDiagnostic` are exported and unnamed;
+ *   - **#249** — the consent record was exported and unnamed (this ADR names it
+ *     in the v3 draft; the shipped notice still does not, and cannot until the
+ *     founder and lawyer land the revision);
+ *   - **#258** — deletion is under-described since #246 landed.
+ *
+ * Each was found by a review pass reading a legal document, never by a check —
+ * and there is deliberately **no check here**. ADR-068 D3 refuses one, and the
+ * reason is not that it would be noisy: *"does this field need a sentence in a
+ * privacy notice"* is a legal judgement **per field**, over the 72 fields in this
+ * file, and a registry would move that judgement rather than remove it. ADR-067's
+ * index gate works because a set comparison answers the whole question. Here it
+ * answers none of it.
+ *
+ * **So this note is the instrument, and it is deliberately non-voting** — the
+ * shape ADR-034 chose for the same reason. It sits above the interfaces rather
+ * than in a CI job because the person who creates the next gap is *here*, editing
+ * this file, with the context to answer the question. A shared document nobody
+ * owns is what ADR-067's failure was about; this is the opposite case.
+ *
+ * **If you add a lane: say whether the notice names it, and file an issue if it
+ * does not.** That is the whole ask.
+ */
 export interface ExportProfile {
   status: string | null;
   contentLanguage: string | null;

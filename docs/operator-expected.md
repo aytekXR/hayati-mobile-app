@@ -571,11 +571,27 @@ whatever your partner typed — unverified by us. Each rewrite was correct when
 written. **Nothing here changes what you have to decide**; it changes what the
 document you hand your lawyer will say.
 
+**S092 added a fourth note — the consent record — and made this item carry the
+whole class, so one lawyer round settles it.** Three separate issues are the same
+shape: *the app holds or does something, and the notice does not say so.*
+
+| | |
+|---|---|
+| **#226** | the notice denies push and never names the device address or the phone's own status report |
+| **#249** | the record of your consent — which version, when, and that you confirmed your age — is stored, is handed to a user who asks for their data, and is named nowhere. **Corrected in the draft by S092** |
+| **#258** | what deletion actually removes is under-described, since the delete-my-account work landed |
+
+All three were found by review passes reading the documents, all three are
+drafted, and **all three wait on the same decision from you**. Sending them
+together costs one round; sending them separately costs three.
+
 ⚠️ **Landing it bumps `CURRENT_LEGAL_VERSION` and re-prompts every existing user
 for consent.** That is why a session drafted it and stopped. **What is needed from
-you:** read it, put it in front of your lawyer with the five questions in
-`docs/legal/README.md`, and say go — or say what to change. The three bracketed
-blanks stay blank until item 5.
+you:** read it, put it in front of your lawyer with the **six** questions in
+`docs/legal/README.md` — the sixth is new and small: *should the age confirmation
+be named separately in the list, or folded into the consent record?* Engineering
+has no preference and will implement either. Then say go, or say what to change.
+The three bracketed blanks stay blank until item 5.
 
 ### 17. Two content decisions that are yours
 - The **couple** questions are currently the Turkish *solo* pack — a known

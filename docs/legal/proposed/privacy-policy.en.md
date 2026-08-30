@@ -22,6 +22,7 @@ Your relationship content lives in Google Cloud Firestore, in a European Union m
 - coach usage counters — how many coach messages you have used, never the messages themselves
 - a mirror of your subscription status
 - invite records
+- a record of your consent to this notice: which version you accepted, when you accepted it, and that you confirmed you are old enough to use ikimiz
 - your notification setup: the address each of your phones can be reached at for notifications, one for each device you sign in on, and your device's own short report of whether notifications are switched on, not granted, or could not be set up. The report is a short status and a time, never a message.
 
 Some service data is not kept in the European Union, and we say so plainly rather than claim everything is in one place:
