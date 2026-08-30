@@ -1,12 +1,12 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-30 UTC (S091)
+**Last Updated:** 2026-08-30 UTC (S092)
 
 ## Current Status
 
-- Session: **091**
-- Goal: **the record of what this project has decided had stopped being a record — eighteen decisions were missing from its own index**
-- Status: **Done, and it cannot silently happen again.** The red box below is still the most urgent thing in this document, and only you can act on it
+- Session: **092**
+- Goal: **the app records that you consented, when, and that you confirmed your age — and told you none of it**
+- Status: **Corrected in the draft, and item 16 now asks you for ONE decision instead of three.** The red box below is still the most urgent thing in this document, and only you can act on it
 - 🔴 **PRODUCTION IS DOWN AND HAS BEEN SINCE 2026-08-22. Your Google billing account is CLOSED.** Nothing your app does on a server has worked for **eight days**: no daily question is being assigned, no push is composed, and purchases cannot be processed. **Item 1 ① is the whole fix and only you can do it.**
 - 🔴 **It has moved a step further since 2026-08-28, and this is the one new fact in this document you should act on.** Until then the projects still *reported* billing as enabled while the account behind them was closed. Re-measured **2026-08-30**: `billingEnabled` is now **`false` on BOTH `hayatiapp-prod` and `hayatiapp-dev`** — Google has now switched billing off at the project, not merely at the card. **Reopening the account may no longer be enough on its own; check that both projects are still linked to an open account afterwards**, and confirm with the command in item 1
 - ⚠️ **Last time this happened it cost 37 hours (2026-08-09→11). This time it has cost eight days**, because the tool built afterwards to catch it could not report during the outage. That tool was fixed at S087, S089 caught it printing the wrong sentence for the *new* state, and **S090 fixed that too (#267)** — so the command in item 1 now tells you exactly which of the two billing switches is off, and what to do about each
@@ -89,6 +89,26 @@ second API refused it. Both are fixed; ADR-063.)*
 *(A functions deploy may also be needed — prod has drifted from `main` since S077.
 That is item 4's territory and I will confirm it once the servers are running
 again, so you are not asked for two things when one may do.)*
+
+**S092 (2026-08-30) — a thing we record about you that we never mentioned.**
+
+When you accept the privacy notice, the app stores three facts: **which version
+you accepted, when you accepted it, and that you confirmed you are old enough to
+use ikimiz.** If you ever ask for your data, all three are handed to you. And the
+notice's own list of *"what we collect"* named none of them.
+
+That is the same gap as item 16's push disclosure, one field over: **we show it
+if you ask and do not say we hold it.** It is corrected in the draft — one bullet,
+in all three languages.
+
+**Nothing has landed and nobody has been re-prompted.** The document in force is
+untouched and still version 2; only the draft waiting for your lawyer changed.
+
+**What this changes for you is one line in item 16:** three separate disclosure
+gaps are now presented as **one decision**, so the lawyer round you are already
+planning settles all three instead of one. There is also a sixth question for
+them now, and it is small: *should the age confirmation be listed separately, or
+folded into the consent record?* Engineering has no preference and will do either.
 
 **S091 (2026-08-30) — housekeeping, and the reason it is worth a line to you.**
 
@@ -679,16 +699,16 @@ created**, issue stays open for your one sentence (the question under item 16).
 
 ## Next Session Goal
 
-**#249 — the consent record is named in no collection list.** What a user agreed
-to and when is stored, is legally load-bearing, and appears in neither the data
-inventory nor the privacy notice's own list of what is kept. Same defect class as
-item 16: a document describing a system that does not match the one that runs, on
-the surface where being wrong costs most. The drafting is a session's; **landing
-it is still yours and your lawyer's**, which is why it joins item 16 rather than
-replacing it.
+**#242 — the three money events have nowhere to go.** When a trial starts, a
+payment succeeds, or a subscription lapses, the app is supposed to count it. The
+decision about *where* to count it was made (ADR-060); the code that does it was
+never written. Nothing about it needs you — and to be clear about the limit, it
+will count into the same no-op the other eight events already count into, because
+sending anything to an analytics vendor needs the legal change in item 16 first.
 
-*Done, and kept here because it was the previous goal:* **#248** — the decision
-index had fallen eighteen entries behind. Closed at S091 (ADR-067), with a check
+*Done, and kept here because they were the previous goals:* **#249** — the
+consent record, corrected in the draft at S092 (ADR-068). **#248** — the decision
+index had fallen eighteen entries behind, closed at S091 (ADR-067) with a check
 that now fails the build if it happens again.
 
 *Done, and kept here because it was the previous goal:* **#267** — `prod_pulse`

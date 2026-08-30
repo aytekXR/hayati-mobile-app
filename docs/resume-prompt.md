@@ -1,14 +1,14 @@
-# Resume Prompt — Session 092
+# Resume Prompt — Session 093
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **143**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **144**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #249 — the consent record is stored, is legally load-bearing, and is
-named in no collection list.**
+**Objective: #242 — the three server-side money events (`trial_start`, `paid`,
+`churn`) are specified, are named in `architecture.md` §7, and have no emitter.**
 
 ### ⚠️ First, two commands. Quote both before planning.
 
@@ -17,47 +17,51 @@ python3 tool/ci/prod_pulse.py --from-firebase-cli     # 0 = restored, 1 = still 
 python3 tool/ci/push_delivery_probe.py --from-firebase-cli
 ```
 
-Measured 2026-08-30 (S091) — **re-measure, do not inherit**: both exit **1**.
-Production has been down since 2026-08-22; 0 of 4 devices have ever registered.
+Measured 2026-08-30 (S092) — **re-measure, do not inherit**: both exit **1**.
 **Neither is this session's** — operator items 1 ① and 1 ② — but both bound what
-you can claim.
+you can claim. ⚠️ The first may report an **HTTP 429** gap on the Logging API;
+that is a named gap, not a finding, and re-running usually clears it.
 
-### Why #249 is next
+### Why #242 is next, and the trap in it
 
-`users.consent` carries `version`, `acceptedAt` and `ageAttested`. It is
-**server-owned** (ADR-023), it is what the product would show a regulator if
-asked what a user agreed to and when, and **it appears in no collection list** —
-not in `dpa-inventory.md`, and not in the privacy notice's own enumeration of
-what is stored. That is the same defect class as **#226** and **ADR-058**: a
-document describing a system that does not match the one that runs, on the
-surface where being wrong is most expensive.
+ADR-060 decided **where** the three events are emitted — at the RevenueCat
+webhook, *where the decision is made*, rather than inferred later from a mirror.
+The decision exists; the emitter does not. This is the same shape as #253 was
+before S089: **a feature that is wrong rather than unshipped.**
 
-It is also the cheapest of the remaining legal-adjacent items and the only one
-that needs neither the founder nor the lawyer to **start** — the drafting is a
-session's; the landing is theirs.
+⚠️ **The trap is that it looks blocked and is only half-blocked.** There is no
+analytics sink in production (ADR-057: prod is wired to a no-op), and a vendor
+adapter needs a legal change first (**#247**, **#226**). So *delivering an event
+to a vendor* is blocked. **Emitting it into the port that already exists is
+not** — the app already does exactly that for eight events, into a no-op, and
+that is how #242's own body describes the gap. Decide explicitly which half you
+are doing and say so.
 
 ### Acceptance
 
 1. **The two probes are run and quoted** before anything is designed.
-2. **Measure what is actually stored before writing a word about it.** Read the
-   write sites (`recordConsent`, the rules freeze, `profile_dto.dart`) and say
-   which fields exist, which are server-owned, and what the cascade and the
-   export lane (ADR-054) already do with them. #249's title is a claim; check it.
-3. **An ADR or slice design committed BEFORE code** (lesson **115**), saying
-   which instrument you wrote.
-4. **Decide explicitly whether this lands in the shipped notice or the v3 draft.**
-   The draft is already awaiting the founder and lawyer (**#226**, operator item
-   16) and has now been rewritten three times; adding a fourth note has a cost.
-   Changing the *shipped* text is a consent re-gate and is not a session's to do.
-5. **If a document gains a list, the list gets a guard or an explicit refusal.**
-   ADR-067 is one session old and exists because an index nobody guarded fell
-   eighteen behind. Do not add a nineteenth unguarded list without saying why.
+2. **Read ADR-060 first and say what it already decided.** #242 is its unbuilt
+   half. An ADR that re-decides what ADR-060 decided is the failure mode; an ADR
+   that says *"ADR-060 D-n covers this, here is only what it left open"* is the
+   shape.
+3. **An ADR or slice design committed BEFORE code** (lesson **115**), **with its
+   index row in the same commit** — the ADR-067 gate makes a missing row a red
+   build, and it has already caught one session.
+4. **The webhook is the one server path that handles money.** Any change to it
+   states what happens on a replayed event, an out-of-order event, and an event
+   for a couple that no longer exists. ADR-013/014/015 decided those; do not
+   re-decide them, but say which of them your emitter sits inside.
+5. **Do not create a join key.** ADR-062 refused one, twice, for a reason: this
+   product will not put an account identifier on anything it counts. If the
+   events feel unusable without one, that is #243 and it is a founder decision.
 
 ### What is NOT this session's
 
 * **Restoring billing** (operator 1 ①) and **cutting a build** (operator 1 ②).
 * **Arming the watcher** — operator item 4's `PROD_PULSE_VIEWER_SA`.
-* **Landing the privacy revision** — that is #226 and the founder's.
+* **Landing the privacy revision** — #226, and now the whole of operator item 16.
+* **Building a vendor adapter.** #247 says the legal change comes first, and
+  ADR-057 says prod ships a no-op deliberately.
 
 ---
 
@@ -65,38 +69,44 @@ session's; the landing is theirs.
 
 | | State |
 |---|---|
-| **Production** | 🔴 **DOWN since 2026-08-22T02:00Z.** Account `012195-7EF76F-3A9083` closed **and `billingEnabled` false on BOTH projects**. Last completed sweep **2026-08-25T15:00:11Z** |
-| **`prod_pulse`** | Correct for all four billing states (ADR-066) — **verified in live use this session** |
-| **The watcher** | BUILT and MERGED (ADR-064), **UNARMED**; the armed path is still unexercised |
+| **Production** | 🔴 **DOWN since 2026-08-22T02:00Z**, account closed and `billingEnabled` false on both projects |
+| **`prod_pulse`** | Correct for all four billing states (ADR-066), verified in live use |
+| **The watcher** | BUILT, MERGED, **UNARMED**; the armed path is still unexercised |
 | **Push, device side** | **STILL 0 of 4 registered** |
-| **The ADR index** | **WHOLE — 67 records, 67 rows** — and guarded by `adr_index_lint.dart` in `quality` (ADR-067). **Writing an ADR without its index row is now a red build** |
-| **#248 / #253 / #267** | **CLOSED** by S091 / S089 / S090 |
+| **The ADR index** | **WHOLE — 68 records, 68 rows**, guarded (ADR-067). **An ADR without its row is a red build** |
+| **#248 / #249 / #253 / #267** | **CLOSED** by S091 / S092 / S089 / S090 |
 | **#263** | **OPEN** — the watcher is merged and unarmed, so open is honest |
-| **#226 / #243 / #242 / #247 / #249 / #250 / #258** | Unchanged; **#249 is this session** |
+| **#226 / #258** | Open, and **operator item 16 now carries them with #249's landing as ONE decision** |
+| **#242** | **OPEN — this session** |
+| **#243 / #247 / #250** | Unchanged; #243 needs the founder |
 | **Deployed rules vs `main`** | **DRIFTED** — downstream of billing |
 
-### What S091 changed that a later session will trip over
+### What S092 changed that a later session will trip over
 
-* **An ADR without an index row is now a RED BUILD.** Write the row in the same
-  commit as the record — it is one row, paid by the person holding the context.
-* **Escape `|` as `\|` in an index row, even inside backticks.** GFM does not let
-  a code span protect a pipe in a table; shipped row 042 had been losing its
-  Status to a fourth column since it landed.
-* **The lint guards PRESENCE, not meaning.** A green lint does not mean a good
-  index: 5 of 19 rows written this session were inaccurate and the lint passed
-  every one of them. If you add a row, have something read it against its ADR.
-* **A numbering gap is legal** and the lint asserts it stays legal. Do not "fix"
-  a hole in the sequence.
+* **The v3 privacy draft gained a bullet** (the consent record). It is **draft
+  only** — `app/assets/legal/` is untouched, `CURRENT_LEGAL_VERSION` is still
+  **2**, and both are asserted in the diff. Do not "sync" them.
+* **`docs/legal/README.md` now has SIX lawyer questions**, not five. The sixth is
+  whether the age attestation is named separately or folded.
+* **A non-voting disclosure note sits above the export interfaces** in
+  `data-rights-core.ts`. If you add an export lane, it is asking you a question:
+  does the notice name it? There is deliberately **no check** — ADR-068 D3 says
+  why, and half of that reasoning was demolished by its own review, so read the
+  ADR rather than the summary.
 
 ### Still true from earlier sessions
 
+* **Cite a SYMBOL, not a line number** (lesson **144**): S092 corrected a line
+  citation and its own diff made the correction stale in the same commit.
+* **A correction is finished when every COPY of it is gone** (lesson **141**) —
+  violated again in S092, in three places, by the session that wrote the lesson.
+  **Grep for the claim's own words before saying it is fixed.**
 * **`architecture.md` §7's first sentence is sentinel-parsed** — append after it.
 * **The emulator suite can fail on a loaded box.** If you re-run, **say you re-ran**.
 * **`integration-emulator` never runs on a PR**, and a docs-or-tooling-only merge
   produces a `main` green with it path-filtered away, measuring nothing.
 * **Repeated pushes cancel the macOS gate**; verify `ios-build-smoke` actually
   COMPILED via `gh api repos/:owner/:repo/actions/jobs/<id>/logs`.
-* **Do not hand-roll a Unicode range** (lesson 124).
 * `FORMAT_VERSION` is **3**, pinned by **four** assertions (lesson 108).
 * **`main` is protected** — a close commit needs its own PR.
 
@@ -104,10 +114,11 @@ session's; the landing is theirs.
 
 ## 2. Then, in priority order
 
-**1 — #242** (the server three have no emitter; waits on a sink). **2 — #258**
-(the legal draft under-describes deletion once #246 landed). **3 — #204**.
+**1 — #258** (the legal draft under-describes deletion; drafted alongside #226 in
+operator item 16). **2 — #204** (the `tr` store localization has failed on every
+release since build 112). **3 — #165**.
 
-**4 — #165** · **#121** · **#115** · **#41** · **#63/#71**.
+**4 — #121** · **#115** · **#41** · **#63/#71**.
 
 ---
 
@@ -178,3 +189,15 @@ run** (`integration-emulator` is main-only) → `codegraph sync`.
 > (lesson **142**). A review harness reported a lens as FAILED-empty because the
 > lens's prose contained the word "blocked". Put the classification in its own
 > field, or require the marker at the START of the note.
+
+> ⚠️ **THE LAST FOUR SESSIONS EACH SHIPPED AN ADR WHOSE WORST ERROR WAS A CLAIM
+> THAT FLATTERED ITS OWN ARGUMENT** (lesson **143**), and in every case only an
+> outside reader comparing the claim to its source caught it. S092's design pass
+> found **four** such inflations in one document. **Spend review agents on
+> checking claims against sources, not only on lenses over the diff.**
+
+> ⚠️ **A REFUSAL IS THE EASIEST THING IN AN ADR TO GET WRONG**, because nothing
+> fails if it is wrong — the work simply does not happen. S092 refused a gate on
+> a precedent that had **already been distinguished** (ADR-034, refused transfer
+> by ADR-041) and framed out the middle option ADR-034 itself chose. If your ADR
+> declines to build something, point a lens at that decision specifically.
