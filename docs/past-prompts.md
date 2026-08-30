@@ -4676,7 +4676,9 @@ Both exit 1; production still down. The first now names the closed account and t
 
 **Commits:** `3cd3efe` (ADR rev 1 + its index row, before code) → `c637729` (rev 2, design pass) → `aedd074` (the bullet, the note, the sixth lawyer question) → `b615b5c` (built-diff pass).
 
-**CI:** appended at close, below.
+**CI:** **green, PR and post-merge `main`, and both the new gate and the full suite ran.** PR #274 — `quality` 5m21s, `functions-rules` 2m35s, `ios-build-smoke` 8m47s, `slack-notify`. The `quality` job's step list carries **`adr index lint self-tests: success`** and **`adr index lint: success`**, so ADR-067's gate — one session old — ran on someone else's machine against this diff, having already failed locally when ADR-068 was committed without its row.
+
+**Post-merge `main` run `33309285565`: success — and `integration-emulator` RAN**, 19 steps, simulator booted, `Integration tests (auth + firestore + functions emulators)` success. It ran rather than being path-filtered away because this diff touches `functions/src/`; S090's tooling-only merge produced a green with that job skipped, measuring nothing, and the two are indistinguishable from a tick.
 
 **Docs touched:** `docs/adr/068-*.md`, `docs/adr/README.md`, `docs/legal/proposed/privacy-policy.{en,tr,ar}.md`, `docs/legal/README.md` (Question **F**), `docs/operator-expected.md` (item 16 now carries all three), `functions/src/data-rights/data-rights-core.ts` (the note), `docs/session-lessons.md` (**144**), `docs/past-prompts.md`, `docs/resume-prompt.md`.
 
