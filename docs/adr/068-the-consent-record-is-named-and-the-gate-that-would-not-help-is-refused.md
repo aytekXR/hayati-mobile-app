@@ -44,11 +44,18 @@ ageAttested: true,
 
 `firestore.rules:78-129` freezes it in both directions (a create may not carry
 `consent`; an update may not change it), which is ADR-023's server-ownership in
-force. And it is projected into the export — `projectConsent` is declared at
-`data-rights-core.ts:372` and called from `projectProfile` at **:460** — so **a
-subject who asks already receives it**. *(Revision 1 cited `:366`, which is the
-docstring above the function rather than the code; corrected because a line
-number offered as evidence should point at the thing it is evidence of.)*
+force. And it is projected into the export — **`projectConsent`**, declared in
+`data-rights-core.ts` and called from **`projectProfile`** — so **a subject who
+asks already receives it**.
+
+⚠️ **Cited by NAME rather than by line, and revision 2 learned that the hard
+way.** Revision 1 cited `:366`, which is the docstring rather than the code.
+Revision 2 corrected it to `:372`/`:460` — and then **this ADR's own diff added a
+32-line note above `ExportProfile` and pushed them to `:404`/`:492`**, so the
+corrected numbers were stale in the same commit that corrected them. A line
+number in a document is a claim with a short half-life; a symbol name is not
+(lesson **132**'s shape). Find them with
+`grep -n projectConsent functions/src/data-rights/data-rights-core.ts`.
 
 ### Finding 1 — the notice's own collection list does not name it, measured
 
@@ -161,10 +168,21 @@ distinguished it, and the design review's own suggested fix — *concede the
 analogy is weaker than claimed* — is adopted here rather than argued with.
 
 **What survives is the second argument, and no lens refuted it: the honest check
-is not a set comparison.** The export carries **72 fields across 15 interfaces**
-(counted with a regex over `data-rights-core.ts`; one reviewer said 16 and
-`grep -c '^export interface Export'` says **15**, so that one is declined with
-its command). Mapping a stored field to *"does this need a sentence in a privacy
+is not a set comparison.** The export carries **75 fields across 15 interfaces** —
+and that number has now been wrong twice, which is why it carries its command:
+
+```
+$ python3 - <<'EOF'   # over data-rights-core.ts, members of every `export interface Export*`
+…re.findall(r'^\s{2}(\w+)\??:', body, re.M)…
+EOF
+interfaces: 15   fields: 75
+```
+
+Revision 2 said **72** (mine, wrong); a built-diff reviewer said **78** (also
+wrong); a second reviewer said 70–75 *"depending on the regex"*, which was the
+useful answer. Two independent counting methods agree at **75**. One reviewer's
+claim of **16 interfaces** is declined with its command:
+`grep -c '^export interface Export'` → **15**. Mapping a stored field to *"does this need a sentence in a privacy
 notice"* is a **legal judgement per field** — precisely what ADR-067 D2 drew a
 line against automating when it refused to lint the index's summary text. A
 registry moves the judgement to a new file; it does not remove it, and it would
@@ -214,15 +232,15 @@ a claim about code that did not exist yet, and the same applies here.
 
 * **The draft becomes honest about the last field it was silent on**, and the
   document the lawyer eventually reads describes the system that exists.
-* **The founder is asked once instead of four times.** That is the whole value of
+* **The founder is asked once instead of three times.** That is the whole value of
   Decision 3's replacement, and it is worth more than a gate would have been.
 * **Nothing lands.** `CURRENT_LEGAL_VERSION` stays 2, no user is re-prompted, and
   the drift test that pins the shipped bytes stays green. A session made a draft
   more accurate; that is all that happened.
 * **A future field can still go undisclosed**, and this ADR does not pretend
-  otherwise. What it claims is that the *detection* of such a field has never
-  been the bottleneck — four times over — and that adding a red build for a
-  blocked condition would cost more than it caught.
+  otherwise. What it claims is narrower: the **three** known gaps were each found
+  without a gate, and the gate that would have found them cannot be written as a
+  set comparison.
 * **This is the THIRD correction to the same draft** — ADR-058 wrote it, ADR-059
   corrected its notification sentence, ADR-065 D5 corrected that again in the
   opposite direction, and this adds the consent record. (Revision 1 said fourth;
@@ -234,7 +252,7 @@ a claim about code that did not exist yet, and the same applies here.
 
 | | why not |
 |---|---|
-| **Build the disclosure-registry gate** | Decision 3. Detection is not the failing step — four gaps of this exact class are already detected and blocked on the same two people — and the check is a per-field legal judgement, not a set comparison. It would move the judgement, not remove it. |
+| **Build the disclosure-registry gate** | Decision 3. Detection is not the failing step — three gaps of this exact class are already detected and blocked on the same two people — and the check is a per-field legal judgement, not a set comparison. It would move the judgement, not remove it. |
 | **Edit the shipped notice instead of the draft** | Bumps `CURRENT_LEGAL_VERSION` and re-gates consent for every existing user (ADR-023). A session does not re-ask thousands of people for consent to fix a documentation gap. |
 | **Fold `ageAttested` into a single "we record your consent" sentence** | It is a recorded assertion about the *person*, not about the document (Finding 2). Folding it is a defensible lawyer choice and an indefensible engineer choice — so it is asked, not assumed. |
 | **File it as a lawyer question and change no text** | The draft's whole purpose (ADR-058) is to be precise enough that approving it is a decision rather than a rewrite. A question with no proposed wording makes the lawyer do the drafting. |
