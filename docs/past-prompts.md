@@ -4686,3 +4686,65 @@ Both exit 1; production still down. The first now names the closed account and t
 
 **Next objective written to resume-prompt.md:** Session 093 — **#242**, the three server-side money events that have no emitter.
 
+## Session 093 — 2026-08-30 — #242: BLOCKED by a recorded decision, ended per `session-rules.md` §4
+
+**Objective (from resume-prompt.md):** #242 — build the three server-side money-event emitters (`trial_start`, `paid`, `churn`).
+
+**Outcome:** **blocked; nothing built.** Recorded here because a session that refuses its objective has to leave the refusal somewhere a later session finds it.
+
+**ADR-060 Decision 6 had already decided this**, after both a design pass and a built-diff pass:
+
+> *"This ADR ships NO emitter… #242's own framing — 'there is no reason to build a server emitter before there is somewhere for it to emit' — is accepted."*
+
+Its condition is **still unmet**, measured: no vendor sink exists (`app/lib/core/analytics/` ships `DebugAnalyticsSink` over a no-op default; prod is the no-op, ADR-057), and **#226 and #247 are both OPEN**. Building would have overturned a twice-reviewed decision with **no new information** — a session finding work rather than doing it.
+
+⚠️ **The defect was in the prompt, not in the issue or the ADR.** S093's `resume-prompt.md` asserted that emitting into the existing port was unblocked. It was written by S092 from #242's **title and the priority list**, without opening ADR-060. **Lesson 145.**
+
+**Blocked protocol followed** (`session-rules.md` §4): blocker documented — on the issue itself, `gh issue comment 242`, so the next session finds it where it will look — and the next **unblocked** task taken up as **S094**. Nothing was improvised.
+
+**Commits:** none. **CI:** none. **Docs touched:** none (the finding is on #242 and in ADR-069's appendix).
+
+**Next objective:** Session 094 — **#258**, the highest-priority unblocked task, already queued on the line below #242 in the same prompt.
+
+## Session 094 — 2026-08-30 — #258: the deletion clause rides a revision that is already open (ADR-069)
+
+**Objective:** #258 — the version-3 draft's *"they go when you remove the app"* under-describes deletion since #246 landed.
+
+**Outcome:** done — one clause, three locales, **draft only**. The session's real subject was whether it was **entitled** to make the edit at all.
+
+### The question this session was actually about
+
+**ADR-061 D5 had decided not to make this edit**, on one ground: *"widening a revision the founder is about to review is scope creep."* And S093 had just refused, an hour earlier, to overturn **ADR-060 D6** for exactly that kind of reason. **The same standard had to survive being inconvenient.**
+
+The argument for amending D5: its premise — *a revision not yet widened* — **died when ADR-068 widened it the session before**, after which operator item 16 presents #226/#249/#258 as **one decision**. A bundle with one third undrafted makes the lawyer do the drafting.
+
+⚠️ **The change of circumstance is one I created the session before**, and the ADR says so rather than dressing it up, with the counterfactual stated: **without ADR-068, D5 stands.** A reader can reject the argument instead of reconstructing it.
+
+### The design pass found what the ADR argued *around*
+
+19 agents, 0 errored, 0 empty; **7 findings, 5 surfaced, 2 REFUTED BY BOTH verifiers** — the first genuine refusals in six passes, recorded rather than dropped.
+
+| | |
+|---|---|
+| **critic** | the ADR cited §2 and **never mentioned §4**, the blocked protocol. S093's objective *was* blocked; revision 1 kept working and never asked whether it should. **§4 is right** — S093 ended blocked, and this is S094. The error was never *doing* the work, it was doing it under the wrong session number |
+| **the clause** (major, both) | *"removes the ones tied to it"* is **worse than silence**: the paragraph lists eight milestones and its **first** is *"that it was installed"* — one that survives. Measured against `local_flag_key.dart`: five analytics markers are `AccountFlag`s and go; **`analytics.install` is the only `DeviceFlag`** and stays. Now named |
+| **process** (blocking) | **lesson 145 was cited before it existed.** Written |
+| **the-amendment** (major) | `operator-expected.md` said *"all three are drafted"* — **#258 was not.** My claim, last session. Corrected in place, out loud |
+| **process** (major) | the branch named the abandoned objective. Renamed |
+
+**Refuted by both, and not actioned:** that ADR-068 mislabelled #258's class, and that a line-count claim was stale.
+
+### Verification
+
+`legal_proposal_test.dart` + `legal_assets_drift_test.dart`: **31 tests, exit 0**, run against the edited draft. **105** lines each — an in-line clause adds none — inside the 90–160 bounds; section parity holds; the Arabic still carries **exactly one** `U+200F`. `adr-index lint: PASS (69/69)`. `dart format` clean.
+
+**Nothing lands, asserted after the edits:** `app/assets/legal/` untouched, and **all three** version sources still read **2** (`CURRENT_LEGAL_VERSION`, `currentLegalVersion`).
+
+**Commits:** `41277ad` (ADR rev 1 + index row, before code) → `de2a7cc` (rev 2 + the clause).
+
+**CI:** appended at close, below.
+
+**Notes / debt logged:** **#258 closed**; **ADR-061 D5 amended, not overturned.** Item 16's bundle is now genuinely complete — all three have proposed wording, so one lawyer round can settle or reject all three. ⚠️ **The draft has now been corrected four times without landing**, which ADR-068 already flagged: *if the count keeps climbing, the thing to question is the landing, not the corrections.* It climbed.
+
+**Next objective written to resume-prompt.md:** Session 095 — **#204**, the `tr` App Store localization that has failed on every release since build 112.
+

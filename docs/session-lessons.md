@@ -38,6 +38,23 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**145 — A resume prompt is a claim, and the ADR that owns the objective outranks it.** *(S093, ADR-060 D6 / ADR-069)*
+S093's prompt named **#242** and asserted that emitting the three money events
+into the existing port was unblocked — only *delivery to a vendor* being blocked.
+**ADR-060 Decision 6 had already decided the opposite**, after a design pass and a
+built-diff pass: *"there is no reason to build a server emitter before there is
+somewhere for it to emit"*, and its condition was still unmet (no sink; #226 and
+#247 open). The prompt was written by the previous session from the **issue title
+and the priority list**, without opening the ADR that owns the objective. Nothing
+in the prompt was checkable at a glance, and it read as authoritative because a
+resume prompt is the one document a session is told to trust.
+**Before planning, open the ADR the objective belongs to and read the decision
+that governs it** — an issue records a problem; the ADR records whether we
+already decided what to do about it, and *when*. ⚠️ And the corollary for the
+session that WRITES the prompt: naming an objective is a claim about its state.
+Check it against its ADR before handing it to the next session, or the next
+session inherits your homework as an instruction.
+
 **144 — A line number is a claim with a short half-life, and your own diff is what expires it.** *(S092, ADR-068)*
 ADR-068 revision 1 cited `data-rights-core.ts:366` as evidence; that was the
 docstring, not the code. Revision 2 corrected it to `:372` and `:460` — **and the

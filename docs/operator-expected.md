@@ -1,12 +1,12 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-30 UTC (S092)
+**Last Updated:** 2026-08-30 UTC (S094)
 
 ## Current Status
 
-- Session: **092**
-- Goal: **the app records that you consented, when, and that you confirmed your age — and told you none of it**
-- Status: **Corrected in the draft, and item 16 now asks you for ONE decision instead of three.** The red box below is still the most urgent thing in this document, and only you can act on it
+- Session: **094**
+- Goal: **finish the set — the last of the three disclosure gaps is drafted, so item 16 is now genuinely one decision**
+- Status: **Done. All three are drafted; the lawyer round settles or rejects all three.** The red box below is still the most urgent thing in this document, and only you can act on it
 - 🔴 **PRODUCTION IS DOWN AND HAS BEEN SINCE 2026-08-22. Your Google billing account is CLOSED.** Nothing your app does on a server has worked for **eight days**: no daily question is being assigned, no push is composed, and purchases cannot be processed. **Item 1 ① is the whole fix and only you can do it.**
 - 🔴 **It has moved a step further since 2026-08-28, and this is the one new fact in this document you should act on.** Until then the projects still *reported* billing as enabled while the account behind them was closed. Re-measured **2026-08-30**: `billingEnabled` is now **`false` on BOTH `hayatiapp-prod` and `hayatiapp-dev`** — Google has now switched billing off at the project, not merely at the card. **Reopening the account may no longer be enough on its own; check that both projects are still linked to an open account afterwards**, and confirm with the command in item 1
 - ⚠️ **Last time this happened it cost 37 hours (2026-08-09→11). This time it has cost eight days**, because the tool built afterwards to catch it could not report during the outage. That tool was fixed at S087, S089 caught it printing the wrong sentence for the *new* state, and **S090 fixed that too (#267)** — so the command in item 1 now tells you exactly which of the two billing switches is off, and what to do about each
@@ -89,6 +89,26 @@ second API refused it. Both are fixed; ADR-063.)*
 *(A functions deploy may also be needed — prod has drifted from `main` since S077.
 That is item 4's territory and I will confirm it once the servers are running
 again, so you are not asked for two things when one may do.)*
+
+**S094 (2026-08-30) — the third of three, and an admission about the second.**
+
+The notice says the small on-device markers *"go when you remove the app"*. That
+is still true — but since the delete-my-account work landed, **deleting your
+account also removes the ones tied to your account**, and the sentence invited the
+opposite inference. One clause now says so, in all three languages, and it names
+the single exception rather than leaving you guessing: **the marker recording that
+ikimiz was installed is not tied to an account and stays until you remove the app.**
+
+**Nothing has landed.** The document in force is untouched and still version 2.
+
+⚠️ **A correction to what this document told you last time.** The S092 entry said
+*"all three are drafted"* of the three disclosure gaps. That was wrong — the third
+one had only been *noted*. **It is drafted now**, which is what this session did,
+and the sentence is fixed above rather than quietly replaced, because you may have
+read the wrong version.
+
+**So item 16 is finally one decision with three drafted parts**, and that is the
+whole of what changed for you.
 
 **S092 (2026-08-30) — a thing we record about you that we never mentioned.**
 
@@ -601,9 +621,13 @@ shape: *the app holds or does something, and the notice does not say so.*
 | **#249** | the record of your consent — which version, when, and that you confirmed your age — is stored, is handed to a user who asks for their data, and is named nowhere. **Corrected in the draft by S092** |
 | **#258** | what deletion actually removes is under-described, since the delete-my-account work landed |
 
-All three were found by review passes reading the documents, all three are
-drafted, and **all three wait on the same decision from you**. Sending them
-together costs one round; sending them separately costs three.
+All three were found by review passes reading the documents, and **all three wait
+on the same decision from you**. Sending them together costs one round; sending
+them separately costs three.
+
+*(S092 wrote "all three are drafted" here and that was wrong — #258 had only been
+noted, not drafted. **S094 drafted it**, so the sentence is true now; it is
+corrected rather than quietly fixed because you may have read the wrong version.)*
 
 ⚠️ **Landing it bumps `CURRENT_LEGAL_VERSION` and re-prompts every existing user
 for consent.** That is why a session drafted it and stopped. **What is needed from
@@ -699,12 +723,16 @@ created**, issue stays open for your one sentence (the question under item 16).
 
 ## Next Session Goal
 
-**#242 — the three money events have nowhere to go.** When a trial starts, a
-payment succeeds, or a subscription lapses, the app is supposed to count it. The
-decision about *where* to count it was made (ADR-060); the code that does it was
-never written. Nothing about it needs you — and to be clear about the limit, it
-will count into the same no-op the other eight events already count into, because
-sending anything to an analytics vendor needs the legal change in item 16 first.
+**#204 — the Turkish App Store listing has never published.** Every release since
+build 112 has failed to create it, and the failure was hidden by a setting that
+let the step fail without failing the release. ⚠️ **Part of this is yours and has
+been for weeks: Apple refuses the app name for Turkish.** The session will
+establish what is fixable without you and what is not, and will say which.
+
+*(A note on **#242**, the three money events: a session picked it up, found that
+a recorded decision had already said not to build it until there is somewhere to
+send the events, and stopped. Nothing needs you there either — it runs through
+item 16, like everything else in the analytics chain.)*
 
 *Done, and kept here because they were the previous goals:* **#249** — the
 consent record, corrected in the draft at S092 (ADR-068). **#248** — the decision
