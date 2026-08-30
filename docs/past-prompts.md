@@ -4546,7 +4546,9 @@ TDD: the tests were written **first** and failed for the right reason (`TypeErro
 
 **Commits:** `9806756` (ADR rev 1, before code) → `506f71e` (rev 2, design pass) → `21a9b6e` (the code) → the close commit (rev 3 record + the two stale notes).
 
-**CI:** appended at close, below.
+**CI:** **green, PR and post-merge `main`.** PR #270 — `quality` 5m18s, `functions-rules` 2m18s, `ios-build-smoke` 7m58s (verified to have actually COMPILED: `Xcode build done. 271.5s` and `✓ Built build/ios/iphoneos/Runner.app`, read via `gh api repos/:owner/:repo/actions/jobs/<id>/logs`), `slack-notify`.
+
+**Post-merge `main` run `33297898578`: success — with `integration-emulator` and `ios-build-smoke` both SKIPPED by path filtering**, because this change touches only `tool/ci/*.py` and `docs/`. That is the shape S088 named as *"a green that measured nothing at all"*, and it is said here rather than reported as a clean sweep. **What it DID measure is the part that matters:** the `quality` job's step list carries **`prod pulse self-tests: success`** — so the new absence-assertions and the four-state floor are genuinely gated in CI, not merely green on this box. Confirmed by reading the job's steps, not by inferring it from the job's colour.
 
 **Docs touched:** `docs/adr/066-*.md`, `docs/operator-expected.md`, `docs/test-suite.md`, `docs/session-lessons.md` (**141**), `docs/past-prompts.md`, `docs/resume-prompt.md`.
 
