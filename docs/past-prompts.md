@@ -4631,3 +4631,56 @@ adr-index lint: PASS (67 record(s), 67 row(s), bijection holds)
 
 **Next objective written to resume-prompt.md:** Session 092 — **#249**, the consent record named in no collection list.
 
+## Session 092 — 2026-08-30 — #249: the consent record is named, and the gate that would not have helped is refused (ADR-068)
+
+**Objective (from resume-prompt.md):** the consent record is stored, is legally load-bearing, and is named in no collection list.
+
+**Outcome:** done — one bullet in three locales, in the **draft only**. The interesting half is that **both review passes attacked the reasoning rather than the code, and both were right.**
+
+### The two probes, re-measured first
+
+Both exit 1; production still down. The first now names the closed account and the next step (S090's fix, working in the wild), and reported an **HTTP 429** on the Logging API as a **NAMED GAP** rather than inventing a cause — ADR-063 D2 doing its job unprompted.
+
+### What was measured before anything was written
+
+`users/{uid}.consent` stores exactly `version`, `acceptedAt`, `ageAttested`; the client sends none of them; `firestore.rules` freezes it in both directions; `projectConsent` puts it in the data-rights export. The notice's collection list — **11 bullets** — named none of it. **We showed it if asked and did not say we held it**, which is ADR-058's sentence one field over, on a draft already corrected twice for the same class.
+
+### The design pass demolished half my argument
+
+4 lenses × 2 verifiers + a critic; **21 agents, 0 errored, 0 empty, 0 skipped**; **no lens came back empty**; **8 findings, all surfaced, 0 refuted by both.**
+
+**The load-bearing one:** I refused to build a gate, citing **ADR-034**'s *advisories do not vote*. **ADR-041 had already refused that transfer** — *"an advisory is a third party's act; drift is our own omission and always actionable, so the check votes"* — and an undisclosed field is our omission. I cited the precedent that had been distinguished rather than the one that distinguished it. Conceded, not argued with.
+
+**The one I had framed out of existence:** D3 offered *voting gate vs nothing*. **ADR-034 itself chose neither** — a **non-voting** instrument. Adopted: a disclosure note living with the export interfaces, at the point of edit.
+
+**And four inflations of my own evidence, every one flattering the refusal**: *"four issues of this class"* was three — and the fourth, **#247**, explicitly **asks for a CI check**, so citing it against gates was backwards; *"13 bullets"* was 11; *"the fourth correction"* was the third; and *"read verbatim from each issue body"* preceded a selective quote of #249, whose actual `Blocked on:` line reads **"nothing to draft"**.
+
+### The built-diff pass found the correction I made stale in the act of making it
+
+4 lenses × 2 verifiers + a critic; **15 agents, 0 errored, 0 empty, 0 skipped**; 1 lens considered-empty; **5 findings, all real to both verifiers**; 1 critic finding (a duplicate).
+
+| | |
+|---|---|
+| **the line numbers** | revision 2 corrected `:366` → `:372`/`:460` — and **the same commit's 32-line note pushed them to `:404`/`:492`.** Now cited by **symbol name** with the grep that finds them. **Lesson 144** |
+| **"four" → "three"** | corrected in Finding 3 and left standing in Consequences, in the Alternatives table, and in the **ADR-067 index row**, which still described revision 1 entirely. **That is lesson 141, which I wrote two sessions ago** |
+| **the field count** | I said 72; a reviewer said 78; two methods agree at **75**. It now carries its command. A reviewer's *"16 interfaces"* is declined with `grep -c '^export interface Export'` → **15** |
+| **the note's placement** | it sat **below** `ExportConsent`, `ExportDevice` and `ExportPushDiagnostic` — precisely the three lanes behind #249 and #226. A note about disclosure gaps sitting under the interfaces that caused them is decoration. Moved above the first one |
+
+### Verification
+
+`adr-index lint: PASS (68/68)` · `legal_proposal_test.dart` + `legal_assets_drift_test.dart` **31 tests, exit 0** — run against the edited draft rather than asserted (ADR-065 D5's precedent) · `tsc`, `eslint`, `dart format` clean.
+
+**The two facts that must not have changed, asserted after every edit**: `app/assets/legal/` is **untouched** (0 files in the diff) and **`CURRENT_LEGAL_VERSION` is still 2**. Nothing lands; nobody is re-prompted. Files went 104 → **105** lines, inside the 90–160 bounds; section parity holds; the Arabic still carries **exactly one** `U+200F`.
+
+⚠️ **The ADR-067 gate, one session old, caught this session on its first real encounter** — committing ADR-068 without its index row failed the lint by name. That is the cycle working: a guard built last session immediately constraining this one.
+
+**Commits:** `3cd3efe` (ADR rev 1 + its index row, before code) → `c637729` (rev 2, design pass) → `aedd074` (the bullet, the note, the sixth lawyer question) → `b615b5c` (built-diff pass).
+
+**CI:** appended at close, below.
+
+**Docs touched:** `docs/adr/068-*.md`, `docs/adr/README.md`, `docs/legal/proposed/privacy-policy.{en,tr,ar}.md`, `docs/legal/README.md` (Question **F**), `docs/operator-expected.md` (item 16 now carries all three), `functions/src/data-rights/data-rights-core.ts` (the note), `docs/session-lessons.md` (**144**), `docs/past-prompts.md`, `docs/resume-prompt.md`.
+
+**Notes / debt logged:** **#249 closed.** `dpa-inventory.md` also does not list the consent record — noted by the design critic, **deliberately out of scope** (this ADR is about the notice's collection list; the register is a separate document with its own process). A future field can still go undisclosed and this ADR does not pretend otherwise.
+
+**Next objective written to resume-prompt.md:** Session 093 — **#242**, the three server-side money events that have no emitter.
+

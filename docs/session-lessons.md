@@ -38,6 +38,19 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**144 — A line number is a claim with a short half-life, and your own diff is what expires it.** *(S092, ADR-068)*
+ADR-068 revision 1 cited `data-rights-core.ts:366` as evidence; that was the
+docstring, not the code. Revision 2 corrected it to `:372` and `:460` — **and the
+same commit added a 32-line note above `ExportProfile`, pushing them to `:404`
+and `:492`.** The correction was stale in the act of being made, and the
+built-diff review found it. **Cite a SYMBOL and the command that finds it**
+(`grep -n projectConsent …`), not a coordinate: the symbol survives every edit
+above it, and the reader gets a verification path instead of a number to
+disbelieve. This is lesson **132**'s rule — *a comment that names the command
+does not go stale* — pointed at evidence in a document rather than at a comment
+in code. ⚠️ Note the shape: **the more careful you are about correcting a line
+number, the more likely you are to correct it to another line number.**
+
 **143 — Knowing a failure mode does not prevent you committing it, and only an outside reader catches it.** *(S091, ADR-067)*
 ADR-067 revision 2 opens with a box criticising revision 1 for *"asserting
 something false in the direction that flattered its own argument"*. In the same

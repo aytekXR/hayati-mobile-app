@@ -22,6 +22,7 @@ Kişisel verileriniz, uygulamayı kullanmanız sırasında elektronik ortamda, o
 - koç kullanım sayaçları — kaç koç mesajı kullandığınız; mesajların kendisi asla tutulmaz
 - abonelik durumunuzun bir kopyası
 - davet kayıtları
+- bu bildirime verdiğiniz onayın kaydı: hangi sürümü kabul ettiğiniz, ne zaman kabul ettiğiniz ve ikimiz'i kullanacak yaşta olduğunuzu doğruladığınız
 - bildirim kaydınız: telefonlarınızın bildirim için ulaşılabildiği adres — giriş yaptığınız her cihaz için bir tane — ve cihazınızın bildirimlerin açık mı, verilmemiş mi, yoksa kurulamamış mı olduğuna dair kendi kısa raporu. Bu rapor kısa bir durum ve bir zamandan ibarettir, asla bir mesaj değildir.
 
 Bazı hizmet verileri Avrupa Birliği'nde tutulmaz. Her şeyin tek bir yerde olduğunu iddia etmek yerine bunu açıkça söylüyoruz:
