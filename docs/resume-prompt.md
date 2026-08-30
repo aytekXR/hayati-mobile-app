@@ -1,14 +1,14 @@
-# Resume Prompt — Session 091
+# Resume Prompt — Session 092
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
 > Read `session-context.md` (toolchain, machine, review discipline, the
-> never-without-asking list) and `session-lessons.md` (numbered to **141**) first.
+> never-without-asking list) and `session-lessons.md` (numbered to **143**) first.
 > Re-derive the session number from `git log`.
 
-**Objective: #248 — `docs/adr/README.md` stops at ADR-048 while ADR-066 exists.
-Eighteen decisions are not in the index a session uses to find precedent.**
+**Objective: #249 — the consent record is stored, is legally load-bearing, and is
+named in no collection list.**
 
 ### ⚠️ First, two commands. Quote both before planning.
 
@@ -17,55 +17,47 @@ python3 tool/ci/prod_pulse.py --from-firebase-cli     # 0 = restored, 1 = still 
 python3 tool/ci/push_delivery_probe.py --from-firebase-cli
 ```
 
-Measured 2026-08-30 (S090) — **re-measure, do not inherit**: both exit **1**.
-Production has been down since 2026-08-22, and 0 of 4 devices have ever
-registered. **Neither is this session's** — they are operator items 1 ① and 1 ② —
-but both bound what you can claim. Say so once and work anyway.
+Measured 2026-08-30 (S091) — **re-measure, do not inherit**: both exit **1**.
+Production has been down since 2026-08-22; 0 of 4 devices have ever registered.
+**Neither is this session's** — operator items 1 ① and 1 ② — but both bound what
+you can claim.
 
-*(The first command's wording changed at S090. If it now prints something other
-than a closed account, that is the founder having acted, not a regression.)*
+### Why #249 is next
 
-### Why #248 is next
+`users.consent` carries `version`, `acceptedAt` and `ageAttested`. It is
+**server-owned** (ADR-023), it is what the product would show a regulator if
+asked what a user agreed to and when, and **it appears in no collection list** —
+not in `dpa-inventory.md`, and not in the privacy notice's own enumeration of
+what is stored. That is the same defect class as **#226** and **ADR-058**: a
+document describing a system that does not match the one that runs, on the
+surface where being wrong is most expensive.
 
-It has been the documented #1 priority for three sessions and has been deferred
-each time for something more urgent. Nothing more urgent is open now. Meanwhile
-the gap grew: **049–066, eighteen ADRs**, counted with
-`ls docs/adr/*.md | grep -oE '[0-9]{3}' | sort -u` against the index's own rows,
-not by eye.
-
-**This is not cosmetic, and the last two sessions are the evidence.** S089 leaned
-on ADR-012 D3, ADR-033, ADR-053, ADR-059 and ADR-063 D8 to do its work; S090
-leaned on ADR-041, ADR-063 D2/D4 and ADR-064 D2b. **None of those five is in the
-index.** A session that cannot find a decision re-derives it, and re-deriving a
-decision is how a repo ends up with two.
+It is also the cheapest of the remaining legal-adjacent items and the only one
+that needs neither the founder nor the lawyer to **start** — the drafting is a
+session's; the landing is theirs.
 
 ### Acceptance
 
 1. **The two probes are run and quoted** before anything is designed.
-2. **Every ADR from 049 to 066 appears**, with whatever the index's existing rows
-   carry — read the file and match its shape rather than inventing a new one.
-   **Count the result with a command and quote the command** (lesson **133**);
-   the number in the issue title (*"nine ADRs (049-058)"*) is already stale, and
-   so is the "sixteen" and "seventeen" in the last two prompts.
-3. **A guard, or an explicit decision not to have one.** This index has now
-   fallen behind **eighteen** times, which is a process that does not work. A
-   test that fails when `docs/adr/*.md` and the index disagree is cheap and is
-   the obvious fix — `legal_assets_drift_test.dart` is the precedent for a
-   file-tree-versus-document check. If you decide against it, say why in writing;
-   do not simply not build it.
-4. **No ADR is required for this** unless you add the guard, which is a decision
-   and therefore is. Say which instrument you wrote (lesson 115 applies to the
-   guard, not to typing eighteen rows).
-5. **The review still runs.** An index is exactly the kind of change where a
-   review pass feels unnecessary and where an off-by-one is invisible.
+2. **Measure what is actually stored before writing a word about it.** Read the
+   write sites (`recordConsent`, the rules freeze, `profile_dto.dart`) and say
+   which fields exist, which are server-owned, and what the cascade and the
+   export lane (ADR-054) already do with them. #249's title is a claim; check it.
+3. **An ADR or slice design committed BEFORE code** (lesson **115**), saying
+   which instrument you wrote.
+4. **Decide explicitly whether this lands in the shipped notice or the v3 draft.**
+   The draft is already awaiting the founder and lawyer (**#226**, operator item
+   16) and has now been rewritten three times; adding a fourth note has a cost.
+   Changing the *shipped* text is a consent re-gate and is not a session's to do.
+5. **If a document gains a list, the list gets a guard or an explicit refusal.**
+   ADR-067 is one session old and exists because an index nobody guarded fell
+   eighteen behind. Do not add a nineteenth unguarded list without saying why.
 
 ### What is NOT this session's
 
 * **Restoring billing** (operator 1 ①) and **cutting a build** (operator 1 ②).
 * **Arming the watcher** — operator item 4's `PROD_PULSE_VIEWER_SA`.
-* **The budget alert** (operator item 9).
-* **Rewriting any ADR's content.** The index points; it does not summarise
-  anything that is not already in the ADR's own title and status line.
+* **Landing the privacy revision** — that is #226 and the founder's.
 
 ---
 
@@ -73,58 +65,49 @@ decision is how a repo ends up with two.
 
 | | State |
 |---|---|
-| **Production** | 🔴 **DOWN since 2026-08-22T02:00Z.** Account `012195-7EF76F-3A9083` closed **and `billingEnabled` now `false` on BOTH projects** — off at the project as well as the card. Last completed sweep **2026-08-25T15:00:11Z** |
-| **`prod_pulse`** | **Correct for all four billing states as of S090** (ADR-066). It names which switch is off and what to do about each |
-| **The watcher** | BUILT and MERGED (ADR-064), **UNARMED**. The ARMED path is still unexercised and cannot run until `PROD_PULSE_VIEWER_SA` exists |
-| **Push, device side** | **STILL 0 of 4 registered**, four *"no report"* |
-| **#253** | **CLOSED by S089** (ADR-065). `sanitizePushName` is a **security boundary** with five rules |
-| **#267** | **CLOSED by S090** (ADR-066) |
-| **#136** | Autonomous half exercised for the first time at S089. **Step 1 is still device-blocked** |
-| **#263** | ⚠️ **OPEN.** The watcher is merged and unarmed, so open is honest. (S089 corrected an inherited prompt that claimed it was closed — verify with `gh`, not with prose) |
-| **#248** | **EIGHTEEN ADRs behind (049–066) — THIS SESSION** |
-| **#226 / #243 / #242 / #247 / #249 / #250 / #258** | Unchanged; #226 and #243 need the founder |
+| **Production** | 🔴 **DOWN since 2026-08-22T02:00Z.** Account `012195-7EF76F-3A9083` closed **and `billingEnabled` false on BOTH projects**. Last completed sweep **2026-08-25T15:00:11Z** |
+| **`prod_pulse`** | Correct for all four billing states (ADR-066) — **verified in live use this session** |
+| **The watcher** | BUILT and MERGED (ADR-064), **UNARMED**; the armed path is still unexercised |
+| **Push, device side** | **STILL 0 of 4 registered** |
+| **The ADR index** | **WHOLE — 67 records, 67 rows** — and guarded by `adr_index_lint.dart` in `quality` (ADR-067). **Writing an ADR without its index row is now a red build** |
+| **#248 / #253 / #267** | **CLOSED** by S091 / S089 / S090 |
+| **#263** | **OPEN** — the watcher is merged and unarmed, so open is honest |
+| **#226 / #243 / #242 / #247 / #249 / #250 / #258** | Unchanged; **#249 is this session** |
 | **Deployed rules vs `main`** | **DRIFTED** — downstream of billing |
 
-### What S090 changed that a later session will trip over
+### What S091 changed that a later session will trip over
 
-* **`billing_findings` takes THREE arguments now** — `billing_enabled`,
-  `account_name`, `account_open` — and `verdict()` threads `billing_account_name`
-  purely to reach it. Without the name, *"not linked"* and *"linked and switched
-  off"* are the same input; that was #267.
-* **Four billing sentences, and the tests assert ABSENCE.** All four states
-  produce exactly one finding, so a `len(findings) == 1` check passes on the bug.
-  The assertions are that the unlinked sentence must **not** appear in the other
-  three, behind a floor that the four stay four distinct strings.
-* **Row 4 (billing off, account OPEN) is defensive and UNMEASURED**, and the ADR
-  says so. Reaching it means reopening a closed account — operator item 1.
+* **An ADR without an index row is now a RED BUILD.** Write the row in the same
+  commit as the record — it is one row, paid by the person holding the context.
+* **Escape `|` as `\|` in an index row, even inside backticks.** GFM does not let
+  a code span protect a pipe in a table; shipped row 042 had been losing its
+  Status to a fourth column since it landed.
+* **The lint guards PRESENCE, not meaning.** A green lint does not mean a good
+  index: 5 of 19 rows written this session were inaccurate and the lint passed
+  every one of them. If you add a row, have something read it against its ADR.
+* **A numbering gap is legal** and the lint asserts it stays legal. Do not "fix"
+  a hole in the sequence.
 
 ### Still true from earlier sessions
 
 * **`architecture.md` §7's first sentence is sentinel-parsed** — append after it.
-* **The emulator suite can fail on a loaded box.** If you re-run, **say you
-  re-ran** (S089 had to: a background-task stop killed a run before it reported).
-* **`integration-emulator` never runs on a PR** — main-only by cost design. A
-  docs-only merge produces a green with it path-filtered away, measuring nothing.
-* **Repeated pushes cancel the macOS gate.** Hold the last commit and push alone,
-  and verify `ios-build-smoke` actually COMPILED via
-  `gh api repos/:owner/:repo/actions/jobs/<id>/logs` — `gh run view --job --log`
-  returns zero lines here.
-* **Do not hand-roll a Unicode range** (lesson 124); `strong_bidi_ranges.dart` is
-  **GENERATED** (ADR-053).
+* **The emulator suite can fail on a loaded box.** If you re-run, **say you re-ran**.
+* **`integration-emulator` never runs on a PR**, and a docs-or-tooling-only merge
+  produces a `main` green with it path-filtered away, measuring nothing.
+* **Repeated pushes cancel the macOS gate**; verify `ios-build-smoke` actually
+  COMPILED via `gh api repos/:owner/:repo/actions/jobs/<id>/logs`.
+* **Do not hand-roll a Unicode range** (lesson 124).
 * `FORMAT_VERSION` is **3**, pinned by **four** assertions (lesson 108).
-* **Do not add `UIBackgroundModes: remote-notification`** without deciding SEC-3.
-* **`main` is protected.** A close commit needs its own PR; a direct push is
-  rejected by the branch hook.
+* **`main` is protected** — a close commit needs its own PR.
 
 ---
 
 ## 2. Then, in priority order
 
-**1 — #249** (the consent record is named in no collection list). **2 — #242**
-(the server three have no emitter; waits on a sink). **3 — #258** (the legal draft
-under-describes deletion once #246 landed).
+**1 — #242** (the server three have no emitter; waits on a sink). **2 — #258**
+(the legal draft under-describes deletion once #246 landed). **3 — #204**.
 
-**4 — #204** · **#165** · **#121** · **#115** · **#41** · **#63/#71**.
+**4 — #165** · **#121** · **#115** · **#41** · **#63/#71**.
 
 ---
 
@@ -183,3 +166,15 @@ run** (`integration-emulator` is main-only) → `codegraph sync`.
 > ⚠️ **A CORRECTION IS NOT DONE UNTIL EVERY COPY OF IT IS GONE** (lesson **141**).
 > S090 removed one of two copies of a stale note and its commit message said the
 > note was removed. `grep` for the note's own words before claiming it.
+
+> ⚠️ **SELF-REVIEW DOES NOT CATCH SELF-FLATTERY** (lesson **143**). S091 wrote a
+> box criticising an earlier revision for overstating in its own favour, then
+> overstated in its own favour three times in the same session. The only thing
+> that caught it was an agent whose sole job was to compare one claim to its
+> source. **When a change produces claims ABOUT its own subject, spend agents on
+> checking each claim against its source** — not only on lenses over the diff.
+
+> ⚠️ **A STATUS WORD THAT ALSO APPEARS IN PROSE IS NOT A STATUS MARKER**
+> (lesson **142**). A review harness reported a lens as FAILED-empty because the
+> lens's prose contained the word "blocked". Put the classification in its own
+> field, or require the marker at the START of the note.
