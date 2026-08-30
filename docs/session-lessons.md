@@ -38,6 +38,36 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**143 — Knowing a failure mode does not prevent you committing it, and only an outside reader catches it.** *(S091, ADR-067)*
+ADR-067 revision 2 opens with a box criticising revision 1 for *"asserting
+something false in the direction that flattered its own argument"*. In the same
+session, writing the index row for that same ADR, I said the index had been
+*"priority 1 in three consecutive session prompts"*. Its own Finding 2, twenty
+lines above, says priority 1 in **two** prompts and *"next, not now"* in
+between. I then wrote the same inflation into the lint's header comment and into
+the commit message — **three places, all after documenting the failure mode, all
+in my own favour.** Nothing about having just named the trap helped. What caught
+it was an agent whose only job was to read the ADR and the row side by side and
+ask whether one was true of the other. **Self-review does not catch
+self-flattery**; the check has to come from something that has no stake in the
+sentence. The corollary for review design: when a change produces claims *about*
+its own subject, spend agents on comparing each claim to its source, not only on
+lenses over the diff — 5 of 19 rows came back inaccurate, and no lens found any
+of them.
+
+**142 — A status word that also appears in ordinary prose is not a status marker.** *(S091)*
+A review harness classified one lens as **FAILED-empty** — meaning blocked,
+meaning its silence was worthless — when the lens had written *"CONSIDERED-empty"*
+and then used the word **blocked** in a sentence describing a workflow the design
+blocks on purpose. The classifier did `note.toUpperCase().indexOf('BLOCKED') >= 0`
+over free prose. The reported distribution was wrong about the review's own
+coverage, which is the one number a reader uses to decide how much the review is
+worth. **Put the classification in its own field, or require the marker at the
+START of the string** — the fix here was a schema that says *begin the note with
+the single word CONSIDERED-EMPTY or FAILED-EMPTY and use those words nowhere
+else*, plus `startsWith` instead of a substring search. Same family as lesson
+**133**: a number an instrument reports about itself is still a claim.
+
 **141 — A correction is finished when every COPY of it is gone, not when the thing it corrected is fixed.** *(S090, ADR-066)*
 S089 found `prod_pulse` printing *"no billing account is linked"* beneath the
 linked account's own id, could not fix the tool in that session's scope, and put

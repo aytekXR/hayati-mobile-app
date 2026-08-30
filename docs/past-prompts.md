@@ -4556,3 +4556,68 @@ TDD: the tests were written **first** and failed for the right reason (`TypeErro
 
 **Next objective written to resume-prompt.md:** Session 091 — **#248**, the ADR index, now **eighteen** decisions behind (049–066).
 
+## Session 091 — 2026-08-30 — #248: the ADR index is whole again, and a lint keeps it that way (ADR-067)
+
+**Objective (from resume-prompt.md):** `docs/adr/README.md` stops at ADR-048 while ADR-066 exists. Eighteen decisions are not in the index a session uses to find precedent.
+
+**Outcome:** done. `adr-index lint: PASS (67 record(s), 67 row(s), bijection holds)` — and the session wrote the gate as well as the rows, because the alternative had already failed three times.
+
+### The two probes, re-measured first
+
+```
+$ python3 tool/ci/prod_pulse.py --from-firebase-cli        # exit 1, sweep 112.5h stale
+$ python3 tool/ci/push_delivery_probe.py --from-firebase-cli   # exit 1, 0/4 registered
+```
+
+Production still down. **S090's fix is visibly working in live use**: the first probe now names the closed account and the next step instead of telling the reader no account is linked.
+
+### Why a gate and not another resolution
+
+Eighteen, measured — not the *"nine"* in #248's title, not the *"sixteen"* of the S089 prompt, not the *"seventeen"* of the S090 one. Each was true when written and none was ever wrong in a way anyone noticed. It had been priority 1 in the S089 and S090 prompts and named again in between; each deferral was individually correct, because a production outage and a lying instrument both outrank a documentation index. **Three correct deferrals still produce an index nobody can trust.**
+
+And it is load-bearing: of the seven ADRs the previous two sessions actually leaned on, **four were not in the index** — they were found only by already knowing they existed.
+
+### The design pass refuted two of the ADR's own claims
+
+4 lenses × 2 verifiers + a critic, alongside the 18 row-drafting agents: **27 agents, 0 errored, 0 empty, 0 skipped**; **3 considered-empty, 0 failed-empty**; 3 findings, all surfaced.
+
+* **The critic caught revision 1 overstating in its own favour**: *"none of those five is in the index"* — three of seven **are** indexed. False on the count and on the claim.
+* **The governance lens caught Finding 4 citing false history**: revision 1 said ADR-029's renumbering *"abandons a number"*. `ls docs/adr/028-*.md docs/adr/029-*.md` — **both exist**; the collision preserved contiguity. The decision (do not assert contiguity) stands on two reasons that survive measurement instead.
+
+### The built-diff pass found more, and the worst of it was mine
+
+4 lenses × 2 verifiers + a critic + **19 agents each checking one row against its own ADR**: **28 agents, 0 errored, 0 empty, 0 skipped**; 2 lenses considered-empty, **0 failed-empty**; 2 lens findings both real to both verifiers; **5 of 19 rows not accurate**.
+
+| | |
+|---|---|
+| `unescapedPipes` single-character lookback | `\\|` is an escaped BACKSLASH plus a real separator — the lint reported three cells where GFM renders four. **Green over a broken row**, the one thing assertion 5 exists to prevent |
+| duplicate-files branch | **no test at all**; a mutant deleting it passed all 22 checks while the lint would accept `001-a.md` and `001-b.md` with one row, orphaning a record |
+| row 049 | cited *"lesson 79"* — `grep -c 79 docs/adr/049-*.md` returns **0** |
+| row 050 | credited the *lint* with an admission the ADR deliberately keeps in its own text |
+| row 066 | said a stale note survived *"in two places"*; ADR-066 says **one** of two copies survived |
+| **row 067 — mine** | *"priority 1 in three consecutive session prompts"*; its own Finding 2 says **two**, twenty lines above |
+
+**Row 067 is the one to keep.** I wrote it immediately after writing a box criticising revision 1 for exactly this, then repeated the inflation in the lint's header comment and the commit message — three places, all in my own favour, all after naming the trap. Nothing about knowing it helped. **Lesson 143.**
+
+**One finding was rejected and the reason recorded** (lesson 135): row 058's present tense was called overstated on ADR-058's own *"specification of what will be built"* framing. Both artefacts exist now — 4 files in `docs/legal/proposed/`, and S089 ran the test. The index describes the repo as it is, and 058's Status cell already carries the not-landed fact.
+
+### Verification
+
+`adr-index lint: PASS (67 record(s), 67 row(s))` · `adr_index_lint_test.dart` **25 checks** — counted by `dart tool/adr_index_lint_test.dart | grep -c '^  ok '`, because the first draft said 26 and the command said 25 (lesson **133**, met while writing the paragraph citing it) · deploy-lane lint **PASS** (9/3) · release-lane lint **PASS** (12) · `dart format --set-exit-if-changed app/lib app/screenshots app/test tool content` clean.
+
+The self-tests aim at the **quiet** direction: an index with no parseable rows is exit **64, never 0**, because a lint that stops matching rows would otherwise be green forever over an index nobody was checking; and a numbering **gap must NOT fail**.
+
+**Four mutants, each proven to change behaviour before the suite ran** (lesson 112): deleting the file-without-row check reddens 3; removing the empty-index guard reddens 2 — and that one does **not** produce a false green, it produces a **misdiagnosis** (67 records "missing a row" when the truth is *"I could not read the table"*), which is ADR-063 D2's gap-is-not-an-absence distinction and the exact shape of the #267 defect fixed one session earlier; restoring the single-character lookback reddens 1; deleting the duplicate-files guard reddens 2. All restore byte-exact.
+
+**Found while building, not designed:** shipped row **042** carries an unescaped `|` inside a code span, and GFM does not let backticks protect a pipe in a table — its Status has been rendering in a fourth column since it landed. That became assertion 5, and the lint then caught the author writing the same unescaped pipe into ADR-067's own row.
+
+**Commits:** `499f4a7` (ADR rev 1, before code) → `d830c8e` (rev 2, design pass) → `6196a5b` (the rows and the lint) → `c77a107` (built-diff pass).
+
+**CI:** appended at close, below.
+
+**Docs touched:** `docs/adr/067-*.md`, `docs/adr/README.md` (19 rows added, row 042 fixed), `tool/adr_index_lint.dart`, `tool/adr_index_lint_test.dart`, `.github/workflows/ci.yml`, `docs/test-suite.md`, `docs/session-lessons.md` (**142**, **143**), `docs/past-prompts.md`, `docs/resume-prompt.md`.
+
+**Notes / debt logged:** **#248 closed.** The lint guards **presence**, not meaning — a green lint does not mean a good index, and 5 of 19 rows proved that in the same session. Nothing here is observable on a phone; production down since 2026-08-22, 0 of 4 devices registered, both operator items.
+
+**Next objective written to resume-prompt.md:** Session 092 — **#249**, the consent record named in no collection list.
+
