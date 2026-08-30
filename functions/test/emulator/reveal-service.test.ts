@@ -615,14 +615,26 @@ describe('handleAnswerCreated — the partnerAnswered push names the ANSWERER (A
       });
 
       expect(port.sent[0].title).toContain(RECIPIENT_NAME);
+      let examined = 0;
       for (const text of [port.sent[0].title, port.sent[0].body]) {
         const strong = [...text].find((ch) =>
           /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}]/u.test(ch),
         );
+        // ⚠️ A FLOOR BEFORE THE PROPERTY (lesson 110), and here it is load-bearing
+        // rather than ceremonial: `find` returns `undefined` when there is no
+        // strong character, `RegExp.test` COERCES that to the string
+        // `"undefined"` — which is all Latin letters — so the assertion below
+        // passes on a payload with no direction at all. Measured:
+        // `/\p{Script=Latin}/u.test(undefined)` is `true`. The built-diff review
+        // found it; the sanitiser's own suite already had this guard and this
+        // one did not.
+        expect(strong, `no strong character in: ${text}`).toBeDefined();
         // English copy, so the first strong character must be Latin — the
         // copy's own word, never the Arabic name.
         expect(/\p{Script=Latin}/u.test(strong as string), text).toBe(true);
+        examined += 1;
       }
+      expect(examined).toBe(2);
     });
 
     it('a name carrying a newline cannot put a second line on a lock screen', async () => {

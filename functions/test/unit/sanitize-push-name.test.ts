@@ -163,6 +163,28 @@ describe('sanitizePushName', () => {
       // The cap sits ABOVE the app's own input bound (nameCaptureMaxLength = 50),
       // so the server never silently discards a name the app invites.
       ['the app\'s own 50-character maximum is accepted', 'A'.repeat(50), 'A'.repeat(50)],
+      // D3e — an UNPAIRED surrogate is half of a character, not a character.
+      // Left in, the string is not well-formed (`'Ay\uD800lin'.isWellFormed()`
+      // is false): any UTF-8 round trip turns it into U+FFFD on the lock
+      // screen, and FCM may refuse the send outright — which `deliverPush`
+      // counts as `send-failed`, so the recipient gets NOTHING. That is the
+      // outcome D3c's length cap exists to prevent, reached by another door.
+      ['a lone high surrogate is deleted', 'Ay\uD800lin', 'Aylin'],
+      ['a lone low surrogate is deleted', 'Ay\uDC00lin', 'Aylin'],
+      ['a name of only lone surrogates degrades', '\uD800\uD801\uD802', undefined],
+      // ...and a VALID pair must survive untouched, or the fix would be a worse
+      // defect than the bug: under /u the engine iterates code points, so an
+      // emoji is one `So` and never matches `\p{Cs}`.
+      ['an emoji name survives (a valid pair is not a lone surrogate)', 'Ayl\u{1F600}n', 'Ayl\u{1F600}n'],
+      ['an SMP letter survives', 'Ay\u{10400}lin', 'Ay\u{10400}lin'],
+      // D3e — `\p{L}` says these four are LETTERS and they render as nothing.
+      // A name of them satisfied "contains a letter" and composed
+      // `Your partner ␣␣␣␣␣ answered` — a gap where a name should be.
+      ['a name of only Hangul fillers degrades', 'ㅤㅤㅤㅤㅤ', undefined],
+      ['U+115F / U+1160 / U+FFA0 are the same case', 'ᅟᅠﾠ', undefined],
+      // ...but a name that merely CONTAINS one keeps it: the property
+      // disqualifies a character from BEING the content, it never deletes one.
+      ['a real name containing a filler is untouched', 'Ayㅤlin', 'Ayㅤlin'],
     ];
 
     for (const [label, input, expected] of cases) {
@@ -177,9 +199,13 @@ describe('sanitizePushName', () => {
     // report the same clean zero as one that passed.
     it('the table covers every case in every language', () => {
       // Counted by the assertion itself, not by me: the first draft said 23
-      // and the floor said 22 (lesson 133 — a count is a claim).
-      expect(cases.length).toBe(22);
-      expect(cases.length * LANGUAGES.length).toBe(66);
+      // and the floor said 22 (lesson 133 — a count is a claim). It moved to
+      // 30 when the built-diff review's D3e cases landed, and that number came
+      // from the same place — the count printed by
+      //   python3 -c "…re.findall(r'^\s*\[.', block, re.M)…"
+      // over this literal, never from adding up the diff by eye.
+      expect(cases.length).toBe(30);
+      expect(cases.length * LANGUAGES.length).toBe(90);
     });
 
     // The point of the whole table, asserted at the seam rather than inferred:

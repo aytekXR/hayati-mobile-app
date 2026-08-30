@@ -38,6 +38,41 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**140 — The sentence a change makes false is usually in the translation files, not in the code.** *(S089, ADR-065 D6)*
+ADR-065 D5 spends a page on the right argument: this session makes a sentence in
+the privacy draft false, that is *"the same defect class, one session later"*, and
+so the draft is corrected in the same diff. It then stopped, because the draft was
+the surface someone had already thought about. The **app** carried two sentences
+about the identical fact and both were falsified by the same commit:
+`nameCaptureHelper` — *"Your partner will see this on your invitation"*, said at
+the **collection point**, the one place the app explains what a name is for — and
+`settingsNotificationPrivacySubtitle`, which describes the **control** that is now
+the only thing between a partner-chosen string and a lock screen, while promising
+to hide *"message content"* a notification has never carried. Neither is code;
+both are values in `app_{en,tr,ar}.arb`. **The built-diff panel did not find them,
+and one of its critics was pointed straight at the question** — *"does anything in
+`app/` display, cache or assume the name-free copy?"* — and answered by reading
+the Dart. **Add one step to the blast radius of any behaviour change: grep the ARB
+files for what the product SAYS about the thing you changed.** A `git grep` for
+the old promise costs seconds; the surface it protects is the one a user actually
+reads.
+
+**139 — A verifier that can name one outcome stops there, and rates the defect by the milder one.** *(S089, ADR-065 D3e)*
+The adversarial lens **found** that unpaired surrogates pass `sanitizePushName`,
+and filed it as *"Cosmetic (renders as replacement characters), not security"* —
+so it never became a finding. That first outcome is real: a UTF-8 round trip turns
+`'Ay\uD800lin'` into `Ay?lin`. It is also not the only one. The same string is not
+well-formed (`isWellFormed()` is `false`), FCM may refuse the payload, and
+`deliverPush` counts a refusal as `send-failed` — **the recipient gets nothing**,
+which is the exact outcome D3c's length cap exists to prevent, reached through a
+different door. The lens stopped at the first branch it could describe and rated
+the whole finding by it. **When a defect has more than one downstream, a verdict
+is only as good as the branch the verifier happened to follow** — so when a lens
+reports "cosmetic", ask what the *other* consumer of that value does with it.
+Related: lesson **135** (a refutation is a claim) — this is its quieter cousin,
+where nothing was refuted, only under-rated, and an under-rated finding never
+reaches the aggregation at all.
+
 **138 — An empty grep is evidence of absence only if the pattern was right, and case is the usual way it is not.** *(S089, ADR-065)*
 ADR-065 revision 1 stated as measured fact that `name_capture_screen.dart` has
 **no `maxLength`**, and built a paragraph of threat model on it. The screen caps

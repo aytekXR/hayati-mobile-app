@@ -4,11 +4,11 @@
 // ⚠️ **THE CONTRACT WIDENED AT ADR-065 AND IS NOW A SECURITY BOUNDARY.** This
 // used to return "a name with its RTL edge neutrals trimmed". It now returns
 // "a name SAFE TO INTERPOLATE INTO OUTGOING PUSH COPY, or undefined", and bidi
-// is one of four concerns. The reason is #253: until it landed, `partnerName`
+// is one of FIVE concerns. The reason is #253: until it landed, `partnerName`
 // was supplied by no caller, so nothing untrusted could reach here. It now
 // carries a Firebase Auth `displayName` — a field the OTHER member of the
 // couple sets, through a client SDK, with no server validation — onto this
-// person's lock screen. Read the four rules below as a threat model, not as
+// person's lock screen. Read the five rules below as a threat model, not as
 // formatting.
 //
 // The Functions-side twin of the app's `bidi_isolate.dart` — and deliberately a
@@ -77,8 +77,20 @@ function isEdgeNeutral(ch: string): boolean {
 /// protected from trimming (see below), so `()` would otherwise survive the trim
 /// with both characters intact and nothing between them — the edge case the
 /// value table caught.
+///
+/// ⚠️ **A letter is not the same thing as a visible letter, and `\p{L}` alone
+/// cannot tell them apart** (ADR-065 D3e). U+3164 HANGUL FILLER and its three
+/// siblings (U+115F, U+1160, U+FFA0) are category **Lo** — Unicode says they are
+/// letters — and they render as **nothing**. A name of five of them satisfied
+/// "contains a letter" and composed `Your partner ␣␣␣␣␣ answered`: a gap where a
+/// name should be, which is exactly the state the comment above says is not a
+/// name. The disqualifier is the PROPERTY that means "renders as nothing"
+/// (lesson 124, ADR-053) — `Default_Ignorable_Code_Point` — applied per rune, so
+/// a name that merely CONTAINS one still counts on the strength of its real
+/// letters. It cannot cost a real name a thing: a default-ignorable code point
+/// has no glyph by definition, so no name is made of them.
 function hasContent(text: string): boolean {
-  return /[\p{L}\p{N}]/u.test(text);
+  return [...text].some((ch) => /[\p{L}\p{N}]/u.test(ch) && !IGNORABLE.test(ch));
 }
 
 /**
@@ -108,9 +120,10 @@ export function sanitizePushName(
 ): string | undefined {
   if (name === undefined) return undefined;
 
-  // ADR-065 D3a/D3b, in order. Both run for EVERY language: a newline injects a
-  // line and an RLO reverses a sentence regardless of which way the copy leans,
-  // unlike the edge trim below, which is a genuinely RTL-only concern.
+  // ADR-065 D3a/D3e/D3b, in order. All three run for EVERY language: a newline
+  // injects a line, an RLO reverses a sentence and a half-character is not text,
+  // regardless of which way the copy leans — unlike the edge trim below, which is
+  // a genuinely RTL-only concern.
   const normalized = capMarkRuns(stripUnsafe(name));
   if (!normalized) return undefined;
 
@@ -225,6 +238,35 @@ const INVISIBLE = /\p{Cf}/u;
 /// paragraph, which is what INVISIBLE is here to stop.
 const KEEP_INVISIBLE = /[\u200C\u200D]/u;
 
+/// A code point that is defined to RENDER AS NOTHING (ADR-065 D3e).
+///
+/// Used only by `hasContent`, to disqualify a character from counting as the
+/// name's content — never to delete one, because the set includes characters
+/// real orthography carries (U+17B4/U+17B5 in Khmer, the variation selectors).
+/// A name containing one keeps it; a name made ONLY of them is not a name.
+///
+/// The property, not the four Hangul fillers that exposed the gap: it is the
+/// only thing that says "no glyph" for a category-`Lo` code point, and an
+/// enumeration would go stale the way the twelve-bidi-control list would have
+/// (lesson 124).
+const IGNORABLE = /\p{Default_Ignorable_Code_Point}/u;
+
+/// An UNPAIRED surrogate — half of a character, and not text at all (ADR-065 D3e).
+///
+/// ⚠️ **Matches only LONE surrogates, never a valid pair.** Under the `u` flag
+/// the engine iterates CODE POINTS, so `😀` is one `So` code point and does not
+/// match; `'\uD800'` alone is one `Cs` code point and does. Measured, because a
+/// version of this that ate emoji would be a worse defect than the one it fixes.
+///
+/// `displayName` reaches us as a JSON string, and JSON can carry `"\ud800"` — a
+/// string JavaScript accepts and `String.prototype.isWellFormed()` rejects. Left
+/// in, it either lands on the lock screen as `�` (any UTF-8 round trip
+/// replaces it) or is refused by FCM, which `deliverPush` counts as
+/// `send-failed` — the recipient silently gets NOTHING. That second outcome is
+/// the one D3c's length cap exists to prevent, reached by a different door, so
+/// it is bounded here rather than conceded.
+const MALFORMED = /\p{Cs}/u;
+
 /// A combining mark (ADR-065 D3b).
 const COMBINING_MARK = /\p{M}/u;
 
@@ -259,14 +301,16 @@ const MAX_MARK_RUN = 8;
 const MAX_NAME_CODE_POINTS = 64;
 
 /**
- * ADR-065 D3a. Maps separators to a space, deletes invisibles, collapses
+ * ADR-065 D3a (separators, invisibles) and D3e (unpaired surrogates). Maps
+ * separators to a space, deletes invisibles and half-characters, collapses
  * whitespace runs, trims.
  *
  * **The two halves map DIFFERENTLY and that is deliberate.** A draft of this
  * deleted both; measured, deleting `\n` turns `Aylin\nSecurity` into
  * `AylinSecurity` — two words silently welded into one nobody typed. Separators
  * separate, so they become a space; format characters occupy no width, so a
- * space would invent one.
+ * space would invent one. An unpaired surrogate is neither: it is a broken half
+ * of one character, so it is deleted with the invisibles rather than spaced.
  *
  * Iterates RUNES, never code units.
  */
@@ -274,6 +318,7 @@ function stripUnsafe(text: string): string {
   const mapped = [...text]
     .map((ch) => {
       if (SEPARATOR.test(ch)) return ' ';
+      if (MALFORMED.test(ch)) return '';
       if (INVISIBLE.test(ch) && !KEEP_INVISIBLE.test(ch)) return '';
       return ch;
     })

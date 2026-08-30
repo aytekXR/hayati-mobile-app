@@ -1,16 +1,17 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-08-28 UTC (S087)
+**Last Updated:** 2026-08-30 UTC (S089)
 
 ## Current Status
 
-- Session: **087**
-- Goal: **make the 9 a.m. daily question actually arrive on a phone**
-- Status: **The cause was found, and it is not what anyone thought.** See the red box below — this is the most urgent thing in this document
-- 🔴 **PRODUCTION IS DOWN AND HAS BEEN SINCE 2026-08-22. Your Google billing account is CLOSED.** Nothing your app does on a server has worked for six days: no daily question is being assigned, no push is composed, and purchases cannot be processed. **Item 1 ① is the whole fix and only you can do it.**
-- ⚠️ **Last time this happened it cost 37 hours (2026-08-09→11). This time it has cost six days**, because the tool built afterwards to catch it could not report during the outage. That tool is fixed as of today
+- Session: **089**
+- Goal: **the "your partner answered" notification finally says WHO — and the name is a string your partner types, so it is treated as untrusted input**
+- Status: **Done and proven in the emulator; unobservable on a phone until you do item 1.** The red box below is still the most urgent thing in this document, and it has got slightly worse since you last read it
+- 🔴 **PRODUCTION IS DOWN AND HAS BEEN SINCE 2026-08-22. Your Google billing account is CLOSED.** Nothing your app does on a server has worked for **eight days**: no daily question is being assigned, no push is composed, and purchases cannot be processed. **Item 1 ① is the whole fix and only you can do it.**
+- 🔴 **It has moved a step further since 2026-08-28, and this is the one new fact in this document you should act on.** Until then the projects still *reported* billing as enabled while the account behind them was closed. Re-measured **2026-08-30**: `billingEnabled` is now **`false` on BOTH `hayatiapp-prod` and `hayatiapp-dev`** — Google has now switched billing off at the project, not merely at the card. **Reopening the account may no longer be enough on its own; check that both projects are still linked to an open account afterwards**, and confirm with the command in item 1
+- ⚠️ **Last time this happened it cost 37 hours (2026-08-09→11). This time it has cost eight days**, because the tool built afterwards to catch it could not report during the outage. That tool was fixed at S087 — and S089 found it now prints the WRONG SENTENCE for this new state (*"no billing account is linked"*, immediately under the linked account's own id). Filed as **#267**; it is a reporting bug, not a second outage, and item 1's instruction below is the corrected wording
 - ⚠️ **Item 16 is still waiting on you, and it is the oldest open honesty gap in the repo**
-- ⚠️ **The privacy document waiting for your lawyer now carries THREE small notes, not one — see item 16**
+- ⚠️ **The privacy document waiting for your lawyer now carries FOUR small notes, not one — see item 16.** The newest is S089's, and it is the one that changed direction: the notification bullet said no notification names anyone, and that is no longer true
 - Completion: **~60%** of the iOS MVP as specified, to public launch
 - Production Readiness: **Beta Ready**
 
@@ -43,7 +44,8 @@ is **not** the answer this document gave you last week.
   lone hour that got through. Before that, **2026-08-22 01:00 UTC**.
 * Your **dev** project is linked to the same closed account, so it is down too.
 
-**What that means in plain terms:** for six days your app has not been assigning
+**What that means in plain terms:** for eight days (six when this was written,
+re-measured 2026-08-30) your app has not been assigning
 anybody a daily question, has not been sending any notification, and cannot
 process a purchase. This is not a code problem — nothing in the app is broken.
 The servers are refusing to run because the card behind them stopped paying.
@@ -76,7 +78,8 @@ just open the app once and it will register itself.)*
 python3 tool/ci/prod_pulse.py --from-firebase-cli
 ```
 
-Today it prints the closed account and a 55-hours-stale sweep and exits **1**.
+Today it prints the closed account and a **106.7-hours**-stale sweep and exits
+**1** (55 hours when this was written).
 When billing is restored it will print *"the daily loop is running"* and exit **0**,
 within about an hour. *(Until today that command answered `could not measure` —
 it read the project's billing **link**, which says "enabled", rather than the
@@ -86,6 +89,42 @@ second API refused it. Both are fixed; ADR-063.)*
 *(A functions deploy may also be needed — prod has drifted from `main` since S077.
 That is item 4's territory and I will confirm it once the servers are running
 again, so you are not asked for two things when one may do.)*
+
+**S089 (2026-08-30) — the notification finally says who answered, and the name is treated as something a stranger typed.**
+
+**What changes for you, when a build eventually reaches a phone.** Until now every
+"your partner answered" notification said exactly that — *"Your partner
+answered"* — because nothing ever supplied the name. It now says **"Your partner
+Aylin answered"**, in Turkish and English. **Arabic readers are unaffected**: for
+them discreet notifications are on by default and cannot be turned down, so their
+notifications stay generic, which is deliberate (PRD F6).
+
+**The part that took the session, and it is not the wiring.** The name comes from
+what your partner typed about themselves, and there is no server checking it. So
+it is the first time a string one person chooses lands on **another person's lock
+screen**, under your app's name. Measured against the code as it stood: a name
+containing a line break put **two attacker-chosen lines** on that lock screen, in
+the visual position a system message occupies; a name containing one invisible
+control character reversed the whole sentence; a 500-character name composed a
+payload large enough to fail the send outright, so the notification would simply
+never arrive. None of those could happen before, because the branch was
+unreachable — and all three would have shipped the moment it became reachable.
+The name is now cleaned before it is used, and if what is left is not a name, the
+notification quietly goes back to saying *"your partner"*.
+
+**Two sentences in the app were made false by this and are corrected in the same
+change**: the line under the name field (it said your partner would see the name
+*on your invitation* — now also in a notification) and the description of the
+**Discreet notifications** setting (it promised to hide "message content", which
+notifications have never carried; it now says what it actually hides — the name,
+the event, the streak).
+
+**Nothing here can be seen on a phone yet**, and that is item 1, not this work:
+production is down and no device has ever registered. It is proven in the
+emulator, which is where every part of the notification feature has been proven.
+
+**Nothing in this needs you.** The privacy draft waiting for your lawyer (item 16)
+was updated in the same change so it describes what the app now does.
 
 **S086 (2026-08-27) — a launch metric that cannot be measured, and the identifier I did not create.**
 
@@ -177,7 +216,10 @@ is switched on.
 **And the app never actually sends a partner's name at all** — the code that
 would is written and tested, but nothing calls it, so every notification says
 *"your partner"*. That is filed as a gap to close deliberately (**#253**), not a
-bug. It also means one sentence in last session's legal draft — *"a notification
+bug. ⚠️ **That sentence stopped being true on 2026-08-30: S089 closed #253, and
+the notification now names your partner. See the S089 entry below.** It is left
+standing rather than deleted because the *shape* of the gap — code written,
+tested, and reached by nothing — is the thing worth remembering. It also means one sentence in last session's legal draft — *"a notification
 can show your partner's name"* — was **wrong**, and it has been corrected. That
 is exactly the kind of error the draft exists to remove, so finding it in the
 draft itself is worth saying out loud rather than quietly fixing.
@@ -283,6 +325,25 @@ Ordered by how much each unblocks. Every item below was verified today.
 **2026-08-22 02:00 UTC** has been refused with *"The request failed because
 billing is disabled for this project."* Reopen the account with a working payment
 method, or link `hayatiapp-prod` **and** `hayatiapp-dev` to an open one.
+
+⚠️ **Re-measured 2026-08-30 and it has changed shape.** Both projects now report
+`billingEnabled: false` *while still naming that account* — so billing is off at
+the **project** as well as at the account:
+
+```
+hayatiapp-prod  billingEnabled=False  billingAccountName=billingAccounts/012195-7EF76F-3A9083  account open=False
+hayatiapp-dev   billingEnabled=False  billingAccountName=billingAccounts/012195-7EF76F-3A9083  account open=False
+```
+
+**What that changes for you:** reopening the account is still step one, but do not
+stop there — **confirm afterwards that each project is linked to an open account**
+(Firebase Console → ⚙ → Usage and billing, for both projects). ⚠️ `prod_pulse`
+currently narrates this state as *"no billing account is linked"*, which is wrong
+— the account IS linked and closed. That is **#267**, filed today; ignore that one
+sentence and trust the block above.
+
+The last **completed** sweep is still **2026-08-25 15:00 UTC** (**106.7 hours**
+before this measurement).
 
 *Blocked by this:* **everything the server does.** No daily question is assigned at
 local midnight, so none can be announced at 9 a.m.; no push of any kind is
@@ -453,6 +514,17 @@ Apple's notification services as recipients, and that nothing has actually been
 delivered yet) and the analytics sentence (the app now counts a few milestones and
 discards them on the phone — no provider, nothing sent).
 
+⚠️ **The notification bullet has now been rewritten twice, in opposite
+directions, and that is the reason this document keeps being worth reading.**
+ADR-058 drafted *"a notification can show your partner's name"*; S083 corrected it
+to *"no notification names anyone"*, which was true then because nothing supplied
+the name; **S089 made it false again by supplying it**, and rewrote the bullet a
+third time to say the notification **does** carry the name, that discreet mode
+removes it, that discreet is on by default in Arabic, and that the name is
+whatever your partner typed — unverified by us. Each rewrite was correct when
+written. **Nothing here changes what you have to decide**; it changes what the
+document you hand your lawyer will say.
+
 ⚠️ **Landing it bumps `CURRENT_LEGAL_VERSION` and re-prompts every existing user
 for consent.** That is why a session drafted it and stopped. **What is needed from
 you:** read it, put it in front of your lawyer with the five questions in
@@ -516,26 +588,46 @@ These block **launch**:
 ## Next Step
 
 **Item 1 ① — restore billing.** It is the only thing in this document that stops
-everything else from being true, and it is entirely yours. One console visit.
+everything else from being true, and it is entirely yours. One console visit —
+**and now one extra check afterwards**: since 2026-08-30 both projects report
+billing *disabled at the project*, not only a closed account behind them, so once
+you have reopened the account confirm that `hayatiapp-prod` **and**
+`hayatiapp-dev` are each linked to it. Then:
 
-S087 found it, fixed the instrument that should have found it six days ago,
-corrected six comments across the notification feature that told every reader the
-device half could not work, and proved the 9 a.m. payload end to end in the
-emulator (ADR-063). **None of that can be observed on a phone until ① is done.**
+```
+python3 tool/ci/prod_pulse.py --from-firebase-cli     # exit 0 = the loop is running
+```
+
+**S089 (2026-08-30)** closed the last piece of the notification feature that was
+*wrong* rather than merely unshipped: the "your partner answered" notification now
+says **who**. Because the name is something your partner types and nothing checks
+it, the session spent most of its time on what a hostile name could do to your
+lock screen — a line break, a reversed sentence, a payload too large to deliver —
+and closed all three. **None of it can be seen on a phone until ① is done**, and
+that is the whole of what stands between you and this working.
+
+It also found that the tool in the box above currently prints *"no billing account
+is linked"* when the truth is *"linked to a closed account"* — filed as **#267**
+and it is the next session's first job. **Trust item 1's wording, not that line.**
 
 S086 is closed: **#243** decided (ADR-062), nothing built, **no identifier
 created**, issue stays open for your one sentence (the question under item 16).
 
 ## Next Session Goal
 
-**Watch the loop, so a closed card is never again found six days late.** #219's own
-follow-up list said this in August and both of its residual items were left open:
-the budget alert (item 9) and *"`prod_pulse` is a local/manual instrument… A cron
-that calls it and notifies would close the detection gap properly; that needs a
-credential decision."* The residuals of the last outage are the cause of this one.
+**Fix the instrument before adding to it.** #267: `prod_pulse` measures two
+separate billing facts — whether the project is linked, and whether the account
+behind it still pays — and on the state production has been in since 2026-08-30 it
+prints a sentence that denies one of them while printing the other one line above.
+It is small, and it is first, because **this repo has now paid 37 hours and then
+eight days for instruments that could not report correctly.** After it: **#248**,
+the ADR index, seventeen decisions behind.
 
-That work is partly yours (item 9, and the read-only secret in item 4) and partly
-a session's. Superseded goal, kept for the record:
+**Nothing in either needs you.** Superseded goals are kept below for the record.
+
+*Watch the loop, so a closed card is never again found six days late.* Built and
+merged at S088 (ADR-064) and **still unarmed** — it needs the read-only secret in
+item 4, and the budget alert in item 9 catches the same failure days earlier.
 
 *Make the 9 a.m. question actually arrive.* The honest headline was *the feature is
 finished and has never fired once.* The server picks 9 a.m. in each couple's own
@@ -543,15 +635,7 @@ timezone, writes the message and sends it; the app knows how to receive one; bot
 halves are tested. **Zero of four phones have ever said where to send it** — and,
 it turns out, no server has been running to send anything to them.
 
-So the session did not "build notifications" — it found out why a complete
-chain has delivered nothing, removed everything a session can remove, and hands you
-back a single instruction instead of a list. Two documentation defects were
-already found while measuring, and both are exactly what a person debugging this
-would read first: one comment says the question goes out at **8** when the code
-says **9**, and another says the phone-address code *"is not wired up yet"* when
-it has been for weeks.
-
-**What it cannot do is put a build on your phone.** That stays action ①.
+**What no session can do is put a build on your phone.** That stays action ①.
 
 **No accounts, no keys, no money — for the session. One build install and one
 permission tap, for you.**

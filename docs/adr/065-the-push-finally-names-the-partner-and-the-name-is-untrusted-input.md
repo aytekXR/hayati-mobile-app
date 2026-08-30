@@ -1,16 +1,23 @@
 # ADR-065: the push finally names the partner, and the name is untrusted input
 
-- **Status:** Accepted — **revision 2** (2026-08-30, Session 089), after the design pass; still **before** the code
+- **Status:** Accepted — **revision 3** (2026-08-30, Session 089). Revision 1 before the code, revision 2 after the design pass, revision 3 after the built-diff pass
 - **Date:** 2026-08-30 (Session 089)
 - **Deciders:** session agent (the wiring, the source of the name and the hardening are all device-independent and emulator-provable; the one thing that is not — whether any of it reaches a phone — is blocked on billing and is stated, not guessed)
 - **Related:** **ADR-012 D3** (the push policy, the discreet mode, the injectable `MessagingPort`), **ADR-059** (the bidi correctness of the named copy, and `sanitizePushName` — **D3's invariant is given a mechanism here**), **ADR-033** (isolate for rendering, never for outgoing text), **ADR-053** (generated bidi ranges — and why the set enumerated here is *not* that), **ADR-058 / #226** (the version-3 privacy draft, corrected here in the same diff), **ADR-063 D8** (assert what the port RECEIVES), **ADR-019 D6** (the per-user discreet override), issues **#253** (this one), **#136** (whose seam this activates)
 
 > **Review status.** Revision 1 was written and committed **before** the fix
-> (`session-context.md` §5 item 1, lesson **115**). **The design pass has now
-> run** — 5 lenses × 2 independent verifiers + a completeness critic, **22
-> agents, 0 errored, 0 empty results, 0 skipped**, 8 lens findings + 5 critic
-> findings, **nothing dropped unverified**. Revision 2 is what it produced. The
-> built-diff pass has not run yet.
+> (`session-context.md` §5 item 1, lesson **115**). **The design pass ran** — 5
+> lenses × 2 independent verifiers + a completeness critic, **22 agents, 0
+> errored, 0 empty results, 0 skipped**, 8 lens findings + 5 critic findings,
+> **nothing dropped unverified**. Revision 2 is what it produced.
+>
+> **The built-diff pass has now run too, and revision 3 is what IT produced** —
+> 5 lenses × 2 verifiers + 2 completeness critics, **15 agents, 0 errored, 0
+> empty results, 0 skipped**; 2 lenses considered-empty, 4 findings, **all 4
+> surfaced (both verifiers real on every one), 0 refuted, 0 dropped
+> unverified**. See the closing section. Unlike the design pass, its aggregation
+> and my own re-measurement AGREED — which is the evidence that lesson **137**
+> was about the design pass's question, not about the harness.
 >
 > ⚠️ **The aggregation surfaced ZERO of the 8 lens findings, and that verdict is
 > overridden here rather than obeyed.** Both verifiers refuted all eight with
@@ -262,7 +269,7 @@ price (zero, at Firebase Auth's current terms) and a different failure mode
 added to the reveal trigger's hot path, not a new Firestore read — and its
 failure is contained rather than propagated.
 
-## Decision 3 — `sanitizePushName` becomes the one gate, and gains four rules
+## Decision 3 — `sanitizePushName` becomes the one gate, and gains five rules
 
 All hardening lands in `sanitize-push-name.ts` rather than at the call site. One
 function decides whether a name is usable, so the next caller inherits the
@@ -333,9 +340,43 @@ Measured after 3a and 3b, **before** the RTL edge trim: over 64, return
   have, and doing it safely means not splitting a grapheme cluster — machinery
   bought to produce a worse string. The name-free copy is already correct.
 
+**3e — A half-character is not text, and a letter is not always visible.**
+*Added by the built-diff review pass, which is the second time this ADR's own
+threat model has been widened by measuring rather than reasoning.* Two classes
+reach the payload that D3a–D3c do not stop, and the code now deletes the first
+and disqualifies the second:
+
+* **Unpaired surrogates (`\p{Cs}`) are deleted, with the invisibles.** A
+  `displayName` arrives as a JSON string, and JSON can carry `"\ud800"` — which
+  JavaScript accepts and `String.prototype.isWellFormed()` rejects. Measured:
+  `sanitizePushName('Ay\uD800lin', 'en')` returned it unchanged. Left in, the
+  name either lands as `�` (any UTF-8 round trip substitutes it) or is
+  refused by FCM — and a refused send is counted `send-failed`, so **the
+  recipient silently receives nothing**. That is precisely the outcome D3c's
+  length cap exists to prevent, reached through a different door, so it is
+  bounded rather than conceded. ⚠️ Under the `u` flag `\p{Cs}` matches only a
+  **lone** surrogate: `😀` is one `So` code point and does not match. Measured,
+  because a version of this that ate emoji would be a worse defect than the one
+  it fixes.
+* **`hasContent` no longer counts a `Default_Ignorable_Code_Point` as content.**
+  U+3164 HANGUL FILLER and its three siblings (U+115F, U+1160, U+FFA0) are
+  category **`Lo`** — Unicode calls them letters — and they render as nothing.
+  Measured: `sanitizePushName('ㅤㅤㅤㅤㅤ', 'en')` returned the fillers, composing
+  `Your partner ␣␣␣␣␣ answered`. That is a gap where a name should be, which is
+  the exact state the guard's own comment calls "not a name", so the guard did
+  not do what it said. The disqualifier is the **property that means "renders as
+  nothing"** rather than the four code points that exposed it (lesson **124**),
+  and it **disqualifies, never deletes** — the property also covers characters
+  real orthography carries (U+17B4/U+17B5 in Khmer, the variation selectors), so
+  a name that merely *contains* one keeps it and counts on its real letters.
+
+Neither is a *content* bound, so the FORM/CONTENT paragraph below stands
+unchanged: both are about a string that is not well-formed text, or is text with
+no glyph — not about what a name says.
+
 **3d — The contract is restated.** `sanitizePushName` returns *"a name safe to
 interpolate into outgoing push copy, or `undefined`"* — no longer *"a name with
-its RTL edge neutrals trimmed"*. Bidi is now one of its four concerns.
+its RTL edge neutrals trimmed"*. Bidi is now one of its five concerns.
 
 **This is what gives ADR-059 D3 a mechanism.** D3's invariant — no `U+2068`/
 `U+2069` in a push payload — stops being a promise we keep by not acting and
@@ -486,6 +527,59 @@ no anchor. **Revision 1 asserted that the test "continues to pass"; the critic
 noted that was a claim about code that did not exist yet. It is therefore an
 acceptance criterion of this ADR, not an aside: the diff runs it.**
 
+## Decision 6 — The two in-app sentences that describe the name are corrected too
+
+*Added by the built-diff review pass. Decision 5 makes an argument and then stops
+one surface short of where it leads.*
+
+D5's reasoning is that ADR-059 wrote a sentence which this session makes false,
+and that leaving it is "the same defect class, one session later". The **app**
+carries two sentences about the same fact, and the diff falsified both:
+
+| key | what it said | why it is now wrong |
+|---|---|---|
+| `nameCaptureHelper` | *"Your partner will see this on your invitation."* | This is the **collection point** — the one place the app tells a person what their name is for. After Decision 1 the name has a second destination, and the more exposed one: another person's lock screen. |
+| `settingsNotificationPrivacySubtitle` | *"Hide message content in notifications, showing only that something new arrived."* | This is the **control**. Discreet mode is now the only thing between a partner-chosen string and a lock screen, and its own description does not say so — while promising to hide "message content", which a notification has never carried and cannot (`composePush` has no question or answer parameter, PRD F6). It offered a guarantee about a thing that was not there and was silent about the thing that now is. |
+
+Corrected in all three locales, mirroring the privacy draft's landed vocabulary
+(*"no name, no event, no streak count"*) rather than inventing a second one:
+
+> **en** · Your partner will see this on your invitation, and when a notification
+> tells them you have answered.
+>
+> **en** · Hide the details in notifications — your partner's name, what happened,
+> and any streak — showing only that something new arrived.
+
+The helper deliberately does **not** promise the notification always carries the
+name: the *partner's* discreet setting decides that, the reader cannot control
+it, and a helper line under a text field is the wrong place to explain someone
+else's setting. *"will see this … when a notification tells them"* is true in the
+ordinary case and overstates nothing.
+
+`settingsNotificationPrivacySubtitleAr` is deliberately unchanged: it is about
+the Arabic default and about surviving a language change (ADR-019 D6), neither of
+which this diff touches.
+
+**26 goldens move, and they were LOOKED AT before being regenerated.** Both
+strings get longer, so `name_capture_screen` (9) and `settings_screen` (17) shift
+— and a longer string is exactly how a settings row overflows at a large text
+scale, which is the failure a blind `--update-goldens` would have committed. The
+two worst cases were read as images first: at **130% text scale**, English
+name-capture wraps the helper to three lines with the field and CTA untouched,
+and Turkish settings wraps the discreet subtitle from three lines to five on a
+**scrollable** screen, with the toggle still aligned to its row. Five lines at
+130% is the same density the `Sade uygulama simgesi` row above it already had in
+the *old* golden, so this is not new heaviness. The golden **count is unchanged
+at 360** (`git ls-files 'app/test/**/*.png' | wc -l`) — 26 modified, none added,
+none deleted, which is the check that separates "the copy changed" from "a golden
+quietly appeared or vanished".
+
+**Neither key is inside the frozen digest**, verified rather than assumed —
+`frozen_sentence_digest_test.dart:50-61` freezes five ★ `coach*` keys plus every
+`consent*` and `legal*` key, and these are neither. So the edit cannot move the
+digest, and it is not a legal-text change: it is the app describing its own
+behaviour correctly. Native TR/AR review remains operator item 13, unchanged.
+
 ## Consequences
 
 * **The named copy becomes reachable for the first time**, and with it ADR-059's
@@ -516,7 +610,7 @@ acceptance criterion of this ADR, not an aside: the diff runs it.**
 * **`sanitizePushName` is now load-bearing for safety, not only for rendering.**
   It is the only thing between a partner-chosen string and another person's lock
   screen. Its unit test is a security test now, and should be read as one.
-* **The `48` cap will eventually cut a real name.** Someone's full legal name is
+* **The `64` cap will eventually cut a real name.** Someone's full legal name is
   longer than any we have seen; they will get the name-free copy and never know.
   That is the intended failure, and it is recorded so a later session recognises
   it as a decision rather than a bug.
@@ -573,3 +667,41 @@ needed"*, and it is recorded rather than actioned.
 test` (both are forbidden to sub-agents, `session-context.md` §3), so every claim
 about a test *passing* is still a claim. The built-diff pass, and the runs the
 diff itself performs, are what settle them.
+
+## What the BUILT-DIFF pass changed, and the two it did not find
+
+5 lenses × 2 verifiers + 2 completeness critics; **15 agents, 0 errored, 0 empty
+results, 0 skipped**; **2 lenses considered-empty** (mechanism, privacy-i18n —
+both ran fully and found nothing, which is a different thing from being blocked);
+4 findings, **4 verified real by BOTH verifiers, 0 refuted, 0 dropped
+unverified**; 2 critic findings, one a duplicate.
+
+| from | finding | what changed |
+|---|---|---|
+| lens *governance* | Consequences said **"the `48` cap"** while D3c says 64 — revision 2 moved the number and did not propagate it | corrected; the completeness critic found the same line independently |
+| lens *governance* | `operator-expected.md`'s S083 entry states *"the app never actually sends a partner's name at all"*, which this diff falsifies, and the diff does not touch that file | corrected at close, with the S083 line carrying a forward reference rather than being rewritten out of history |
+| lens *testability* | the seam's bidi assertion calls `RegExp.test` on a possibly-`undefined` `find()` result — **`/\p{Script=Latin}/u.test(undefined)` is `true`**, because `test` coerces to the string `"undefined"`, which is all Latin letters | a `toBeDefined()` floor (lesson **110**) plus an examined-count, matching the guard the sanitiser's own suite already had |
+| lens *adversarial* | Hangul Fillers are category `Lo`, pass `hasContent`, and render as nothing | **D3e**, second half |
+| critic *procedure* | no S089 entry in `past-prompts.md`; `operator-expected.md` still headed S087 | close-sequence items, done at close |
+
+**Both verifiers said REAL on all four**, which is worth recording next to the
+design pass's 12/12-refuted: the same harness, the same aggregation rule, and the
+opposite distribution. Lesson **137** was a finding about the *question a verifier
+is asked*, not a claim that the panel cannot converge.
+
+**Two things the panel did not find, and I did — which is why the session
+measures as well as delegates** (lesson **123**):
+
+1. **Unpaired surrogates pass through** (now D3e's first half). The adversarial
+   lens *saw* it and classified it *"cosmetic, not security"*, stopping at the
+   `` rendering. It did not follow the other branch: FCM may refuse a
+   payload carrying an unpaired surrogate, and `deliverPush` counts a refusal as
+   `send-failed` — the recipient gets **nothing**, which is the failure D3c
+   exists to prevent. A verifier that stops at the first outcome it can name will
+   under-rate a defect with two.
+2. **`nameCaptureHelper` and `settingsNotificationPrivacySubtitle`** (now
+   **Decision 6**) — found by grepping the app's own strings for what this change
+   makes false, which no lens was pointed at because D5 had already been written
+   and read as complete. The critic prompt asked *"does anything in `app/` display,
+   cache or assume the name-free copy?"* and the critic answered by reading the
+   Dart, not the ARB. **The sentence that goes stale is rarely in the code.**
