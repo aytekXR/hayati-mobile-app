@@ -4480,7 +4480,11 @@ firebase emulators:exec --only auth,firestore,functions --project demo-hayati 'c
 
 **Commits:** `231d777` (ADR rev 1, before code) → `c1e0ce7` (rev 2, design pass) → `268a2fb` (the code) → this session's close commit (rev 3, built-diff pass + D3e + D6).
 
-**CI:** appended at close, below.
+**CI:** **green, PR and post-merge `main`.** PR #268 — `quality` 5m25s, `functions-rules` 2m32s, `ios-build-smoke` 5m41s, `slack-notify`; the drift/pulse lanes visibly **skipped** (unarmed, operator item 4) and `integration-emulator` skipped because it is main-only by cost design (ADR-006), so the PR's green said nothing about it.
+
+**`ios-build-smoke` was verified to have actually COMPILED** rather than reading as covered — the job log carries `Xcode build done. 168.0s` and `✓ Built build/ios/iphoneos/Runner.app`, plus both bundle assertions, read through `gh api repos/:owner/:repo/actions/jobs/<id>/logs` (`gh run view --job --log` returns zero lines here). One push, so nothing was superseded.
+
+**Post-merge `main` run `33292844560`: success, and `integration-emulator` RAN** — 19 steps, simulator booted, the emulator suites executed. That check matters twice over: S088's post-merge run went **red** on this job and was cleared by containment rather than diagnosis (#15 remains open), and the run after it was green **with the job skipped**, measuring nothing. This one both ran and passed.
 
 **Docs touched:** `docs/adr/065-*.md` (to revision **3**), `docs/architecture.md` §10, `docs/test-suite.md`, `docs/legal/proposed/privacy-policy.{en,tr,ar}.md`, `app/lib/core/l10n/arb/app_{en,tr,ar}.arb`, `docs/session-lessons.md` (**136–140**), `docs/operator-expected.md`, `docs/past-prompts.md`, `docs/resume-prompt.md`.
 
