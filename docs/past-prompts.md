@@ -4742,7 +4742,9 @@ The argument for amending D5: its premise — *a revision not yet widened* — *
 
 **Commits:** `41277ad` (ADR rev 1 + index row, before code) → `de2a7cc` (rev 2 + the clause).
 
-**CI:** appended at close, below.
+**CI:** **green, PR and post-merge `main`.** PR #276 — `quality` 5m27s, `functions-rules` 2m27s, `ios-build-smoke` 7m14s, `slack-notify`.
+
+**Post-merge `main` run `33314898094`: success** — and it is worth being precise about *what* that green measured, because this was a **docs-only** merge. `quality` ran the whole Flutter half (`analyze`, `format`, `rtl lint`, **`test`**, **`coverage gate`**) plus every tool self-test including **`adr index lint`**, so `legal_proposal_test.dart` and the index gate both ran on `main`. **`integration-emulator` and `ios-build-smoke` were SKIPPED** by the `code_changed` gate — correctly, since no code changed, but that means this run measured **nothing** on those two. Recorded rather than reported as a clean sweep: a skipped job and a passing job are indistinguishable from a green tick.
 
 **Notes / debt logged:** **#258 closed**; **ADR-061 D5 amended, not overturned.** Item 16's bundle is now genuinely complete — all three have proposed wording, so one lawyer round can settle or reject all three. ⚠️ **The draft has now been corrected four times without landing**, which ADR-068 already flagged: *if the count keeps climbing, the thing to question is the landing, not the corrections.* It climbed.
 
