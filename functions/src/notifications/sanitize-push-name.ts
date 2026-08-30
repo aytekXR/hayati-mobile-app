@@ -1,7 +1,18 @@
-// Bidi-safety for a partner display name interpolated into push copy
-// (ADR-059 Decision 2, issue #136). The Functions-side twin of the app's
-// `bidi_isolate.dart` — and deliberately a DIFFERENT mechanism, because the two
-// seams are not the same seam.
+// Safety for a partner display name interpolated into push copy — ADR-059
+// Decision 2 (bidi) and ADR-065 Decision 3 (everything else).
+//
+// ⚠️ **THE CONTRACT WIDENED AT ADR-065 AND IS NOW A SECURITY BOUNDARY.** This
+// used to return "a name with its RTL edge neutrals trimmed". It now returns
+// "a name SAFE TO INTERPOLATE INTO OUTGOING PUSH COPY, or undefined", and bidi
+// is one of four concerns. The reason is #253: until it landed, `partnerName`
+// was supplied by no caller, so nothing untrusted could reach here. It now
+// carries a Firebase Auth `displayName` — a field the OTHER member of the
+// couple sets, through a client SDK, with no server validation — onto this
+// person's lock screen. Read the four rules below as a threat model, not as
+// formatting.
+//
+// The Functions-side twin of the app's `bidi_isolate.dart` — and deliberately a
+// DIFFERENT mechanism, because the two seams are not the same seam.
 //
 // WHY NOT THE ISOLATES. The app wraps a foreign-script run in U+2068/U+2069 at
 // render (ADR-033). That is unavailable here for two reasons, neither of them
@@ -95,18 +106,27 @@ export function sanitizePushName(
   name: string | undefined,
   language: PushLanguage,
 ): string | undefined {
-  const trimmed = name?.trim();
-  if (!trimmed) return undefined;
+  if (name === undefined) return undefined;
+
+  // ADR-065 D3a/D3b, in order. Both run for EVERY language: a newline injects a
+  // line and an RLO reverses a sentence regardless of which way the copy leans,
+  // unlike the edge trim below, which is a genuinely RTL-only concern.
+  const normalized = capMarkRuns(stripUnsafe(name));
+  if (!normalized) return undefined;
 
   // "A name with nothing in it is not a name" is a COPY rule, not a bidi one, so
   // it holds in every language: `...` must never reach the templates, or Turkish
   // renders "Partnerin ... cevapladı". The pre-existing `partnerName?.trim()`
   // guard let it through, and this test caught it.
-  if (!hasContent(trimmed)) return undefined;
+  if (!hasContent(normalized)) return undefined;
 
-  if (!RTL_LANGUAGES.has(language)) return trimmed;
+  // ADR-065 D3c. BEFORE the edge trim, so that whether a name is usable at all
+  // is language-independent; only its trimming is not.
+  if ([...normalized].length > MAX_NAME_CODE_POINTS) return undefined;
 
-  const result = trimEdges([...trimmed]);
+  if (!RTL_LANGUAGES.has(language)) return normalized;
+
+  const result = trimEdges([...normalized]);
   return result !== undefined && hasContent(result) ? result : undefined;
 }
 
@@ -172,4 +192,112 @@ function matchedBracketIndices(chars: readonly string[]): ReadonlySet<number> {
     }
   });
   return matched;
+}
+
+/// Characters that SEPARATE: the C0/C1 controls (where `\n`, `\r` and `\t`
+/// live) and the explicit line/paragraph separators.
+///
+/// ⚠️ **NON-GLOBAL, and every regex `.test()`ed in this file must be.** A `/g`
+/// regex carries `lastIndex` across `.test()` calls, so alternate matches are
+/// SKIPPED. Measured while designing ADR-065: a draft of `stripUnsafe` used a
+/// global regex and returned `Aylin\nSecurity alert` from a two-newline input —
+/// one newline removed, one left in, which reads exactly like a working strip
+/// (lesson 136). The only global regex here is WHITESPACE_RUN, which is
+/// `.replace()`d and never `.test()`ed.
+const SEPARATOR = /[\p{Cc}\p{Zl}\p{Zp}]/u;
+
+/// Characters that are INVISIBLE: Unicode's format category.
+///
+/// The PROPERTY rather than a list (lesson 124, ADR-053), and that is what makes
+/// it durable. It covers all twelve UAX #9 explicit formatting characters —
+/// U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069, the ones that reorder a
+/// paragraph, and the two that ADR-059 D3 promised would never enter a payload —
+/// and also the invisibles an enumeration would have missed: U+00AD soft hyphen,
+/// U+2060 word joiner, U+FEFF, and U+FFF9–U+FFFB, the interlinear annotation
+/// characters, which exist to hide text behind other text.
+const INVISIBLE = /\p{Cf}/u;
+
+/// The two format characters a name may legitimately carry.
+///
+/// **ZWNJ (U+200C) is orthography, not decoration** — Persian and Urdu require it
+/// inside ordinary words, so stripping it damages a real person's name. **ZWJ
+/// (U+200D)** joins emoji sequences. Neither can introduce a line or reorder a
+/// paragraph, which is what INVISIBLE is here to stop.
+const KEEP_INVISIBLE = /[\u200C\u200D]/u;
+
+/// A combining mark (ADR-065 D3b).
+const COMBINING_MARK = /\p{M}/u;
+
+/// Runs of whitespace, `\p{Zs}` included so U+00A0 and U+3000 collapse too.
+/// The one global regex in this file — `.replace()`d, never `.test()`ed.
+const WHITESPACE_RUN = /[\s\p{Zs}]+/gu;
+
+/// The longest run of combining marks a name may carry between base characters.
+///
+/// Measured (ADR-065 D3b): fully-pointed Hebrew, Hebrew with cantillation,
+/// Vietnamese precomposed AND decomposed, `José` in NFD, Arabic with full
+/// tashkeel, Thai and Devanagari are all byte-unchanged at a cap of **four** —
+/// none of them reaches four consecutive marks on one base. Eight is pure
+/// margin, and it costs nothing measured. What it stops is the smear: a name of
+/// one base and a thousand marks becomes thirteen code points.
+///
+/// This is NOT "strip \p{M}", and the difference is the whole decision. The
+/// design review refuted the blanket rule correctly — `José` in NFD is `Jose`
+/// plus U+0301 — and capping a RUN leaves every case that refutation named intact.
+const MAX_MARK_RUN = 8;
+
+/// The most code points a display name may carry and still be interpolated.
+///
+/// A **product** bound, deliberately not the safety bound — the safety bound is
+/// `stripUnsafe`. It sits above the app's own input cap (`nameCaptureMaxLength`
+/// is **50**, so a server bound below that would silently discard names the app
+/// itself invites people to type) and far below the point where the payload is
+/// at risk: 64 code points is at most 256 UTF-8 bytes, against a ~4KB FCM/APNs
+/// ceiling that a long enough name would breach — and a breach there is a FAILED
+/// SEND, not a cosmetic problem. Because it is not load-bearing, a value that is
+/// slightly wrong costs a name-free push rather than a broken one.
+const MAX_NAME_CODE_POINTS = 64;
+
+/**
+ * ADR-065 D3a. Maps separators to a space, deletes invisibles, collapses
+ * whitespace runs, trims.
+ *
+ * **The two halves map DIFFERENTLY and that is deliberate.** A draft of this
+ * deleted both; measured, deleting `\n` turns `Aylin\nSecurity` into
+ * `AylinSecurity` — two words silently welded into one nobody typed. Separators
+ * separate, so they become a space; format characters occupy no width, so a
+ * space would invent one.
+ *
+ * Iterates RUNES, never code units.
+ */
+function stripUnsafe(text: string): string {
+  const mapped = [...text]
+    .map((ch) => {
+      if (SEPARATOR.test(ch)) return ' ';
+      if (INVISIBLE.test(ch) && !KEEP_INVISIBLE.test(ch)) return '';
+      return ch;
+    })
+    .join('');
+  return mapped.replace(WHITESPACE_RUN, ' ').trim();
+}
+
+/**
+ * ADR-065 D3b. Truncates any run of more than MAX_MARK_RUN combining marks.
+ *
+ * The counter resets on every non-mark, so the cap is per RUN — which is what
+ * makes it invisible to real orthography (a name is base-mark-base-mark, never
+ * base-mark×200) while bounding the one shape that is not.
+ */
+function capMarkRuns(text: string): string {
+  let run = 0;
+  return [...text]
+    .filter((ch) => {
+      if (COMBINING_MARK.test(ch)) {
+        run += 1;
+        return run <= MAX_MARK_RUN;
+      }
+      run = 0;
+      return true;
+    })
+    .join('');
 }

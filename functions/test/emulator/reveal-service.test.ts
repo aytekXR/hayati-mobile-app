@@ -8,14 +8,17 @@
 // Clocks are always injected: quiet-hours resolution reads couple-local wall
 // time, so a real `new Date()` would make send assertions flake by hour. NOON is
 // Istanbul 12:00 (sends allowed); QUIET is Istanbul 23:00 (suppressed).
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { PartnerNameLookup } from '../../src/notifications/partner-name';
 import { composePush } from '../../src/notifications/payload-policy';
 import type { RevealServiceDeps } from '../../src/streak/reveal-service';
 import { handleAnswerCreated } from '../../src/streak/reveal-service';
-import { clearNoTriggerFirestore, noTriggerFirestore } from '../support/admin';
+import { EMULATOR_PROJECT_ID, clearNoTriggerFirestore, noTriggerFirestore } from '../support/admin';
 import { FakeMessagingPort } from '../support/fake-messaging-port';
 
 // The NO_TRIGGER project (admin.ts): the functions emulator does NOT watch it,
@@ -25,6 +28,22 @@ import { FakeMessagingPort } from '../support/fake-messaging-port';
 // race these drives (the e2e suite covers that wire on purpose).
 const db = noTriggerFirestore();
 const couples = db.collection('couples');
+
+// ADR-065 D4. Firestore stays on the trigger-isolated project (this suite seeds
+// answer docs), while Auth needs the DEFAULT app — `getAuth()` with only the
+// named app present throws "The default Firebase app does not exist", measured.
+// The split is the shape `deletion-service.test.ts` already ships.
+//
+// ⚠️ That throw is also why every push assertion in this file that predates
+// ADR-065 stayed green through it: with no Auth record for the author, the
+// lookup rejects, `resolvePartnerName` swallows it, and the copy degrades to
+// name-free — the SAME payload those tests already expected. Which is exactly
+// why they are not evidence that the naming works, and why the suite below
+// creates real Auth records.
+if (getApps().every((app) => app.name !== '[DEFAULT]')) {
+  initializeApp({ projectId: EMULATOR_PROJECT_ID });
+}
+const auth = getAuth();
 
 const CID = 'couple-1';
 const UID_A = 'uid-a';
@@ -101,8 +120,18 @@ async function readRevealedAt(cid = CID, dayKey = DAY_KEY): Promise<unknown> {
   return (await dayRef(cid, dayKey).get()).get('revealedAt');
 }
 
+/** Creates (or replaces) the Auth record whose `displayName` the copy reads. */
+async function putAuthUser(uid: string, displayName?: string): Promise<void> {
+  await auth.deleteUser(uid).catch(() => undefined);
+  await auth.createUser({ uid, ...(displayName === undefined ? {} : { displayName }) });
+}
+
 beforeEach(async () => {
   await clearNoTriggerFirestore();
+  // Auth is NOT cleared by the Firestore clear endpoint; a record leaking from a
+  // previous test would silently name a push the next test expects to be
+  // name-free, which is the failure this suite exists to detect.
+  await auth.deleteUsers([UID_A, UID_B]).catch(() => undefined);
 });
 
 describe('handleAnswerCreated — reveal latch (ADR-012 D1/D2)', () => {
@@ -399,6 +428,253 @@ describe('handleAnswerCreated — push policy (ADR-012 D3, post-commit best-effo
     expect(outcome.decision).toBe('revealed');
     expect(await readRevealedAt()).toBeInstanceOf(Timestamp);
     expect(outcome.push).toMatchObject({ status: 'send-failed', failedCount: 1, sentCount: 0 });
+  });
+});
+
+// ADR-065 (#253) — the partnerAnswered push finally names the partner.
+//
+// Until this landed, `partnerName` was supplied by no caller: every such push
+// ever composed used the name-free copy, and ADR-059's `sanitizePushName` sat in
+// a branch nothing reached. These are the assertions that make the branch real,
+// and they carry a security half — the name is a Firebase Auth `displayName`,
+// which the OTHER member of the couple types, so the payload here is the one
+// place untrusted input meets someone's lock screen.
+describe('handleAnswerCreated — the partnerAnswered push names the ANSWERER (ADR-065)', () => {
+  // Different SCRIPTS, deliberately (ADR-065 D4.3): if the implementation reads
+  // `tx.partnerUid` instead of `authorUid` the payload carries a visibly wrong
+  // string rather than a differently-spelled right one — and the RTL name is
+  // simultaneously the fixture the bidi assertion below needs.
+  const AUTHOR_NAME = 'Alice';
+  const RECIPIENT_NAME = 'أيلين';
+
+  /** Only UID_A has answered, so UID_B is the nudge recipient. */
+  async function seedOneAnswer(opts: { recipientLanguage?: string } = {}): Promise<void> {
+    await seedCouple();
+    await seedDay();
+    await seedAnswer(UID_A);
+    await seedUser(UID_B, { contentLanguage: opts.recipientLanguage ?? 'en' });
+  }
+
+  /** Counts calls, so "we never spent this lookup" is an assertion, not a hope. */
+  function countingLookup(name?: string): PartnerNameLookup & { calls: string[] } {
+    const calls: string[] = [];
+    const fn = async (uid: string): Promise<string | undefined> => {
+      calls.push(uid);
+      return name;
+    };
+    return Object.assign(fn, { calls });
+  }
+
+  it('names the AUTHOR, through the real Auth record, in the recipient\'s language', async () => {
+    await seedOneAnswer();
+    // No lookup injected: the PRODUCTION getAuth() path runs against the auth
+    // emulator, so what is under test is the shape that ships.
+    await putAuthUser(UID_A, AUTHOR_NAME);
+    await putAuthUser(UID_B, RECIPIENT_NAME);
+    const port = new FakeMessagingPort();
+
+    const outcome = await handleAnswerCreated(db, port, evt(UID_A), noonDeps);
+
+    expect(outcome.decision).toBe('one-answer');
+    // The expected name is a LITERAL, never derived from `authorUid` (ADR-065
+    // D4.2): an oracle computed with the same uid the production code used
+    // cannot detect the production code using the wrong one.
+    const expected = composePush({
+      kind: 'partnerAnswered',
+      language: 'en',
+      discreet: false,
+      partnerName: AUTHOR_NAME,
+    });
+    expect(port.sent).toEqual([
+      { token: `tok-${UID_B}`, title: expected.title, body: expected.body },
+    ]);
+    expect(port.sent[0].title).toContain(AUTHOR_NAME);
+    // THE mutation assertion: the recipient must never be told their own name.
+    expect(port.sent[0].title).not.toContain(RECIPIENT_NAME);
+    expect(port.sent[0].body).not.toContain(RECIPIENT_NAME);
+  });
+
+  it('degrades to the name-free copy when the author has no displayName', async () => {
+    await seedOneAnswer();
+    await putAuthUser(UID_A); // an Apple private-relay account has none
+    const port = new FakeMessagingPort();
+
+    await handleAnswerCreated(db, port, evt(UID_A), noonDeps);
+
+    const nameFree = composePush({ kind: 'partnerAnswered', language: 'en', discreet: false });
+    expect(port.sent).toEqual([
+      { token: `tok-${UID_B}`, title: nameFree.title, body: nameFree.body },
+    ]);
+  });
+
+  it('degrades to the name-free copy — and still SENDS — when the lookup throws', async () => {
+    // A name we cannot resolve must never become a notification we did not send:
+    // deliverPush's ambient catch returns `send-failed`, so this proves the
+    // lookup's own try/catch is the one that ran (ADR-065 D1, D4.6).
+    await seedOneAnswer();
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const port = new FakeMessagingPort();
+
+    const outcome = await handleAnswerCreated(db, port, evt(UID_A), {
+      ...noonDeps,
+      partnerName: () => Promise.reject(new Error('auth is unreachable')),
+    });
+
+    const nameFree = composePush({ kind: 'partnerAnswered', language: 'en', discreet: false });
+    expect(port.sent).toEqual([
+      { token: `tok-${UID_B}`, title: nameFree.title, body: nameFree.body },
+    ]);
+    expect(outcome.push).toMatchObject({ status: 'sent', sentCount: 1 });
+    warn.mockRestore();
+  });
+
+  it('asks for the AUTHOR uid, never the recipient uid', async () => {
+    await seedOneAnswer();
+    const lookup = countingLookup(AUTHOR_NAME);
+    const port = new FakeMessagingPort();
+
+    await handleAnswerCreated(db, port, evt(UID_A), { ...noonDeps, partnerName: lookup });
+
+    expect(lookup.calls).toEqual([UID_A]);
+  });
+
+  describe('the lookup is spent only where its result can be used (ADR-065 D2)', () => {
+    it('is NOT called for a discreet recipient, whose payload stays generic', async () => {
+      // Discreet is ON by default for every Arabic-reading recipient (PRD F6),
+      // so this is also the cost argument: the privacy setting and the saved
+      // Auth call are one branch.
+      await seedOneAnswer({ recipientLanguage: 'ar' });
+      const lookup = countingLookup(AUTHOR_NAME);
+      const port = new FakeMessagingPort();
+
+      await handleAnswerCreated(db, port, evt(UID_A), { ...noonDeps, partnerName: lookup });
+
+      const discreet = composePush({ kind: 'partnerAnswered', language: 'ar', discreet: true });
+      expect(port.sent).toEqual([
+        { token: `tok-${UID_B}`, title: discreet.title, body: discreet.body },
+      ]);
+      expect(port.sent[0].title).not.toContain(AUTHOR_NAME);
+      expect(lookup.calls).toEqual([]);
+    });
+
+    it('is NOT called for a `reveal` push, whose copy takes no name', async () => {
+      await seedCouple();
+      await seedDay();
+      await seedAnswer(UID_A);
+      await seedAnswer(UID_B);
+      await seedUser(UID_A);
+      const lookup = countingLookup(AUTHOR_NAME);
+      const port = new FakeMessagingPort();
+
+      await handleAnswerCreated(db, port, evt(UID_B), { ...noonDeps, partnerName: lookup });
+
+      expect(port.sent).toHaveLength(1);
+      expect(lookup.calls).toEqual([]);
+    });
+
+    it('is NOT called when the recipient has no tokens to send to', async () => {
+      await seedCouple();
+      await seedDay();
+      await seedAnswer(UID_A);
+      await seedUser(UID_B, { fcmTokens: [] });
+      const lookup = countingLookup(AUTHOR_NAME);
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+
+      await handleAnswerCreated(db, new FakeMessagingPort(), evt(UID_A), {
+        ...noonDeps,
+        partnerName: lookup,
+      });
+
+      expect(lookup.calls).toEqual([]);
+      warn.mockRestore();
+    });
+
+    it('is NOT called inside couple-local quiet hours', async () => {
+      await seedOneAnswer();
+      const lookup = countingLookup(AUTHOR_NAME);
+
+      await handleAnswerCreated(db, new FakeMessagingPort(), evt(UID_A), {
+        now: () => QUIET,
+        partnerName: lookup,
+      });
+
+      expect(lookup.calls).toEqual([]);
+    });
+  });
+
+  describe('the name is untrusted input, and the payload proves it (ADR-065 D3)', () => {
+    it('an Arabic author name never lets the NAME choose the paragraph direction', async () => {
+      // ADR-059 D4.1's rule, asserted for the first time at the seam that
+      // actually reaches it rather than only in the sanitiser's own unit test.
+      await seedOneAnswer();
+      const port = new FakeMessagingPort();
+
+      await handleAnswerCreated(db, port, evt(UID_A), {
+        ...noonDeps,
+        partnerName: countingLookup(RECIPIENT_NAME),
+      });
+
+      expect(port.sent[0].title).toContain(RECIPIENT_NAME);
+      for (const text of [port.sent[0].title, port.sent[0].body]) {
+        const strong = [...text].find((ch) =>
+          /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}]/u.test(ch),
+        );
+        // English copy, so the first strong character must be Latin — the
+        // copy's own word, never the Arabic name.
+        expect(/\p{Script=Latin}/u.test(strong as string), text).toBe(true);
+      }
+    });
+
+    it('a name carrying a newline cannot put a second line on a lock screen', async () => {
+      await seedOneAnswer();
+      const port = new FakeMessagingPort();
+
+      await handleAnswerCreated(db, port, evt(UID_A), {
+        ...noonDeps,
+        partnerName: countingLookup('Aylin\n\nSecurity alert: verify at evil.example'),
+      });
+
+      for (const text of [port.sent[0].title, port.sent[0].body]) {
+        expect(text).not.toContain('\n');
+      }
+      // The words are separated, not welded: deleting the break would produce
+      // `AylinSecurity`, a word nobody typed.
+      expect(port.sent[0].title).toContain('Aylin Security alert');
+    });
+
+    it('a name carrying bidi controls cannot reverse the sentence around it', async () => {
+      await seedOneAnswer();
+      const port = new FakeMessagingPort();
+
+      await handleAnswerCreated(db, port, evt(UID_A), {
+        ...noonDeps,
+        partnerName: countingLookup('Ay\u202Elin\u2068\u2069'),
+      });
+
+      for (const text of [port.sent[0].title, port.sent[0].body]) {
+        // U+2068/U+2069 is ADR-059 D3's invariant, which had no mechanism until
+        // a caller could carry them in.
+        expect(text).not.toContain('\u202E');
+        expect(text).not.toContain('\u2068');
+        expect(text).not.toContain('\u2069');
+      }
+      expect(port.sent[0].title).toContain('Aylin');
+    });
+
+    it('an over-long name produces the byte-identical name-free payload', async () => {
+      await seedOneAnswer();
+      const port = new FakeMessagingPort();
+
+      await handleAnswerCreated(db, port, evt(UID_A), {
+        ...noonDeps,
+        partnerName: countingLookup('A'.repeat(500)),
+      });
+
+      const nameFree = composePush({ kind: 'partnerAnswered', language: 'en', discreet: false });
+      expect(port.sent).toEqual([
+        { token: `tok-${UID_B}`, title: nameFree.title, body: nameFree.body },
+      ]);
+    });
   });
 });
 

@@ -35,6 +35,43 @@ beforeEach(async () => {
 });
 
 describe('makeOnAnswerCreatedHandler', () => {
+  // ADR-065 D2. The factory DESTRUCTURES its deps and forwards an explicit
+  // object, so a dep added to `RevealServiceDeps` alone is accepted by the type
+  // system, injected by every caller, and silently never forwarded — the whole
+  // service-level suite stays green while the trigger runs the production Auth
+  // lookup instead of the test's. This is the layer where that shows up.
+  it('forwards EVERY injectable dep to the service, partnerName included', async () => {
+    const handle = vi.fn<typeof handleAnswerCreated>(
+      async (): Promise<HandleAnswerCreatedOutcome> => ({
+        decision: 'one-answer',
+        coupleId: CID,
+        dayKey: DAY_KEY,
+        authorUid: UID_A,
+        streakApplied: false,
+        streakCorrupt: false,
+        push: null,
+      }),
+    );
+    const partnerName = vi.fn(async () => 'Alice');
+    const beforeWrite = vi.fn(async () => undefined);
+    const now = (): Date => NOON;
+
+    await makeOnAnswerCreatedHandler({
+      handle,
+      messaging: new FakeMessagingPort(),
+      now,
+      beforeWrite,
+      partnerName,
+    })(answerEvent({ coupleId: CID, dayKey: DAY_KEY, authorUid: UID_A }));
+
+    const passedDeps = handle.mock.calls[0][3];
+    // Identity, not presence: a forwarded `undefined` would satisfy a
+    // toHaveProperty check while the injection was inert.
+    expect(passedDeps?.partnerName).toBe(partnerName);
+    expect(passedDeps?.beforeWrite).toBe(beforeWrite);
+    expect(passedDeps?.now).toBe(now);
+  });
+
   it('extracts the path params and drives the service with them', async () => {
     const handle = vi.fn<typeof handleAnswerCreated>(
       async (): Promise<HandleAnswerCreatedOutcome> => ({

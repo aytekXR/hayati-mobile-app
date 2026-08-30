@@ -29,7 +29,16 @@ export interface OnAnswerCreatedDeps extends RevealServiceDeps {
 export function makeOnAnswerCreatedHandler(
   deps: OnAnswerCreatedDeps = {},
 ): (event: FirestoreEvent<QueryDocumentSnapshot | undefined, AnswerParams>) => Promise<void> {
-  const { handle = handleAnswerCreated, messaging = new FcmMessagingPort(), now, beforeWrite } = deps;
+  // ⚠️ Every dep must appear in BOTH this destructure and the object forwarded
+  // below. Adding one to `RevealServiceDeps` alone leaves the injection inert
+  // while every service-level suite still passes — green, and wrong (ADR-065 D2).
+  const {
+    handle = handleAnswerCreated,
+    messaging = new FcmMessagingPort(),
+    now,
+    beforeWrite,
+    partnerName,
+  } = deps;
   return async (event) => {
     const { coupleId, dayKey, authorUid } = event.params;
     // Defense in depth: a malformed event with missing/garbage params must not
@@ -49,7 +58,7 @@ export function makeOnAnswerCreatedHandler(
         getFirestore(),
         messaging,
         { coupleId, dayKey, authorUid },
-        { now, beforeWrite },
+        { now, beforeWrite, partnerName },
       );
       logger.info('answer_reveal: trigger complete', {
         coupleId,
