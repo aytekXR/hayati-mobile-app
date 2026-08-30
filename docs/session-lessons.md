@@ -38,6 +38,94 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**140 — The sentence a change makes false is usually in the translation files, not in the code.** *(S089, ADR-065 D6)*
+ADR-065 D5 spends a page on the right argument: this session makes a sentence in
+the privacy draft false, that is *"the same defect class, one session later"*, and
+so the draft is corrected in the same diff. It then stopped, because the draft was
+the surface someone had already thought about. The **app** carried two sentences
+about the identical fact and both were falsified by the same commit:
+`nameCaptureHelper` — *"Your partner will see this on your invitation"*, said at
+the **collection point**, the one place the app explains what a name is for — and
+`settingsNotificationPrivacySubtitle`, which describes the **control** that is now
+the only thing between a partner-chosen string and a lock screen, while promising
+to hide *"message content"* a notification has never carried. Neither is code;
+both are values in `app_{en,tr,ar}.arb`. **The built-diff panel did not find them,
+and one of its critics was pointed straight at the question** — *"does anything in
+`app/` display, cache or assume the name-free copy?"* — and answered by reading
+the Dart. **Add one step to the blast radius of any behaviour change: grep the ARB
+files for what the product SAYS about the thing you changed.** A `git grep` for
+the old promise costs seconds; the surface it protects is the one a user actually
+reads.
+
+**139 — A verifier that can name one outcome stops there, and rates the defect by the milder one.** *(S089, ADR-065 D3e)*
+The adversarial lens **found** that unpaired surrogates pass `sanitizePushName`,
+and filed it as *"Cosmetic (renders as replacement characters), not security"* —
+so it never became a finding. That first outcome is real: a UTF-8 round trip turns
+`'Ay\uD800lin'` into `Ay?lin`. It is also not the only one. The same string is not
+well-formed (`isWellFormed()` is `false`), FCM may refuse the payload, and
+`deliverPush` counts a refusal as `send-failed` — **the recipient gets nothing**,
+which is the exact outcome D3c's length cap exists to prevent, reached through a
+different door. The lens stopped at the first branch it could describe and rated
+the whole finding by it. **When a defect has more than one downstream, a verdict
+is only as good as the branch the verifier happened to follow** — so when a lens
+reports "cosmetic", ask what the *other* consumer of that value does with it.
+Related: lesson **135** (a refutation is a claim) — this is its quieter cousin,
+where nothing was refuted, only under-rated, and an under-rated finding never
+reaches the aggregation at all.
+
+**138 — An empty grep is evidence of absence only if the pattern was right, and case is the usual way it is not.** *(S089, ADR-065)*
+ADR-065 revision 1 stated as measured fact that `name_capture_screen.dart` has
+**no `maxLength`**, and built a paragraph of threat model on it. The screen caps
+input at **50** — `nameCaptureMaxLength`, applied through a
+`LengthLimitingTextInputFormatter`. The evidence was
+`grep -rn "maxLength" app/lib/features/profile/`, which returns **0 lines**;
+`grep -rni` returns **2**. The constant is `nameCaptureMaxLength`, capital `L`,
+so the pattern never could have matched, and **an empty result was read as an
+absent fact.** This is lesson **110**'s floor pointed at a grep instead of a test:
+a search that matched nothing and a search that found nothing look identical, and
+the only difference is whether the pattern was capable of matching. It had a
+downstream cost — the ADR set a server-side length cap of 48, *below* the client
+bound it did not know existed, which would have silently discarded names the app
+itself invites people to type. **Before asserting a negative from a grep, prove
+the pattern can match something**: run it case-insensitively, or grep for a
+substring you know is there. The completeness critic caught this; neither of the
+finding's two verifiers was looking at it, because it was never a finding.
+
+**137 — A verifier asked "is this MANDATED?" will refute every true finding that no rule happens to cover.** *(S089, ADR-065)*
+ADR-065's design pass ran 5 lenses × 2 verifiers over 8 findings and surfaced
+**zero** — both verifiers refuted all eight, every one at `confidence: high`.
+The design was not clean. Six of the eight were true and were adopted, two after
+I re-measured the underlying fact myself. The refutations show what happened:
+almost all of them argue *"no governing document requires an ADR to specify
+this"*, and two concede the fact outright — *"The finding's technical observation
+is correct … However, this is NOT a design deficiency."* That is an answer to a
+question about **ADR completeness standards**, not about whether the finding is
+**true**. The adjudicator lens is *supposed* to ask that; the defect was that the
+**skeptic** prompt (*"try to REFUTE it; default to real=false if you cannot
+substantiate it"*) let it borrow the same frame, so the aggregation had no
+verifier left asking *"is the claim true, and does it matter?"* — and
+`surface if EITHER says real` is worthless when both are answering the same wrong
+question. **A 100%-refuted verdict distribution is a signal about the question,
+not about the design** — the same shape as §5 item 5's *"check `agents_empty_result`
+before trusting a distribution"*, one level up: check what the verifier was ASKED
+before trusting what it answered. Give the skeptic a truth question and the
+adjudicator the rules question, and never let the aggregation overrule a fact you
+measured yourself (lessons **123**, **135**).
+
+**136 — A `/g` regex driven by `.test()` skips alternate matches, and the result reads exactly like a working filter.** *(S089, ADR-065)*
+The first draft of ADR-065's control-character strip used one global regex and
+called `.test()` per character. Fed
+`"Aylin\n\nSecurity alert: verify at evil.example"` it returned
+`"Aylin\nSecurity alert: verify at evil.example"` — **one newline removed, one
+left in**. A regex with `/g` carries `lastIndex` across `.test()` calls, so every
+second match is skipped. The output is the tell only if you look at it: a strip
+that removes *some* of the thing it is aimed at looks like a strip that works,
+and the case that survives is the second one, which a single-instance test never
+has. The rule is mechanical — **`.test()` takes a NON-global regex; `/g` belongs
+only to `.replace()`** — and the reason it is worth a number is that this one sat
+in the middle of a security control: the whole point was that a display name
+cannot put a second line on someone's lock screen, and the draft let it.
+
 **135 — A review agent's refutation is a claim, and a confident one is still a claim.** *(S088, ADR-064)*
 A design lens raised *"`roles/billing.viewer` exposes payment info the watcher does
 not need."* Its paired refuter dismissed it with a specific, checkable sentence:

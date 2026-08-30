@@ -32,6 +32,11 @@ import { logger } from 'firebase-functions';
 
 import { isQuietLocalHour, localHour } from '../notifications/local-hour';
 import type { MessagingPort } from '../notifications/messaging-port';
+import {
+  PartnerNameLookup,
+  authPartnerName,
+  resolvePartnerName,
+} from '../notifications/partner-name';
 import { PushKind, composePush } from '../notifications/payload-policy';
 import {
   contentLanguageOf,
@@ -60,6 +65,13 @@ export interface RevealServiceDeps {
    * the M3.2 rollover async-seam pattern. Undefined in production.
    */
   beforeWrite?: (attempt: number) => Promise<void>;
+  /**
+   * Resolves the ANSWERER's display name for the `partnerAnswered` copy
+   * (ADR-065 D1). Defaults to the Auth record; injected in tests both to fake
+   * the lookup and to COUNT it, since "we did not spend this call" is an
+   * assertion no real lookup can carry.
+   */
+  partnerName?: PartnerNameLookup;
 }
 
 /** What the transaction decided; the reveal/one-answer paths carry a push recipient. */
@@ -269,7 +281,15 @@ export async function handleAnswerCreated(
   if (tx.decision === 'revealed' && tx.partnerUid !== undefined) {
     push = await deliverPush(db, messaging, tx.partnerUid, 'reveal', tx.timezone, now);
   } else if (tx.decision === 'one-answer' && tx.partnerUid !== undefined) {
-    push = await deliverPush(db, messaging, tx.partnerUid, 'partnerAnswered', tx.timezone, now);
+    // ⚠️ The name is `authorUid`'s, NOT `tx.partnerUid`'s, and "partner" means
+    // opposite things four lines apart (ADR-065 Finding 2): here `partnerUid` is
+    // the partner OF the author — the RECIPIENT — while `composePush`'s
+    // `partnerName` is the recipient's partner, i.e. the person who just
+    // answered. Passing `tx.partnerUid` would send each person their OWN name.
+    push = await deliverPush(db, messaging, tx.partnerUid, 'partnerAnswered', tx.timezone, now, {
+      uid: authorUid,
+      lookup: deps.partnerName ?? authPartnerName,
+    });
   }
 
   const outcome: HandleAnswerCreatedOutcome = {
@@ -307,6 +327,7 @@ async function deliverPush(
   kind: PushKind,
   timezone: string | undefined,
   now: () => Date,
+  naming?: { uid: string; lookup: PartnerNameLookup },
 ): Promise<PushOutcome> {
   const base = { kind, recipientUid, tokenCount: 0, sentCount: 0, failedCount: 0 } as const;
   try {
@@ -338,11 +359,24 @@ async function deliverPush(
     }
 
     const language = contentLanguageOf(userData);
-    const payload = composePush({
-      kind,
-      language,
-      discreet: resolveDiscreet(language, notificationPrivacyOf(userData)),
-    });
+    const discreet = resolveDiscreet(language, notificationPrivacyOf(userData));
+
+    // ADR-065 D2 — the lookup happens ONLY where its result can be used, and
+    // every guard above has already returned. So: nothing is spent on a `reveal`
+    // (the kind takes no name, so its call site passes no `naming` at all),
+    // nothing on a recipient with no tokens or inside quiet hours, and nothing
+    // on a DISCREET recipient — which is every Arabic-reading user by default
+    // (ADR-012 F6). The privacy setting and the cost saving are one branch.
+    //
+    // `naming` being absent rather than a `kind === 'partnerAnswered'` test is
+    // deliberate: it makes "one kind resolves a name" a property of the two call
+    // sites, so there is no condition here for a later edit to drift away from.
+    const partnerName =
+      naming !== undefined && !discreet
+        ? await resolvePartnerName(naming.lookup, naming.uid)
+        : undefined;
+
+    const payload = composePush({ kind, language, discreet, partnerName });
 
     let sentCount = 0;
     let failedCount = 0;

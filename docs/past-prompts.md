@@ -4406,3 +4406,85 @@ and the skip is **visibly** skipped rather than silently green — the run carri
 > *PROD_PULSE_VIEWER_SA is not set, so prod-pulse will be SKIPPED — not passed. NOTHING is watching whether the daily sweep is still running in production. The last time that went unwatched it cost six days (#219, #263).*
 
 So the ADR's "MEASURED or visibly SKIPPED, no third outcome" is a measurement now. **The armed path is still unexercised** — nothing has run `prod_pulse` under a service-account credential, and it cannot until the secret exists; that half is stated, not claimed.
+
+## Session 089 — 2026-08-30 — #253: the push finally names the partner, and the name is untrusted input (ADR-065)
+
+**Objective (from resume-prompt.md):** `partnerAnswered` is supposed to name the partner and never does, because no caller supplies `partnerName`. Close it, and ADR-059's `sanitizePushName` stops being a branch nothing calls.
+
+**Outcome:** done. The name is wired, and wiring it turned a formatting helper into a security boundary — which is most of the session. **Two review passes ran, and the second one plus my own measurement widened the threat model twice more after the code was written.**
+
+### The two probes, re-measured before anything was designed — and one of them has changed shape
+
+```
+$ python3 tool/ci/prod_pulse.py --from-firebase-cli                     # exit 1
+  FINDING: BILLING IS OFF for this project — no billing account is linked …
+  FINDING: the last COMPLETED sweep was 106.7h ago (2026-08-25T15:00:11Z) …
+$ python3 tool/ci/push_delivery_probe.py --from-firebase-cli            # exit 1
+  hayatiapp-prod: 0/4 account(s) have registered a device
+```
+
+**The billing state moved between S088 and S089, and the tool narrates the new state wrongly.** Read directly through `prod_pulse`'s own helpers:
+
+```
+hayatiapp-prod  billingEnabled=False  billingAccountName=billingAccounts/012195-7EF76F-3A9083  account open=False
+hayatiapp-dev   billingEnabled=False  billingAccountName=billingAccounts/012195-7EF76F-3A9083  account open=False
+```
+
+`billingEnabled` said **`true`** for the whole outage — that disagreement is what ADR-063 D4 exists for — and it is now **`false`**: Google has switched billing off at the *project* as well as at the account. `billing_findings()` returns early on `not billing_enabled` with *"no billing account is linked"* and **discards the `account_open` fact it successfully measured in the same run**, so the tool prints that sentence directly beneath the linked account's own id. It is the sentence the founder acts on, and it would send them looking for a link that is already there. Out of scope for #253; filed as **#267**, and the corrected wording is in `operator-expected.md` item 1.
+
+**Also measured, and it contradicts a document:** `gh issue view 263` says **OPEN**, `closedAt=null`, while S088's `resume-prompt.md` said *"#263 CLOSED by S088"*. The watcher is merged and unarmed, so open is the honest state. Lesson **133**'s shape, pointed at issue state instead of at a count.
+
+### What the change is
+
+`composePush` has accepted `partnerName` since M3.4 and no production caller ever passed one, so **every `partnerAnswered` push ever composed used the name-free copy** and `sanitizePushName` sat in an unreachable branch. Three facts decided the design, and the first contradicts the objective as written:
+
+* **The name is NOT in `users/{uid}`.** The resume prompt specified *"the partner's `users/{uid}` document — which field"*. There is no such field: the document stores no name **by design** (`auth_repository.dart:47` says so at the write site). The name is on the **Auth record**, and `invite-preview.ts` already reads it that way. The ADR says so rather than absorbing the instruction.
+* **"Partner" means opposite things four lines apart.** `reveal-service`'s `partnerUid` is the RECIPIENT; `payload-policy`'s `partnerName` is the recipient's partner, i.e. the **author**. Passing the wrong one sends each person their own name.
+* **`displayName` is client-writable**, so this routes untrusted input onto another person's lock screen — and the sanitiser was built for one axis (bidi neutrals at the *edges*, in *RTL only*).
+
+### The design pass overrode its own aggregation, and was right to
+
+5 lenses x 2 verifiers + a completeness critic; **22 agents, 0 errored, 0 empty, 0 skipped**; 8 findings, **0 surfaced** — both verifiers refuted all eight with `confidence: high`. Reading the refutations showed why: nearly every one argued *"no governing document requires an ADR to specify this"*, which is a question about ADR standards, not about whether the finding is TRUE. Six were true and were adopted anyway. Recorded as lesson **137**. **The completeness critic, whose findings bypass that aggregation, found the one thing in the ADR that was simply false** — revision 1 claimed the name-capture screen has no `maxLength`; it caps at **50**, and the evidence had been a *case-sensitive* grep (lesson **138**). That correction moved D3c's cap from 48 to 64.
+
+### The built-diff pass, and the opposite distribution
+
+5 lenses x 2 verifiers + 2 critics; **15 agents, `agents_error=0`, `agents_empty_result=0`, 0 skipped**; **2 lenses considered-empty** (mechanism, privacy-i18n — both ran fully; neither was blocked); **4 findings, all 4 real to BOTH verifiers, 0 refuted, 0 dropped unverified.** Same harness, same aggregation rule, opposite outcome — which is the evidence that lesson 137 was about the *question a verifier is asked*, not about the panel.
+
+| finding | disposition |
+|---|---|
+| Consequences said *"the `48` cap"* while D3c says 64 — revision 2 moved the number and did not propagate it | fixed (a critic found the same line independently) |
+| `operator-expected.md`'s S083 entry states *"the app never actually sends a partner's name at all"* — falsified by this very diff | fixed at close, with the S083 line keeping a forward reference rather than being rewritten out of history |
+| the seam's bidi assertion fed a possibly-`undefined` `find()` result to `RegExp.test` — **`/\p{Script=Latin}/u.test(undefined)` is `true`**, because `test` coerces to `"undefined"`, which is all Latin letters | fixed: the `toBeDefined()` floor (lesson **110**) the sanitiser's own suite already had, plus an examined-count |
+| Hangul Fillers are category `Lo`, pass `hasContent`, render as nothing | **D3e**, second half |
+
+### Two things the panel did not find, and I did
+
+1. **Unpaired surrogates pass the sanitiser.** The adversarial lens *saw* it and filed it as *"cosmetic, not security"*, stopping at the U+FFFD rendering. The other branch is that the string is not well-formed (`isWellFormed()` is `false`), FCM may refuse it, and `deliverPush` counts a refusal as `send-failed` — **the recipient gets nothing**, the exact outcome D3c's length cap exists to prevent. Lesson **139**. `\p{Cs}` under `/u` matches only *lone* surrogates, so the fix cannot eat emoji — measured, because that mistake would be worse than the bug.
+2. **`nameCaptureHelper` and `settingsNotificationPrivacySubtitle`** (now **Decision 6**). D5 argues at length that this session falsifies a sentence in the privacy draft and must fix it in the same diff — then stops one surface short. The app says the same thing twice: at the **collection point** (*"Your partner will see this on your invitation"*) and at the **control** (*"Hide message content in notifications"* — which notifications have never carried, while saying nothing about the name they now do). Both corrected in three locales. A critic was pointed straight at *"does anything in `app/` assume the name-free copy?"* and answered by reading the Dart. **The sentence that goes stale is in the ARB files.** Lesson **140**.
+
+### Verification
+
+**Full emulator suite, exit 0 — 56 files, 1246 tests, coverage 97.43% statements / 92.81% branches / 97.78% functions / 97.68% lines (gate 80).** ⚠️ **This was a RE-RUN and is said so deliberately**: the first run was killed mid-flight by a background-task stop and **never reported**, so nothing about it was ever evidence. Command, verbatim:
+
+```
+firebase emulators:exec --only auth,firestore,functions --project demo-hayati 'cd functions && npm run test:ci'
+```
+
+**`flutter test` (full app suite) went RED first, and that was the diff telling the truth.** Both corrected strings are longer, so **26 goldens** moved — `name_capture_screen` (9) and `settings_screen` (17). A longer string in a settings row is exactly how a layout overflows at a large text scale, so the two worst cases were **read as images before anything was regenerated**: at 130% text scale, English name-capture wraps the helper to three lines with the field and CTA untouched; Turkish settings wraps the discreet subtitle from three to five lines on a scrollable screen with the toggle still aligned — the same density the row *above* it already had in the old golden. Then `--update-goldens`, and the count is unchanged at **360** (`git ls-files 'app/test/**/*.png' | wc -l`): 26 modified, none added, none deleted. Full suite green on the re-run: **1880 tests, exit 0.** Also green: the four suites touching the changed strings (68 tests) · `tsc --noEmit -p tsconfig.test.json` · `eslint .` · `dart format --set-exit-if-changed app/lib app/test tool content` → *Formatted 494 files (0 changed)*.
+
+**Counts carry the command that produced them** (lesson **133**): the sanitiser table is **30 cases x 3 languages = 90**, counted by `re.findall(r"^\s*\['", block, re.M)` over the literal rather than by adding up the diff — and the suite's 1246 is exactly the previous 1222 plus those 8 new cases x 3.
+
+**Mutation-checked, and the mutants checked** (lesson **112**). Removing D3e's surrogate delete reddens **6** named assertions (2 cases x 3 languages) and nothing else; reverting `hasContent` to the plain `\p{L}\p{N}` test reddens **6** (the two filler-only cases x 3). Both restore byte-exact, verified by `md5sum` against a pre-mutation copy. Two cases deliberately **do not** discriminate, and that is recorded rather than hidden: *"a name of only lone surrogates degrades"* stays green under mutant 1 (with the strip removed the surrogates still fail `hasContent`), and *"a real name containing a filler is untouched"* stays green under mutant 2 (it is the no-damage case). The new `toBeDefined()` floor is **not** mutation-checked, and that is stated rather than skipped quietly: the mutant would have to strip every strong character from three languages' templates, reddening dozens of unrelated assertions and proving nothing about this one. What justifies it is the coercion measurement.
+
+**One defect of my own, caught by reading my own diff rather than by a test:** an edit wrote literal `\u2014` / `\u26A0\uFE0F` escape TEXT into seven comment lines instead of the characters. Types, lint and every test stayed green — comments are invisible to all of them — and `git diff` is what showed it. Repaired, and the deliberate escape examples (`"\ud800"` inside backticks) were left alone.
+
+**Commits:** `231d777` (ADR rev 1, before code) → `c1e0ce7` (rev 2, design pass) → `268a2fb` (the code) → this session's close commit (rev 3, built-diff pass + D3e + D6).
+
+**CI:** appended at close, below.
+
+**Docs touched:** `docs/adr/065-*.md` (to revision **3**), `docs/architecture.md` §10, `docs/test-suite.md`, `docs/legal/proposed/privacy-policy.{en,tr,ar}.md`, `app/lib/core/l10n/arb/app_{en,tr,ar}.arb`, `docs/session-lessons.md` (**136–140**), `docs/operator-expected.md`, `docs/past-prompts.md`, `docs/resume-prompt.md`.
+
+**Notes / debt logged:** **#267** (`prod_pulse` narrates the new billing state with the wrong sentence and discards a fact it measured). **#253 closed.** **#136**'s autonomous half now has its first real exercise; step 1 is still device-blocked. **#263 remains OPEN** and the regenerated prompt says so. Nothing here is observable on a phone: production has been down since 2026-08-22 and 0 of 4 devices have ever registered — both operator items, neither this session's.
+
+**Next objective written to resume-prompt.md:** Session 090 — **#248**, the ADR index, which now stops **seventeen** ADRs short (049–065).
+

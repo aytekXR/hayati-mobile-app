@@ -64,7 +64,7 @@
   "@nameCaptureTitle": {
     "description": "Name-capture step title (redesign QW-6, between sign-in and profile capture); nicknames explicitly welcome"
   },
-  "nameCaptureHelper": "Your partner will see this on your invitation.",
+  "nameCaptureHelper": "Your partner will see this on your invitation, and when a notification tells them you have answered.",
   "@nameCaptureHelper": {
     "description": "Mist caption under the name-capture title — the honest reason the name is asked for (it feeds the invite preview hero line)"
   },
@@ -904,7 +904,7 @@
   "@settingsNotificationPrivacyTitle": {
     "description": "Settings toggle title for the per-user notification-privacy override (ADR-019 D6)"
   },
-  "settingsNotificationPrivacySubtitle": "Hide message content in notifications, showing only that something new arrived.",
+  "settingsNotificationPrivacySubtitle": "Hide the details in notifications — your partner's name, what happened, and any streak — showing only that something new arrived.",
   "@settingsNotificationPrivacySubtitle": {
     "description": "Subtitle for the discreet-notifications toggle, non-Arabic content language"
   },

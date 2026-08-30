@@ -102,6 +102,148 @@ describe('sanitizePushName', () => {
     });
   });
 
+  // ADR-065 D3a/D3b/D3c. These are a SECURITY table, not a formatting one: the
+  // input is a Firebase Auth `displayName`, which the OTHER member of the couple
+  // sets through a client SDK with no server validation, and the output lands on
+  // this person's lock screen. Every expectation below was measured against the
+  // shipped function BEFORE the fix, where each one came back unchanged.
+  describe('the untrusted-input rules — every language, not only RTL', () => {
+    const NL = '\n';
+    const RLO = '\u202E'; // RIGHT-TO-LEFT OVERRIDE — reverses what follows it
+    const FSI = '\u2068'; // the isolates ADR-059 D3 promised never enter a payload
+    const PDI = '\u2069';
+    const ZWNJ = '\u200C'; // orthography in Persian/Urdu — MUST survive
+    const ZWJ = '\u200D'; // joins emoji sequences — MUST survive
+    const SOFT_HYPHEN = '\u00AD';
+    const WORD_JOINER = '\u2060';
+    const ANNO_ANCHOR = '\uFFF9'; // interlinear annotation: hides text behind text
+    const MARK = '\u0301'; // COMBINING ACUTE ACCENT
+
+    const cases: readonly [string, string, string | undefined][] = [
+      // D3a — line-break injection. The whole reason this rule exists: without
+      // it these two lines land on a lock screen under our app's name, in the
+      // visual position a system message occupies.
+      ['newline injection', `Aylin${NL}${NL}Security alert: verify at evil.example`,
+        'Aylin Security alert: verify at evil.example'],
+      // ...and a separator becomes a SPACE, never nothing. Deleting it welds
+      // two words into one nobody typed (`AylinSecurity`).
+      ['CRLF becomes one space', `Ay${NL}\rlin`, 'Ay lin'],
+      ['tab becomes a space', 'Ay\tlin', 'Ay lin'],
+      // D3a — explicit bidi controls. RLO mid-string reverses the REST of the
+      // sentence; it survived in both languages before this rule.
+      ['RLO mid-string', `Ay${RLO}lin`, 'Aylin'],
+      ['RLO trailing', `Aylin${RLO}`, 'Aylin'],
+      // This pair is ADR-059 D3's invariant, which until now had no mechanism.
+      ['FSI/PDI', `Ay${FSI}lin${PDI}`, 'Aylin'],
+      // Invisibles an enumeration of the twelve bidi controls would have missed.
+      ['soft hyphen', `Ay${SOFT_HYPHEN}lin`, 'Aylin'],
+      ['word joiner', `Ay${WORD_JOINER}lin`, 'Aylin'],
+      ['interlinear annotation', `Ay${ANNO_ANCHOR}lin`, 'Aylin'],
+      // The two deliberate exceptions. Stripping these damages a real name to
+      // close an attack neither can carry.
+      ['ZWNJ survives (Persian/Urdu orthography)', `محمد${ZWNJ}رضا`, `محمد${ZWNJ}رضا`],
+      ['ZWJ survives (emoji sequence)', `A ${ZWJ}B`, `A ${ZWJ}B`],
+      // Whitespace runs collapse, so a name cannot pad the copy off the screen.
+      ['NBSP and ideographic space collapse', 'Ay \u00A0\u3000 lin', 'Ay lin'],
+      // A name that is ONLY unsafe characters has nothing left to be a name.
+      ['controls only', `${NL}\t${RLO}`, undefined],
+      // D3b — a mark RUN is capped; a name is base-mark-base-mark, never this.
+      ['zalgo run is capped, name survives', `A${MARK.repeat(200)}ylin`,
+        `A${MARK.repeat(8)}ylin`],
+      // ...and real orthography never reaches the cap, so it is untouched.
+      ['José in NFD is untouched', `Jose${MARK}`, `Jose${MARK}`],
+      ['pointed Hebrew is untouched', 'שָׁלוֹם', 'שָׁלוֹם'],
+      ['Vietnamese decomposed is untouched', 'Nguyê\u0303n', 'Nguyê\u0303n'],
+      ['Arabic tashkeel is untouched', 'مُحَمَّد', 'مُحَمَّد'],
+      // D3c — over the cap, DEGRADE. Never truncate: a truncated name is one its
+      // owner does not have, and the name-free copy is already correct.
+      ['64 code points is accepted', 'A'.repeat(64), 'A'.repeat(64)],
+      ['65 code points degrades', 'A'.repeat(65), undefined],
+      ['500 code points degrades', 'A'.repeat(500), undefined],
+      // The cap sits ABOVE the app's own input bound (nameCaptureMaxLength = 50),
+      // so the server never silently discards a name the app invites.
+      ['the app\'s own 50-character maximum is accepted', 'A'.repeat(50), 'A'.repeat(50)],
+      // D3e — an UNPAIRED surrogate is half of a character, not a character.
+      // Left in, the string is not well-formed (`'Ay\uD800lin'.isWellFormed()`
+      // is false): any UTF-8 round trip turns it into U+FFFD on the lock
+      // screen, and FCM may refuse the send outright — which `deliverPush`
+      // counts as `send-failed`, so the recipient gets NOTHING. That is the
+      // outcome D3c's length cap exists to prevent, reached by another door.
+      ['a lone high surrogate is deleted', 'Ay\uD800lin', 'Aylin'],
+      ['a lone low surrogate is deleted', 'Ay\uDC00lin', 'Aylin'],
+      ['a name of only lone surrogates degrades', '\uD800\uD801\uD802', undefined],
+      // ...and a VALID pair must survive untouched, or the fix would be a worse
+      // defect than the bug: under /u the engine iterates code points, so an
+      // emoji is one `So` and never matches `\p{Cs}`.
+      ['an emoji name survives (a valid pair is not a lone surrogate)', 'Ayl\u{1F600}n', 'Ayl\u{1F600}n'],
+      ['an SMP letter survives', 'Ay\u{10400}lin', 'Ay\u{10400}lin'],
+      // D3e — `\p{L}` says these four are LETTERS and they render as nothing.
+      // A name of them satisfied "contains a letter" and composed
+      // `Your partner ␣␣␣␣␣ answered` — a gap where a name should be.
+      ['a name of only Hangul fillers degrades', 'ㅤㅤㅤㅤㅤ', undefined],
+      ['U+115F / U+1160 / U+FFA0 are the same case', 'ᅟᅠﾠ', undefined],
+      // ...but a name that merely CONTAINS one keeps it: the property
+      // disqualifies a character from BEING the content, it never deletes one.
+      ['a real name containing a filler is untouched', 'Ayㅤlin', 'Ayㅤlin'],
+    ];
+
+    for (const [label, input, expected] of cases) {
+      for (const language of LANGUAGES) {
+        it(`${language}: ${label}`, () => {
+          expect(sanitizePushName(input, language)).toBe(expected);
+        });
+      }
+    }
+
+    // A floor on the INPUT (lesson 110): a table that shrank to nothing would
+    // report the same clean zero as one that passed.
+    it('the table covers every case in every language', () => {
+      // Counted by the assertion itself, not by me: the first draft said 23
+      // and the floor said 22 (lesson 133 — a count is a claim). It moved to
+      // 30 when the built-diff review's D3e cases landed, and that number came
+      // from the same place — the count printed by
+      //   python3 -c "…re.findall(r'^\s*\[.', block, re.M)…"
+      // over this literal, never from adding up the diff by eye.
+      expect(cases.length).toBe(30);
+      expect(cases.length * LANGUAGES.length).toBe(90);
+    });
+
+    // The point of the whole table, asserted at the seam rather than inferred:
+    // what the PORT would receive can no longer carry a line break or a control.
+    it('no composed payload can carry a newline or a bidi control', () => {
+      let examined = 0;
+      for (const language of LANGUAGES) {
+        const payload = composePush({
+          kind: 'partnerAnswered',
+          language,
+          discreet: false,
+          partnerName: `Aylin${NL}Security alert${RLO}${FSI}${PDI}`,
+        });
+        for (const text of [payload.title, payload.body]) {
+          expect(text).not.toContain(NL);
+          expect(text).not.toContain(RLO);
+          expect(text).not.toContain(FSI);
+          expect(text).not.toContain(PDI);
+          examined += 1;
+        }
+      }
+      expect(examined).toBe(LANGUAGES.length * 2);
+    });
+
+    it('an over-long name produces the byte-identical name-free payload', () => {
+      for (const language of LANGUAGES) {
+        const withName = composePush({
+          kind: 'partnerAnswered',
+          language,
+          discreet: false,
+          partnerName: 'A'.repeat(500),
+        });
+        const nameFree = composePush({ kind: 'partnerAnswered', language, discreet: false });
+        expect(withName).toEqual(nameFree);
+      }
+    });
+  });
+
   describe('the LTR copy — nothing is trimmed, because nothing detaches', () => {
     // Measured: `Aylin Y. answered today's question.` is byte-identical
     // logical-to-visual. Trimming here would remove a character from someone's
