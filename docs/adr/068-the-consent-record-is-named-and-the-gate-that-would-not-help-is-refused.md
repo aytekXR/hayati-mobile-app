@@ -1,12 +1,33 @@
 # ADR-068: the consent record is named, and the gate that would not have helped is refused
 
-- **Status:** Accepted — revision 1 (2026-08-30, Session 092), written and committed **before** the code
+- **Status:** Accepted — **revision 2** (2026-08-30, Session 092), after the design pass; still **before** the code
 - **Date:** 2026-08-30 (Session 092)
 - **Deciders:** session agent (a draft-text correction plus a recorded refusal to build a guard; the landing is the founder's and the lawyer's and is not touched here)
 - **Related:** **ADR-023** (consent is server-owned; the three-way legal-version source sentinel; `docs/legal/` byte-synced to `app/assets/legal/`), **ADR-058** (the version-3 draft, and *"the notice denies a collection the shipped build already attempts"* — the same defect one field over), **ADR-065 D5** (the last correction to this draft, one session's push feature ago), **ADR-067** (the gate built one session ago, whose D2 line between *presence* and *meaning* is the one this ADR applies and then declines), **ADR-034** (why an advisory does not vote), **ADR-054** (the export lane that already shows this record), issues **#249** (this one), **#226**, **#247**, **#258**
 
-> **Review status.** Written before the code (`session-context.md` §5 item 1,
-> lesson **115**). The design pass has not run yet.
+> **Review status.** Revision 1 was written and committed **before** the code
+> (lesson **115**). **The design pass has now run** — 4 lenses × 2 independent
+> verifiers + a completeness critic, **21 agents, 0 errored, 0 empty results, 0
+> skipped**; **no lens came back empty**; **8 lens findings + 1 critic finding,
+> all 8 surfaced, 0 refuted by both, 0 dropped unverified.**
+>
+> ⚠️ **It found the refusal in D3 materially weaker than revision 1 claimed, and
+> it found FOUR separate inflations of my own evidence — every one of them in the
+> direction that flattered the refusal.** *"Four issues of this class"* was three;
+> *"13 bullets"* was 11; *"the fourth correction"* was the third; and *"read
+> verbatim from each issue body"* preceded a quotation of #249's second clause
+> while its actual `Blocked on:` line reads **"nothing to draft"**. This is the
+> **third consecutive session** in which the worst error in an ADR was a claim
+> that flattered its own argument, and the third in which only an outside reader
+> comparing the claim to its source caught it (lesson **143**).
+>
+> ⚠️ **The load-bearing correction is not a number.** Revision 1 leaned on
+> ADR-034's asymmetry — *an advisory does not vote* — for a gate on **our own
+> omission**. **ADR-041 already rejected exactly that transfer**, in words this
+> repo's own index carries: *"ADR-034's asymmetry does NOT transfer (an advisory
+> is a third party's act; drift is our own omission and always actionable), so
+> the check votes."* Revision 1 cited the precedent that had been distinguished
+> and not the one that distinguished it. D3 is rewritten around what survives.
 
 ## Context — measured 2026-08-30
 
@@ -23,15 +44,20 @@ ageAttested: true,
 
 `firestore.rules:78-129` freezes it in both directions (a create may not carry
 `consent`; an update may not change it), which is ADR-023's server-ownership in
-force. And `data-rights-core.ts:366` projects it into the export, so **a subject
-who asks already receives it**.
+force. And it is projected into the export — `projectConsent` is declared at
+`data-rights-core.ts:372` and called from `projectProfile` at **:460** — so **a
+subject who asks already receives it**. *(Revision 1 cited `:366`, which is the
+docstring above the function rather than the code; corrected because a line
+number offered as evidence should point at the thing it is evidence of.)*
 
 ### Finding 1 — the notice's own collection list does not name it, measured
 
-The v3 draft's *"What we collect, and where it is kept"* section carries **13
-bullets** across two groups: reflections and answers, profile, couple details,
-coach usage counters, subscription mirror, invite records, notification setup;
-then sign-in identifiers, crash diagnostics, App Check, and push delivery.
+The v3 draft's *"What we collect, and where it is kept"* section carries **11
+bullets** across two groups — **7 then 4**, counted with
+`sed -n '13,37p' … | grep -c '^- '`, because revision 1 said 13 and the command
+said 11: reflections and answers, profile, couple details, coach usage counters,
+subscription mirror, invite records, notification setup; then sign-in
+identifiers, crash diagnostics, App Check, and push delivery.
 
 ```
 $ grep -ic 'ageAttested\|of age\|age you'  docs/legal/proposed/privacy-policy.en.md   → 0
@@ -55,26 +81,44 @@ Whether it needs naming *separately* — rather than folded into one consent
 sentence — is a lawyer question, not an engineering one, and Decision 2 says so
 rather than deciding it silently.
 
-### Finding 3 — four issues, one shape, and every one of them blocked on the same person
+### Finding 3 — THREE issues of one shape, all blocked on the same two people (revision 1 said four)
 
-| | |
-|---|---|
-| **#226** | the notice denies push and never names `fcmTokens` / `pushDiagnostic` |
-| **#247** | the analytics adapter's *"legal change first"* gate — *"Blocked on: #226 (founder + lawyer)"* |
-| **#249** | this one — *"the founder/lawyer decide whether it rides #226's bump"* |
-| **#258** | deletion under-described once #246 landed — *"Blocked on: founder + lawyer (#226)"* |
+| | | |
+|---|---|---|
+| **#226** | the notice denies push and never names `fcmTokens` / `pushDiagnostic` | disclosure gap |
+| **#249** | this one — the consent record named in no collection list. Its `Blocked on:` line reads **"nothing to draft; the founder/lawyer decide whether it rides #226's bump"** | disclosure gap |
+| **#258** | deletion under-described once #246 landed — *"Blocked on: founder + lawyer (#226)"* | disclosure gap |
+| **#247** | ⚠️ **NOT the same class** | a *tracking* issue |
 
-Read verbatim from each issue body. **All four were DETECTED** — by review passes
-and completeness critics, not by a gate — **filed, and are waiting on a decision
-only the founder and the lawyer can make.** That fact decides Decision 3.
+**Revision 1 said "four issues, one shape" and that was wrong**, caught by the
+refusal lens. **#247 is a meta-issue about how a dependency is tracked**, and —
+this is the part that cuts against the argument revision 1 was making — it
+**explicitly asks for a gate**: *"What would close this: either a CI check that
+reddens when a file under `app/lib/core/analytics/` names a vendor SDK while
+`CURRENT_LEGAL_VERSION` has not moved past 2, or … this issue standing as the
+tracked dependency."* Citing it as evidence that gates would not help was close to
+backwards.
+
+**What survives is three.** #226, #249 and #258 are one shape — a stored or
+behavioural fact the notice does not name — and all three were **DETECTED by
+review passes and completeness critics, not by a gate**, filed, and are waiting
+on a decision only the founder and the lawyer can make. Three is still the
+observation Decision 3 rests on; it is simply three and not four.
 
 ## Decision 1 — the bullet lands in the v3 DRAFT, in three locales, and not in the shipped notice
 
 The draft at `docs/legal/proposed/` gains one bullet in the collection list:
 
 > - a record of your consent to this notice: which version you accepted, when you
->   accepted it, and that you confirmed you are old enough to use ikimiz. We keep
->   this because the law we operate under requires us to be able to show it.
+>   accepted it, and that you confirmed you are old enough to use ikimiz.
+
+⚠️ **Revision 1's bullet ended with *"We keep this because the law we operate
+under requires us to be able to show it"*, and the review was right to cut it.**
+The collection list is descriptive — every one of its 11 bullets says *what* is
+kept and none says *why* — and the notice carries a separate section, *"Why we
+process your data, and on what legal basis"*, which is where a basis belongs. A
+bullet that answers a different section's question reads as special pleading
+about the one record the reader might object to.
 
 The Turkish and Arabic say the same thing. The Arabic needs no extra clause here
 — unlike ADR-065 D5's notification bullet, nothing about this record differs by
@@ -105,35 +149,52 @@ approving it is a decision rather than a rewrite.
 document gains, *"or an explicit refusal"*, citing ADR-067 — which is one session
 old and exists because an unguarded index fell eighteen behind.
 
-**The refusal is explicit, and here is why the analogy fails.**
+**⚠️ One of revision 1's two arguments does not survive, and it is stated before
+the one that does.** Revision 1 said a gate would redden the build on a known,
+blocked condition, *"which is precisely the asymmetry ADR-034 used to decide that
+advisories do not vote"*. **ADR-041 has already refused that transfer, for this
+exact reason**: *"ADR-034's asymmetry does NOT transfer — an advisory is a third
+party's act; drift is our own omission and always actionable — so the check
+votes."* An undisclosed field is **our omission**, not a third party's. Revision 1
+cited the precedent that had been distinguished rather than the one that
+distinguished it, and the design review's own suggested fix — *concede the
+analogy is weaker than claimed* — is adopted here rather than argued with.
 
-ADR-067's index gate was worth building because the gap was **undetected**: the
-index drifted eighteen records with nobody noticing, and a set comparison found
-it instantly. **Here, detection is not the failing step.** Finding 3 measures
-four gaps of exactly this class; **all four were already found, all four are
-filed, and all four are blocked on the founder and the lawyer.** A gate would
-have re-reported them and changed nothing about when they land.
+**What survives is the second argument, and no lens refuted it: the honest check
+is not a set comparison.** The export carries **72 fields across 15 interfaces**
+(counted with a regex over `data-rights-core.ts`; one reviewer said 16 and
+`grep -c '^export interface Export'` says **15**, so that one is declined with
+its command). Mapping a stored field to *"does this need a sentence in a privacy
+notice"* is a **legal judgement per field** — precisely what ADR-067 D2 drew a
+line against automating when it refused to lint the index's summary text. A
+registry moves the judgement to a new file; it does not remove it, and it would
+need ~50 decisions that are a lawyer's to make and not mine. **ADR-067's gate
+worked because a set comparison answered the whole question. Here it answers
+none of it.**
 
-Worse, it would redden the build on a **known, blocked** condition — which is
-precisely the asymmetry **ADR-034** used to decide that advisories do not vote:
-a build that fails for a reason the person reading the failure cannot act on
-teaches them to ignore the failure. Every session for the past N weeks would have
-opened on a red `quality` job whose message was *"the notice does not name
-`fcmTokens`"*, which the founder already knows and cannot fix from a terminal.
+**And a third argument the review supplied and revision 1 had missed entirely:
+the middle option.** D3 framed the choice as *voting gate versus nothing*, which
+is a false dichotomy — **ADR-034 itself chose neither**; it chose a **non-voting**
+instrument. That option is adopted, in the cheapest honest form:
 
-**And the honest version of the check is not a set comparison anyway.** The
-export carries **72 fields across 15 interfaces** (counted with a regex over
-`data-rights-core.ts`, not by eye). Mapping a stored field to *"does this need a
-sentence in a privacy notice"* is a legal judgement per field — the very thing
-ADR-067 D2 drew a line against automating when it refused to lint the index's
-summary text. A registry would move the judgement, not remove it, and it would
-need fifty decisions I am not qualified to make.
+* **A disclosure note lives with the export interfaces**, in
+  `data-rights-core.ts`, immediately above `ExportProfile` — the file a session
+  edits when it adds a lane. It names each lane and whether the notice discloses
+  it, and it says plainly that adding a lane means answering the question. **It
+  does not vote and it is not a check**; it is a sentence in the place where the
+  person who creates the next gap is already looking. ADR-025 D8's *discipline,
+  not a gate* — applied at the point of edit rather than to a shared document
+  nobody owns, which is the distinction ADR-067's failure mode turned on.
+* **Operator item 16 carries the three disclosure issues** as one decision rather
+  than #226 alone, so the lawyer round already coming clears the class. #249's own
+  filing makes that argument — *"nearly free while the lawyer already has the
+  document open; expensive as its own round"* — and it is right.
 
-**What replaces the gate, because "no gate" must not mean "nothing":** operator
-item 16 is made to carry **all four** issues as one decision rather than #226
-alone, so the lawyer round that is already coming clears the whole class. #249's
-own filing makes this argument — *"nearly free while the lawyer already has the
-document open; expensive as its own round"* — and it is right.
+**What is honestly still true after all that:** a future field can go
+undisclosed, and nothing here would stop it. The claim is narrower than revision
+1's — not *"detection never fails"*, but *"the three known gaps were found without
+a gate, and the gate that would have found them cannot be written as a set
+comparison"*.
 
 ## Decision 4 — the draft's existing shape guard must still pass, and it is run
 
@@ -162,10 +223,11 @@ a claim about code that did not exist yet, and the same applies here.
   otherwise. What it claims is that the *detection* of such a field has never
   been the bottleneck — four times over — and that adding a red build for a
   blocked condition would cost more than it caught.
-* **This is the fourth correction to the same draft** (ADR-058 wrote it, ADR-059
-  corrected its notification sentence, ADR-065 D5 corrected it again in the
-  opposite direction, and this adds the consent record). Each was correct when
-  written. If that count reaches a fifth without the draft landing, the thing to
+* **This is the THIRD correction to the same draft** — ADR-058 wrote it, ADR-059
+  corrected its notification sentence, ADR-065 D5 corrected that again in the
+  opposite direction, and this adds the consent record. (Revision 1 said fourth;
+  the draft's *authorship* is not a correction of it.) Each was correct when
+  written. If the count reaches a fifth without the draft landing, the thing to
   question is the landing, not the corrections.
 
 ## Alternatives rejected
