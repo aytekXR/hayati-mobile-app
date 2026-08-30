@@ -254,6 +254,50 @@ void main() {
     root.deleteSync(recursive: true);
   }
 
+  // ------------------------- the escaped BACKSLASH that leaves the pipe a separator
+  {
+    // `\\` is an escaped backslash, so the pipe after it IS a separator and GFM
+    // renders four cells. A single-character lookback — the first version of
+    // `unescapedPipes` — reads this as an escaped pipe and passes. Found by the
+    // built-diff review; it is the one input class that made the lint green over
+    // a broken row.
+    final root = fixture(
+      adrFiles: ['001-a.md'],
+      indexBody:
+          '$_header'
+          '| [001](001-a.md) | a summary ending in a literal backslash \\\\| more | Accepted |\n',
+    );
+    final err = StringBuffer();
+    check(
+      'escaped-backslash/exit-1',
+      run(root, err: err) == 1,
+      'an EVEN backslash run leaves the pipe a separator — four cells, not three',
+    );
+    root.deleteSync(recursive: true);
+  }
+
+  // ------------------------------------- two files claiming the same number
+  {
+    // Without the duplicate-files guard the map silently overwrites, so one of
+    // the two records is orphaned and assertion 1 never notices it is gone. The
+    // built-diff review found this branch had no test at all: a mutant deleting
+    // it passed every other check.
+    final root = fixture(
+      adrFiles: ['001-a.md', '001-b.md'],
+      indexBody: '$_header| [001](001-a.md) | first | Accepted |\n',
+    );
+    final err = StringBuffer();
+    check('duplicate-files/exit-1', run(root, err: err) == 1);
+    check(
+      'duplicate-files/names-both',
+      err.toString().contains('001-a.md') &&
+          err.toString().contains('001-b.md'),
+      'both colliding files must be named or the reader cannot tell which to renumber; '
+          'got ${err.toString()}',
+    );
+    root.deleteSync(recursive: true);
+  }
+
   // ------------------------------- a GAP is legal, and the lint must not invent one
   {
     final root = fixture(

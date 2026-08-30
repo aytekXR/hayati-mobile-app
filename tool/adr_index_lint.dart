@@ -2,9 +2,9 @@
 // on disk disagree (ADR-067, issue #248).
 //
 // WHY THIS EXISTS AS A GATE RATHER THAN A HABIT. The index fell **eighteen**
-// records behind (049–066) before anyone counted, and it was priority 1 in three
-// consecutive session prompts, deferred each time for something correctly more
-// urgent. A process that depends on remembering, at the end, after the
+// records behind (049–066) before anyone counted; it was priority 1 in the S089
+// and S090 prompts and named again in between, deferred each time for something
+// correctly more urgent. A process that depends on remembering, at the end, after the
 // interesting part, is not a process. ADR-025 D8 reached the opposite conclusion
 // for golden declarations — *discipline, not a CI gate* — and that was right for
 // a judgement a machine cannot make. This is a set comparison.
@@ -56,10 +56,22 @@ class IndexRow {
 /// Pipes that actually separate cells: a `\|` is an escaped literal, not a
 /// separator. Getting this wrong in either direction is how a lint reports a
 /// well-formed row as broken, or misses the one row that is.
+///
+/// ⚠️ **Count the backslash RUN, not the one character before the pipe.** A
+/// single-character lookback — which is what the first version did — reads
+/// `\\|` as an escaped pipe. It is not: `\\` is an escaped BACKSLASH, which
+/// leaves the pipe as a real separator, so GFM renders four cells while the lint
+/// reports three and passes. An EVEN run (including zero) means the pipe is a
+/// separator; an odd run means it is escaped. Found by the built-diff review.
 int unescapedPipes(String s) {
   var count = 0;
   for (var i = 0; i < s.length; i++) {
-    if (s[i] == '|' && (i == 0 || s[i - 1] != r'\')) count++;
+    if (s[i] != '|') continue;
+    var backslashes = 0;
+    for (var j = i - 1; j >= 0 && s[j] == r'\'; j--) {
+      backslashes++;
+    }
+    if (backslashes.isEven) count++;
   }
   return count;
 }

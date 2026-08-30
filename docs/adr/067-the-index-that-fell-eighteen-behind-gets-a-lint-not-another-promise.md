@@ -274,3 +274,41 @@ so nothing here verifies the lint compiles or that its self-tests pass — the
 built-diff pass and the diff's own runs settle that. And no lens can check
 whether the eighteen rows are *good*, which is Decision 2's stated division:
 the lint guards presence, the review guards meaning.
+
+## What the BUILT-DIFF pass changed, and the row I got wrong myself
+
+4 lenses × 2 verifiers + a completeness critic + **19 agents each checking one
+drafted row against its own ADR**: **28 agents, 0 errored, 0 empty results, 0
+skipped**; 2 lenses considered-empty, **0 failed-empty**; 2 lens findings, both
+real to both verifiers, 0 refuted; 0 critic findings. And **5 of 19 rows came
+back not-accurate**, which is the number that matters, because Decision 2 says in
+as many words that the lint cannot check this and a review must.
+
+| from | finding | what changed |
+|---|---|---|
+| lens *lint-correctness* | `unescapedPipes` used a **single-character lookback**, so `\\|` — an escaped BACKSLASH followed by a real separator — read as an escaped pipe. The lint reported three cells where GFM renders four: green over a broken row | counts the backslash **run** now; even (including zero) means separator. Mutation-checked: reverting reddens the new named check |
+| lens *lint-tests* (major) | the **duplicate-files** branch had no test at all — a mutant deleting it passed all 22 checks | a fixture with `001-a.md` and `001-b.md`; the mutant now reddens two named checks |
+| row **049** | cited *"lesson 79"*, which **appears nowhere in ADR-049** (`grep -c 79` → 0) | replaced with what the ADR actually says: the 37-hour **#219** shape and the runtime link **ADR-042 D5** left unverified |
+| row **050** | credited the *lint* with admitting its own limit; the ADR makes that statement, and deliberately places it in the ADR | reworded to say where the admission lives |
+| row **066** | said the note survived *"in two places"*; ADR-066 says **one** of two copies survived | corrected |
+| row **067** — **mine** | *"priority 1 in three consecutive session prompts"*; ADR-067's own Finding 2 says priority 1 in **two** prompts and *"next, not now"* in between | corrected in the row **and** in the lint's header comment, where I had written the same inflation |
+
+⚠️ **Row 067 is the one worth keeping in the record.** I wrote it myself,
+immediately after writing a Review-status box that criticises revision 1 for
+overstating in its own favour — and then overstated in its own favour, in three
+places (the row, the lint's header comment, and the commit message). Nothing
+about knowing the failure mode prevented it. The only thing that caught it was an
+agent reading the ADR and the row side by side.
+
+**One row finding was REJECTED, and the reason is recorded rather than the
+finding silently dropped** (lesson **135**): row **058** was called `overstated`
+for describing `docs/legal/proposed/` and `legal_proposal_test.dart` in the
+present tense, on the ground that ADR-058 calls them *"a SPECIFICATION of what
+will be built"*. That was true when ADR-058 was written; both now exist
+(`ls docs/legal/proposed/*.md` → 4 files; the test file is present, and S089 ran
+it). The index describes the repo as it is, and the row's Status cell already
+carries the not-landed fact the scanning reader needs.
+
+**What this pass could not check.** Whether the other fourteen rows are *good* —
+dense enough, pointed at the right thing — as opposed to merely true. That is
+Decision 2's stated division and it stays a human judgement.
