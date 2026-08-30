@@ -1,12 +1,32 @@
 # ADR-067: the index that fell eighteen behind gets a lint, not another promise
 
-- **Status:** Accepted — revision 1 (2026-08-30, Session 091), written and committed **before** the code
+- **Status:** Accepted — **revision 2** (2026-08-30, Session 091), after the design pass; still **before** the code
 - **Date:** 2026-08-30 (Session 091)
 - **Deciders:** session agent (a docs-consistency lint in the established `tool/*_lint.dart` family; no credential, no deploy, no runtime code)
-- **Related:** **ADR-020 D6** (the store-metadata lint this one copies in shape and exit taxonomy), **ADR-025 D8** (a *declaration* is discipline, **not** a CI gate — the decision this one deliberately departs from, and why), **ADR-023** (`docs/legal/` ↔ `app/assets/legal/` byte-sync under a drift test — the precedent for a document-versus-filesystem check), **ADR-029** (numbers are claimed by the earliest-created record, so a renumbering can leave a gap), issue **#248**
+- **Related:** **ADR-020 D6** (the store-metadata lint this one copies in shape and exit taxonomy), **ADR-025 D8** (a *declaration* is discipline, **not** a CI gate — the decision this one deliberately departs from, and why), **ADR-023** (`docs/legal/` ↔ `app/assets/legal/` byte-sync under a drift test — the precedent for a document-versus-filesystem check), **ADR-029** (numbers are claimed by the earliest-created record; its own renumbering **preserved** contiguity — see Finding 4, which revision 1 got backwards), issue **#248**
 
-> **Review status.** Written before the code (`session-context.md` §5 item 1,
-> lesson **115**). The design pass has not run yet.
+> **Review status.** Revision 1 was written and committed **before** the code
+> (`session-context.md` §5 item 1, lesson **115**). **The design pass has now
+> run** — 4 lenses × 2 independent verifiers + a completeness critic, **27 agents
+> (including the 18 that drafted the index rows), 0 errored, 0 empty results, 0
+> skipped**; **3 lenses considered-empty, 0 failed-empty**; 2 lens findings + 1
+> critic finding, **all 3 surfaced, 0 refuted by both, 0 dropped unverified**.
+>
+> ⚠️ **The critic found revision 1 asserting something false in the direction
+> that flattered its own argument**, which is the failure this repo cares about
+> most. Finding 3 said *"none of those five is in the index"* — of the seven
+> unique ADRs the last two sessions leaned on, **three (012, 033, 041) ARE
+> indexed** and four are not. Re-measured before accepting it: `for n in 012 033
+> 041 053 059 063 064; do grep -qE "^\| \[$n\]" docs/adr/README.md; done` →
+> in, in, in, missing, missing, missing, missing. The argument survives on the
+> four; the sentence did not.
+>
+> ⚠️ **And the governance lens found Finding 4's justification was false
+> history.** Revision 1 said ADR-029's renumbering *"abandons a number"*. It did
+> not: `ls docs/adr/028-*.md docs/adr/029-*.md` shows **both exist** — the
+> collision partner merged as 028 and the renumbered record took 029, so
+> contiguity was preserved. The design choice stands; the reason it was given did
+> not.
 
 ## Context — measured 2026-08-30
 
@@ -18,6 +38,11 @@ index rows: 48    rows pointing at a missing file: none
 files with NO row: ['049','050','051','052','053','054','055','056','057',
                     '058','059','060','061','062','063','064','065','066']
 ```
+
+*(Taken **before this record existed**. Once it lands the counts are 67 files and
+19 unindexed — this ADR is the nineteenth, and it indexes itself along with the
+other eighteen. Said out loud because a number in a document is a claim about a
+moment, and this one's moment is stated: lesson **133**.)*
 
 **Eighteen.** Not the "nine" in #248's title, not the "sixteen" of the S089
 prompt, not the "seventeen" of the S090 one — each of those was true when
@@ -50,23 +75,57 @@ is not a process.** ADR-025 D8 decided the opposite for golden declarations —
 *discipline, not a CI gate* — and that was right for a judgement call a machine
 cannot make. This is not a judgement call. It is a set comparison.
 
-### Finding 3 — the index is load-bearing, and the last two sessions prove it
+### Finding 3 — the index is load-bearing, and the last two sessions half-prove it
 
-S089 leaned on ADR-012 D3, ADR-033, ADR-053, ADR-059 and ADR-063 D8. S090 leaned
-on ADR-041, ADR-063 D2/D4 and ADR-064 D2b. **None of those five is in the
-index.** Both sessions found them by knowing they existed. A session that does
-not know re-derives the decision, and re-deriving a decision is how a repo ends
-up with two of them — which is the failure ADR-029's renumbering note already
-records happening once, for numbers rather than content.
+S089 leaned on **ADR-012 D3, ADR-033, ADR-053, ADR-059** and **ADR-063 D8**;
+S090 on **ADR-041**, **ADR-063 D2/D4** and **ADR-064 D2b** — seven unique
+records. **Four of the seven are not in the index**, measured:
 
-### Finding 4 — numbers may legitimately have gaps, so contiguity is NOT the check
+```
+$ for n in 012 033 041 053 059 063 064; do
+    printf "%s " $n; grep -qE "^\| \[$n\]" docs/adr/README.md && echo IN || echo MISSING; done
+012 IN   033 IN   041 IN   053 MISSING   059 MISSING   063 MISSING   064 MISSING
+```
 
-There are no gaps today, and a lint that asserted contiguity would pass. It would
-also be **wrong**: ADR-029 records numbers being claimed by the earliest-created
-record, with a renumbering when two sessions draft the same one — and a
-renumbering abandons a number. Asserting `max == count` would turn a correct
-renumbering into a red build and teach the next session to renumber *around* the
-lint. The check is a **bijection between the files that exist and the rows that
+⚠️ **Revision 1 said "none of those five is in the index", and that was false
+twice over** — the count and the claim. The completeness critic caught it. It is
+recorded here rather than quietly corrected because of *which direction* it was
+wrong in: it overstated the evidence for the thing this ADR wanted to do. A
+sentence that flatters its own argument is the one to re-measure first
+(lesson **123**).
+
+**The corrected version is still the argument.** Four decisions that two
+consecutive sessions actually relied on are absent from the document whose job is
+to say those decisions exist — and both sessions found them only by already
+knowing. A session that does not know re-derives the decision, and re-deriving a
+decision is how a repo ends up with two of them.
+
+### Finding 4 — contiguity is not the check, and revision 1 gave a false reason for that
+
+There are no gaps today (001–067, measured), and a lint asserting contiguity
+would pass right now.
+
+⚠️ **Revision 1 justified skipping it by claiming ADR-029's renumbering
+"abandons a number". It does not.** `ls docs/adr/028-*.md docs/adr/029-*.md`
+shows **both records exist**: the concurrent session's PR #95 merged as 028 and
+the renumbered record became 029, so the collision *preserved* contiguity. The
+governance lens caught it, and it matters because the sentence was offered as
+recorded history rather than as a hypothesis.
+
+**The decision is unchanged and here is the reason that survives measurement.**
+Two of them:
+
+1. **Contiguity is not a property the index needs.** The index answers *"has
+   anyone decided this?"* A hole in the numbering harms nobody; an unindexed file
+   harms every session looking for precedent. A guard should assert the property
+   it exists for, not a neighbouring one that happens to be true — otherwise the
+   first legitimate exception makes the guard the thing that is wrong.
+2. **A gap is still reachable, just not by the path revision 1 named.** ADR-029's
+   own rule — *the earlier-created number wins, renumber yours* — leaves a hole
+   whenever the collision partner is **abandoned rather than merged**. That has
+   not happened. It is a hypothesis, and it is now labelled as one.
+
+So the check is a **bijection between the files that exist and the rows that
 exist**, and nothing about the sequence.
 
 ## Decision 1 — a lint, in the family that already exists, not a new mechanism
@@ -82,7 +141,14 @@ then *the lint*). It copies `store_metadata_lint.dart` deliberately:
   because "I could not check" must never read as green (ADR-041's rule, one
   instrument over);
 * **its own self-tests**, because a lint with no test is a lint that can silently
-  stop finding things — and this one's whole job is to notice an absence.
+  stop finding things — and this one's whole job is to notice an absence;
+* **an entry in `docs/test-suite.md` §2**, naming the file, the bijection it
+  asserts and what its self-tests cover. Every other lint in this family has one,
+  and ADR-029's own review established the rule: *a guard recorded only in its
+  own ADR is a guard the next session will not know to keep.* The design review
+  raised this and one verifier refuted it as unmandated; the adjudicator was
+  right that a consistent, load-bearing convention is not "unmandated" merely
+  because no document spells it out (lesson **137**).
 
 ## Decision 2 — what it asserts, and what it deliberately does not
 
@@ -164,3 +230,36 @@ actionable, and fixable in the same push by the person who caused it.
 | **Lint the summary text (min length, must mention the decision)** | Satisfiable with padding, and padding is worse than absence because it looks like coverage. The lint guards presence; the review guards meaning. |
 | **Path-filter it to `docs/adr/**`** | Buys nothing — the ADR and its code ship together — and adds a way for the guard to be silently absent. Decision 4. |
 | **Fix the eighteen and skip the guard** | Exactly what three previous sessions would have done, and the reason this ADR is numbered 067 instead of 049. |
+
+## What the design pass changed
+
+4 lenses × 2 verifiers + a completeness critic, run alongside the 18 agents that
+drafted the index rows: **27 agents, 0 errored, 0 empty results, 0 skipped**;
+**3 lenses considered-empty, 0 failed-empty**; 2 lens findings + 1 critic
+finding, **all 3 surfaced, 0 refuted by both, 0 dropped unverified**.
+
+| from | finding | what changed |
+|---|---|---|
+| **critic** (blocking) | Finding 3's *"none of those five is in the index"* — three of the seven are indexed, and there were seven not five | Finding 3 rewritten around the measured four, with the overstatement recorded rather than tidied away |
+| lens *governance* (major) | Finding 4 cited ADR-029's renumbering as *"abandons a number"*; **028 and 029 both exist**, so it preserved contiguity | Finding 4 keeps the decision and replaces the reason with two that survive measurement — and labels the gap-is-reachable half as a hypothesis |
+| lens *governance* (minor) | no `test-suite.md` entry specified, while every other lint in the family has one | added to D1 |
+
+⚠️ **The minor finding was refuted by one verifier and upheld by the other**, and
+the aggregation surfaced it because either is enough. The refuter's ground was
+that no rule mandates a `test-suite.md` entry. That is lesson **137**'s exact
+shape: a convention every sibling follows is not optional merely because it is
+unwritten.
+
+⚠️ **One number this pass reported about ITSELF was wrong, and it was mine.** The
+harness reported *"1 lens failed-empty"*. No lens failed: the adversarial lens
+wrote *"CONSIDERED-empty"* and its prose contained the word **blocked** —
+describing a workflow this design blocks on purpose — and the classifier
+substring-matched it. A status word that also occurs in ordinary prose is not a
+status marker. Recorded as lesson **142**; the true distribution is 3
+considered-empty, 0 failed-empty.
+
+**What this pass could not check.** No lens ran `dart` (forbidden to sub-agents),
+so nothing here verifies the lint compiles or that its self-tests pass — the
+built-diff pass and the diff's own runs settle that. And no lens can check
+whether the eighteen rows are *good*, which is Decision 2's stated division:
+the lint guards presence, the review guards meaning.
