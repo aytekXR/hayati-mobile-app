@@ -296,31 +296,140 @@ def test_a_gap_does_not_suppress_a_real_finding() -> None:
           "the gap must still be reported next to the finding")
 
 
+ACCOUNT = "billingAccounts/012195-7EF76F-3A9083"
+
+
 def test_linked_is_not_open() -> None:
     """The exact pair that made the shipped tool report health during an outage.
 
     `billingInfo.billingEnabled` was true for the whole 2026-08-22 outage. The
     account behind it was closed and Cloud Run refused every invocation.
     """
-    findings = billing_findings(billing_enabled=True, account_open=True)
+    findings = billing_findings(
+        billing_enabled=True, account_name=ACCOUNT, account_open=True)
     check("linked-open/healthy", findings == [],
           f"linked AND open is healthy; got {findings}")
 
-    closed = billing_findings(billing_enabled=True, account_open=False)
+    closed = billing_findings(
+        billing_enabled=True, account_name=ACCOUNT, account_open=False)
     check("linked-closed/is-a-finding", len(closed) == 1,
           "linked-but-closed must be a finding of its own")
     check("linked-closed/names-both",
           any("CLOSED" in f for f in closed),
           f"the finding must say the account is closed; got {closed}")
 
-    unlinked = billing_findings(billing_enabled=False, account_open=None)
+    unlinked = billing_findings(
+        billing_enabled=False, account_name=None, account_open=None)
     check("unlinked/is-a-finding", len(unlinked) == 1,
           "an unlinked project is still a finding")
 
     # Unreadable account document: NOT an assumption in either direction.
-    unknown = billing_findings(billing_enabled=True, account_open=None)
+    unknown = billing_findings(
+        billing_enabled=True, account_name=ACCOUNT, account_open=None)
     check("linked-unknown/no-finding", unknown == [],
           "an unreadable account must be a gap for the caller, never a finding here")
+
+
+def test_billing_off_is_not_the_same_as_unlinked() -> None:
+    """ADR-066, issue #267 — the state production has actually been in.
+
+    The shipped code returned early on `not billing_enabled` with *"no billing
+    account is linked"* and never consulted `account_open`, which `main()` had
+    already measured in the same run. Measured 2026-08-30 on BOTH projects:
+
+        billingEnabled=False  billingAccountName=billingAccounts/012195-...  open=False
+
+    so the report printed "no billing account is linked" directly beneath a line
+    naming the linked account. That sentence is the instruction the founder acts
+    on (`operator-expected.md` item 1) and the text the watcher would post
+    (ADR-064 D2b), and it sent them looking for a link that was already there.
+
+    ⚠️ **Every case here asserts the DISTINGUISHING words, not the count.** All
+    four states produce exactly one finding, so a test that counted findings
+    would have passed on the shipped code — which is precisely how this shipped.
+    """
+    UNLINKED = "no billing account is linked"
+
+    # 1. Not linked at all. The ONLY state where the old sentence is correct.
+    not_linked = billing_findings(
+        billing_enabled=False, account_name=None, account_open=None)
+    check("billing-off/unlinked/is-a-finding", len(not_linked) == 1,
+          f"an unlinked project is a finding; got {not_linked}")
+    check("billing-off/unlinked/says-unlinked",
+          any(UNLINKED in f for f in not_linked),
+          f"this is the one state that sentence fits; got {not_linked}")
+
+    # 2. Linked to a CLOSED account, billing off at the project. TODAY'S STATE.
+    closed = billing_findings(
+        billing_enabled=False, account_name=ACCOUNT, account_open=False)
+    check("billing-off/closed/is-a-finding", len(closed) == 1,
+          f"billing off with a closed account is a finding; got {closed}")
+    check("billing-off/closed/does-NOT-say-unlinked",
+          not any(UNLINKED in f for f in closed),
+          f"the account IS linked — this is the defect #267 is; got {closed}")
+    check("billing-off/closed/says-closed", any("CLOSED" in f for f in closed),
+          f"it must name the actual cause; got {closed}")
+    check("billing-off/closed/names-the-account", any(ACCOUNT in f for f in closed),
+          f"the founder must not need a second lookup; got {closed}")
+
+    # 3. Linked, billing off, and the account document could not be read.
+    #    A gap is a NAMED gap, never an assumption in either direction (ADR-063).
+    unknown = billing_findings(
+        billing_enabled=False, account_name=ACCOUNT, account_open=None)
+    check("billing-off/unknown/is-a-finding", len(unknown) == 1,
+          f"billing being off is a finding whatever the account says; got {unknown}")
+    check("billing-off/unknown/does-NOT-say-unlinked",
+          not any(UNLINKED in f for f in unknown),
+          f"an account is named, so it is linked; got {unknown}")
+    check("billing-off/unknown/does-NOT-claim-closed",
+          not any("CLOSED" in f for f in unknown),
+          f"unread is not closed — that would invent a cause; got {unknown}")
+
+    # 4. Linked, account OPEN, billing off at the PROJECT. Defensive: this is
+    #    what a reopened account may look like before it propagates. NOT
+    #    measured — reaching it means reopening a closed account (operator item
+    #    1), which no session can do (ADR-066 D1).
+    at_project = billing_findings(
+        billing_enabled=False, account_name=ACCOUNT, account_open=True)
+    check("billing-off/at-project/is-a-finding", len(at_project) == 1,
+          f"the project cannot serve, whatever the account says; got {at_project}")
+    check("billing-off/at-project/does-NOT-say-unlinked",
+          not any(UNLINKED in f for f in at_project),
+          f"the link exists — the name came from it; got {at_project}")
+    check("billing-off/at-project/does-NOT-say-relink",
+          not any("re-link" in f or "relink" in f for f in at_project),
+          "telling them to re-link a linked project sends them to look for "
+          f"something that is there (ADR-066 D1, revision 2); got {at_project}")
+
+    # A FLOOR on the table (lesson 110): four states, four distinct sentences.
+    # A refactor that collapsed two of them would otherwise pass every check
+    # above except the one it broke.
+    sentences = {
+        not_linked[0], closed[0], unknown[0], at_project[0],
+    }
+    check("billing-off/four-distinct-sentences", len(sentences) == 4,
+          f"the four states must not collapse into fewer; got {len(sentences)}")
+
+
+def test_the_notifier_carries_the_right_billing_sentence() -> None:
+    """ADR-066 D4. What the watcher would POST, not only what the report prints.
+
+    `--notifier-findings` puts findings into EXTRA_FINDINGS (ADR-064 D2b), so
+    this text is the armed lane's entire output — and the armed path has never
+    run. Its first real output must not be the sentence #267 exists to remove.
+    """
+    text = findings_for_notifier(
+        EXIT_FINDING,
+        ["FINDING: " + f for f in billing_findings(
+            billing_enabled=False, account_name=ACCOUNT, account_open=False)],
+    )
+    check("notifier/billing/prefix", text.startswith("production:"),
+          f"exit 1 is prefixed 'production:'; got {text[:40]!r}")
+    check("notifier/billing/does-NOT-say-unlinked",
+          "no billing account is linked" not in text,
+          f"the account is linked; this is what Slack would have posted: {text!r}")
+    check("notifier/billing/says-closed", "CLOSED" in text,
+          f"the posted text must carry the cause; got {text!r}")
 
 
 def test_main_reports_a_finding_when_one_probe_fails() -> None:
