@@ -38,6 +38,39 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**155 — Two instruments over one subject must not be able to return opposite verdicts.** *(S097, ADR-072)*
+`store_metadata_audit.py` exits **1** on the App Store listing: seven `en-US`
+fields empty, `tr` absent. `store_metadata_publish.py --dry-run` exited **0** on
+the same listing state seventy-one minutes later, with its own echo glossing 0 as
+**`published`** — from a run that sent nothing. Both were right by their own
+rules: the auditor asked *"does the store match the repo"*, the publisher asked
+*"did anything I attempted fail"*, and it attempted nothing.
+**Neither rule was wrong; having two of them was.** A reader does not hold two
+questions in mind — they hold one subject, and the tool that answers "fine" is the
+one they believe. Recurring shape **1** with a twist: not a green that measured
+nothing, but a green that measured *a different question* and printed it in the
+same place. **When a second tool starts reporting on a subject the first already
+reports on, make them answer the same question or make the difference impossible
+to miss** — and check what the exit code's own gloss claims, because that is the
+half a human reads.
+
+**154 — Running the thing IS the deliverable. A defect found on the way to it does not replace it.** *(S097, and the review caught it, not me)*
+S097 had one objective: **dispatch the publish lane's dry run and put its plan in
+front of the founder**, so an open decision (may this copy be published) could be
+answered. The dry run ran, worked, and printed the plan — and the session then
+noticed something interesting about its exit code and spent itself writing an ADR
+about that, leaving `operator-expected.md` untouched. **Both blocking findings of
+the design review were about scope, not reasoning**, and they were right: the
+interesting technical problem displaced the assigned one, and the founder would
+have been left with the same question and a longer changelog.
+`session-rules.md` §2 already says where a defect found mid-session goes —
+`gh issue create`, not into the diff — and this is that rule failing at the
+moment it was least convenient. **The tell is specific and checkable: if your
+diff does not touch the file your acceptance criteria name, you have changed
+objective.** ⚠️ And note what did NOT catch it: the technical lenses, which found
+three real defects in the ADR's own reasoning and had no opinion about whether
+the ADR should exist. **Point one lens at the objective itself.**
+
 **153 — The command printed beside a number has to be the command that produces it.** *(S096, ADR-071 D7)*
 ADR-071 wrote *"`grep -l 'could not measure' tool/ci/*.py` lists **eight** tools"*.
 The command returns **seven**: `appid_capabilities.py` shouts `COULD NOT MEASURE`
