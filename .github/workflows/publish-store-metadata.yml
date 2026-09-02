@@ -71,6 +71,16 @@ jobs:
       - name: install deps
         run: pip install 'pyjwt[crypto]==2.10.1'
       - name: publish
+        # ⚠️ NO VOTE (ADR-072 D3.1, the ADR-047 D4 shape one lane over). Since
+        # ADR-072 a dry run over a listing that does not yet carry the committed
+        # copy exits 1 — a FINDING — and today that is every dry run, until
+        # someone publishes, which is a founder decision that may never come.
+        # Without this the lane would be red on every single run, which is the
+        # cries-wolf failure with its sign flipped: nine green releases said
+        # nothing, and a permanently-red lane says nothing just as reliably and
+        # faster, because a human learns to skip it. The verdict travels in the
+        # report and the gloss; the run's colour stops pretending to carry it.
+        continue-on-error: true
         # The input reaches the script as ENV, never interpolated into the shell
         # body: `${{ }}` expansion happens before bash sees the line, so a value
         # containing shell metacharacters would otherwise execute.
@@ -92,6 +102,10 @@ jobs:
           fi
           code=$?
           set -e
+          # ⚠️ NOT "published" (ADR-072 D3). This line used to gloss 0 as
+          # `published`, which was false about a dry run on every branch of it —
+          # and a dry run is what this lane is for. The exit code is read by
+          # machines; this sentence is read by the founder.
           echo "store_metadata_publish exit=$code" \
-               "(0 published · 1 finding · 2 could not measure · 64 refused)"
+               "(0 nothing to do · 1 finding · 2 could not measure · 64 refused)"
           exit "$code"

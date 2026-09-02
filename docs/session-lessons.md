@@ -38,6 +38,35 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**157 — A count written mid-change is stale by the end of the change.** *(S095–S098, seven times)*
+Across four sessions, **seven** counts went out wrong, and it was the same
+mechanism every time — not carelessness about arithmetic, but **writing the
+number down while the work was still moving**. `82 → 96 checks` was true for
+about twenty minutes; two more tests landed and nobody re-ran it. Others: *"the
+fourth tool"* (nine), *"eight tools"* beside a `grep` that returns seven,
+*"11 python self-tests"* (twelve), *"48 → 84"* (41 → 91), *"8 new tests"* (ten),
+and a `24` that came from a run which **exited 1 partway** (lesson **149**).
+Lesson **133** says carry the command; lesson **153** says the command must be
+the one you ran. **This is the third leg: run it LAST.** A count belongs in the
+commit message you write *after* the diff is final, not in the draft you started
+with — and if a number appears in prose you are still editing, treat it as a
+`TODO` until the tree is frozen.
+
+**156 — `continue-on-error` makes EVERY exit green, including the ones that never got as far as reporting.** *(S098, ADR-072 3.2)*
+ADR-072 stopped a lane voting so a permanently-red dry run could not become
+wallpaper — correct, and the ADR-047 D4 shape. But the tool's `REFUSED` and
+`COULD NOT MEASURE` paths `return` **before** the summary is written, so either
+one now produced **a green job with an empty summary** — which reads as *nothing
+happened*, in the ADR whose entire subject is a false green. **The fix for one
+false signal introduced two more, in the same file, the same day.**
+The general form: **when you remove a signal's ability to vote, its report
+becomes the only channel — so every path must reach the report, including the
+early returns you added for the failures.** Enumerate the exits and ask, of each
+one, *what does a person see?* ⚠️ And the same change silently widened past its
+own ADR: *"the write path is untouched"* was true of the exit-code rule and false
+of the lane, because `continue-on-error` masks a failed write too. **A workflow
+edit has no idea which of your decisions it belongs to.**
+
 **155 — Two instruments over one subject must not be able to return opposite verdicts.** *(S097, ADR-072)*
 `store_metadata_audit.py` exits **1** on the App Store listing: seven `en-US`
 fields empty, `tr` absent. `store_metadata_publish.py --dry-run` exited **0** on

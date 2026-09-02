@@ -4952,3 +4952,68 @@ The objective's instrument was a **real GitHub Actions run against the real App 
 **Operator dependency:** unchanged, and now answerable. **6(b)** has its evidence attached for the first time.
 
 **Next objective written to resume-prompt.md:** Session 098 — **#281**: make the publish lane report what would change and stop voting, so it and the auditor stop disagreeing about the same listing.
+
+## Session 098 — 2026-09-03 — #281: the dry run reports what would CHANGE, and the lane stops voting (ADR-072)
+
+**Objective (from resume-prompt.md):** #281 — the publish lane's dry run exits `0` and calls it *"published"* having published nothing, while the auditor exits `1` on the same listing. Make them agree, and stop the lane voting.
+
+**Outcome:** done, and **verified against Apple** rather than only against fixtures.
+
+### Reproduced first
+
+Minutes apart, on one listing state: `store_metadata_audit` **exit 1** (run 33685506236) and `store_metadata_publish --dry-run` **exit 0** (run 33685509829), glossed *"published"*, from a run that sent nothing.
+
+### What shipped
+
+* Every `Action` carries **`changing`** — the fields whose value differs from what Apple holds, compared with the **auditor's** `normalize` and nothing else, because a second dialect of *"differs"* is how two tools start disagreeing.
+* ⚠️ **`changing` never decides what is sent.** The write still sends every field: *make it so* must not depend on the comparison being right.
+* **`published=None` reports everything as changing** — not knowing is not the same as nothing to do.
+* **`main` now calls `audit.published_locales()`.** ADR-072 revision 1 claimed the data was already there; it was not — the existing reads keep only `{locale: id}`, because ids are all a *writer* needs.
+* **One rule, two callers:** exit 1 when the listing differs from what we committed. A dry run measures it **before** the attempt; a write measures it **after**, via the untouched read-back.
+* The gloss stops saying *"published"*, and the step gets **`continue-on-error: true`** — the lane has **no vote** (ADR-047 D4's shape).
+
+### Verified against Apple
+
+Run **33686025994**, dispatched from the branch, `confirm` blank:
+
+```
+  en-US: PATCH appInfoLocalizations — 3 field(s), 2 would change: name, privacyPolicyUrl, subtitle
+  ...
+15 field(s) would change — the listing does not yet carry what this ref committed.
+store_metadata_publish exit=1 (0 nothing to do · 1 finding · 2 could not measure · 64 refused)
+```
+
+**exit 1, and the run is green.** The two lanes agree and the colour carries nothing. ⚠️ And `en-US`'s app-info row reads **2 of 3 would change** — the third is `name`, the one field the store already carries, exactly what **ADR-070 D6** inferred from the auditor's *silence* about it. **Two instruments, independently, on live data.**
+
+### ⚠️ The built-diff review found this ADR's own shape, a third time
+
+**`continue-on-error` makes every exit a green job** — and `REFUSED` (64) and `COULD NOT MEASURE` (2) both returned **before** the summary was written, so either produced **a green job with an empty summary**. The fix for one false signal introduced two more, in the ADR whose entire subject is a false green (**lesson 156**). Every exit now writes a summary.
+
+The critic also caught that D2's *"the write path is untouched"* is about the **exit-code rule**, not the lane: `continue-on-error` masks a failed **write** too. Accepted and stated in the ADR — the lane has no vote in either mode, and what makes that safe is the summary fix.
+
+### Verification
+
+| ran **here** | **11 new tests (14 → 25 functions, all registered; 62 → 96 checks)**; all 13 python self-tests CI runs; every Dart lint and self-test; `dart format` |
+|---|---|
+| ran **against Apple** | run 33686025994 — the run quoted above |
+
+**Mutation-checked: 21 mutants, 20 killed by a NAMED assertion.** ⚠️ Both new mutants found weaknesses before they found bugs: `refused-writes-no-summary` died **by an exception** until the test read the summary defensively (lesson 76), and `could-not-measure-writes-no-summary` **survived** because the tests covered only the metadata-tree branch and not the Apple-refused-the-read branch — **one `emit` per branch is one test per branch** (recurring shape 5). ⚠️ And earlier, a `str.replace` inserting five mutants **matched nothing and wrote the file unchanged**, so the harness silently re-ran the old set and printed the same green — lesson **109**, inside the tool built to catch that.
+
+### Review, twice
+
+| | pass 1 — the design (S097) | pass 2 — the built diff |
+|---|---|---|
+| agents | **14** | **10** |
+| `agents_error` | **0** | **0** |
+| `agents_empty_result` | **0** | **3**, all **CONSIDERED**-empty |
+| findings | 8 → applied or answered | **2 surviving, 0 refuted** + 1 critic |
+
+Pass 2's three considered-empty lenses were change-awareness correctness, the exit/`main` wiring, and test-quality/scope.
+
+### Notes / debt logged
+
+* ⚠️ **Counts, the seventh time across these four sessions** — and the same cause every time: written mid-change, never re-measured. **Lesson 157**: run it *last*.
+
+**Operator dependency:** unchanged. **6(b)** still carries the plan and is still unanswered; nothing was published and `confirm` was never passed.
+
+**Next objective written to resume-prompt.md:** see §4 — the queue below #281 is now entirely operator-blocked, and S099 opens by re-deriving that rather than inheriting it.

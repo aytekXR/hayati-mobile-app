@@ -177,6 +177,45 @@ ever entitled to the first.
   record of what the tool's first real execution found — which was the session's
   actual job (ADR-071 said the first run would be the first test; it was).
 
+## Implementation record (added when #281 was built)
+
+`tool/ci/store_metadata_publish.py` + **11 new self-tests (14 → 25, all
+registered; 62 → 96 checks)**. **Mutation-checked: 21 mutants, 20 killed by a
+NAMED assertion**; the one survivor is recorded, not fixed — locale iteration
+order is presentational.
+
+**Verified against Apple**, which is the point of the exercise: run
+`33686025994`, dispatched from the branch, `confirm` blank —
+
+```
+  en-US: PATCH appInfoLocalizations — 3 field(s), 2 would change: name, privacyPolicyUrl, subtitle
+  ...
+15 field(s) would change — the listing does not yet carry what this ref committed.
+store_metadata_publish exit=1 (0 nothing to do · 1 finding · 2 could not measure · 64 refused)
+```
+
+**exit 1, and the run is green** — the publisher and the auditor now agree about
+the listing, and the lane no longer votes. ⚠️ And `en-US`'s app-info row reads
+**2 of 3 would change**: the third is `name`, the one field the store already
+carries, which is exactly what ADR-070 D6 inferred from the auditor's silence
+about it. **Two instruments, independently, on live data.**
+
+### 3.2 — What the build found, and it was this ADR's own shape again
+
+**Making the step `continue-on-error` means EVERY exit is a green job** — and
+`REFUSED` (64) and `COULD NOT MEASURE` (2) both returned *before* the summary was
+written. A green job with an empty summary is *"nothing happened"* to anyone
+glancing at it: **the fix for one false signal introduced two more.** Every exit
+now writes a summary, pinned by tests and two mutants.
+
+⚠️ **And D2's *"the write path is untouched"* is about the exit-code rule, not
+about the lane.** `continue-on-error` masks a **failed write** too, which the
+review's completeness critic was right to name. That is accepted and is now said
+out loud: **this lane has no vote in either mode** — ADR-047 D4's rule is that a
+store-copy finding must never redden a build, and it does not become a different
+rule because the tool wrote something. What makes it safe is 3.2's other half:
+the verdict is in the summary on **every** path, so nothing depends on the colour.
+
 ## Review record
 
 **14 agents, 4 probes × 2 verifiers + a completeness critic.** `agents_error`
