@@ -38,6 +38,47 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**153 — The command printed beside a number has to be the command that produces it.** *(S096, ADR-071 D7)*
+ADR-071 wrote *"`grep -l 'could not measure' tool/ci/*.py` lists **eight** tools"*.
+The command returns **seven**: `appid_capabilities.py` shouts `COULD NOT MEASURE`
+in capitals, and the grep was case-sensitive. The count was right and the evidence
+beside it was not — which is worse than an unsourced number, because a reader who
+checks is now told the author cannot count, and a reader who does not check
+inherits a command that will disagree with the prose the first time anyone runs
+it. **This is lesson 133 one notch finer:** carrying the command is not enough if
+the command is not the one you ran. ⚠️ And it was written *while correcting the
+same mistake* — revision 1 had said *"the fourth"*. Read your own evidence line as
+if someone else wrote it, especially in the sentence where you are fixing a count.
+
+**152 — A design can have the shape of safety and the effect of futility, and only "where does that actually live?" tells them apart.** *(S096, ADR-071 D1.1)*
+ADR-071 revision 1 refused its own tool a workflow, reasoning that *a dispatchable
+button whose permission has not been given is a button someone presses*. Every
+word of that is defensible. **The App Store Connect credential exists nowhere but
+GitHub secrets** — no `~/.appstoreconnect`, no `.p8` on disk, `ASC_KEY_ID` unset —
+so the tool it designed had **no execution path at all**. Not a cautious tool; an
+inert one. And it inverted the deliverable: the founder's open question was *may
+this copy be published*, which is answered by a **dry run**, which is the thing the
+workflow was there to carry.
+Caught by a review agent running `ls ~/.appstoreconnect`. **Before deciding not to
+build the door, find out where the key is kept** — a safety argument that never
+checks the mechanism it is protecting is indistinguishable from an excuse, and it
+reads better than one.
+
+**151 — An isolation guarantee is only as wide as the `except` clause under it.** *(S096, ADR-071, the built-diff review)*
+The whole of **#278** is *"one locale Apple refuses must not stop the others"*.
+`execute` caught `AscError`. `tf._call` converts an `HTTPError` into `AscError`
+and lets **`URLError`, `socket.timeout` and a malformed JSON body propagate raw**
+— so a DNS blip while writing one locale would have escaped the loop and aborted
+every remaining locale: **the defect the tool was written to fix, one exception
+type over, inside the tool.**
+It survived a 39-agent design pass, the implementation, thirteen mutants and a
+green CI. Nothing was careless; the tests simply all exercised *the failure the
+author had in mind* — a refusal — and a mutation set derived from the same
+tests inherits the same blind spot. **When you write a guard around "errors",
+enumerate what the layer below you actually raises**, and read the transport's
+own `except` clauses rather than its docstring: `_call`'s said it raised
+`AscError`, and it did, for exactly one of the four ways it can fail.
+
 **150 — A verdict that is compatible with two very different worlds is not yet a measurement, and everyone will assume the wrong one.** *(S095, ADR-070 D1.1)*
 `store_metadata_audit.py` reported *"en-US: description differs from
 description.txt"* for seventeen days. **ADR-047 D2 read that as *"the English

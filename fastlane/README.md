@@ -11,7 +11,7 @@ release ritual — no Mac needed. There is no Android block yet (M6.5, ADR-006).
 |---|---|---|
 | `build_debug` | iOS | Unsigned debug build (`flutter build ios --no-codesign --debug`) — mirrors the `ci.yml` iOS build smoke. Runnable with zero secrets. |
 | `beta` | iOS | fastlane **`match`** installs the stored Apple Distribution certificate + App Store profile, `update_code_signing_settings` pins **Manual**, then prod-flavor `flutter build ipa --release` archives against an explicit `ExportOptions.plist` → `pilot` (TestFlight). Fails closed via `ensure_release_credentials!`. |
-| `store_metadata` | iOS | `deliver(skip_binary_upload: true)` — pushes `fastlane/metadata` per locale, no binary. Fails closed via `ensure_asc_credentials!`. |
+| `store_metadata` | iOS | `deliver(skip_binary_upload: true)` — pushes `fastlane/metadata` per locale, no binary. Fails closed via `ensure_asc_credentials!`. ⚠️ **It has never once published**: `deliver` dies in `verify_available_version_languages!` *before* the upload phase because Apple refuses the `tr` name, and one refused locale aborts the run for **every** locale (#204, ADR-070 D2). **`.github/workflows/publish-store-metadata.yml` is the way round it** (#278, ADR-071) — a per-locale writer over the ASC REST API, dispatch-only, dry run unless you type `PUBLISH`. |
 | `store_screenshots` | iOS | `deliver(skip_metadata: true, skip_screenshots: false)` — pushes `fastlane/screenshots` only. Separate from `store_metadata` on purpose: the copy is awaiting native review, the images are not. |
 
 **The two credential checks are deliberately different (ADR-032 D5).**

@@ -1,0 +1,97 @@
+# publish-store-metadata — write `fastlane/metadata/` to App Store Connect, one
+# locale at a time. (#278, ADR-071)
+#
+# WHY THIS EXISTS. `fastlane store_metadata` runs `deliver(force: true)`, and
+# `deliver` dies inside `verify_available_version_languages!` — BEFORE the upload
+# phase — because Apple refuses to create the `tr` localization under this app
+# name. One refused locale therefore aborts the run for EVERY locale, which is
+# why `fastlane/metadata/` has never been published at all (ADR-070 D2). This
+# lane publishes per locale, so `en-US` lands while `tr` is refused.
+#
+# WHY A WORKFLOW AND NOT A DEV-BOX COMMAND: the App Store Connect API key lives
+# only in GitHub secrets (architecture.md §9 — zero credentials in this repo).
+# ⚠️ Revision 1 of ADR-071 gave this tool NO workflow, reasoning that a button
+# whose permission has not been given is a button someone presses — and then it
+# had no execution path at all, because there is no local `.p8` and no local
+# `ASC_KEY_ID`. Reasoning with the shape of safety and the effect of futility.
+#
+# ⚠️ AND THE DRY RUN IS THE DELIVERABLE, not the risk. Operator item 6(b) asks
+# the founder whether AI-drafted English copy may be published at all; what they
+# need in order to answer is exactly what would be written. That is this lane,
+# with `confirm` left blank.
+#
+# THREE GUARDS (ADR-071 D1):
+#   1. manual dispatch ONLY — there is no `push` trigger, and nothing merges its
+#      way into a write to the founder's live listing;
+#   2. the default is a dry run — `confirm` is an empty free-text box, and empty
+#      means "plan it and send nothing";
+#   3. writing needs the literal `PUBLISH` TYPED IN. A free-text box rather than
+#      a boolean on purpose (the ADR-041 D5 shape, and ADR-019's confirm literal):
+#      a checkbox can be left ticked from a previous run, and there is no default
+#      that could fire by accident. Anything other than the literal is REFUSED —
+#      exit 64, nothing sent — because answering a typo with a cheerful dry run
+#      tells someone who meant to publish that they did.
+name: publish-store-metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PUBLISH to write. Leave BLANK for a dry run (this is what operator 6(b) needs).'
+        required: false
+        default: ''
+
+# Serialised, and never cancelled: cancel-in-progress on a lane that is halfway
+# through writing locales is how you get the partial state ADR-071 D2.2 spends a
+# decision on.
+concurrency:
+  group: publish-store-metadata
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish store metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Same binding as testflight-testers.yml's job: ASC_KEY_ID / ASC_ISSUER_ID
+    # are `release` ENVIRONMENT secrets while ASC_API_KEY_P8_BASE64 is a
+    # REPOSITORY secret, and only a job that declares the environment sees both
+    # (the REL-2 lesson recorded in release.yml).
+    environment: release
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # PyJWT signs the ES256 assertion Apple requires. Pinned so a future major
+      # cannot change the token shape under a lane that writes to a live listing.
+      - name: install deps
+        run: pip install 'pyjwt[crypto]==2.10.1'
+      - name: publish
+        # The input reaches the script as ENV, never interpolated into the shell
+        # body: `${{ }}` expansion happens before bash sees the line, so a value
+        # containing shell metacharacters would otherwise execute.
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          # `set +e` around the call and an explicit re-exit: GitHub runs `run:`
+          # under `bash -e`, so a non-zero exit would abort the step BEFORE the
+          # line that explains what the code means. The exit code is the product
+          # here, not a side effect.
+          set +e
+          if [ -z "$CONFIRM" ]; then
+            python3 tool/ci/store_metadata_publish.py
+          else
+            python3 tool/ci/store_metadata_publish.py --confirm "$CONFIRM"
+          fi
+          code=$?
+          set -e
+          echo "store_metadata_publish exit=$code" \
+               "(0 published · 1 finding · 2 could not measure · 64 refused)"
+          exit "$code"

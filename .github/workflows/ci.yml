@@ -219,6 +219,20 @@ jobs:
       # on builds 112 through 119 with Slack silent every time (lesson 69).
       - name: store metadata audit self-tests
         run: python3 tool/ci/store_metadata_audit_test.py
+      # #278 / ADR-071. The WRITER. Same credential path, same hermetic shape —
+      # a scripted transport that RECORDS every request, so a dry run can be
+      # asserted to have sent literally nothing.
+      #
+      # The property it pins is the defect #278 is: one locale Apple refuses must
+      # not stop another from publishing. And the unit of isolation is the LOCALE
+      # rather than the field, because `name` lives on appInfoLocalizations and
+      # `name` is what Apple refuses — per-field isolation would leave a Turkish
+      # listing carrying a description and no name (ADR-071 D2). It also pins the
+      # two things a writer gets quietly wrong: an EMPTY committed field is never
+      # sent as a blank (ADR-070 D7's COMMITTED IS EMPTY hazard), and the
+      # read-back compares only what was actually WRITTEN.
+      - name: store metadata publish self-tests
+        run: python3 tool/ci/store_metadata_publish_test.py
       # tool/ci/appid_capabilities.py shares that credential path (it imports
       # testflight_testers._token rather than growing a second copy), so it rides
       # the same pyjwt install. Its self-tests are hermetic — no network, no
