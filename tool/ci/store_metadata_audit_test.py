@@ -139,10 +139,14 @@ def test_production_state_2026_08_16() -> None:
     expected = expected_two_locales()
     actual = published({"en-US": dict(EN_FILES)})
 
-    findings = audit_tool.audit(expected, actual)
+    # `audit_findings` rather than `audit`: since ADR-070 D7.1 the classification
+    # is a FIELD on the finding, and `one_line` counts those fields rather than
+    # grepping the sentence (lesson 142).
+    findings = audit_tool.audit_findings(expected, actual)
 
     check("exactly one finding", len(findings), 1)
-    check_true("and it names tr", findings[0].startswith("tr: NOT PUBLISHED"))
+    check_true("and it names tr", findings[0].text.startswith("tr: NOT PUBLISHED"))
+    check("classified as the missing kind", findings[0].kind, audit_tool.NOT_PUBLISHED)
     check_true(
         "the one-liner names tr too",
         "tr not published" in audit_tool.one_line(findings, expected, actual),
@@ -171,10 +175,10 @@ def test_present_but_stale_is_a_finding() -> None:
     actual = published(expected)
     actual["en-US"]["description"] = "Copy from a build nobody remembers"
 
-    findings = audit_tool.audit(expected, actual)
+    findings = audit_tool.audit_findings(expected, actual)
 
     check("one finding", len(findings), 1)
-    check_true("names the field and the file", "description differs" in findings[0])
+    check_true("names the field and the file", "description differs" in findings[0].text)
     check_true(
         "the one-liner says stale, not missing",
         "stale" in audit_tool.one_line(findings, expected, actual),
@@ -424,6 +428,221 @@ def test_main_exit_0_when_everything_matches() -> None:
         )
 
 
+# --- ADR-070 D7: WHAT KIND of difference, and WHAT VERSION was read ---------
+#
+# `X differs from X.txt` is true and is not decision-grade. The founder is being
+# asked whether the committed English copy may be published AT ALL (ADR-070 D4b),
+# and "differs" does not distinguish a trailing-punctuation edit from a wholly
+# different paragraph, nor say which side is longer. These tests pin the five
+# verdicts, the two numbers, and the one refusal that goes with them.
+
+
+def test_classify_the_five_verdicts() -> None:
+    print("classify_difference: the five verdicts, in their checked order")
+    c = audit_tool.classify_difference
+    check("published empty", c("", "Bir soru"), audit_tool.PUBLISHED_EMPTY)
+    check("published missing entirely", c(None, "Bir soru"), audit_tool.PUBLISHED_EMPTY)
+    # The reverse, and it is NOT the same fact: under deliver(force: true) this
+    # one ERASES a field the founder typed. Folding the two into "one side is
+    # empty" would hide the difference between a fix and a regression.
+    check("committed empty", c("Bir soru", ""), audit_tool.COMMITTED_EMPTY)
+    check("whitespace only", c("a  b", "a b"), audit_tool.WHITESPACE_ONLY)
+    check("case only", c("One Question", "one question"), audit_tool.CASE_ONLY)
+    check("substantive", c("One question", "Two questions"), audit_tool.SUBSTANTIVE)
+
+
+def test_classify_order_is_the_one_the_adr_states() -> None:
+    print("classify_difference: first match wins, and the order is load-bearing")
+    c = audit_tool.classify_difference
+    # Both "the published side is empty" and "they differ only in whitespace"
+    # are arguably true of ("", " "). Empty MUST win: a reader told
+    # WHITESPACE-ONLY would conclude the store has the copy, and it has nothing.
+    check("empty beats whitespace", c("", " x"), audit_tool.PUBLISHED_EMPTY)
+    # Case AND whitespace differ -> WHITESPACE-ONLY must NOT claim it.
+    check("case+whitespace is CASE-ONLY, not WHITESPACE-ONLY",
+          c("One  Question", "one question"), audit_tool.CASE_ONLY)
+
+
+def test_case_only_does_not_fold_the_turkish_dotted_i() -> None:
+    print("classify_difference: the Turkish I caveat is PINNED, not silent")
+    # str.casefold() is locale-independent and maps U+0130 to 'i' + U+0307, so
+    # `Ikimiz`/`ikimiz` fold together but `Ikimiz` with the dot does NOT.
+    # Deliberate: a Turkish-locale fold is wrong for a tool that also reads
+    # en-US, and over-reporting is the safe direction when the field in question
+    # is `name` and `deliver(force: true)` renames the live listing (ADR-032 D6).
+    check(
+        "the dotted capital is SUBSTANTIVE, not CASE-ONLY",
+        audit_tool.classify_difference("\u0130kimiz", "ikimiz"),
+        audit_tool.SUBSTANTIVE,
+    )
+    check(
+        "an ASCII capital still folds",
+        audit_tool.classify_difference("Ikimiz", "ikimiz"),
+        audit_tool.CASE_ONLY,
+    )
+
+
+def test_whitespace_collapse_is_not_normalize() -> None:
+    print("collapse_whitespace: a helper normalize() deliberately cannot be")
+    # normalize() trims edges and folds CRLF and PRESERVES interior runs, which
+    # is how a real copy change stays visible. Reusing it here would make every
+    # interior-whitespace difference invisible instead of classified.
+    check("interior run collapses", audit_tool.collapse_whitespace("a   b\n c"), "a b c")
+    check_true(
+        "and normalize does NOT do that",
+        audit_tool.normalize("a   b") != audit_tool.collapse_whitespace("a   b"),
+    )
+
+
+def test_describe_counts_code_points_not_bytes_or_utf16() -> None:
+    print("describe_difference: code points, matching store_metadata_lint")
+    # `Gunde` with two Turkish diacritics is 12 bytes and 10 code points; a byte
+    # count would make every Turkish field look longer than Apple thinks it is.
+    text = "G\u00fcnde bir soru"
+    described = audit_tool.describe_difference("x", text)
+    check_true("names the committed code-point count", f"committed {len(text)}" in described)
+    check_true("says code points out loud", "code point" in described)
+    # An astral character is ONE code point and two UTF-16 code units. Dart's
+    # String.length would say two; runes.length (what the lint uses) says one.
+    check_true(
+        "an emoji counts once, not twice",
+        "committed 1 " in audit_tool.describe_difference("x", "\U0001f600"),
+    )
+
+
+def test_describe_names_the_first_difference() -> None:
+    print("describe_difference: where the two texts part company")
+    described = audit_tool.describe_difference("One question a day", "One question a week")
+    check_true("offset is the common prefix length", "first difference at 15" in described)
+    check_true("and it carries the verdict", audit_tool.SUBSTANTIVE in described)
+    # A wholly different text parts at 0, which is the reader's cue that the
+    # store is showing something else entirely rather than a small edit.
+    check_true(
+        "nothing in common parts at 0",
+        "first difference at 0" in audit_tool.describe_difference("abc", "xyz"),
+    )
+
+
+def test_both_sides_empty_is_not_a_finding_at_all() -> None:
+    print("audit: two empty sides AGREE — no finding, so nothing to classify")
+    # marketing_url.txt is empty in both locales and Apple holds nothing for it;
+    # that is the state today and it must stay silent (ADR-020 D5 rev 2).
+    expected = {"tr": {"marketing_url.txt": "\n"}}
+    check("no findings", audit_tool.audit(expected, {"tr": {"locale": "tr", "marketingUrl": ""}}), [])
+
+
+def test_the_finding_line_carries_the_verdict() -> None:
+    print("audit: every `differs` line says what KIND of difference")
+    expected = expected_two_locales()
+    actual = published(expected)
+    actual["en-US"]["description"] = "Copy from a build nobody remembers"
+    findings = audit_tool.audit(expected, actual)
+    check("one finding", len(findings), 1)
+    check_true("still names the field and file", "description differs" in findings[0])
+    check_true("and now the verdict too", audit_tool.SUBSTANTIVE in findings[0])
+    check_true("with both lengths", "code point" in findings[0])
+
+
+def test_findings_carry_a_kind_field_not_a_word_in_prose() -> None:
+    print("audit_findings: the classification is a FIELD (lesson 142)")
+    # A status word that also appears in ordinary prose is not a status marker.
+    # one_line() counts these, and counting them by grepping our own sentence is
+    # exactly the fragility that lesson buys us out of.
+    expected = expected_two_locales()
+    actual = published({"en-US": dict(EN_FILES)})
+    actual["en-US"]["description"] = "Something else entirely"
+    detailed = audit_tool.audit_findings(expected, actual)
+    kinds = sorted(f.kind for f in detailed)
+    check("one missing locale and one substantive field", kinds,
+          [audit_tool.NOT_PUBLISHED, audit_tool.SUBSTANTIVE])
+    missing = [f for f in detailed if f.kind == audit_tool.NOT_PUBLISHED][0]
+    check("the missing one names its locale", missing.locale, "tr")
+    check("and has no field", missing.field, None)
+
+
+def test_one_line_names_BOTH_halves() -> None:
+    print("one_line: the notifier's whole view must not drop seven of eight")
+    # The real 2026-09-02 shape: tr missing AND seven stale en-US fields. Before
+    # ADR-070 D7.2 this returned "8 finding(s) - tr not published" and never
+    # mentioned English at all, so the one channel ADR-047 D5 built to carry this
+    # signal carried half of it.
+    expected = expected_two_locales()
+    actual = published({"en-US": dict(EN_FILES)})
+    actual["en-US"]["description"] = "Something else entirely"
+    actual["en-US"]["subtitle"] = "one question a day"   # CASE-ONLY vs the file
+    detailed = audit_tool.audit_findings(expected, actual)
+    line = audit_tool.one_line(detailed, expected, actual)
+
+    check_true("names the missing locale", "tr not published" in line)
+    check_true("AND says the rest are stale", "stale" in line)
+    check_true("with the tally", "1 substantive" in line.lower())
+    check_true("naming the case-only one too", "case-only" in line.lower())
+    check("still ONE line", "\n" in line, False)
+
+
+def test_one_line_is_unchanged_when_only_one_kind_is_present() -> None:
+    print("one_line: the two single-kind sentences still read as they did")
+    expected = expected_two_locales()
+    only_missing = audit_tool.audit_findings(expected, published({"en-US": dict(EN_FILES)}))
+    check_true("missing only", "tr not published" in
+               audit_tool.one_line(only_missing, expected, {}))
+    stale_actual = published(expected)
+    stale_actual["en-US"]["description"] = "Copy from a build nobody remembers"
+    only_stale = audit_tool.audit_findings(expected, stale_actual)
+    check_true("stale only", "stale" in audit_tool.one_line(only_stale, expected, stale_actual))
+    check_true("and NOT the missing sentence",
+               "not published" not in audit_tool.one_line(only_stale, expected, stale_actual))
+
+
+def test_report_names_the_version_it_audited() -> None:
+    print("render: which App Store version, and in what state")
+    # ADR-070 D7.3. The audit picks an editable version and then threw away which
+    # one. That cost S095 a claim it could not check: the disclosure argument in
+    # D7.4 rests on the listing being an unsubmitted draft, and the only evidence
+    # was a docstring 17 days old. EDITABLE_STORE_STATES also holds
+    # DEVELOPER_REJECTED, REJECTED, METADATA_REJECTED and INVALID_BINARY.
+    expected = {"tr": {"description.txt": "Bir soru\n"}}
+    version = {"id": "v1", "attributes": {"versionString": "1.0",
+                                          "appStoreState": "PREPARE_FOR_SUBMISSION"}}
+    report = audit_tool.render(expected, {"tr": {"locale": "tr", "description": "Bir soru"}},
+                               [], version=version)
+    check_true("names the version", "1.0" in report)
+    check_true("and the state it was in", "PREPARE_FOR_SUBMISSION" in report)
+    # Without one it must still render — the callers that pass no version are the
+    # unit tests, and a report that crashed without it would be a worse tool.
+    check_true("degrades without a version",
+               "OK:" in audit_tool.render(expected, {"tr": {"locale": "tr",
+                                                            "description": "Bir soru"}}, []))
+
+
+def test_published_locales_reuses_a_version_it_is_given() -> None:
+    print("published_locales: the caller may hand in the version it already read")
+    # ⚠️ The decoy matters. Script the version LIST too, with a different id: a
+    # fixture that omitted it would make the "ignore the given version" mutant die
+    # by AscError instead of by the assertion below, and a mutant reddened by an
+    # exception proves the crash, not the property (lesson 76). With the decoy
+    # present the mutant runs to completion and only the two assertions catch it.
+    seen = _fake_call([
+        ("GET", "appStoreVersionLocalizations", {"data": [
+            {"attributes": {"locale": "tr", "description": "Bir soru"}}]}),
+        ("GET", "appStoreVersions", {"data": [
+            {"id": "v-decoy",
+             "attributes": {"appStoreState": "PREPARE_FOR_SUBMISSION"}}]}),
+        ("GET", "appInfoLocalizations", {"data": []}),
+        ("GET", "appInfos", {"data": [{"id": "ai", "attributes": {}}]}),
+    ])
+    version = {"id": "v-known", "attributes": {"appStoreState": "PREPARE_FOR_SUBMISSION"}}
+    merged = audit_tool.published_locales("t", "app", version=version)
+    check("still reports the locale", sorted(merged), ["tr"])
+    # The whole point: no second round-trip for a version the caller already has.
+    check("never asked for the version list",
+          [q for _m, q, _b in seen if "appStoreVersions?" in q], [])
+    # And it read the localizations of the version it was HANDED, not the decoy.
+    check("localizations came from the given version",
+          [q for _m, q, _b in seen if "appStoreVersionLocalizations" in q
+           and "v-known" in q] != [], True)
+
+
 def main() -> int:
     print("store_metadata_audit self-tests")
     test_everything_published()
@@ -444,6 +663,20 @@ def main() -> int:
     test_api_error_is_exit_2_not_exit_1()
     test_main_reports_the_production_finding_and_writes_its_outputs()
     test_main_exit_0_when_everything_matches()
+    # ADR-070 D7
+    test_classify_the_five_verdicts()
+    test_classify_order_is_the_one_the_adr_states()
+    test_case_only_does_not_fold_the_turkish_dotted_i()
+    test_whitespace_collapse_is_not_normalize()
+    test_describe_counts_code_points_not_bytes_or_utf16()
+    test_describe_names_the_first_difference()
+    test_both_sides_empty_is_not_a_finding_at_all()
+    test_the_finding_line_carries_the_verdict()
+    test_findings_carry_a_kind_field_not_a_word_in_prose()
+    test_one_line_names_BOTH_halves()
+    test_one_line_is_unchanged_when_only_one_kind_is_present()
+    test_report_names_the_version_it_audited()
+    test_published_locales_reuses_a_version_it_is_given()
 
     if _failures:
         print(f"\n{len(_failures)} FAILED: {', '.join(_failures)}")
