@@ -17,7 +17,9 @@ import '../design_system/color_tokens.dart';
 /// `#C04A5A` / `#F3E7D7`) instead of baking colour into pixels.
 ///
 /// **It survives the rename.** The file is called `hayati-mark` and the app is
-/// called İkimiz (ADR-035); the mark carries no wordmark and no letterform, so
+/// called `ikimiz` — lowercase, which is what ADR-035 renamed it to (ADR-032 D6
+/// had recorded `İkimiz`, and this comment still said that until S095, ADR-070
+/// D6); the mark carries no wordmark and no letterform, so
 /// it is the one brand asset the rename did not invalidate. ADR-027's caution —
 /// keep wordmark investment light while the trademark is provisional — is the
 /// reason a mark, and not a name, belongs on the sign-in hero.

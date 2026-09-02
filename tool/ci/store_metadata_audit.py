@@ -60,6 +60,8 @@ import importlib.util
 import os
 import pathlib
 import sys
+from collections import Counter
+from typing import NamedTuple
 
 _MODULE_PATH = pathlib.Path(__file__).with_name("testflight_testers.py")
 _spec = importlib.util.spec_from_file_location("testflight_testers", _MODULE_PATH)
@@ -106,6 +108,97 @@ def normalize(value: str | None) -> str:
     if value is None:
         return ""
     return value.replace("\r\n", "\n").strip()
+
+
+# The classification vocabulary (ADR-070 D7.1). CLOSED, and each verdict is a
+# FIELD on a Finding rather than a word inside the sentence — `one_line` counts
+# these, and counting them by grepping our own prose is the fragility lesson
+# **142** exists to buy us out of.
+NOT_PUBLISHED = "NOT PUBLISHED"
+ABSENT = "ABSENT"
+PUBLISHED_EMPTY = "PUBLISHED IS EMPTY"
+COMMITTED_EMPTY = "COMMITTED IS EMPTY"
+WHITESPACE_ONLY = "WHITESPACE-ONLY"
+CASE_ONLY = "CASE-ONLY"
+SUBSTANTIVE = "SUBSTANTIVE"
+
+
+class Finding(NamedTuple):
+    """One problem, with its classification beside the sentence, not inside it."""
+
+    locale: str
+    field: str | None
+    filename: str | None
+    kind: str
+    text: str
+
+
+def collapse_whitespace(value: str) -> str:
+    """Every whitespace run to a single space — a helper `normalize` cannot be.
+
+    `normalize` trims the edges and folds CRLF and **deliberately preserves
+    interior runs**, because that is how a real copy change stays visible. Reusing
+    it here would make every interior-whitespace difference invisible instead of
+    classified, so the two stay separate on purpose.
+    """
+    return " ".join(value.split())
+
+
+def classify_difference(published: str | None, committed: str) -> str:
+    """WHAT KIND of difference, for a pair already known to differ.
+
+    First match wins and the order is load-bearing. The two empty cases come
+    first and are kept APART: `PUBLISHED IS EMPTY` is copy waiting to land, while
+    `COMMITTED IS EMPTY` is a release that would **erase** a field the founder
+    typed — and under `deliver(force: true)` that is the difference between a fix
+    and a regression, not a nuance.
+
+    ⚠️ `CASE_ONLY` uses `str.casefold()`, which is locale-INDEPENDENT and maps
+    `İ` (U+0130) to `i` + U+0307, so `İkimiz` and `ikimiz` do NOT fold together.
+    Deliberate: a Turkish-locale fold would be wrong for a tool that also reads
+    `en-US`, and this over-reports rather than dismissing a live-listing rename
+    (ADR-032 D6) as a casing nit. Pinned by a self-test so it cannot drift.
+    """
+    left = normalize(published)
+    right = normalize(committed)
+    if not left:
+        return PUBLISHED_EMPTY
+    if not right:
+        return COMMITTED_EMPTY
+    flat_left = collapse_whitespace(left)
+    flat_right = collapse_whitespace(right)
+    if flat_left == flat_right:
+        return WHITESPACE_ONLY
+    if flat_left.casefold() == flat_right.casefold():
+        return CASE_ONLY
+    return SUBSTANTIVE
+
+
+def describe_difference(published: str | None, committed: str) -> str:
+    """The verdict, both lengths, and where the two texts part company.
+
+    Lengths are **code points**, matching `tool/store_metadata_lint.dart`, which
+    counts `content.runes.length` — verified by reading it. A byte count would
+    make every Turkish field look longer than Apple thinks it is, and a UTF-16
+    count (Dart's bare `String.length`) would do the same to an emoji.
+
+    The offset is the common-prefix length of the NORMALIZED strings, i.e. of the
+    values actually compared. `first difference at 0` is the reader's cue that
+    the store is showing something else entirely rather than carrying a small
+    edit — which is exactly the question ADR-070 D4(b) asks the founder.
+    """
+    left = normalize(published)
+    right = normalize(committed)
+    shared = 0
+    for shared, (a, b) in enumerate(zip(left, right)):
+        if a != b:
+            break
+    else:
+        shared = min(len(left), len(right))
+    return (
+        f"{classify_difference(published, committed)} — published {len(left)} vs "
+        f"committed {len(right)} code points, first difference at {shared}"
+    )
 
 
 def expected_locales(metadata_dir: pathlib.Path) -> dict[str, dict[str, str]]:
@@ -194,9 +287,17 @@ def app_info_localizations(token: str, app_id: str) -> dict[str, dict]:
     }
 
 
-def published_locales(token: str, app_id: str) -> dict[str, dict]:
-    """`{locale: merged attributes}` — both resources, one view per locale."""
-    version = editable_version(token, app_id)
+def published_locales(
+    token: str, app_id: str, version: dict | None = None
+) -> dict[str, dict]:
+    """`{locale: merged attributes}` — both resources, one view per locale.
+
+    `version` lets the caller hand in the editable version it already read, so
+    the report can NAME which one it audited (ADR-070 D7.3) without a second
+    round-trip. Omitted, it reads the version itself, which is what the unit
+    tests do.
+    """
+    version = version or editable_version(token, app_id)
     merged: dict[str, dict] = {}
     for row in tf.version_localizations(token, version["id"]):
         attributes = row.get("attributes") or {}
@@ -208,21 +309,34 @@ def published_locales(token: str, app_id: str) -> dict[str, dict]:
     return merged
 
 
-def audit(
+def audit_findings(
     expected: dict[str, dict[str, str]], actual: dict[str, dict]
-) -> list[str]:
+) -> list[Finding]:
     """The findings, in the order a human would want to read them.
 
     A MISSING LOCALE is reported once and its fields are not then enumerated:
     twelve "description differs" lines under a locale that does not exist is
     noise that buries the one sentence that matters.
+
+    Each finding carries its `kind` as a FIELD (ADR-070 D7.1). `one_line` tallies
+    those, and a tally taken by grepping this function's own sentences would be a
+    status word read out of prose — lesson **142**, which this repo has already
+    paid for once in a review harness.
     """
-    findings: list[str] = []
+    findings: list[Finding] = []
     for locale in sorted(expected):
         if locale not in actual:
             findings.append(
-                f"{locale}: NOT PUBLISHED — no localization exists on the "
-                f"editable App Store version"
+                Finding(
+                    locale=locale,
+                    field=None,
+                    filename=None,
+                    kind=NOT_PUBLISHED,
+                    text=(
+                        f"{locale}: NOT PUBLISHED — no localization exists on "
+                        f"the editable App Store version"
+                    ),
+                )
             )
             continue
         attributes = actual[locale]
@@ -235,29 +349,73 @@ def audit(
                 continue
             if field not in attributes:
                 findings.append(
-                    f"{locale}: {field} is ABSENT on the published localization "
-                    f"(from {filename})"
+                    Finding(
+                        locale=locale,
+                        field=field,
+                        filename=filename,
+                        kind=ABSENT,
+                        text=(
+                            f"{locale}: {field} is ABSENT on the published "
+                            f"localization (from {filename})"
+                        ),
+                    )
                 )
                 continue
-            if normalize(attributes.get(field)) != normalize(text):
+            published = attributes.get(field)
+            if normalize(published) != normalize(text):
                 findings.append(
-                    f"{locale}: {field} differs from {filename} — the committed "
-                    f"copy is not what the store is showing"
+                    Finding(
+                        locale=locale,
+                        field=field,
+                        filename=filename,
+                        kind=classify_difference(published, text),
+                        text=(
+                            f"{locale}: {field} differs from {filename} — "
+                            f"{describe_difference(published, text)}"
+                        ),
+                    )
                 )
     return findings
+
+
+def audit(
+    expected: dict[str, dict[str, str]], actual: dict[str, dict]
+) -> list[str]:
+    """`audit_findings` as the sentences it prints. Kept because the report and
+    several self-tests want the text and nothing else."""
+    return [finding.text for finding in audit_findings(expected, actual)]
 
 
 def render(
     expected: dict[str, dict[str, str]],
     actual: dict[str, dict],
-    findings: list[str],
+    findings: list,
+    version: dict | None = None,
 ) -> str:
+    """The full report.
+
+    `version` names WHICH App Store version was audited and what state it was in
+    (ADR-070 D7.3). The audit selected one and then discarded it, which cost S095
+    a claim it could not check: `tf.EDITABLE_STORE_STATES` holds five states
+    (`PREPARE_FOR_SUBMISSION`, `DEVELOPER_REJECTED`, `REJECTED`,
+    `METADATA_REJECTED`, `INVALID_BINARY`), so exit 1 is consistent with any of
+    them, and "the listing is an unsubmitted draft" was inherited from a
+    docstring rather than measured. It is optional so the unit tests, which have
+    no version to hand, still render.
+    """
     lines = [
         f"expected locales (fastlane/metadata): {', '.join(sorted(expected))}",
         f"published locales (App Store Connect): "
         f"{', '.join(sorted(actual)) if actual else '(none)'}",
-        "",
     ]
+    if version:
+        attributes = version.get("attributes") or {}
+        lines.append(
+            f"audited App Store version: "
+            f"{attributes.get('versionString') or '(unnamed)'} "
+            f"state={attributes.get('appStoreState') or 'UNKNOWN'}"
+        )
+    lines.append("")
     if not findings:
         # Say it OUT LOUD. A tool that only speaks when something is wrong is
         # indistinguishable from a tool that is not running — which is how nine
@@ -265,7 +423,7 @@ def render(
         lines.append("OK: every committed locale is published and matches.")
         return "\n".join(lines)
     lines.append(f"FINDING: {len(findings)} problem(s) with the published copy.")
-    lines.extend(f"  - {finding}" for finding in findings)
+    lines.extend(f"  - {getattr(f, 'text', f)}" for f in findings)
     lines.append("")
     lines.append(
         "  The release itself is unaffected — the binary shipped, and this step "
@@ -275,17 +433,30 @@ def render(
     return "\n".join(lines)
 
 
-def one_line(findings: list[str], expected: dict, actual: dict) -> str:
-    """The Slack-sized verdict — one line, no newlines, no markup."""
+def one_line(findings: list[Finding], expected: dict, actual: dict) -> str:
+    """The Slack-sized verdict — one line, no newlines, no markup.
+
+    ⚠️ It used to drop most of the findings. On the real 2026-09-02 shape — `tr`
+    missing AND seven stale `en-US` fields — it returned
+    *"8 finding(s) — tr not published"* and never mentioned English at all, so the
+    one channel ADR-047 D5 built to carry this signal across the job boundary
+    carried half of it. It now names both halves and tallies the classification
+    (ADR-070 D7.2), still on one line.
+    """
     if not findings:
         return f"store metadata: all {len(expected)} locale(s) published and current"
-    missing = [f.split(":", 1)[0] for f in findings if "NOT PUBLISHED" in f]
+    missing = sorted({f.locale for f in findings if f.kind == NOT_PUBLISHED})
+    stale = [f for f in findings if f.kind != NOT_PUBLISHED]
+    parts: list[str] = []
     if missing:
-        return (
-            f"store metadata: {len(findings)} finding(s) — "
-            f"{', '.join(missing)} not published"
+        parts.append(f"{', '.join(missing)} not published")
+    if stale:
+        tally = ", ".join(
+            f"{count} {kind.lower()}"
+            for kind, count in sorted(Counter(f.kind for f in stale).items())
         )
-    return f"store metadata: {len(findings)} finding(s) — published copy is stale"
+        parts.append(f"{len(stale)} stale ({tally})")
+    return f"store metadata: {len(findings)} finding(s) — {'; '.join(parts)}"
 
 
 def emit(path: str | None, text: str) -> None:
@@ -318,10 +489,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"COULD NOT MEASURE: {failure}", file=sys.stderr)
         return EXIT_CANNOT_MEASURE
 
+    version: dict | None = None
     try:
         token = tf._token()
         app = tf.find_app(token, args.bundle_id)
-        actual = published_locales(token, app["id"])
+        # Read the editable version ONCE and hand it to both consumers, so the
+        # report can name what it audited (ADR-070 D7.3) at no extra request.
+        version = editable_version(token, app["id"])
+        actual = published_locales(token, app["id"], version=version)
     except AscError as failure:
         print(f"COULD NOT MEASURE: {failure}", file=sys.stderr)
         emit(args.github_output, "store_metadata_audit=store metadata: could not measure")
@@ -331,8 +506,8 @@ def main(argv: list[str] | None = None) -> int:
         emit(args.github_output, "store_metadata_audit=store metadata: could not measure")
         return EXIT_CANNOT_MEASURE
 
-    findings = audit(expected, actual)
-    report = render(expected, actual, findings)
+    findings = audit_findings(expected, actual)
+    report = render(expected, actual, findings, version=version)
     print(report)
     emit(args.summary, "### store metadata\n\n```\n" + report + "\n```")
     emit(args.github_output, "store_metadata_audit=" + one_line(findings, expected, actual))

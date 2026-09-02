@@ -54,8 +54,17 @@ _Environment facts below were last re-measured **2026-08-05**._
   API — no `gcloud`, no ADC, no service account. **Import that helper; do not re-implement
   the OAuth dance.** The absence of `gcloud` is not the absence of the credential, and
   treating the two as the same thing is what left an unmonitorable backend.
-* The `firebase` CLI **is** logged in as the founder (`aaytekinerdogan@gmail.com`) with access
-  to `hayatiapp-prod` and `hayatiapp-dev`. That is a **local** path only.
+* 🔴 **THE DEV BOX WAS REBUILT AROUND 2026-08-31, AND THE `firebase` CLI IS GONE** *(measured
+  S095, 2026-09-02)*. `command -v firebase` → not found; `~/.config/configstore/` does not
+  exist. **Everything in the table below now answers `2 — could not measure` for want of a
+  credential, not because production is in that state.** ADR-063 built exit 2 as a distinct
+  state for exactly this, so do not read it as a production reading — and do not read a
+  *previous session's* exit 1 forward either.
+  **Restoring it needs the founder**: `npm i -g firebase-tools` is a session's, but
+  `firebase login` is an interactive OAuth on the founder's Google identity. Operator item 10.
+* It **was** logged in as the founder (`aaytekinerdogan@gmail.com`) with access to
+  `hayatiapp-prod` and `hayatiapp-dev`, and that is what the table below describes. It is a
+  **local** path only, and it is currently unavailable.
 * **What that login can actually do was unknown until S063, and one of them is the only
   instrument this repo has for a question it keeps getting wrong.** All five work today:
 
@@ -96,8 +105,31 @@ _Environment facts below were last re-measured **2026-08-05**._
 
 ## 3. Toolchain and commands
 
+> 🔴 **WHAT IS ACTUALLY INSTALLED ON THIS BOX, measured S095 (2026-09-02).** The machine was
+> rebuilt around 2026-08-31 and most of this section describes a toolchain that is no longer
+> here. **Re-measure before trusting any command below** — `for c in node npm python3 java
+> dart flutter ruby gh git; do command -v $c; done` takes two seconds and this section cost a
+> session an hour.
+>
+> | present | absent |
+> |---|---|
+> | `node` 22, `npm` 10, `python3` 3.12, `gh`, `git`, `codegraph` | **`flutter`**, **`java`**, **`ruby`/`bundle`**, **`firebase`** |
+>
+> **`dart` was restored by S095** as a standalone SDK at
+> `~/.local/share/dart-sdk/bin` (3.12.2, matching `app/pubspec.yaml`'s `^3.12.2`). It is NOT
+> on PATH — export it. It runs the five `dart:io` lints (`adr_index_lint`,
+> `release_lane_lint`, `store_metadata_lint`, `deploy_lane_lint`, `rtl_lint`) and their
+> self-tests, and `dart format`. It does **not** give you `flutter analyze`, the app suite,
+> goldens or the emulator suites — those need Flutter and Java. **Say which half you proved
+> and which half CI proved** (lesson **78**); do not let a green CI stand in for a claim you
+> could have measured locally, or vice versa.
+>
+> Restoring Flutter/Java/Ruby is a session's to do (downloads, no credential). Restoring the
+> **firebase login** is not — operator item 10.
+
 **Flutter / Dart**
-* Flutter at `~/flutter/bin`; `dart` is `~/flutter/bin/dart`, not on PATH.
+* ⚠️ **Not installed** (above). Historically: Flutter at `~/flutter/bin`; `dart` is
+  `~/flutter/bin/dart`, not on PATH.
 * **Run `flutter gen-l10n` in `app/`** before trusting any test or analyze run that touches
   localized text.
 * **Run `dart format` before every commit.** CI runs
@@ -183,7 +215,7 @@ Do not change these without reading the ADR that set them.
 | **ADR-024** | `tool/ci/slack_notify.sh` is the single notifier, with **no vote** on the build and **all policy in the script** (D1). |
 | **ADR-025** | The slice-0 firewall stays live; D8's golden declaration is discipline, **not** a CI gate. |
 | **ADR-026** | The `seasonalWindow` vocabulary is CLOSED and gated in five readers. **All five are now parity-tested** (#171 closed #130) and D3's wording was corrected there — do not re-open it. |
-| **ADR-032** | Release signing is fastlane `match` + MANUAL. The build **name** comes from pubspec; the build **number** is CI-synthesized (`100 + GITHUB_RUN_NUMBER`). `fastlane/metadata/*/name.txt` is pinned to **İkimiz**. Enforced per-PR by `tool/release_lane_lint.dart`. |
+| **ADR-032** | Release signing is fastlane `match` + MANUAL. The build **name** comes from pubspec; the build **number** is CI-synthesized (`100 + GITHUB_RUN_NUMBER`). `fastlane/metadata/*/name.txt` is pinned to **`ikimiz`** — lowercase, the value `release_lane_lint.dart`'s `pinnedStoreName` actually holds and the value the live listing holds (re-measured S095, ADR-070 D6; this row said **İkimiz** until then, and ADR-035 is what moved it). Enforced per-PR by `tool/release_lane_lint.dart`. ⚠️ **The lint stops a drifted `name.txt`, not a session that also moves the pin** — which is what "reconciling to the invariant" would do, and `deliver(force: true)` then renames the live listing. Change this row only with the founder. |
 | **ADR-033** | Bidi isolation is applied at the **string boundary** and **at render only**. Nothing persisted, exported or shared may carry `U+2068`/`U+2069`. |
 | **ADR-053** | `app/lib/core/l10n/strong_bidi_ranges.dart` is **GENERATED — never edit it**. Re-derive with `python3 tool/gen_bidi_rtl_ranges.py`; CI runs `--check`. The two tables must stay **disjoint**, and the seam iterates **runes**, never code units. `intl` must not return to this seam. |
 | **ADR-054** | The data-rights export carries a **`device` lane** — `pushDiagnostic` verbatim, `fcmTokens` as a **COUNT**. ⚠️ **A raw registration token must never enter the export**, at any nesting level: delivery is `Clipboard.setData`, so it would land on the system pasteboard. A shape change bumps `FORMAT_VERSION`. |
