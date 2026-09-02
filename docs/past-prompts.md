@@ -4750,3 +4750,79 @@ The argument for amending D5: its premise — *a revision not yet widened* — *
 
 **Next objective written to resume-prompt.md:** Session 095 — **#204**, the `tr` App Store localization that has failed on every release since build 112.
 
+## Session 095 — 2026-09-02 — #204: the English listing is not stale, it is EMPTY — and the instrument that found that was built the same day (ADR-070)
+
+**Objective (from resume-prompt.md):** #204 — establish how much of the store-listing failure is fixable without the founder: whether the audit is armed and running, whether the release lane still hides the failure, and whether `en-US`'s seven-field disagreement is a separate, unblocked defect.
+
+**Outcome:** done, and it found more than it was sent for. All three questions answered; **one buildable slice shipped**; the remainder split to **#278**; **#204 stays open and founder-owned**.
+
+### The three answers
+
+1. **Is the `en-US` mismatch a separate, unblocked defect? Neither.** `deliver` dies inside `verify_available_version_languages!` **before** the upload phase, so the `tr` locale Apple refuses aborts the run **for every locale**. Nothing has ever been written to this listing by the lane, so *"fix the English listing"* is not a task that exists. The competing history was checked and does not survive: before S047 the lane aborted even earlier, at `ensure_release_credentials!` — two sequential abort sites, no successful publication between them.
+2. **Is the audit armed and running? Armed. Not running.** It landed 2026-08-16 (`482f92f4`); the last release ran 2026-08-09, so `release.yml` has **never executed it**. Three executions ever, all through ADR-047 D6's dispatch door. `SLACK_WEBHOOK_URL` does not exist, so ADR-047 D5's `⚠️ CI passed, with findings` headline reaches no channel — *unpushed*, not unreadable (`GITHUB_STEP_SUMMARY` needs no secret). ADR-047's remedy is **true by construction and untested in the event**.
+3. **Does the lane still hide the failure?** No, by construction — and that is a different sentence from "it has been shown not to", which is now written as one.
+
+### ⚠️ The finding the session was not sent for
+
+The audit could only ever say a field *"differs"*. D7 taught it to say **what kind** of difference. Its first run against real App Store Connect (run **33666301529**, `--ref` the fix branch):
+
+```
+audited App Store version: 1.0 state=PREPARE_FOR_SUBMISSION
+  - en-US: description differs from description.txt — PUBLISHED IS EMPTY — published 0 vs committed 1454 code points, first difference at 0
+  ... all seven the same ...
+  - tr: NOT PUBLISHED
+```
+
+**All seven English fields are empty at Apple.** Only `name` was ever set. ADR-047 D2 had written *"the English listing is still whatever was typed by hand into App Store Connect"* and ADR-070 repeated it through two revisions — **ADR-047's finding was right; that characterisation was an inference a presence-only comparison could not support**, and it stood seventeen days because *"differs"* fits both readings. This is **lesson 150**.
+
+Consequences, in both directions: **nothing can be lost by publishing** (the only irreversible risk anyone had named does not exist), and the listing is **not submittable** — a launch blocker that was on no list before today.
+
+### What shipped
+
+* **ADR-070** (three revisions), and `tool/ci/store_metadata_audit.py`: five verdicts (`PUBLISHED IS EMPTY` / `COMMITTED IS EMPTY` / `WHITESPACE-ONLY` / `CASE-ONLY` / `SUBSTANTIVE`), code-point lengths and a first-difference offset; the classification as a **field** on a `Finding`, not a word in prose (lesson 142); the audited version and `appStoreState` named in the report; `one_line()` fixed — on the real data it said *"8 finding(s) — tr not published"* and dropped all seven English findings, i.e. the one channel ADR-047 D5 built to cross the job boundary carried half its signal.
+* **It refuses to print the store's text**: the repo is public and that copy is an unpublished draft. The residual disclosure (a length, an offset) is conceded rather than denied.
+* **Five copies** of the wrong store name corrected — four prose, one in `seed_mark.dart`. One was `session-context.md` §6's binding-invariants table. **The store-name lint would not have caught it** (lesson 148). A sixth hit in `frontend-brandkit.md` deliberately left as a historical list of alternates.
+* Two stale sentences in `fastlane/README.md` (the `--allow-empty-urls` ratchet was pulled in `6d1f7368`, the same commit that filled the URL files it calls empty) and a spent `Gemfile.lock` clause in `implementation-plan.md` — **that one found by running the lint, not by reading**.
+* `session-context.md` §2/§3 rewritten around a measured toolchain table (see below).
+* **#278** filed with its design; **operator item 6 split into 6(a) name / 6(b) may the English copy be published at all / 6(c) may a session dispatch the release lane once**; item 10 added for the dev box.
+
+**Commits:** `09f4974` (ADR before code), `4d4eb80` (the implementation), `a122b47` (revision 3 + the built-diff review's findings) — PR **#279**.
+
+**CI:** PR run green — `quality` (format, analyze, app suite, coverage gate, every lint and self-test), `functions-rules`, and `ios-build-smoke` **genuinely compiled** (200s Xcode build, verified in the job log via `gh api .../jobs/<id>/logs`, not inferred from the tick). `integration-emulator` is main-only by design and was watched post-merge.
+
+**Docs touched:** `docs/adr/070-*.md` (new), `docs/adr/README.md`, `docs/session-context.md`, `docs/implementation-plan.md`, `fastlane/README.md`, `app/lib/core/widgets/seed_mark.dart`, `.gitignore`, `docs/operator-expected.md`, `docs/session-lessons.md` (146–150), `docs/resume-prompt.md`, this file.
+
+### Verification, and which instrument proved which half (lesson 78)
+
+| ran **here** | 13 new self-tests (18 → 31 functions, all registered; **41 → 91 checks**); all **12** python self-tests `ci.yml` runs; `dart format`; the five `dart:io` lints and their self-tests; `slack_notify.sh` under `SLACK_DRY_RUN=1` with the new longer one-line value, which renders as valid JSON under the `⚠️ CI passed, with findings` headline |
+|---|---|
+| ran **against real App Store Connect** | run 33666301529 — the run that produced the finding above |
+| **not** run here | `flutter analyze`, the app suite, the emulator suites. No Flutter SDK, no Java. **CI is the instrument** |
+
+**Mutation-checked: 14 mutants, 13 killed by NAMED assertions.** Two initially died by *exception* instead, and the version-reuse fixture needed a decoy before the assertion it advertises was what caught the mutant. Three mutants were added after review pass 2 found the gaps they kill. **The survivor is recorded, not fixed:** `casefold` → `lower` does not discriminate — measured, Python agrees on every Turkish and ASCII case here and diverges only on `ß`.
+
+### Review, twice, with its numbers
+
+| | pass 1 — the design | pass 2 — the built diff |
+|---|---|---|
+| agents | **45** (12 probes × 2 verifiers + critic) | **21** (8 probes × 2 verifiers + critic) |
+| `agents_error` | **0** | **0** |
+| `agents_empty_result` | **2**, both **CONSIDERED**-empty | **5**, all **CONSIDERED**-empty |
+| `failed_empty` | **0** | **0** |
+| findings | 16 → **12 surviving**, 4 refuted | 6 → **6 surviving**, 0 refuted, + 4 critic |
+
+**The distribution inverted between the passes** (lesson 137 — it is a signal about the *question*): pass 1 argued about a decision and refuted a quarter; pass 2 checked facts about code and refuted none. **Pass 2's five hardest correctness lenses came back considered-empty** — the classifier under NFC/NFD, non-breaking spaces and combining marks; the `Finding`→`one_line` data flow; the moved `editable_version` call and its exit-2 path; ADR-vs-code; and the notifier. **No correctness defect was found in the code.** Everything that landed was test quality or a wrong count.
+
+**Two findings both verifiers refuted were applied anyway** (lesson 107) and one refuted finding is **declined with its reason** in the ADR rather than dropped.
+
+### Notes / debt logged
+
+* ⚠️ **Four counts wrong in one session**, in a session whose own ADR quotes lesson 133 in its Context table. Three were caught by review agents; the fourth — `24` where the answer is `41` — was caught only by re-running in a real `git worktree`, because the suite **exits 1 partway** outside one and an aborted run's `ok` lines look identical to a complete run's (**lesson 149**). The second commit message carries two of them and is corrected in the third rather than rewritten.
+* ⚠️ **The first refusal was wrong twice over** and both grounds were killed by one review lens (**lesson 147**): it cited `session-context.md` §7 as a prohibition while quoting its own *"without asking"* two paragraphs later, and it borrowed ADR-029 D2 / ADR-032 D4's no-blind-edits precedent, which protects a **working** path — this lane has never worked. Revision 2 asks (operator 6(c)) and **distinguishes** the precedent, the ADR-041 move.
+* ⚠️ **Sixth consecutive session whose ADR's worst error was a claim flattering its own argument** — here a superlative (*"the first movement on #204 in eleven sessions"*, false: ADR-047 was exactly that) and an overstatement (*"a live detonator"*, defused for the careless edit by a lint the ADR had not read). Both caught by outside readers, neither by a lens over the diff.
+* 🔴 **The dev box was rebuilt ~2026-08-31** and lost `flutter`, `java`, `ruby`, the `firebase` login and the git identity. `session-context.md` §2/§3 asserted all of them **in runnable form** (lesson 64 — a stale fact inside an instruction). The two probes this session was told to run answered **2 — could not measure**, and **ADR-063's exit-2 state is the only reason that did not become a false production report** (**lesson 146**). Dart 3.12.2 restored locally; Flutter/Java are a session's to restore, the firebase login is **operator item 10**.
+* **#136 was checked and ruled out as the next objective**, rather than named from the priority list: **ADR-059 D3 has already decided** against adding the bidi isolate, because whether a notification shade honours `U+2068`/`U+2069` is unmeasurable without a phone, and ADR-059 D2 shipped the alternative. Naming it would have handed S096 a decision already taken — the exact shape lesson 145 was written for.
+
+**Operator dependency:** yes, and it grew. Operator item **6** split into **6(a)** the Turkish name, **6(b)** *may the AI-drafted English copy be published at all* (ADR-020 D8's gate, which had **no line in the checklist**), **6(c)** *may a session dispatch the release lane once*. New item **10**: restore the `firebase login` on the rebuilt dev box. **6(b) is the first thing on #204 that does not need Apple.**
+
+**Next objective written to resume-prompt.md:** Session 096 — **#278**: publish the store listing per locale over the ASC REST API, so one locale Apple refuses stops taking the other down with it. Built and **not run**: pointing it at production needs 6(b) and 6(c).

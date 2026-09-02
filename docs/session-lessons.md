@@ -38,6 +38,88 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**150 — A verdict that is compatible with two very different worlds is not yet a measurement, and everyone will assume the wrong one.** *(S095, ADR-070 D1.1)*
+`store_metadata_audit.py` reported *"en-US: description differs from
+description.txt"* for seventeen days. **ADR-047 D2 read that as *"the English
+listing is still whatever was typed by hand into App Store Connect"*, and ADR-070
+repeated it through two revisions.** The first run of a classifier — the same
+comparison, asked one question further — returned **`PUBLISHED IS EMPTY` for all
+seven fields**: App Store Connect holds *nothing*, and only the app `name` was
+ever set. "Differs" was true the whole time and was compatible with *"they have
+rival copy"* and *"they have no copy"*, which are opposite facts with opposite
+consequences: one made publishing a risk of overwriting the founder's work, the
+other makes it free and reveals the listing is **not submittable**.
+**Both documents guessed, in the same direction, and neither noticed it was
+guessing** — because a comparison that returns a boolean feels like a measurement.
+When a tool's verdict is a *category* (differs / mismatched / failed / changed),
+ask what the distinct members of that category are and whether your conclusion
+survives all of them. If it does not, you have not measured yet. And the cheap fix
+is usually one more question to an instrument you already built: the classifier
+cost an afternoon and overturned a claim two ADRs had carried.
+
+**149 — A truncated run's success lines look exactly like a complete run's.** *(S095)*
+Counting the checks in a test suite before and after a change: the "before" run
+was executed against a copy of the files in a temp directory and printed **24**
+`ok` lines. The real number is **41** — the suite calls
+`expected_locales(pathlib.Path("fastlane/metadata"))`, a **CWD-relative** path, so
+outside a full worktree it raises partway through and stops. Exit code 1 was right
+there and was not read, because the *interesting* output was the count and the
+count looked plausible. **This is lesson 65 one step over: not an empty result read
+as a negative, but a PARTIAL result read as a total.** An empty result at least
+looks empty. Two instruments now: **read the exit code of the run you are counting,
+not just its output**, and **count in a place where the thing can actually
+complete** — `git worktree add` settled this one in ten seconds.
+⚠️ It was the *fourth* wrong count in one session; the other three were caught by a
+review agent. Lesson **133** does not stop being true once you have quoted it, and
+this session quoted it in the ADR's own Context table.
+
+**148 — A guard cannot protect you from someone OBEYING the wrong instruction, because the instruction tells them to move the guard.** *(S095, ADR-070 D6.1)*
+`session-context.md` §6's binding-invariants table said the App Store name is
+pinned to **`İkimiz`**. It is `ikimiz`; ADR-035 lowercased it and left five copies
+of the old value behind, one of them in that table. `release_lane_lint.dart` does
+pin `name.txt` and does run on every PR — so a session that edited `name.txt` alone
+would go red. **But the lint's own violation message says *"Change the pin in
+`tool/release_lane_lint.dart` and every `name.txt` in one commit"*, which is
+precisely what a session reconciling to the invariant would do next** — and then
+the build is green and `deliver(force: true)` renames the founder's live listing.
+The first draft of the ADR called this *"a live detonator"*; a review agent found
+the lint and the claim was overstated. **The corrected version is the more useful
+one:** a guard defends against the careless edit and is silent for the diligent one,
+so *"a lint covers it"* is never a reason to leave a stale instruction standing.
+Grade a stale fact by what a **conscientious** reader would do with it.
+
+**147 — A refusal grounded in a rule that says "without asking" is not a refusal. It is a question nobody asked.** *(S095, ADR-070 D3.1)*
+ADR-070 revision 1 declined to build the release-lane fix, on the ground that
+`session-context.md` §7 *"forbids a session dispatching the release lane"* — and
+conceded two paragraphs later that §7 is *"a list of things to ask about, not a
+prohibition"*. **Both sentences were in the same document.** The review's refusal
+lens called it blocking, correctly: arguing around a rule rather than through it,
+in a session that was already handing the founder two other decisions and could
+have added one line. Revision 2 asks (operator item 6(c)). The same pass killed the
+other ground — ADR-029 D2 / ADR-032 D4's *no blind edits* precedent protects a path
+that **demonstrably works**, and this lane has never worked once, so the precedent
+had to be **distinguished** (the ADR-041 move) rather than borrowed.
+**If your ADR declines to build something, point a lens at that decision
+specifically** — nothing fails when a refusal is wrong; the work simply does not
+happen.
+
+**146 — A rebuilt dev box makes every credentialed instrument answer "could not measure", and the next session will read that as a reading.** *(S095)*
+S095 opened by running the two probes its prompt mandated. Both returned **exit 2**
+where S094 had measured **1**. Nothing had changed in production: the machine had
+been rebuilt around 2026-08-31 and `flutter`, `dart`, `java`, `ruby` and the
+`firebase` CLI were simply gone, along with `~/.config/configstore/` and the git
+identity. **`session-context.md` §2 and §3 still asserted all of them, in runnable
+form** — lesson **64**, a stale fact inside an instruction, in the one document a
+session is told to trust about its own machine.
+ADR-063's exit-2 state is what stopped this becoming a false production report, and
+it is worth seeing that it earned its keep for a reason nobody designing it had in
+mind. **Two habits:** open a session by measuring the toolchain
+(`for c in node npm python3 java dart flutter ruby gh git; do command -v $c; done`),
+and when an instrument's answer moves, **suspect the instrument before the
+subject**. Note what is a session's and what is not: reinstalling an SDK is a
+download; `firebase login` is interactive OAuth on the founder's identity, so it is
+an operator item.
+
 **145 — A resume prompt is a claim, and the ADR that owns the objective outranks it.** *(S093, ADR-060 D6 / ADR-069)*
 S093's prompt named **#242** and asserted that emitting the three money events
 into the existing port was unblocked — only *delivery to a vendor* being blocked.

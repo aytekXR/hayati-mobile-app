@@ -54,8 +54,17 @@ _Environment facts below were last re-measured **2026-08-05**._
   API — no `gcloud`, no ADC, no service account. **Import that helper; do not re-implement
   the OAuth dance.** The absence of `gcloud` is not the absence of the credential, and
   treating the two as the same thing is what left an unmonitorable backend.
-* The `firebase` CLI **is** logged in as the founder (`aaytekinerdogan@gmail.com`) with access
-  to `hayatiapp-prod` and `hayatiapp-dev`. That is a **local** path only.
+* 🔴 **THE DEV BOX WAS REBUILT AROUND 2026-08-31, AND THE `firebase` CLI IS GONE** *(measured
+  S095, 2026-09-02)*. `command -v firebase` → not found; `~/.config/configstore/` does not
+  exist. **Everything in the table below now answers `2 — could not measure` for want of a
+  credential, not because production is in that state.** ADR-063 built exit 2 as a distinct
+  state for exactly this, so do not read it as a production reading — and do not read a
+  *previous session's* exit 1 forward either.
+  **Restoring it needs the founder**: `npm i -g firebase-tools` is a session's, but
+  `firebase login` is an interactive OAuth on the founder's Google identity. Operator item 10.
+* It **was** logged in as the founder (`aaytekinerdogan@gmail.com`) with access to
+  `hayatiapp-prod` and `hayatiapp-dev`, and that is what the table below describes. It is a
+  **local** path only, and it is currently unavailable.
 * **What that login can actually do was unknown until S063, and one of them is the only
   instrument this repo has for a question it keeps getting wrong.** All five work today:
 
@@ -96,8 +105,31 @@ _Environment facts below were last re-measured **2026-08-05**._
 
 ## 3. Toolchain and commands
 
+> 🔴 **WHAT IS ACTUALLY INSTALLED ON THIS BOX, measured S095 (2026-09-02).** The machine was
+> rebuilt around 2026-08-31 and most of this section describes a toolchain that is no longer
+> here. **Re-measure before trusting any command below** — `for c in node npm python3 java
+> dart flutter ruby gh git; do command -v $c; done` takes two seconds and this section cost a
+> session an hour.
+>
+> | present | absent |
+> |---|---|
+> | `node` 22, `npm` 10, `python3` 3.12, `gh`, `git`, `codegraph` | **`flutter`**, **`java`**, **`ruby`/`bundle`**, **`firebase`** |
+>
+> **`dart` was restored by S095** as a standalone SDK at
+> `~/.local/share/dart-sdk/bin` (3.12.2, matching `app/pubspec.yaml`'s `^3.12.2`). It is NOT
+> on PATH — export it. It runs the five `dart:io` lints (`adr_index_lint`,
+> `release_lane_lint`, `store_metadata_lint`, `deploy_lane_lint`, `rtl_lint`) and their
+> self-tests, and `dart format`. It does **not** give you `flutter analyze`, the app suite,
+> goldens or the emulator suites — those need Flutter and Java. **Say which half you proved
+> and which half CI proved** (lesson **78**); do not let a green CI stand in for a claim you
+> could have measured locally, or vice versa.
+>
+> Restoring Flutter/Java/Ruby is a session's to do (downloads, no credential). Restoring the
+> **firebase login** is not — operator item 10.
+
 **Flutter / Dart**
-* Flutter at `~/flutter/bin`; `dart` is `~/flutter/bin/dart`, not on PATH.
+* ⚠️ **Not installed** (above). Historically: Flutter at `~/flutter/bin`; `dart` is
+  `~/flutter/bin/dart`, not on PATH.
 * **Run `flutter gen-l10n` in `app/`** before trusting any test or analyze run that touches
   localized text.
 * **Run `dart format` before every commit.** CI runs
