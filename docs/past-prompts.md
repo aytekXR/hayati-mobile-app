@@ -4826,3 +4826,67 @@ Consequences, in both directions: **nothing can be lost by publishing** (the onl
 **Operator dependency:** yes, and it grew. Operator item **6** split into **6(a)** the Turkish name, **6(b)** *may the AI-drafted English copy be published at all* (ADR-020 D8's gate, which had **no line in the checklist**), **6(c)** *may a session dispatch the release lane once*. New item **10**: restore the `firebase login` on the rebuilt dev box. **6(b) is the first thing on #204 that does not need Apple.**
 
 **Next objective written to resume-prompt.md:** Session 096 — **#278**: publish the store listing per locale over the ASC REST API, so one locale Apple refuses stops taking the other down with it. Built and **not run**: pointing it at production needs 6(b) and 6(c).
+
+## Session 096 — 2026-09-02 — #278: publish per locale, and the isolation guarantee that was only as wide as its `except` clause (ADR-071)
+
+**Objective (from resume-prompt.md):** #278 — `deliver` aborts for EVERY locale when Apple refuses one. Build the per-locale writer over the App Store Connect REST API.
+
+**Outcome:** done. Built, reviewed twice, merged. ⚠️ **Not run against Apple, and it ships that way** — pointing it at production needs operator 6(b) and 6(c). **#278 stays open until it has run.**
+
+### The decision the issue is actually about
+
+`name` lives on `appInfoLocalizations` and **`name` is the field Apple refuses**, so the obvious fix — isolate per (locale, field) so nothing blocks anything — is wrong: it would write `tr`'s version localization and then fail to create its app-info localization, leaving a Turkish listing carrying a description and **no name**, a state nobody here can observe or undo. **A locale publishes as a unit, and the app-info resource is attempted first**; when it is refused, nothing has been written for that locale and every other locale proceeds. `en-US` publishes while `tr` is refused, which is the whole defect.
+
+Ordering is **not** a transaction, and revision 1 of the ADR said it was. It covers the known refusal completely because nothing is written when it fires; the reverse partial — app info lands, version localization fails — is possible, is not prevented, and is reported naming both halves.
+
+### ⚠️ Two failures of my own, both caught by outside readers
+
+**1. Revision 1 designed a tool that could not run.** It refused the tool a workflow, reasoning that *a button whose permission has not been given is a button someone presses* — and the App Store Connect credential exists nowhere but GitHub secrets (`~/.appstoreconnect` absent, no `.p8` on disk, `ASC_KEY_ID` unset). **Reasoning with the shape of safety and the effect of futility**, caught by a review agent running `ls ~/.appstoreconnect`. It also inverted the deliverable: operator 6(b) asks whether the copy may be published, and what answers that is the **dry run** — which is the thing the workflow carries. **Lesson 152.**
+
+**2. The isolation guarantee was only as wide as its `except` clause.** `execute` caught `AscError`; `tf._call` converts an `HTTPError` into `AscError` and lets `URLError`, `socket.timeout` and a malformed JSON body propagate **raw**. So a DNS blip while writing one locale would have escaped and aborted every remaining locale — **the defect #278 exists to fix, one exception type over, inside the tool written to fix it.** The built-diff review reproduced it with three locales: `ar` wrote, `en-US` raised `URLError`, `tr` was never attempted. It had survived a 39-agent design pass, the implementation, thirteen mutants and a green CI, because every test exercised the refusal path I had in mind. **Lesson 151.**
+
+### What shipped
+
+* `tool/ci/store_metadata_publish.py` + 14 self-tests, registered in `ci.yml`'s `quality` job.
+* `.github/workflows/publish-store-metadata.yml` — dispatch-only, **no `push` trigger**, dry run unless `confirm` is the literal `PUBLISH`, `cancel-in-progress: false` because cancelling mid-run manufactures the partial state on purpose.
+* An **empty committed field is skipped, never sent** (ADR-070 D7's `COMMITTED IS EMPTY` hazard), so the **read-back compares only what was written** — passing the whole committed set to `audit_findings` would fail the read-back for a field the writer correctly declined to write. That blind spot is handed to the auditor, which reports it every run.
+* A wrong `--confirm` exits **64 REFUSED**, outside the taxonomy: a fumbled literal is a statement about the command, not the listing, and absence ("I am looking") must not print the same thing as a typo.
+
+**Also, and not in the diff: the dev box's toolchain was restored.** S095 found it stripped; **Flutter 3.44.5** (CI's pin), **Java 21**, **firebase-tools 15.22.4** are back, joining the Dart SDK S095 restored. ⚠️ Flutter needed its git remote moved to SSH — **git-over-HTTPS is intercepted on this network** (`curl` gets 200 from github.com while `git ls-remote` fails with *"could not read Username"* / *"expected flush after ref listing"*). `flutter analyze` now runs clean here. Only **Ruby/fastlane** and the founder-owned **firebase login** remain missing.
+
+**Commits:** `485926d` (ADR before code), `23a3475` (the implementation), `a8e158e` (revision 3 + the built-diff review's findings) — PR **#280**.
+
+**CI:** green, including the new `store metadata publish self-tests` step in `quality`.
+
+**Docs touched:** `docs/adr/071-*.md` (new), `docs/adr/README.md`, `.github/workflows/ci.yml`, `.github/workflows/publish-store-metadata.yml` (new), `fastlane/README.md`, `docs/session-context.md` (§2/§3 toolchain table rewritten to what is now installed; §8 gains the dry-run command), `docs/session-lessons.md` (151–153), `docs/operator-expected.md`, `docs/resume-prompt.md`, this file.
+
+### Verification, and which instrument proved which half (lesson 78)
+
+| ran **here** | 14 self-tests; the audit and testflight suites; every Dart lint and self-test; `dart format`; **and `flutter analyze`, clean** — the first app-side check a session has been able to run locally since the rebuild |
+|---|---|
+| ran **in CI** | the full `quality` job (analyze, app suite, coverage gate) and `functions-rules` |
+| **not** run anywhere | **the tool against Apple.** Nobody in this repo has seen what the REST API returns for the name refusal — #204's quote is a Ruby `Spaceship` wrapper — so it **quotes what it cannot parse** |
+
+**Mutation-checked: 14 mutants, 13 killed by a NAMED assertion**, one per decision. ⚠️ Two flaws in the mutation set itself, recorded rather than quietly fixed: the first ordering mutant swapped a **condition** rather than the order and changed nothing semantically (lesson **109**), and `refusal-aborts-everything` died **by an exception** until the test was taught to catch an escaping error and name it (lesson **76** — the same shape S095 hit twice). The survivor is recorded, not fixed: locale iteration order is presentational.
+
+### Review, twice
+
+| | pass 1 — the design | pass 2 — the built diff |
+|---|---|---|
+| agents | **39** (8 probes × 2 verifiers + critic) | **15** (8 probes × 2 verifiers + critic) |
+| `agents_error` | **0** | **0** |
+| `agents_empty_result` | **0** — every lens found something | **5**, all **CONSIDERED**-empty |
+| `failed_empty` | **0** | **0** |
+| findings | 15 + 7 critic → **10 surviving**, 5 refuted | 3 → **3 surviving**, 0 refuted |
+
+Pass 2's five considered-empty lenses were payload/verbs, workflow safety, ADR-versus-code, test quality and governing-docs/scope. **The one serious finding was the `except` clause above** — which is the argument for running both passes: a design pass cannot see it, and a lens over the prose would not either.
+
+### Notes / debt logged
+
+* ⚠️ **The exit-taxonomy count was wrong twice in one ADR.** Revision 1 said *"the fourth tool"*; revision 2 said eight and quoted `grep -l` **without `-i`**, which returns seven because `appid_capabilities.py` shouts it in capitals. It is eight on `main`, nine with this tool. **Lesson 153** — carrying the command is not enough if it is not the command you ran, and this was written while correcting the same mistake.
+* `exit_code` took a `wrote` argument it never read, kept deliberately as a "documentation device". An argument that documents rather than computes reads as a bug; removed, and the boundary now says so where it is enforced.
+* **#136 and #71 were both checked and ruled out as next objectives rather than named from the priority list** — ADR-059 D3 has already decided against the bidi isolate pending a device, and **#71's own issue says "This is not a bug"**, ADR-025 D5.ii having decided the current arrangement is correct. Naming either would have handed the next session a decision already taken.
+
+**Operator dependency:** yes, unchanged in substance and now sharper. **6(b)** — may the AI-drafted English copy be published at all — is the gate on everything this session built, and it is answerable from a dry run that needs no permission. **6(c)** and **10** stand.
+
+**Next objective written to resume-prompt.md:** Session 097 — **run the dry run**. Dispatch `publish-store-metadata.yml` with `confirm` blank against the real App Store Connect, fix what first contact reveals, and put the resulting plan in front of the founder so operator 6(b) becomes answerable.

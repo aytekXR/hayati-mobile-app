@@ -1,6 +1,6 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-09-02 UTC (Session 095)
+**Last Updated:** 2026-09-02 UTC (Session 096)
 
 > This file is a **live checkpoint**, not a history. It carries only the current
 > state and what is open right now. What each session did, and why, lives in
@@ -8,9 +8,9 @@
 
 ## Current Status
 
-- Session: **095** (complete)
-- Goal: **work out how much of the store-listing failure is fixable without you**
-- Status: **Complete** — and it found something nobody had measured
+- Session: **096** (complete)
+- Goal: **build the fix for the store listing, so one locale Apple refuses stops taking the other down with it**
+- Status: **Complete** — built, reviewed twice, merged, **and deliberately not run**
 - Completion: **~58%** of the iOS MVP, to public launch
 - Production Readiness: **Integration Ready**
 
@@ -69,19 +69,21 @@ drift checks measuring instead of skipping.
 
 ## Latest Checkpoint
 
-**Session 095 answered the question it was given and then found a bigger one.**
+**Two sessions ran back to back on the store listing.**
 
 | | what changed, in one line |
 |---|---|
 | **095** | The tool that checks your store listing could only say a field *"differs"*. Now it says *how* — and the first honest answer was that seven of your nine English fields contain **nothing at all**. Also: five documents (one of them in code) claimed your app is called `İkimiz`; it is `ikimiz`, and the guard that exists to protect that name would not have caught a careful person following the wrong instruction. |
+| **096** | Built the thing that fixes it: your store copy can now be published **one language at a time**, so the Turkish listing Apple keeps refusing stops taking the English one down with it. **Nothing has been published** — that is your decision, item 6(b), and item 6(c) just got smaller because this no longer needs a release build. |
 
 Everything is merged to `main` and CI is green.
 
-**Verified today:** the full `quality` job green (format, analyze, app suite,
-coverage gate), `functions-rules` green, and `ios-build-smoke` **genuinely
-compiled** — a 200-second Xcode build, checked in the job log rather than inferred
-from a green tick. The store-metadata tool's own suite went from 41 checks to 91,
-mutation-checked with 14 mutants of which 13 die on a named assertion.
+**Verified today:** CI green on both sessions' work — the full `quality` job
+(format, analyze, app suite, coverage gate), `functions-rules`, and
+`ios-build-smoke` **genuinely compiled** (checked in the job log rather than
+inferred from a green tick). The two store-metadata tools carry 105 self-test
+checks between them, mutation-checked with 28 mutants of which 26 die on a named
+assertion — and the two that did not are written down rather than tidied away.
 
 ## Plan Changes
 
@@ -90,7 +92,10 @@ quietly fixed, because you may have read it: item 6 used to describe the store
 listing as showing copy that disagreed with ours. It shows **no copy**. The
 difference matters to you, so it is the first thing in this file.
 
-**One new blocker**, below: the listing is not submittable as it stands.
+**One blocker added in 095 and unchanged:** the listing is not submittable as it
+stands.
+
+**One item shrank:** 6(c) no longer gates the store copy — see it below.
 
 Otherwise the plan is unchanged, and the sequence is the one it has been:
 **billing first, because everything server-side is downstream of it.**
@@ -213,15 +218,30 @@ publishing cannot overwrite anything of yours. **What makes it urgent:** the
 listing being empty means it is **not submittable**, and our copy is the only copy
 that exists.
 
+**And you can now see exactly what would happen before deciding.** Session 096
+built the lane that does this per locale, and its **dry run writes nothing**:
+
+```
+Actions → publish-store-metadata → Run workflow → leave "confirm" BLANK
+```
+
+That prints the plan — which locale, which fields, create or update — and sends
+nothing at all. Only typing `PUBLISH` writes, and anything else is refused
+outright. **Session 097 will run that dry run and paste the plan here**, so this
+decision arrives with its evidence attached rather than as a question about files
+you would have to open yourself.
+
 #### 6(c) — May a session dispatch the release lane once, to test a fix?
 
 `session-context.md` §7 says a session must never dispatch the release lane
 **without asking**. So this is the asking.
 
-The fix for #204's engineering half (**#278**) makes the lane publish the locales
-it *can* publish, so one locale Apple refuses stops taking the other down with it.
-It cannot be exercised anywhere else: the dev box has no Ruby or fastlane, and the
-only other place it runs is a real release.
+⚠️ **This got narrower in Session 096, in your favour.** The fix for #204's
+engineering half (**#278**) is now a standalone lane that does **not** touch the
+release pipeline and does **not** upload a binary — so publishing store copy no
+longer needs a release at all. What 6(c) still buys is the ability to test
+**#121** (a dead step in the release lane, which can only be proven by a real
+run). Lower stakes, and no longer on the critical path.
 
 > **The decision:** yes, a session may dispatch it once for this purpose — or no,
 > and it waits for your next real release.
@@ -248,14 +268,19 @@ currently the Turkish solo pack, a known placeholder. Target: 400/300/300.
 *cause*. Had one existed, the current outage would have been hours rather than
 days.
 
-### 10. ⚠️ NEW — the dev box lost its Firebase login
+### 10. The dev box needs YOUR Firebase sign-in (the rest is restored)
 
 The machine was rebuilt around **2026-08-31**. `flutter`, `dart`, `java`, `ruby`
 and the `firebase` CLI all went with it, along with the git identity. A session can
 reinstall the SDKs — that is just downloading, and `dart` is already back — but it
 **cannot log in as you**.
 
-> On the dev box: `npm i -g firebase-tools && firebase login`
+⚠️ **Session 096 restored everything a session could restore by itself** —
+Flutter, Java, the Dart SDK and `firebase-tools` are all back, and app-side checks
+run locally again. **What is left is the one step that is yours**, because it is an
+interactive sign-in with your Google identity:
+
+> On the dev box: `firebase login`
 
 **Blocked by this:** every local production check. `prod_pulse.py`,
 `push_delivery_probe.py`, `rules_drift.py`, `functions:log` and `functions:list`
@@ -290,21 +315,14 @@ open, designed and deliberately unbuilt pending 6(c).
 
 ## Next Step
 
-Merge PR **#279** and watch the post-merge `main` run.
+Merge PR **#280** and watch the post-merge `main` run.
 
 ## Next Session Goal
 
-**Session 096 — #278: publish the store listing per locale, so one locale Apple
-refuses stops taking the other down with it.** The engineering half of #204,
-split out today. It is the only open issue whose fix can be built *and proven*
-on the dev box as it currently stands, and it is the thing that would put copy on
-the empty listing at the top of this file.
+**Session 097 — run the dry run.** The lane built in 096 has never once talked to
+Apple. Session 097 will dispatch it with `confirm` **blank** — which writes
+nothing — fix whatever first contact with a real API reveals, and **paste the
+resulting plan into item 6(b) above**, so your decision arrives with the evidence
+attached instead of as a question about files you would have to open.
 
-**It will be built and not run.** Pointing it at your listing needs 6(b) — and if
-you would rather it never ran at all, say so and it stops being built.
-
-*(#136 was the obvious next candidate and was checked before being named: ADR-059
-D3 has already decided its remaining question, against adding the isolate, because
-whether a phone's notification shade honours those characters cannot be measured
-without a phone. Naming it would have handed the next session a decision that had
-already been taken.)*
+Nothing will be published. That stays yours.

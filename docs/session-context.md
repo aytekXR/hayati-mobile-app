@@ -105,31 +105,37 @@ _Environment facts below were last re-measured **2026-08-05**._
 
 ## 3. Toolchain and commands
 
-> 🔴 **WHAT IS ACTUALLY INSTALLED ON THIS BOX, measured S095 (2026-09-02).** The machine was
-> rebuilt around 2026-08-31 and most of this section describes a toolchain that is no longer
-> here. **Re-measure before trusting any command below** — `for c in node npm python3 java
-> dart flutter ruby gh git; do command -v $c; done` takes two seconds and this section cost a
-> session an hour.
+> ⚠️ **WHAT IS ACTUALLY INSTALLED ON THIS BOX, measured S096 (2026-09-02).** The machine was
+> rebuilt around 2026-08-31 and lost everything; **S095 found it stripped and S096 put most of
+> it back.** Still **re-measure before trusting any command below** — this table is a claim
+> like any other:
 >
-> | present | absent |
+> ```sh
+> for c in node npm python3 java dart flutter ruby gh git firebase; do printf '%-9s ' "$c"; command -v $c || echo MISSING; done
+> ```
+>
+> | | |
 > |---|---|
-> | `node` 22, `npm` 10, `python3` 3.12, `gh`, `git`, `codegraph` | **`flutter`**, **`java`**, **`ruby`/`bundle`**, **`firebase`** |
+> | **present** | `node` 22, `npm` 10, `python3` 3.12, `gh`, `git`, `codegraph`, **`java` 21** (`~/.local/share/java/jdk-21.0.12.1+1-jre/bin`), **`flutter` 3.44.5** (`~/flutter/bin`, matching `ci.yml`'s `FLUTTER_VERSION`), **`dart` 3.12.2** (bundled with Flutter, and also standalone at `~/.local/share/dart-sdk/bin`), **`firebase-tools` 15.22.4** |
+> | **absent** | **`ruby`/`bundle`** — so `fastlane` cannot be run here at all; the **firebase LOGIN** — operator item 10 |
 >
-> **`dart` was restored by S095** as a standalone SDK at
-> `~/.local/share/dart-sdk/bin` (3.12.2, matching `app/pubspec.yaml`'s `^3.12.2`). It is NOT
-> on PATH — export it. It runs the five `dart:io` lints (`adr_index_lint`,
-> `release_lane_lint`, `store_metadata_lint`, `deploy_lane_lint`, `rtl_lint`) and their
-> self-tests, and `dart format`. It does **not** give you `flutter analyze`, the app suite,
-> goldens or the emulator suites — those need Flutter and Java. **Say which half you proved
-> and which half CI proved** (lesson **78**); do not let a green CI stand in for a claim you
-> could have measured locally, or vice versa.
+> ⚠️ **Flutter and Java are NOT on PATH by default.** Export them:
+> `export PATH=~/flutter/bin:~/.local/share/java/jdk-21.0.12.1+1-jre/bin:$PATH`.
 >
-> Restoring Flutter/Java/Ruby is a session's to do (downloads, no credential). Restoring the
-> **firebase login** is not — operator item 10.
+> ⚠️ **Flutter's git remote had to be moved to SSH.** `flutter --version` runs
+> `git fetch --tags`, and **git-over-HTTPS is intercepted on this network**: `curl` gets a
+> 200 from github.com while `git ls-remote` fails with *"could not read Username"* and
+> *"expected flush after ref listing"*. `git -C ~/flutter remote set-url origin
+> git@github.com:flutter/flutter.git` fixes it. A fresh install will hit this again.
+>
+> **What you can and cannot prove locally**: `flutter analyze`, `flutter test` and the Dart
+> lints all run here now (S096 ran `analyze` clean against this ref). The **emulator suites**
+> need `firebase emulators:exec`, which works without a login on the `demo-` project. What
+> still cannot be run here is anything needing **fastlane** or a **real Firebase credential**.
+> **Say which half you proved and which half CI proved** (lesson **78**).
 
 **Flutter / Dart**
-* ⚠️ **Not installed** (above). Historically: Flutter at `~/flutter/bin`; `dart` is
-  `~/flutter/bin/dart`, not on PATH.
+* Flutter at `~/flutter/bin`; `dart` is `~/flutter/bin/dart`, not on PATH.
 * **Run `flutter gen-l10n` in `app/`** before trusting any test or analyze run that touches
   localized text.
 * **Run `dart format` before every commit.** CI runs
@@ -138,7 +144,8 @@ _Environment facts below were last re-measured **2026-08-05**._
   `app/` after adding providers.
 
 **Functions / emulator**
-* Needs Java 21+ on PATH (`~/.local/share/java/jdk-21.0.11+10-jre/bin`) and global
+* Needs Java 21+ on PATH (**`~/.local/share/java/jdk-21.0.12.1+1-jre/bin` since S096** — the
+  path in this line was `jdk-21.0.11+10-jre` and no longer exists) and global
   `firebase-tools@15.22.4`.
 * **Build `functions/` first** (`npm run build`) — the functions emulator never compiles TS.
 * Full suite, **from the repo root**:
