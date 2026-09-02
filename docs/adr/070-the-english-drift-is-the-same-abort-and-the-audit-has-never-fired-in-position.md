@@ -1,6 +1,6 @@
 # ADR-070: The English drift is not a second defect — it is the same abort, and the audit built to see it has never fired in the position it was built for
 
-- **Status:** Accepted — revision 2 (the design review found twelve real defects in revision 1; §Review record)
+- **Status:** Accepted — revision 3. Revision 1 was corrected by a design review (twelve real defects); **revision 3 is corrected by the instrument itself** — the first run of D7's own code overturned a claim revisions 1 and 2 had inherited from ADR-047 (D1.1). §Review record.
 - **Date:** 2026-09-02 (Session 095)
 - **Deciders:** session agent. **Two founder decisions are named below and neither is taken here** — the Turkish display name (unchanged since #204 was filed) and, separated out for the first time, whether never-reviewed English store copy may be published at all. A third thing is **asked** rather than decided: one authorization, per `session-context.md` §7.
 - **Related:** **ADR-047** (the instrument this re-measures — its D2 finding is confirmed unchanged 17 days on), **ADR-020 D5/D8** (the empty-URL ratchet and the store-copy review gate; both are described wrongly in the repo today — D6), **ADR-032 D6** (the store name, and why a drifted `name.txt` is dangerous), **ADR-035** (which moved that name to lowercase and left four prose copies behind), **ADR-029 D2 / ADR-032 D4** (the *no blind edits* bound — **distinguished, not borrowed**, in D3), **ADR-041** (the exit taxonomy, and the precedent for refusing to transfer a precedent), issue **#204**, new issue **#278**, lessons **64**, **65**, **69**, **71**, **78**, **103**, **107**, **133**, **141**
@@ -28,6 +28,7 @@ were run on **2026-09-02**.
 | when the audit landed | `git log -S store_metadata_audit -- .github/workflows/release.yml` | **482f92f4, 2026-08-16** |
 | the notifier's channel | `gh secret list` | five secrets; **no `SLACK_WEBHOOK_URL`** |
 | repository visibility | `gh repo view --json visibility` | **PUBLIC** |
+| the listing, read by the NEW code | the same dispatch `--ref` this session's branch → run **33666301529** | **exit 1**, and see **D1.1** |
 
 ⚠️ **The two probes answered `2`, not `1`, and the difference is not about
 production.** S094 measured `1` on both. They answer `2` here because
@@ -65,6 +66,50 @@ is load-bearing evidence in **D6**.
 Nothing moved because nothing could have: no release has run since 2026-08-09,
 and a release is the only thing that writes this listing.
 
+### 1.1 — ⚠️ The seven English fields are not stale. They are EMPTY
+
+D7 was built to tell the founder *what kind* of difference each finding is. Its
+first run against the real App Store Connect — run **33666301529**, dispatched
+`--ref` this session's branch, which is what the ADR-047 D6 side door exists for
+— answered a question nobody had asked and **overturned a claim this ADR itself
+had inherited and repeated**:
+
+```
+audited App Store version: 1.0 state=PREPARE_FOR_SUBMISSION
+
+  - en-US: description differs from description.txt — PUBLISHED IS EMPTY — published 0 vs committed 1454 code points, first difference at 0
+  - en-US: keywords differs from keywords.txt — PUBLISHED IS EMPTY — published 0 vs committed 91 code points, first difference at 0
+  - en-US: privacyPolicyUrl differs from privacy_url.txt — PUBLISHED IS EMPTY — published 0 vs committed 38 code points, first difference at 0
+  - en-US: promotionalText differs from promotional_text.txt — PUBLISHED IS EMPTY — published 0 vs committed 109 code points, first difference at 0
+  - en-US: whatsNew differs from release_notes.txt — PUBLISHED IS EMPTY — published 0 vs committed 24 code points, first difference at 0
+  - en-US: subtitle differs from subtitle.txt — PUBLISHED IS EMPTY — published 0 vs committed 27 code points, first difference at 0
+  - en-US: supportUrl differs from support_url.txt — PUBLISHED IS EMPTY — published 0 vs committed 31 code points, first difference at 0
+  - tr: NOT PUBLISHED — no localization exists on the editable App Store version
+```
+
+**All seven are `PUBLISHED IS EMPTY`.** App Store Connect holds *nothing* for the
+English description, keywords, privacy URL, promotional text, release notes,
+subtitle and support URL. The one field that is set is `name` — which is why it
+has never been a finding, and why D6's inference from it holds.
+
+⚠️ **`PUBLISHED IS EMPTY` is not `ABSENT`, and the tool separates them.** `ABSENT`
+means App Store Connect did not return the attribute at all; these seven came back
+**present and empty**. The localization rows exist; their text is blank.
+
+**What this corrects.** ADR-047 D2 wrote that *"the English listing is still
+whatever was typed by hand into App Store Connect"*, and revisions 1 and 2 of this
+ADR repeated it as *"the copy that was typed by hand … never once overwritten"*.
+**ADR-047's finding was exactly right — seven fields disagree with this ref — but
+that characterisation was an inference a presence-only comparison could not
+support**, and it survived seventeen days and two ADRs because *"differs"* is
+compatible with both readings. Nothing was typed but the name. The listing is not
+carrying rival copy; **it is carrying no copy.**
+
+That is the whole argument for D7 in one measurement, and it is worth stating
+plainly rather than as a win: **the instrument found this on its first run, and
+the two documents that reasoned about the same listing without it both got it
+wrong in the same direction.**
+
 ## Decision 2 — The `en-US` disagreement is NOT a separate defect. It is the same abort, and "fix en-US" is not a task that exists
 
 The prompt asked whether the seven-field English mismatch is *"a separate,
@@ -74,8 +119,9 @@ unblocked defect"*. **It is neither.**
 the upload phase — ADR-047 quotes the backtrace from the release logs
 (`upload_metadata.rb:575` from `:103`). One refused locale therefore aborts the
 run **for every locale**, so nothing has ever been written to this listing by the
-lane. The English listing is not *drifted*; it is **the copy that was typed by
-hand into App Store Connect, never once overwritten**.
+lane. The English listing is not *drifted* — and, per **D1.1**, it is not stale
+hand-typed copy either: **its seven text fields are empty.** The only thing ever
+set on it is the app `name`.
 
 ⚠️ **Naming the instrument** (lesson **78**): that backtrace is ADR-047's
 measurement, read from the release logs of builds 112–119. This session did
@@ -84,7 +130,10 @@ box. What this session measured independently is the *consequence*: the audit's
 own output, which shows all seven en-US fields differing **plus** `tr` absent,
 i.e. exactly the shape "no locale was ever written" predicts, and not the shape
 "en-US published once and then drifted" would produce. That is corroboration, not
-proof, and it is written as corroboration.
+proof, and it is written as corroboration — **and D1.1 has since made it much
+stronger than corroboration was expected to be**: a listing whose seven text
+fields are *empty* is what "never written" looks like, and is not what "written
+once, then drifted" could ever look like.
 
 The competing history was checked and does not survive: `fastlane/README.md` and
 ADR-032 D5 record that before S047 the lane aborted *even earlier*, at
@@ -160,19 +209,24 @@ It mentions the English mismatch as a fact and asks nothing about it.
 | | decision | who | blocked by the other? | decidable when |
 |---|---|---|---|---|
 | **(a)** | a Turkish App Store display name Apple will accept | founder | no | now |
-| **(b)** | may the committed English copy be **published at all** | founder | no | **after D7's report is put in front of them** |
+| **(b)** | may the committed English copy be **published at all** | founder | no | **now** — D7's report exists (D1.1) and says the store is empty |
 | **(c)** | authorize one release-lane dispatch to exercise a fix | founder | no | now |
 
-**(b) has been invisible because (a) has been failing in front of it**, and it is
-**askable today** — but revision 1 called it *"decidable today"*, which contradicts
-the ADR's own admission that nobody knows which side of the drift is better.
-⚠️ Both verifiers refuted that finding; **it is applied anyway.** Lesson **107** is
-that both verifiers can refute a real finding and the aggregation rule will not
-save you, and on re-reading, the two sentences plainly disagree. (b) becomes
-decidable when someone runs
-`gh workflow run testflight-testers.yml -f store_metadata_audit=true` and shows
-the founder the report — which is why D7 exists, and the chain is stated so a
-reader can check it.
+**(b) has been invisible because (a) has been failing in front of it.**
+
+Revision 1 called it *"decidable today"*; revision 2 downgraded that to
+*"askable today"*, because the ADR could not then say which side of the drift was
+better. ⚠️ Both verifiers had refuted that finding and **it was applied anyway**
+(lesson **107** — both verifiers can refute a real finding). **Revision 3 restores
+"decidable", on evidence rather than on the original optimism:** D1.1 ran the
+report the downgrade was waiting on, and it says there is nothing on the other
+side. The missing input existed for about ninety minutes and is now in
+`operator-expected.md`.
+
+That sequence is left visible rather than tidied into a single confident
+sentence, because the honest version of this decision is *"we did not know, then
+we measured"* — and a reader who only saw revision 1's *"decidable today"* would
+have been right by accident.
 
 ### 4.1 — Which document governs the English gate, because two disagree
 
@@ -208,9 +262,12 @@ running.**
 * It landed in **482f92f4 on 2026-08-16**. The last release ran **2026-08-09**.
   **`release.yml` has not executed once since the step was added**, so ADR-047's
   remedy has never run in the event it was built for.
-* **It has executed exactly twice, ever**, both through the ADR-047 D6 side door:
-  run **31949645300** (2026-08-16, the run ADR-047 D2 cites) and run
-  **33661830831** (this session). Revision 1 said three. ⚠️ The neighbouring
+* **It has executed exactly three times, ever**, all through the ADR-047 D6 side
+  door: run **31949645300** (2026-08-16, the run ADR-047 D2 cites), run
+  **33661830831** (this session, on `main`) and run **33666301529** (this session,
+  `--ref` the branch, which is the one that produced D1.1). Revision 1 said three
+  for the wrong reason and revision 2 said two; the count is three because this
+  session added one, not because the history changed. ⚠️ The neighbouring
   dispatch **31947442886** (2026-08-16 12:34) does **not** carry the step at all —
   its step list runs 1–5 then jumps to the `Post` steps — so it was a different
   input on the same workflow.
@@ -242,7 +299,7 @@ outcome. The `id` is a live affordance and is harmless; it is **not** evidence
 that constraint 1 was addressed, and this record says so because a future reader
 counting remedies would otherwise count two.
 
-## Decision 6 — Four prose copies say the store name is `İkimiz`. It is `ikimiz`, and one of the four is in the binding-invariants table
+## Decision 6 — FIVE copies say the store name is `İkimiz`. It is `ikimiz`, one of them is in the binding-invariants table, and one is in code
 
 Found by reading D1's output: **`name` is not among the eight findings**, so App
 Store Connect's `en-US` name matches `fastlane/metadata/en-US/name.txt` under a
@@ -257,13 +314,25 @@ Measured against that:
 | `docs/session-context.md` §6, ADR-032 row | *"`fastlane/metadata/*/name.txt` is pinned to **İkimiz**"* | `release_lane_lint.dart`'s `pinnedStoreName` is `'ikimiz'` |
 | `fastlane/README.md` §Founder-owned naming | *"**App Store name** is **`İkimiz`**"* | the live listing holds `ikimiz` (D1) |
 | `fastlane/README.md` §Founder-owned naming | *"**`CFBundleDisplayName`** is **`İkimiz`**"* | `app/ios/Runner/Info.plist` is `ikimiz` |
-| `docs/implementation-plan.md` M6.3 supersession note | *"The store name is now **İkimiz**"* | as above — **found by the review, not by this session** |
+| `docs/implementation-plan.md` M6.3 supersession note | *"The store name is now **İkimiz**"* | as above — **found by the design review, not by this session** |
+| `app/lib/core/widgets/seed_mark.dart` docstring | *"the app is called İkimiz (ADR-035)"* — citing the very ADR that lowercased it | as above — **found by the lesson-141 grep after the review's four**, and the only one in code |
 
 **ADR-032 D6 and ADR-035 are both innocent** — D6 recorded the founder choosing
 `İkimiz`, and ADR-035 then renamed the app to lowercase `ikimiz` on purpose,
 moving the files, the lint pin, the plist and the listing. What ADR-035 did not
-move is these four sentences. Lesson **141**: a correction is finished when every
-*copy* of it is gone, and revision 1 found three of four while quoting that lesson.
+move is these five sentences — four in prose and one in a code comment.
+Lesson **141**: a correction is finished when every *copy* of it is gone.
+⚠️ **Revision 1 quoted that lesson and then found three of five.** The design
+review found the fourth; the grep the lesson actually prescribes found the fifth.
+Knowing a failure mode does not prevent committing it (lesson **143**), and this
+is the second time in one session that the safeguard was a reader other than the
+author.
+
+A **sixth** hit — `docs/frontend-brandkit.md`'s *"Vetted alternates: **İkimiz**…"*
+— is deliberately **left**: it is a historical list of names once considered, and
+`İkimiz` genuinely was one. (That line is stale in a different way, calling the
+name a *"working title"* when it is decided; it belongs to the brandkit issues
+**#63/#71**, not here.)
 
 ### 6.1 — What the danger actually is, corrected
 
@@ -284,7 +353,11 @@ release. **A guard cannot protect against someone obeying the wrong instruction,
 because the instruction tells them to move the guard too.** That is the precise
 claim, and it is narrower and more useful than revision 1's.
 
-All four copies are corrected in the same commit as this ADR.
+All five copies are corrected in the same commit as this ADR. **The two test
+fixtures in `store_metadata_audit_test.py` that also carried `İkimiz` are
+corrected too** — they are fakes and were not *wrong*, but a fixture spelling the
+name the way this whole session is about getting wrong is a trap laid for the next
+reader (built-diff review).
 **`docs/adr/README.md`'s row for ADR-020 and ADR-032's own body are left alone**:
 they are records of what was decided then, and ADR-035 supersedes them. Only
 documents speaking in the **present tense about the current state** are changed.
@@ -310,6 +383,15 @@ stale together, as one fact. Splitting one of them into a separate issue would
 file half a correction. `privacyPolicyUrl` and `supportUrl` are also two of D1's
 seven English findings, so this section is stale about two of the exact fields
 #204 is about.
+
+### 6.3 — One housekeeping line, named because it is in the diff
+
+`.gitignore` gains `.claude/settings.local.json`. It is not part of #204 and is
+recorded here rather than smuggled: `project-rules.md` #4 mandates `git add -A` at
+session close, and that file is a **per-machine** tool-permission allowlist which
+would otherwise be swept into a public repo by the next session that runs the rule
+as written. `.claude/settings.json` — the shared one — stays tracked. Flagged by
+the built-diff review's completeness critic as an unexamined hunk, which it was.
 
 ## Decision 7 — The audit will report WHAT KIND of difference it found and WHAT VERSION it read, and will not print the store's text to do either
 
@@ -374,11 +456,15 @@ found. That cost this session a claim it could not check: D7's disclosure
 argument below rests on the listing being an **unsubmitted draft**, and the only
 evidence for that is `store_metadata_audit.py`'s own docstring recording
 `appStoreState=PREPARE_FOR_SUBMISSION` on **2026-08-16**. `EDITABLE_STORE_STATES`
-also contains `DEVELOPER_REJECTED`, `REJECTED` and `METADATA_REJECTED`, so exit 1
-today is consistent with several states, and this session **did not re-measure
-it**. The report now prints the version string and `appStoreState` it audited —
-one line, no credential, no extra request — so the next reader does not inherit a
-17-day-old premise the way this one did.
+also contains `DEVELOPER_REJECTED`, `REJECTED`, `METADATA_REJECTED` and
+`INVALID_BINARY`, so exit 1 is consistent with any of five states.
+
+The report now prints the version string and `appStoreState` it audited — one
+line, no credential, no extra request — and **that closed the gap in the same
+session that opened it**: run 33666301529 answers
+`audited App Store version: 1.0 state=PREPARE_FOR_SUBMISSION`. The premise is
+measured now, dated **2026-09-02**, and the next reader will not inherit it the
+way this one did.
 
 ### 7.4 — What it deliberately does NOT do: print the published text
 
@@ -390,11 +476,18 @@ published side is not, and publishing it as a side effect of a diagnostic is not
 this tool's decision to make.
 
 **The bound is stated rather than overstated:** a length and a first-difference
-offset *are* a small disclosure about that text, and 7.3 is the reason the
-premise itself is now measured rather than assumed. They are accepted as
-proportionate; *"no information about the published copy leaves this tool"* would
-be a false claim and is not made. A founder who wants the text has App Store
-Connect, where it already is.
+offset *are* a small disclosure about that text, and 7.3 is the reason the premise
+itself is now measured rather than assumed. They are accepted as proportionate;
+*"no information about the published copy leaves this tool"* would be a false
+claim and is not made. A founder who wants the text has App Store Connect, where
+it already is.
+
+⚠️ **D1.1 made this refusal almost moot on today's data, and the rule still
+stands.** Seven of the nine English fields hold nothing, so there is no published
+text to withhold; what the log now carries about them is a row of zeros. The
+refusal is kept because it is a rule about what this tool may do, not a
+description of what it happened to find — and the day a release finally publishes,
+the same run would otherwise start echoing the whole listing into a public log.
 
 ## Consequences
 
@@ -406,7 +499,10 @@ Connect, where it already is.
   behind it turns out never to have had a line in the operator checklist (D4.1).
   It has one now.
 - The instrument gains the two things it was missing for that decision: what kind
-  of difference, and what it was looking at (D7).
+  of difference, and what it was looking at (D7) — **and on its first run it used
+  both to overturn a claim two ADRs had carried** (D1.1). The English listing is
+  empty, not stale; nothing can be lost by publishing, and the listing is in a
+  worse state than anyone had recorded.
 - A stale invariant is removed from the one table sessions are told is binding,
   with an accurate account of what it could actually cause (D6).
 - The deferral in D3 is recorded **as a slice with an issue number** rather than
@@ -435,7 +531,13 @@ Connect, where it already is.
 
 ## Review record
 
-A pre-code design review ran against revision 1: **45 agents, 12 probes × 2
+**The review ran twice** (`session-context.md` §5.3): once on the design, once on
+the built diff. They found different classes of thing, which is the point of
+running both.
+
+### Pass 1 — the design, against revision 1
+
+**45 agents, 12 probes × 2
 independent verifiers per finding (a refuting skeptic and a governing-docs
 adjudicator), plus a completeness critic.**
 
@@ -464,3 +566,40 @@ refuted finding is **declined with its reason** in D6.2 rather than silently
 dropped. The completeness critic's single finding — *D7 is specified, not built* —
 is answered by building it in the same PR, which is the sequence
 `session-context.md` §5 prescribes: ADR first, code second, both in one change.
+
+### Pass 2 — the built diff
+
+**21 agents, 8 probes × 2 verifiers + a completeness critic.**
+
+| | |
+|---|---|
+| `agents_error` | **0** |
+| `agents_empty_result` | **5**, all **CONSIDERED-empty**: `lens-classifier-correctness`, `lens-finding-and-oneline`, `lens-version-plumbing`, `claim-adr-vs-code`, `lens-workflow-consumers` |
+| `failed_empty` | **0** |
+| findings | **6**, **all 6 surviving**, **0 refuted** — plus 4 from the critic |
+
+**The distribution inverted between the passes, and that is a signal about the
+question rather than about the work** (lesson **137**): pass 1 refuted a quarter
+of its findings arguing about a *design*; pass 2 refuted none, because every
+finding was a checkable fact about code. **The five hardest correctness lenses
+came back considered-empty** — the classifier under NFC/NFD, non-breaking spaces
+and combining marks; the `Finding`→`one_line` data flow; the moved
+`editable_version` call and its exit-2 path; the ADR-versus-code comparison; and
+the notifier's handling of the new string. None of them found a defect. Every one
+of the six that did land was **test quality or an inaccurate count**, which is
+where this session's own errors turned out to live.
+
+The worst of them, and the third count error in one session:
+**"48 → 84 checks" was wrong at both ends; it is 41 → 91.** The session's own
+attempt to check it produced a *fourth* wrong number — `24` — because the main
+suite aborts partway when run outside a full worktree, and an aborted run's
+`ok` lines look exactly like a complete run's. Settled with a real `git worktree`
+of `main`. Lesson **133** does not stop being true once you have quoted it.
+
+Also applied: a tally assertion that would have passed on `11 substantive`
+(lesson 142's own anti-pattern, in a test that cites lesson 142); the *"one line"*
+invariant pinned on one of three paths (recurring shape 5); `ABSENT` never checked
+as a `kind` nor through the tally; and no case for `describe_difference`'s
+`for`/`else` prefix branch. The mutation set grew from 11 to **14**, of which
+**13 die by named assertions** — the three new mutants exist precisely to kill the
+three gaps above, and were written after the gaps were found rather than before.

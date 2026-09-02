@@ -62,14 +62,14 @@ def check_true(label: str, value: bool) -> None:
 EN_FILES = {
     "description.txt": "A question a day, for two.\n",
     "keywords.txt": "couples,relationship\n",
-    "name.txt": "İkimiz\n",
+    "name.txt": "ikimiz\n",
     "subtitle.txt": "One question a day\n",
     "privacy_url.txt": "https://ikimiz.web.app/privacy\n",
 }
 TR_FILES = {
     "description.txt": "Her gün bir soru, iki kişiye.\n",
     "keywords.txt": "çift,ilişki\n",
-    "name.txt": "İkimiz\n",
+    "name.txt": "ikimiz\n",
     "subtitle.txt": "Günde tek soru\n",
     "privacy_url.txt": "https://ikimiz.web.app/privacy\n",
 }
@@ -187,7 +187,7 @@ def test_present_but_stale_is_a_finding() -> None:
 
 def test_name_comes_from_app_info_not_the_version() -> None:
     print("audit: `name` — the field Apple refuses — is compared at all")
-    expected = {"tr": {"name.txt": "İkimiz\n"}}
+    expected = {"tr": {"name.txt": "ikimiz\n"}}
     actual = {"tr": {"locale": "tr", "name": "Something else"}}
 
     findings = audit_tool.audit(expected, actual)
@@ -209,6 +209,15 @@ def test_absent_field_is_named_as_absent() -> None:
     findings = audit_tool.audit(expected, {"tr": {"locale": "tr"}})
     check("one finding", len(findings), 1)
     check_true("says ABSENT, not `differs`", "is ABSENT" in findings[0])
+    # ⚠️ The sentence and the FIELD are different assertions, and only the field
+    # reaches `one_line`'s tally. A regression that kept the wording and set
+    # kind=SUBSTANTIVE would have passed the line above and mis-tallied the
+    # notifier's only view of it (built-diff review).
+    detailed = audit_tool.audit_findings(expected, {"tr": {"locale": "tr"}})
+    check("classified as ABSENT", detailed[0].kind, audit_tool.ABSENT)
+    check("and it names the field it could not find", detailed[0].field, "description")
+    check_true("which is what the tally then counts",
+               "1 absent" in audit_tool.one_line(detailed, expected, {}).lower())
 
 
 def test_trailing_newline_is_not_drift() -> None:
@@ -521,6 +530,19 @@ def test_describe_names_the_first_difference() -> None:
         "nothing in common parts at 0",
         "first difference at 0" in audit_tool.describe_difference("abc", "xyz"),
     )
+    # ⚠️ The PREFIX case exercises the `for`/`else` branch, which the two cases
+    # above never reach: `zip` stops at the shorter string, so the loop never
+    # breaks and `shared` must fall back to the shorter length. An off-by-one
+    # here would read as "they part company inside the shared text" when in fact
+    # one is simply longer (built-diff review).
+    check_true(
+        "a strict prefix parts at the shorter length",
+        "first difference at 3" in audit_tool.describe_difference("abc", "abcdef"),
+    )
+    check_true(
+        "and in the other direction too",
+        "first difference at 3" in audit_tool.describe_difference("abcdef", "abc"),
+    )
 
 
 def test_both_sides_empty_is_not_a_finding_at_all() -> None:
@@ -575,8 +597,14 @@ def test_one_line_names_BOTH_halves() -> None:
 
     check_true("names the missing locale", "tr not published" in line)
     check_true("AND says the rest are stale", "stale" in line)
-    check_true("with the tally", "1 substantive" in line.lower())
-    check_true("naming the case-only one too", "case-only" in line.lower())
+    # ⚠️ Delimited, not a bare substring: `"1 substantive" in "11 substantive"`
+    # is True, so the obvious assertion would pass on an inflated count. Writing
+    # the test the way lesson 142 tells you to write the CODE was a real gap here,
+    # found by the built-diff review.
+    check_true("with the tally, counted exactly", "(1 substantive)" in line.lower()
+               or ", 1 substantive" in line.lower() or "(1 substantive," in line.lower())
+    check("and NOT an inflated one", "11 substantive" in line.lower(), False)
+    check_true("naming the case-only one too", "1 case-only" in line.lower())
     check("still ONE line", "\n" in line, False)
 
 
@@ -592,6 +620,15 @@ def test_one_line_is_unchanged_when_only_one_kind_is_present() -> None:
     check_true("stale only", "stale" in audit_tool.one_line(only_stale, expected, stale_actual))
     check_true("and NOT the missing sentence",
                "not published" not in audit_tool.one_line(only_stale, expected, stale_actual))
+    # The "one line" contract held on the both-halves path and was unpinned on
+    # these two — recurring shape 5, a guard that guards one path (built-diff
+    # review). The empty case is pinned too: it is the third return.
+    for label, line in (
+        ("missing-only", audit_tool.one_line(only_missing, expected, {})),
+        ("stale-only", audit_tool.one_line(only_stale, expected, stale_actual)),
+        ("no findings at all", audit_tool.one_line([], expected, {})),
+    ):
+        check(f"{label} is still ONE line", "\n" in line, False)
 
 
 def test_report_names_the_version_it_audited() -> None:
