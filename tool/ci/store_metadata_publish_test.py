@@ -260,6 +260,47 @@ def test_the_reverse_partial_state_is_reported_naming_both_halves() -> None:
     check("but only its app-info files", sorted(expectation["tr"]), ["name.txt"])
 
 
+def test_a_network_error_isolates_the_same_way_a_refusal_does() -> None:
+    print("D2: isolation is per LOCALE for ANY error, not only for AscError")
+    # ⚠️ Found by the built-diff review with this exact shape. `tf._call` turns
+    # an HTTPError into AscError and lets URLError, socket.timeout and a
+    # malformed body propagate raw — so an `except AscError` would let a DNS blip
+    # on one locale abort every remaining locale. That is #278's own defect, one
+    # exception type over, inside the tool written to fix it.
+    import urllib.error
+
+    calls: list[str] = []
+
+    def call(method, path, body=None):
+        calls.append(f"{method} {path}")
+        if body and body.get("data", {}).get("attributes", {}).get("locale") == "en-US":
+            raise urllib.error.URLError("temporary failure in name resolution")
+        return {"data": {"id": "new-id"}}
+
+    expected = {
+        "ar": {"name.txt": "ikimiz\n"},
+        "en-US": {"name.txt": "ikimiz\n"},
+        "tr": {"name.txt": "ikimiz\n"},
+    }
+    actions = publish.plan(
+        expected, version_id="v1", app_info_id="ai1",
+        existing_version={}, existing_app_info={},
+    )
+    try:
+        outcome = publish.execute(call, actions, dry_run=False)
+    except Exception as escaped:  # noqa: BLE001 - that is the failure being named
+        check("a NETWORK error must not escape execute either", repr(escaped), "<no exception>")
+        return
+
+    check("the locale after the failure was still attempted",
+          [a.locale for a in outcome.written], ["ar", "tr"])
+    check("one finding", [f.locale for f in outcome.findings], ["en-US"])
+    # The diagnostic must not lose which KIND of failure it was: an AscError
+    # carries Apple's words, and anything else must name its own type or the
+    # reader cannot tell a refusal from a broken network.
+    check_true("named by its exception type", "URLError" in outcome.findings[0].detail)
+
+
 # --- D5.1: the read-back compares only what was WRITTEN ----------------------
 
 
@@ -354,9 +395,9 @@ def test_a_wrong_confirm_is_refused_not_quietly_downgraded() -> None:
 
 def test_exit_codes() -> None:
     print("D7: 0 / 1 / 2, and 2 stops at the first write attempt")
-    check("clean", publish.exit_code(refusals=0, read_back=0, wrote=True), publish.EXIT_OK)
-    check("a refusal is a FINDING, not an unmeasurable", publish.exit_code(refusals=1, read_back=0, wrote=True), publish.EXIT_FINDING)
-    check("so is a read-back disagreement", publish.exit_code(refusals=0, read_back=3, wrote=True), publish.EXIT_FINDING)
+    check("clean", publish.exit_code(refusals=0, read_back=0), publish.EXIT_OK)
+    check("a refusal is a FINDING, not an unmeasurable", publish.exit_code(refusals=1, read_back=0), publish.EXIT_FINDING)
+    check("so is a read-back disagreement", publish.exit_code(refusals=0, read_back=3), publish.EXIT_FINDING)
 
 
 def test_an_error_after_a_write_is_a_finding_not_could_not_measure() -> None:
@@ -377,7 +418,7 @@ def test_an_error_after_a_write_is_a_finding_not_could_not_measure() -> None:
     check_true("something was written before it broke", len(outcome.written) > 0)
     check(
         "so the verdict is a FINDING",
-        publish.exit_code(refusals=len(outcome.findings), read_back=0, wrote=bool(outcome.written)),
+        publish.exit_code(refusals=len(outcome.findings), read_back=0),
         publish.EXIT_FINDING,
     )
 
@@ -395,7 +436,7 @@ def test_render_names_every_action_and_says_which_ran() -> None:
     check_true("says it wrote nothing", "DRY RUN" in report)
     check_true("names the create", "POST" in report)
     check_true("and the update", "PATCH" in report)
-    check_true("names a locale", "tr" in report)
+    check_true("names a locale, anchored", "tr: POST" in report)
     check_true("and the field count, so a reader can sanity-check it", "field" in report)
     # ⚠️ The founder decides operator 6(b) from this. It must not print the
     # store's own copy into a public Actions log (ADR-070 D7.4) — only ours,
@@ -410,6 +451,7 @@ def main() -> int:
     test_app_info_is_planned_before_the_version_localization()
     test_create_versus_update_and_the_parent_it_hangs_from()
     test_a_refused_locale_does_not_stop_the_others()
+    test_a_network_error_isolates_the_same_way_a_refusal_does()
     test_the_reverse_partial_state_is_reported_naming_both_halves()
     test_read_back_expectation_excludes_what_was_never_written()
     test_read_back_catches_a_write_that_did_not_land()

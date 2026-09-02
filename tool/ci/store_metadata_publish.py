@@ -296,7 +296,18 @@ def execute(
         for action in by_locale[locale]:
             try:
                 call(action.verb, action.path, action.body)
-            except AscError as failure:
+            # ⚠️ `Exception`, not `AscError`. `tf._call` converts an HTTPError
+            # into AscError and leaves URLError, socket.timeout and a malformed
+            # JSON body to propagate raw — so catching only AscError would let a
+            # DNS blip on one locale abort every remaining locale, which is
+            # #278's own defect reintroduced one exception type over. Found by
+            # the built-diff review with a three-locale reproduction.
+            except Exception as failure:  # noqa: BLE001 - isolation is the point
+                label = (
+                    str(failure)
+                    if isinstance(failure, AscError)
+                    else f"{type(failure).__name__}: {failure}"
+                )
                 if landed:
                     # D2.2 — ordering is not a transaction. Name BOTH halves: a
                     # partial write reported as a locale-wide failure sends
@@ -308,7 +319,7 @@ def execute(
                             partial=True,
                             detail=(
                                 f"PARTIAL — {', '.join(landed)} written, "
-                                f"{action.resource} FAILED: {failure}"
+                                f"{action.resource} FAILED: {label}"
                             ),
                         )
                     )
@@ -317,7 +328,7 @@ def execute(
                         Finding(
                             locale=locale,
                             partial=False,
-                            detail=f"{action.resource} refused, nothing written: {failure}",
+                            detail=f"{action.resource} refused, nothing written: {label}",
                         )
                     )
                 # The locale is a unit: stop here, and go on to the next locale.
@@ -348,12 +359,15 @@ def read_back_expectation(outcome: Outcome) -> dict[str, dict[str, str]]:
     return expectation
 
 
-def exit_code(*, refusals: int, read_back: int, wrote: bool) -> int:
-    """0 / 1 / 2, with 2 already ruled out by the time this is called.
+def exit_code(*, refusals: int, read_back: int) -> int:
+    """0 or 1. **2 cannot reach here, and that is the decision** (ADR-071 D7).
 
-    `wrote` is taken rather than inferred so the caller has to have decided
-    whether anything was sent — which is the fact that separates a FINDING from
-    a COULD NOT MEASURE once an error has occurred (D7).
+    Every path that could answer "could not measure" returns EXIT_CANNOT_MEASURE
+    from `main` BEFORE the first write is attempted; after that, an error is a
+    statement about the LISTING, not about our ability to see it. Revision 1 took
+    a `wrote` flag here to say so and never read it — an argument that documents
+    rather than computes reads as a bug, and the boundary belongs where it is
+    actually enforced.
     """
     if refusals or read_back:
         return EXIT_FINDING
@@ -489,11 +503,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(report)
     emit(args.summary, "### store metadata publish\n\n```\n" + report + "\n```")
-    return exit_code(
-        refusals=len(outcome.findings),
-        read_back=len(read_back_findings),
-        wrote=bool(outcome.written),
-    )
+    return exit_code(refusals=len(outcome.findings), read_back=len(read_back_findings))
 
 
 def _app_info_state(token: str, app_id: str) -> tuple[str, dict[str, str]]:

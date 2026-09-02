@@ -253,9 +253,13 @@ published could not publish the thing that is missing.
 
 ## Decision 7 — The exit taxonomy, and the line 2 stops at
 
-The taxonomy ADR-041 set and ADR-047 D4 restated. `grep -l 'could not measure'
-tool/ci/*.py` lists **eight** tools using it today; this is another — revision 1
-said *"the fourth"*, which was simply wrong (lesson **133**).
+The taxonomy ADR-041 set and ADR-047 D4 restated. `grep -li 'could not measure'
+tool/ci/*.py` (excluding `*_test.py`) lists **eight** on `main` and **nine** with
+this tool. Revision 1 said *"the fourth"*, which was simply wrong; revision 2 said
+eight and quoted the command **without `-i`**, which returns seven, because
+`appid_capabilities.py` shouts it in capitals. **A number is a claim and the
+command beside it has to be the command that produces it** — lesson **133**, got
+wrong twice in one ADR, the second time while correcting the first.
 
 | | |
 |---|---|
@@ -318,6 +322,33 @@ rather than quietly fixed:**
 iteration order changes the report's order and nothing else. Locale isolation is
 order-independent by construction, so a test pinning it would be pinning
 presentation. `sorted()` stays for a stable report; nothing depends on it.
+
+### Built-diff review — one real defect, and it was this ADR's own
+
+**15 agents, 8 probes × 2 verifiers + a completeness critic.** `agents_error`
+**0**; `agents_empty_result` **5**, all **CONSIDERED**-empty — the payload/verb
+lens, workflow safety, ADR-versus-code, test quality, and governing-docs/scope all
+examined and found nothing. **3 findings, 3 surviving, 0 refuted.**
+
+⚠️ **The serious one is the defect this whole issue is about, reintroduced one
+exception type over.** `execute` caught `AscError`. `tf._call` converts an
+`HTTPError` into `AscError` and lets `URLError`, `socket.timeout` and a malformed
+JSON body propagate **raw** — so a DNS blip while writing one locale would have
+escaped `execute` and aborted **every remaining locale**, which is precisely what
+#278 exists to stop. A reviewer reproduced it with three locales. The catch is now
+`Exception`, the diagnostic names the exception type when it is not Apple's own
+words, and a regression test plus a mutant pin it.
+
+That it survived the design pass, the implementation, thirteen mutants and a green
+CI — while the tests exercised only the refusal path the author was thinking
+about — is the point worth keeping: **an isolation guarantee is only as wide as
+the `except` clause under it**, and a suite written from the failure you have in
+mind tests the failure you have in mind.
+
+Also applied: `exit_code` took a `wrote` argument it never read, kept as a
+"documentation device" — an argument that documents rather than computes reads as
+a bug, so the boundary moved to where it is enforced; and the exit-taxonomy count
+above, wrong twice.
 
 ## Consequences
 
