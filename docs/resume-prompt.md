@@ -1,9 +1,9 @@
-# Resume Prompt — Session 097
+# Resume Prompt — Session 098
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
-> Read `session-context.md` and `session-lessons.md` (numbered to **153**) first.
+> Read `session-context.md` and `session-lessons.md` (numbered to **155**) first.
 > Re-derive the session number from `git log`.
 >
 > ⚠️ **`session-context.md` §2/§3 changed again in S096** — the toolchain is
@@ -11,81 +11,81 @@
 > the table is a claim like any other (lesson **146**).
 >
 > ⚠️ **BEFORE PLANNING, OPEN THE ADR THAT OWNS THIS OBJECTIVE** (lesson **145**).
-> Here that is **ADR-071**, and S096 wrote it — read it as a claim to check.
+> Here that is **ADR-072**, and S097 wrote it — read it as a claim to check. It is
+> already reviewed pre-code and carries three corrections; start from it, not from
+> the issue title.
+>
+> ⚠️ **AND POINT ONE LENS AT THE OBJECTIVE ITSELF** (lesson **154**). S097 found
+> something interesting on the way to its objective and spent itself on that
+> instead. **The tell is checkable: if your diff does not touch the file your
+> acceptance criteria name, you have changed objective.**
 
-**Objective: RUN THE DRY RUN. Exercise `publish-store-metadata.yml` against the
-real App Store Connect for the first time, fix what first contact reveals, and
-put the resulting plan in front of the founder so operator 6(b) becomes
-answerable.**
+**Objective: #281 — the publish lane's dry run exits `0` and calls it
+"published" having published nothing, while the auditor exits `1` on the same
+listing. Make them agree, and stop the lane voting.**
 
 ### ⚠️ First, three commands. Quote all three before planning.
 
 ```sh
 for c in node npm python3 java dart flutter ruby gh git firebase; do printf '%-9s ' "$c"; command -v $c || echo MISSING; done
-gh workflow run testflight-testers.yml -f store_metadata_audit=true    # the listing today
-gh workflow run publish-store-metadata.yml                             # THE OBJECTIVE — confirm blank = dry run
+gh workflow run testflight-testers.yml -f store_metadata_audit=true    # the auditor's verdict
+gh workflow run publish-store-metadata.yml                             # the publisher's — confirm BLANK, writes nothing
 ```
 
-Measured 2026-09-02 (S096) — **re-measure, do not inherit**:
+Measured 2026-09-02 (S097) — **re-measure, do not inherit**:
 
 * `ruby`/`bundle` **MISSING**; everything else present. `flutter` and `java` are
   **not on PATH** — export them (`session-context.md` §3);
-* the audit exits **1**: seven `en-US` fields `PUBLISHED IS EMPTY`, `tr` absent;
+* **the two lanes disagree, and that is the objective**: the auditor exits **1**
+  (seven `en-US` fields `PUBLISHED IS EMPTY`, `tr` absent), the publisher's dry
+  run exits **0**, glossed as *published*, having sent nothing;
 * `prod_pulse` still exits **2 — could not measure** (the instrument, not
   production — operator item 10).
 
-### Why this, and why it is not just "press the button"
+### Why this, and what is already decided
 
-**The tool has never run against Apple.** ADR-071 says so in three places and
-D5's read-back exists because of it. Its request shapes are the JSON:API form
-this repo uses for `betaGroups`; **nobody here has seen what the REST API returns
-for the `tr` name refusal** — #204's quote is a Ruby `Spaceship` wrapper. First
-contact with a real API finds things. That is the session.
+**ADR-072 designed it and a pre-code review has already corrected it three
+times** — so this session's job is to build a reviewed design, not to re-derive
+it. The three corrections are the parts most likely to be got wrong:
 
-⚠️ **A dry run writes NOTHING and needs no permission.** `confirm` blank →
-`store_metadata_publish.py` with no `--confirm` → `MODE_DRY_RUN` → `execute`
-returns before any request. It reads (to resolve the app, the editable version,
-the appInfo id and the existing localizations) and then prints the plan. This is
-the ADR-047 D6 precedent — the read-only side door — one tool over.
-
-**And the plan is the deliverable.** Operator **6(b)** asks the founder whether
-the AI-drafted English copy may be published at all. What they need in order to
-answer is exactly what would be written. Nobody has ever shown them that.
+1. **The data is not there.** `main` reads both resources and keeps only
+   `{locale: id}`, throwing the attributes away, because ids are all a *writer*
+   needs. Call `audit.published_locales()` in the dry-run path — it already
+   merges both resources into the shape `audit_findings` wants, and the dry run
+   stays read-only.
+2. **The two paths are two implementations of one rule.** A dry run compares
+   **before** the attempt; a write compares **after**, via the read-back. Do not
+   go looking for a shared code path — the write path is **untouched**.
+3. **The lane must stop voting.** Under the new rule a dry run over today's
+   listing exits **1** forever, so without `continue-on-error: true` every run
+   reddens — the cries-wolf failure with its sign flipped (ADR-047 D4's shape).
 
 ### Acceptance
 
-1. **The three commands are run and quoted**, and `prod_pulse`'s exit 2 is
-   reported as an **instrument** outage, not a production reading.
-2. **ADR-071 read first**, and its claims checked — S096 wrote it. In particular
-   check **D3's assumed-versus-known table**: if the real run contradicts it, that
-   is the session's most valuable finding, not an inconvenience.
-3. **The dry run is dispatched and its full output quoted.** If it exits **2**,
-   say which fact could not be measured; **2 is not 1** (ADR-041, ADR-047 D4).
-4. **Whatever it reveals is fixed**, with an **ADR or an amendment committed
-   BEFORE the code** (lesson **115**) and its **index row in the same commit** —
-   ADR-067's lint has now caught three sessions.
-5. **The plan is put in front of the founder**: `operator-expected.md` item 6(b)
-   gains the actual per-locale, per-field plan (names and counts — **never the
-   store's own text**, ADR-070 D7.4; this repo is public).
-6. ⚠️ **DO NOT PASS `confirm`.** Operator **6(b)** and **6(c)** are both open, and
-   a write publishes AI-drafted copy nobody has reviewed to a real Apple listing.
-   A wrong value is REFUSED (exit 64) by design — do not test that against
-   production either.
-7. **If the dry run cannot run at all** (a credential the lane does not see, an
-   input shape GitHub rejects), that is a real finding about the lane S096 built.
-   Fix it, and say plainly that ADR-071's *"the dry run is the deliverable"* was
-   untested when it was written.
+1. **The three commands are run and quoted**, and the two lanes' disagreement is
+   shown before and after.
+2. **ADR-072 read first**, and its claims checked — S097 wrote it (lesson 145).
+3. **A dry run over the current listing exits 1** and says how many fields would
+   change; **over a matching listing exits 0**; **a successful write still exits
+   0** via the untouched read-back path.
+4. **The lane is green in both cases.** Its colour carries nothing.
+5. **Self-tests for each, mutation-checked**, with any non-discriminating mutant
+   **recorded rather than removed** (S095 and S096 each had one).
+6. **An ADR amendment or a note committed BEFORE the code** if anything in
+   ADR-072 turns out wrong, **with its index row in the same commit** — ADR-067's
+   lint has caught three sessions.
+7. **Re-run the dry run at the end and quote it.** The change is about what that
+   run says; a session that does not run it has not verified it.
 
 ### What is NOT this session's
 
-* **Writing anything to App Store Connect.** Operator 6(b)/6(c).
-* **The Turkish name** (6(a)) — Apple refuses it; the founder decides.
-* **Restoring billing** (1), **the RevenueCat invoker** (2), **the four secrets**
-  (3), **cutting a build** (4), **the legal bundle** (5), **the firebase login**
-  (10).
-* **#136** — ADR-059 D3 has already decided it, and its remaining step needs a
-  phone. **#71** — its own issue says *"This is not a bug"* and ADR-025 D5.ii
-  decided the current arrangement is correct. **Do not re-derive either.**
+* ⚠️ **Writing to App Store Connect.** Operator **6(b)** carries the plan and is
+  unanswered; **do not pass `confirm`.**
+* **The Turkish name** (6(a)), **billing** (1), **the RevenueCat invoker** (2),
+  **the four secrets** (3), **a build** (4), **the legal bundle** (5), **the
+  firebase login** (10).
+* **#136** — ADR-059 D3 decided it; **#71** — its own issue says *"this is not a
+  bug"*. **Do not re-derive either.**
 
 ---
 
@@ -96,22 +96,26 @@ answer is exactly what would be written. Nobody has ever shown them that.
 | **The dev box** | **Mostly restored** (S096): Flutter 3.44.5, Java 21, Dart 3.12.2, firebase-tools 15.22.4, node, python3, gh. **`ruby`/`bundle` still MISSING** — fastlane cannot run here. Flutter/Java **not on PATH**. ⚠️ git-over-HTTPS is intercepted on this network; Flutter's remote is on SSH |
 | **Production** | 🔴 **DOWN since 2026-08-22**, and **unmeasurable from here** — operator 10 |
 | **The App Store listing** | 🔴 **EMPTY and NOT SUBMITTABLE.** 7/9 `en-US` fields blank at Apple; `tr` absent; only `name` ever set |
-| **The publish lane** | **BUILT, MERGED, NEVER RUN** — this session runs it |
+| **The publish lane** | **BUILT, MERGED, AND RUN** — S097's dry run (33681088334) worked on first contact and confirmed four of ADR-071's assumptions. Its exit code is what #281 fixes |
 | **Push, device side** | **STILL 0 of 4 registered** |
-| **The ADR index** | **WHOLE — 71 records, 71 rows**, gated (ADR-067) |
+| **The ADR index** | **WHOLE — 72 records, 72 rows**, gated (ADR-067) |
 | **#204 / #278** | **OPEN**, both founder-gated (6(a), 6(b), 6(c)) |
+| **#281** | **OPEN — this session.** Designed and reviewed in ADR-072 |
 | **#242 / #263** | OPEN and correctly blocked. Do not re-derive |
 
-### What S096 changed that a later session will trip over
+### What S096/S097 changed that a later session will trip over
 
-* **`session-context.md` §2/§3 now describe a restored toolchain**, including the
-  SSH workaround Flutter needs on this network.
-* **A new workflow can write to the founder's live App Store listing.** It is
-  dispatch-only, dry-run by default and gated on a typed literal — but it exists,
-  and `confirm: PUBLISH` is the whole distance between a report and a publication.
-* **ADR-071's `except` clause was widened after the built-diff review** found that
-  a `URLError` on one locale aborted the rest — #278's own defect inside the tool
-  written to fix it (lesson **151**).
+* **`session-context.md` §2/§3 describe a restored toolchain**, including the SSH
+  workaround Flutter needs on this network.
+* **A workflow can write to the founder's live App Store listing.** Dispatch-only,
+  dry-run by default, gated on a typed literal — but `confirm: PUBLISH` is the
+  whole distance between a report and a publication.
+* **`operator-expected.md` 6(b) now carries a real plan** rather than a question.
+  If you change what the lane would do, **that block goes stale** — it quotes a
+  specific run.
+* **ADR-071's `except` clause was widened** after a `URLError` on one locale was
+  found aborting the rest — #278's own defect inside the tool written to fix it
+  (lesson **151**).
 
 ### Still true from earlier sessions
 
@@ -140,6 +144,11 @@ Material icons): ⚠️ **not simply a session's** — ADR-025 records it as a w
 decision, and its option (b) *"amend the brandkit to record what shipped"* is a
 brand decision the founder has never been asked to make. **Putting that question
 into `operator-expected.md` is a session's; answering it is not.**
+
+⚠️ **After #281, be honest about the queue.** Every remaining open issue is
+waiting on billing, a phone, a lawyer, a secret, or a decision on
+`operator-expected.md`. A session that cannot find unblocked work should say so
+and end per §4 — **S093 did exactly that and it was correct.**
 
 ⚠️ **#242, #136 and #71 are NOT in this list, deliberately** — each is decided or
 blocked by an ADR, above and in §3.
@@ -198,6 +207,16 @@ run** (`integration-emulator` is main-only) → `codegraph sync`.
 > ⚠️ **IF YOUR ADR DECLINES TO BUILD SOMETHING, POINT A LENS AT THAT DECISION**
 > (lesson **147**) — and **check where the thing you are protecting actually
 > lives** before deciding not to build the door (lesson **152**).
+
+> ⚠️ **RUNNING THE THING IS THE DELIVERABLE** (lesson **154**). A defect found on
+> the way to an objective goes to `gh issue create`, not into the diff. **If your
+> diff does not touch the file your acceptance criteria name, you have changed
+> objective** — and the technical lenses will not tell you, because they have no
+> opinion about whether your work should exist. Point one lens at the objective.
+
+> ⚠️ **TWO INSTRUMENTS OVER ONE SUBJECT MUST NOT RETURN OPPOSITE VERDICTS**
+> (lesson **155**) — and check what the exit code's own GLOSS claims, because that
+> is the half a human reads.
 
 > ⚠️ **AN ISOLATION GUARANTEE IS ONLY AS WIDE AS ITS `except` CLAUSE**
 > (lesson **151**). Enumerate what the layer below you actually raises; a suite

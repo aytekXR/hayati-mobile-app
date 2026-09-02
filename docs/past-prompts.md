@@ -4890,3 +4890,65 @@ Pass 2's five considered-empty lenses were payload/verbs, workflow safety, ADR-v
 **Operator dependency:** yes, unchanged in substance and now sharper. **6(b)** — may the AI-drafted English copy be published at all — is the gate on everything this session built, and it is answerable from a dry run that needs no permission. **6(c)** and **10** stand.
 
 **Next objective written to resume-prompt.md:** Session 097 — **run the dry run**. Dispatch `publish-store-metadata.yml` with `confirm` blank against the real App Store Connect, fix what first contact reveals, and put the resulting plan in front of the founder so operator 6(b) becomes answerable.
+
+## Session 097 — 2026-09-02 — the publish lane's first contact with Apple, and a session that nearly changed objective (ADR-072)
+
+**Objective (from resume-prompt.md):** run the dry run — exercise `publish-store-metadata.yml` against the real App Store Connect for the first time, fix what first contact reveals, and put the resulting plan in front of the founder so operator 6(b) becomes answerable.
+
+**Outcome:** done, **after the design review caught the session substituting the easy half for the assigned half.** The dry run ran and worked; the plan is in `operator-expected.md` 6(b); the defect it exposed is designed in ADR-072 and **deferred to #281** rather than built here.
+
+### It worked on first contact, and confirmed four assumptions
+
+Run **33681088334**, `confirm` blank, nothing sent:
+
+```
+store metadata publish: DRY RUN — nothing was sent.
+plan (4 request(s)):
+  en-US: PATCH appInfoLocalizations — 3 field(s): name, privacyPolicyUrl, subtitle
+  en-US: PATCH appStoreVersionLocalizations — 5 field(s): description, keywords, promotionalText, supportUrl, whatsNew
+  tr: POST appInfoLocalizations — 3 field(s): name, privacyPolicyUrl, subtitle
+  tr: POST appStoreVersionLocalizations — 5 field(s): description, keywords, promotionalText, supportUrl, whatsNew
+```
+
+ADR-071 wrote four things down as **assumptions** and all four are now measured: the credential path resolves app → editable version → appInfo id → existing localizations; **`en-US` is a `PATCH` and `tr` is a `POST`**, independently confirming that the English localizations exist while holding nothing (ADR-070 D1.1); **`marketing_url` is in neither plan** — eight fields, not nine, D4's skip-empty rule against real data; and `tr`'s app-info request is planned before its version request (D2).
+
+### The defect it exposed
+
+**`exit=0`, glossed by the workflow's own echo as `published`, from a run that published nothing** — while `store_metadata_audit.py` exits **1** on the same listing state. **Two tools, one subject, opposite verdicts, and the one saying "fine" is the one that did nothing** (lesson **155**). ADR-072 decides three things about it — `plan` marks what would actually **change**; a dry run's exit answers *is the listing already what we committed*; and the step gets `continue-on-error` because a dry run exiting 1 forever would redden the lane on every run, **the cries-wolf failure with its sign flipped**.
+
+### ⚠️ And the review's two loudest findings were about SCOPE, not reasoning
+
+The session found something interesting on the way to its objective **and spent itself on that instead**, leaving `operator-expected.md` untouched — the file its own acceptance criteria named. Both blocking findings said so. `session-rules.md` §2 already says a defect found mid-session goes to `gh issue create`, not into the diff, and this is that rule failing at the least convenient moment. **Lesson 154**, and the tell is checkable: *if your diff does not touch the file your acceptance criteria name, you have changed objective.*
+
+Note what did **not** catch it — the technical lenses, which found three real defects in ADR-072's own reasoning and had no opinion about whether it should exist. **Point one lens at the objective itself.**
+
+### What shipped
+
+* **ADR-072** (+ index row), Accepted with its **implementation deferred to #281**, carrying three corrections the review made before any code was written:
+  * D1 said the change-set could be computed *"against what the read already fetched"* — **false**: `main` keeps only `{locale: id}` and throws the attributes away, so there is nothing to compare against. The implementation must call `audit.published_locales`.
+  * D2 said the dry-run and write paths were *"one rule, not two branches"* — the **semantics** are one rule; the implementations are two, and they compare at different moments.
+  * D3 gained **3.1**: the step must stop voting, or the lane is permanently red.
+  * It also stopped calling itself an ADR-069-style **amendment**: nothing in ADR-071 D7 became false, it simply never said what a dry run should exit. An **extension filling a gap**, and it says so rather than borrowing that precedent's authority.
+* **`operator-expected.md` 6(b) now carries the plan**, in plain terms — eight fields per language, Turkish created from scratch and still expected to fail alone, English publishing regardless — plus what the founder is actually deciding and the three answers available to them, including *no*.
+* **#281** filed with the full design and acceptance.
+
+**Commits:** on the S097 close PR.
+
+**CI:** green; the post-merge `main` run for #280 watched to completion including `integration-emulator`.
+
+**Docs touched:** `docs/adr/072-*.md` (new), `docs/adr/README.md`, `docs/operator-expected.md`, `docs/session-lessons.md` (154–155), `docs/resume-prompt.md`, this file.
+
+### Verification
+
+The objective's instrument was a **real GitHub Actions run against the real App Store Connect** — quoted in full above and in the ADR. No code was changed, so no suite was at risk; the ADR-index lint and the audit/publish suites were run anyway and are green.
+
+**Design review: 14 agents, 4 probes × 2 verifiers + a completeness critic.** `agents_error` **0**; `agents_empty_result` **0**; **8 findings**, 6 REAL / 10 REFUTED across verifier votes. Every surviving finding is applied or answered in the ADR.
+
+### Notes / debt logged
+
+* **#281** — the exit-code semantics and the voting lane. Designed, reviewed, unbuilt.
+* The dry run is now a **standing, safe instrument**: `gh workflow run publish-store-metadata.yml` with `confirm` blank writes nothing and prints the plan. It is in `session-context.md` §8.
+
+**Operator dependency:** unchanged, and now answerable. **6(b)** has its evidence attached for the first time.
+
+**Next objective written to resume-prompt.md:** Session 098 — **#281**: make the publish lane report what would change and stop voting, so it and the auditor stop disagreeing about the same listing.

@@ -8,9 +8,9 @@
 
 ## Current Status
 
-- Session: **096** (complete)
-- Goal: **build the fix for the store listing, so one locale Apple refuses stops taking the other down with it**
-- Status: **Complete** — built, reviewed twice, merged, **and deliberately not run**
+- Session: **097** (complete)
+- Goal: **run the new lane against Apple for the first time and put its plan in front of you**
+- Status: **Complete** — it ran, it worked, and the plan is in item 6(b) below
 - Completion: **~58%** of the iOS MVP, to public launch
 - Production Readiness: **Integration Ready**
 
@@ -75,6 +75,7 @@ drift checks measuring instead of skipping.
 |---|---|
 | **095** | The tool that checks your store listing could only say a field *"differs"*. Now it says *how* — and the first honest answer was that seven of your nine English fields contain **nothing at all**. Also: five documents (one of them in code) claimed your app is called `İkimiz`; it is `ikimiz`, and the guard that exists to protect that name would not have caught a careful person following the wrong instruction. |
 | **096** | Built the thing that fixes it: your store copy can now be published **one language at a time**, so the Turkish listing Apple keeps refusing stops taking the English one down with it. **Nothing has been published** — that is your decision, item 6(b), and item 6(c) just got smaller because this no longer needs a release build. |
+| **097** | Pointed it at Apple for the first time, in the mode that writes nothing. **It worked**, and **item 6(b) now shows you exactly what would be published.** It also caught itself telling a small lie — a run that published nothing was reporting *"published"* — which is filed as #281 and does not affect anything you are being asked. |
 
 Everything is merged to `main` and CI is green.
 
@@ -225,11 +226,36 @@ built the lane that does this per locale, and its **dry run writes nothing**:
 Actions → publish-store-metadata → Run workflow → leave "confirm" BLANK
 ```
 
-That prints the plan — which locale, which fields, create or update — and sends
-nothing at all. Only typing `PUBLISH` writes, and anything else is refused
-outright. **Session 097 will run that dry run and paste the plan here**, so this
-decision arrives with its evidence attached rather than as a question about files
-you would have to open yourself.
+**Session 097 ran it. Here is exactly what would happen**, from run
+`33681088334` — which sent nothing:
+
+```
+store metadata publish: DRY RUN — nothing was sent.
+plan (4 request(s)):
+  en-US: PATCH appInfoLocalizations          — 3 field(s): name, privacyPolicyUrl, subtitle
+  en-US: PATCH appStoreVersionLocalizations  — 5 field(s): description, keywords, promotionalText, supportUrl, whatsNew
+  tr:    POST  appInfoLocalizations          — 3 field(s): name, privacyPolicyUrl, subtitle
+  tr:    POST  appStoreVersionLocalizations  — 5 field(s): description, keywords, promotionalText, supportUrl, whatsNew
+```
+
+**In plain terms: eight fields per language, and the Turkish listing gets created
+from scratch** (that is what `POST` means; English already exists and is simply
+empty, so it is a `PATCH`). `marketing_url` is deliberately absent — it is empty
+in the repo and this tool never writes a blank over anything.
+
+⚠️ **The Turkish half will still fail**, and that is expected: Apple refuses the
+name (6(a) above). The point of the rewrite is that **it now fails alone** —
+English publishes regardless, which is the thing that has never happened.
+
+**What you are actually deciding:** whether those eight English fields — written
+by an AI, read by nobody who owns this product — may go up. The words are in
+`fastlane/metadata/en-US/`: seven short files, a few minutes to read.
+
+> **Say yes** and a session types `PUBLISH` into that same box and your store page
+> stops being blank.
+> **Say "let me read it first"** and nothing happens until you have.
+> **Say no** and #278 stops being maintained; say so plainly and it will be closed
+> rather than left looking open.
 
 #### 6(c) — May a session dispatch the release lane once, to test a fix?
 
@@ -315,14 +341,16 @@ open, designed and deliberately unbuilt pending 6(c).
 
 ## Next Step
 
-Merge PR **#280** and watch the post-merge `main` run.
+Read item 6(b) and answer it. Everything else on this page is downstream of item 1.
 
 ## Next Session Goal
 
-**Session 097 — run the dry run.** The lane built in 096 has never once talked to
-Apple. Session 097 will dispatch it with `confirm` **blank** — which writes
-nothing — fix whatever first contact with a real API reveals, and **paste the
-resulting plan into item 6(b) above**, so your decision arrives with the evidence
-attached instead of as a question about files you would have to open.
+**Session 098 — #281: the publish lane reports what would CHANGE, and stops
+voting.** The lane's dry run currently exits *"0, published"* having published
+nothing, while the checker says *"1, finding"* about the same listing. Two tools
+disagreeing about one subject is how one of them stops being believed. Designed
+and reviewed in ADR-072; the code is a session's, needs nothing from you, and
+changes nothing about the decision in item 6(b).
 
-Nothing will be published. That stays yours.
+⚠️ **After that, the queue is genuinely yours.** Every remaining open issue is
+waiting on billing, a phone, a lawyer, a secret, or a decision on this page.
