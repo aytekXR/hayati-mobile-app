@@ -240,7 +240,7 @@ Two gates guarding two different mistakes, and revision 1 conflated them.
   they did. Absence means "I am looking"; a wrong value means "I tried and
   fumbled", and those must not print the same thing.
 
-**The dry run is not a stub.** It resolves the app, reads both resources, works
+A wrong literal exits **64** — see D7. **The dry run is not a stub.** It resolves the app, reads both resources, works
 out create-versus-update per locale, and prints the exact request set — every step
 but the write. ADR-047 D6 applied one tool over: an instrument only exercisable by
 the event it exists for is the thing it guards against, and here the dry run is
@@ -262,6 +262,15 @@ said *"the fourth"*, which was simply wrong (lesson **133**).
 | **0** | every expected locale is published and the read-back agrees |
 | **1** | FINDING — a locale was refused, a locale is half-written (2.2), or the read-back disagrees |
 | **2** | COULD NOT MEASURE — no credential, no editable version, or an API error **before any write was attempted** |
+| **64** | REFUSED — a `--confirm` was given and it was not the literal. Nothing was sent |
+
+**64 is deliberately OUTSIDE the taxonomy**, and it is the repo's existing
+usage-error code (`adr_index_lint.dart`'s `exUsage`, `coverage_gate.dart`). A
+fumbled literal is a statement about the *command*, not about the listing, and
+giving it 1 would put it in the same bucket as *"Apple refused a locale"* —
+which a reader would then have to disambiguate by reading prose. `appid_capability_enable.py`'s
+precedent returns its own `EXIT_REFUSED` for the same reason; this reuses the
+idea and not the number, because that tool's 1 is free and this tool's is not.
 
 **A refusal is 1, not 2.** *"Apple said no"* is a measurement.
 
@@ -271,6 +280,44 @@ the version ceasing to be editable because the founder submitted it mid-run — 
 **finding**, because the listing may now be in a state nobody chose. Reporting
 that as *"could not measure"* would describe a changed listing as an unobserved
 one, which is the exact confusion ADR-063 built exit 2 to prevent.
+
+## Implementation record
+
+`tool/ci/store_metadata_publish.py` + `store_metadata_publish_test.py` (13 tests,
+59 checks), registered in `ci.yml`'s `quality` job — an unregistered test is a
+green run that proves nothing. The lane is
+`.github/workflows/publish-store-metadata.yml`: `workflow_dispatch` only, no
+`push` trigger, `confirm` an empty free-text box, `concurrency` with
+`cancel-in-progress: false` because cancelling a run halfway through its locales
+manufactures the D2.2 partial state on purpose.
+
+**Mutation-checked: 13 mutants, 12 killed by a NAMED assertion.** Every decision
+above has one pointed at it — the ordering (D2), a refusal ending the run, a
+refusal continuing into its own locale's second resource, a partial reported as
+a plain refusal (D2.2), empty fields being sent (D4), the read-back expecting the
+*planned* rather than the *written* (D5.1), the create hung off the app instead
+of the appInfo (D3), always-create-never-update (D3), a dry run writing (D6), a
+wrong confirm quietly downgraded (D6), refusals not voting (D7), and `render`
+dumping the committed values (ADR-070 D7.4).
+
+⚠️ **Two flaws in the mutation set itself, found by running it and recorded
+rather than quietly fixed:**
+
+* the first ordering mutant **changed nothing semantically** — it swapped a
+  condition rather than the order, and both conditions were true for the fixture,
+  so it "survived" a test that would in fact have caught a real reordering. A
+  mutant that applies and changes nothing prints the same green as a guard that
+  works (lesson **109**).
+* `refusal-aborts-everything` initially died **by an exception**, not by an
+  assertion: mutating the `break` to a `raise` crashed the harness before any
+  check ran. The test now catches an escaping exception and turns it into a named
+  failure, so the property it advertises is the thing that catches the mutant
+  (lesson **76**, and S095 hit the same shape twice).
+
+**The one surviving mutant is recorded, not fixed:** reversing the *locale*
+iteration order changes the report's order and nothing else. Locale isolation is
+order-independent by construction, so a test pinning it would be pinning
+presentation. `sorted()` stays for a stable report; nothing depends on it.
 
 ## Consequences
 

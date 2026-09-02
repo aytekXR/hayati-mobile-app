@@ -290,6 +290,13 @@ python3 tool/ci/push_delivery_probe.py --from-firebase-cli
 # It rides testflight-testers.yml; there is no store-metadata workflow of its
 # own. Exit 0 published / 1 finding / 2 could not measure.
 gh workflow run testflight-testers.yml -f store_metadata_audit=true
+
+# What WOULD be published, per locale, without publishing it (#278, ADR-071).
+# The dry run is the deliverable: operator 6(b) asks the founder whether the
+# AI-drafted English copy may go up at all, and this is what they read to answer.
+# Leaving `confirm` blank sends NOTHING; only the literal PUBLISH writes, and
+# anything else is REFUSED (exit 64) rather than quietly downgraded to a dry run.
+gh workflow run publish-store-metadata.yml
 ```
 
 A transient `HTTP 503 … Policy checks are unavailable` from the rules API is **exit 2,
