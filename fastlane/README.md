@@ -64,8 +64,13 @@ The absence is deliberate, not an oversight.
 Apple's rules is caught pre-merge by the credential-free lint:
 
 ```sh
-dart tool/store_metadata_lint.dart --allow-empty-urls tr en-US   # from repo root
+dart tool/store_metadata_lint.dart tr en-US   # from repo root
 ```
+
+⚠️ **No `--allow-empty-urls`.** This block carried that flag until S095 (ADR-070
+D6.2). CI has not passed it since `6d1f7368` (2026-07-28), the same commit that
+filled the two required URL files — ADR-020 D5's ratchet was pulled there and
+this line went stale with the section below it.
 
 It enforces required-file presence, Apple char limits (code points), single-line
 cleanliness, keyword de-duplication, unknown-filename rejection, and the
@@ -154,27 +159,44 @@ The description reuses the in-app settings/paywall/coach vocabulary
 honest bounds (no "hide the app", no "only you can unlock", no "every time you
 open it", no screenshots-blocked or cancellation claims).
 
-### URLs ship empty — on purpose
+### The URL ratchet — pulled 2026-07-28
 
-`privacy_url.txt` and `support_url.txt` are EMPTY in both locales: there is no
-hosted privacy policy or support page yet (mvp item 12, operator sub-item). A
-placeholder URL would be worse than absence (Apple validates reachability; a
-wrong privacy URL is a legal statement). The lint treats an empty required URL
-as a hard failure unless `--allow-empty-urls` demotes it to a loud, counted
-warning — removing that flag is the ratchet once a domain + hosted policy exist
-(ADR-020 D5). `marketing_url.txt` is empty and OPTIONAL: Apple never requires it.
+**Both required URLs are FILLED**, in both locales, since `6d1f7368`:
+
+| file | value |
+|---|---|
+| `privacy_url.txt` | `https://ikimiz.beyondkaira.com/privacy` |
+| `support_url.txt` | `https://ikimiz.beyondkaira.com/` |
+| `marketing_url.txt` | empty, and OPTIONAL — Apple never requires it (ADR-020 D5 rev 2) |
+
+The lint treats an empty required URL as a **hard failure**; `--allow-empty-urls`
+demoted it to a loud, counted warning, and **removing that flag was the ratchet**
+once a domain and a hosted policy existed (ADR-020 D5). That happened in the same
+commit that filled the files, so CI has run the lint bare ever since.
+
+⚠️ **This section said the two files were EMPTY until S095** (ADR-070 D6.2) — 36
+days after they were filled, and stale about `privacyPolicyUrl` and `supportUrl`,
+which are two of the seven `en-US` fields the store audit reports as differing
+from this ref (#204). A placeholder URL would still be worse than absence: Apple
+validates reachability, and a wrong privacy URL is a legal statement.
 
 ### Founder-owned naming (ADR-020 D1/D2)
 
 **Both are now DECIDED — the founder exercised them (ADR-032 D6).**
 
-- **App Store name** is **`İkimiz`**, one of ADR-020 D1's own vetted
-  alternates, matching the live App Store Connect record. It is **pinned** in
+- **App Store name** is **`ikimiz`** — lowercase. ADR-032 D6 recorded the founder
+  choosing `İkimiz`, one of ADR-020 D1's own vetted alternates; **ADR-035 then
+  renamed the app to lowercase `ikimiz`** and moved the files, the pin, the plist
+  and the listing with it. This bullet said `İkimiz` until S095, when ADR-070 D6
+  re-measured the live record (the audit reports `name` as matching, under a
+  comparison that folds whitespace and not case) and corrected the four prose
+  copies that ADR-035 had left behind. It is **pinned** in
   `tool/release_lane_lint.dart`, because `deliver(force: true)` skips the
   confirmation prompt: a drifted `name.txt` silently **renames the live
   listing** on the next release. Change the pin and every `name.txt` in one
   commit.
-- **`CFBundleDisplayName`** is **`İkimiz`** (PR #118), matching the store record
+- **`CFBundleDisplayName`** is **`ikimiz`** (`app/ios/Runner/Info.plist`; set to
+  `İkimiz` by PR #118 and lowercased by ADR-035), matching the store record
   and the shipped build. ADR-020 D2 required the discreet-icon honesty copy to
   be re-audited in the same commit; that was missed there and **done in S047**.
   Result: `settingsDiscreetSubtitle` ("The app's name still appears under it")
