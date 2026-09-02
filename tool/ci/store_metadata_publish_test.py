@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import tempfile
 
 _MODULE_PATH = pathlib.Path(__file__).with_name("store_metadata_publish.py")
 _spec = importlib.util.spec_from_file_location("store_metadata_publish", _MODULE_PATH)
@@ -101,6 +102,13 @@ def recorder(script):
         return {"data": {"id": "new-id"}}
 
     return call, seen
+
+
+def _install_fake(script):
+    """`recorder`, but patched over `tf._call` so `main` uses it end to end."""
+    call, seen = recorder(script)
+    tf._call = lambda _token, method, path, body=None: call(method, path, body)
+    return seen
 
 
 def writes(seen):
@@ -444,6 +452,227 @@ def test_render_names_every_action_and_says_which_ran() -> None:
     check("the committed TEXT is not dumped", "A question a day, for two." in report, False)
 
 
+# --- ADR-072 / #281: what would CHANGE, and a dry run that stops lying --------
+#
+# The publisher's dry run exited 0 — glossed by its own workflow as "published" —
+# while `store_metadata_audit` exited 1 on the same listing state (runs
+# 33685509829 and 33685506236, minutes apart). Two tools, one subject, opposite
+# verdicts, and the one saying "fine" is the one that did nothing (lesson 155).
+
+
+def test_changing_is_the_subset_that_actually_differs() -> None:
+    print("ADR-072 D1: an Action carries the fields that would actually change")
+    published = {"en-US": {
+        "locale": "en-US",
+        "name": "ikimiz",                       # matches the committed file
+        "subtitle": "Something else",           # differs
+        "privacyPolicyUrl": "https://example.test/privacy",   # matches
+    }}
+    actions = publish.plan(
+        {"en-US": dict(EN)}, version_id="v1", app_info_id="ai1",
+        existing_version={"en-US": "vloc-en"}, existing_app_info={"en-US": "iloc-en"},
+        published=published,
+    )
+    info = [a for a in actions if a.resource == publish.APP_INFO_TYPE][0]
+    check("all three are still SENT", sorted(info.files),
+          ["name.txt", "privacy_url.txt", "subtitle.txt"])
+    # The write still sends everything — "make it so" must not depend on the
+    # comparison being right (ADR-072 D1). Only the REPORT and the exit code use
+    # this subset.
+    check("but only one would change", sorted(info.changing), ["subtitle.txt"])
+
+    version = [a for a in actions if a.resource == publish.VERSION_TYPE][0]
+    # The store carries nothing for these, so all of them would change.
+    check("a locale present but blank changes everything it holds",
+          sorted(version.changing), ["description.txt", "keywords.txt"])
+
+
+def test_a_trailing_newline_is_not_a_change() -> None:
+    print("ADR-072 D1: one definition of `differs`, and it is the auditor's")
+    # Every committed file ends in a newline and Apple's stored value does not.
+    # Using anything but `normalize` here would report all eight fields as
+    # changing forever — the cries-wolf failure, in the tool built to stop one.
+    actions = publish.plan(
+        {"tr": {"name.txt": "ikimiz\n"}}, version_id="v1", app_info_id="ai1",
+        existing_version={}, existing_app_info={"tr": "iloc-tr"},
+        published={"tr": {"locale": "tr", "name": "ikimiz"}},
+    )
+    check("nothing would change", sorted(actions[0].changing), [])
+
+
+def test_an_absent_locale_changes_everything_it_would_write() -> None:
+    print("ADR-072 D1: a locale Apple does not have changes every field")
+    actions = publish.plan(
+        {"tr": dict(TR)}, version_id="v1", app_info_id="ai1",
+        existing_version={}, existing_app_info={},
+        published={"en-US": {"locale": "en-US"}},   # tr absent entirely
+    )
+    for action in actions:
+        check(f"{action.resource}: all of it", sorted(action.changing), sorted(action.files))
+
+
+def test_unknown_published_state_assumes_it_would_change() -> None:
+    print("ADR-072 D1: not knowing is not the same as nothing to do")
+    # `published=None` is what a caller that never read Apple passes. The safe
+    # direction is to say the field WOULD change: a tool that answers "nothing to
+    # do" because it did not look is the exact defect this ADR exists to fix.
+    actions = publish.plan(
+        {"tr": dict(TR)}, version_id="v1", app_info_id="ai1",
+        existing_version={}, existing_app_info={},
+    )
+    for action in actions:
+        check(f"{action.resource}: assumed changing", sorted(action.changing), sorted(action.files))
+
+
+def test_would_change_counts_across_the_plan() -> None:
+    print("ADR-072 D2: the number the exit code is computed from")
+    published = {"en-US": {
+        "locale": "en-US", "name": "ikimiz",
+        "subtitle": "One question a day", "privacyPolicyUrl": "https://example.test/privacy",
+        "description": "A question a day, for two.", "keywords": "couples,relationship",
+    }}
+    matching = publish.plan(
+        {"en-US": dict(EN)}, version_id="v1", app_info_id="ai1",
+        existing_version={"en-US": "vloc-en"}, existing_app_info={"en-US": "iloc-en"},
+        published=published,
+    )
+    check("a listing that already matches changes nothing", publish.would_change(matching), 0)
+    drifted = publish.plan(
+        {"en-US": dict(EN)}, version_id="v1", app_info_id="ai1",
+        existing_version={"en-US": "vloc-en"}, existing_app_info={"en-US": "iloc-en"},
+        published={"en-US": {"locale": "en-US"}},   # present, and blank — today's real state
+    )
+    check("an empty listing changes all five committed fields",
+          publish.would_change(drifted), 5)
+
+
+def test_a_dry_run_over_an_unpublished_listing_is_a_FINDING() -> None:
+    print("ADR-072 D2: 0 no longer means `published` when nothing was published")
+    # THE DEFECT. Before this, a dry run over the empty listing exited 0 while
+    # the auditor exited 1 about the same listing.
+    check("would-change makes it a finding",
+          publish.exit_code(refusals=0, read_back=0, would_change=5), publish.EXIT_FINDING)
+    check("nothing to do is the only 0",
+          publish.exit_code(refusals=0, read_back=0, would_change=0), publish.EXIT_OK)
+    # And the write path is UNTOUCHED: it passes no would_change and decides from
+    # the post-write read-back, which is a different moment, not a different rule.
+    check("a successful write still exits 0",
+          publish.exit_code(refusals=0, read_back=0), publish.EXIT_OK)
+    check("a failed read-back still exits 1",
+          publish.exit_code(refusals=0, read_back=2), publish.EXIT_FINDING)
+
+
+def test_render_says_how_much_would_change() -> None:
+    print("ADR-072 D3: the number the founder reads")
+    actions = publish.plan(
+        {"en-US": dict(EN)}, version_id="v1", app_info_id="ai1",
+        existing_version={"en-US": "vloc-en"}, existing_app_info={"en-US": "iloc-en"},
+        published={"en-US": {"locale": "en-US", "name": "ikimiz"}},
+    )
+    call, _seen = recorder([])
+    report = publish.render(publish.execute(call, actions, dry_run=True), dry_run=True)
+    check_true("counts what would change", "would change" in report)
+    # FOUR, not five: the fixture already publishes `name`, so it is the one
+    # committed field that would not move. Counted by running it rather than by
+    # eye — the first draft of this assertion said five (lesson 133).
+    check("the plan agrees", publish.would_change(actions), 4)
+    check_true("and names the total", "4 field(s) would change" in report)
+    # Still no store text, still one purpose (ADR-070 D7.4).
+    check("the committed TEXT is still not dumped", "A question a day, for two." in report, False)
+
+
+def test_render_says_so_when_nothing_would_change() -> None:
+    print("ADR-072 D3: and it says so OUT LOUD when there is nothing to do")
+    # A tool that only speaks when something is wrong is indistinguishable from a
+    # tool that is not running (lesson 65, ADR-047's own rule one tool over).
+    published = {"tr": {"locale": "tr", "name": "ikimiz", "description": "Her gün bir soru."}}
+    actions = publish.plan(
+        {"tr": dict(TR)}, version_id="v1", app_info_id="ai1",
+        existing_version={"tr": "vloc-tr"}, existing_app_info={"tr": "iloc-tr"},
+        published=published,
+    )
+    call, _seen = recorder([])
+    report = publish.render(publish.execute(call, actions, dry_run=True), dry_run=True)
+    check("nothing would change", publish.would_change(actions), 0)
+    check_true("and the report says so", "nothing would change" in report.lower())
+
+
+def _script_the_store(en_attributes: dict, tr_present: bool = False) -> list:
+    """A whole App Store Connect, scripted. LONGER fragments first (substring match)."""
+    version_rows = [{"id": "vloc-en", "attributes": {"locale": "en-US", **en_attributes}}]
+    info_rows = [{"id": "iloc-en", "attributes": {"locale": "en-US", **en_attributes}}]
+    if tr_present:
+        version_rows.append({"id": "vloc-tr", "attributes": {"locale": "tr"}})
+        info_rows.append({"id": "iloc-tr", "attributes": {"locale": "tr"}})
+    return [
+        ("GET", "appStoreVersionLocalizations", {"data": version_rows}),
+        ("GET", "appInfoLocalizations", {"data": info_rows}),
+        ("GET", "appStoreVersions", {"data": [
+            {"id": "v1", "attributes": {"appStoreState": "PREPARE_FOR_SUBMISSION"}}]}),
+        ("GET", "appInfos", {"data": [
+            {"id": "i1", "attributes": {"appStoreState": "PREPARE_FOR_SUBMISSION"}}]}),
+    ]
+
+
+def test_main_dry_run_over_the_real_metadata_tree_is_a_FINDING() -> None:
+    print("main: end to end — the empty listing, dry run, and it must NOT say 0")
+    # ⚠️ This test exists because a mutant survived: replacing main's
+    # `published = audit.published_locales(...)` with `None` changed the
+    # founder-facing number and NOTHING caught it. main() was the one piece of
+    # wiring no test touched — between the read and the report.
+    tf._token = lambda: "token"
+    tf.find_app = lambda _t, _b: {"id": "app"}
+    root = pathlib.Path(__file__).resolve().parents[2] / "fastlane" / "metadata"
+
+    # The measured production state: en-US exists and holds NOTHING, tr absent.
+    seen = _install_fake(_script_the_store({}))
+    with tempfile.TemporaryDirectory() as raw:
+        summary = pathlib.Path(raw) / "summary"
+        code = publish.main(["--metadata-dir", str(root), "--summary", str(summary)])
+        report = summary.read_text(encoding="utf-8")
+
+    check("exit 1 — a FINDING, not `published`", code, publish.EXIT_FINDING)
+    check("and nothing was written", writes(seen), [])
+    check_true("the report says so", "would change" in report)
+    check_true("and it is a dry run", "DRY RUN" in report)
+
+
+def test_main_dry_run_exits_0_when_the_listing_already_matches() -> None:
+    print("main: 0 is reachable, and only when there is genuinely nothing to do")
+    # The other half of the rule. Without this, `exit 1` could be hard-coded and
+    # the suite would not notice — the assertion above would still pass.
+    tf._token = lambda: "token"
+    tf.find_app = lambda _t, _b: {"id": "app"}
+    root = pathlib.Path(__file__).resolve().parents[2] / "fastlane" / "metadata"
+    committed = audit.expected_locales(root)
+
+    def attributes_for(locale: str) -> dict:
+        info, version = publish.writable_fields(committed[locale])
+        return {**info, **version}
+
+    script = [
+        ("GET", "appStoreVersionLocalizations", {"data": [
+            {"id": "vloc-en", "attributes": {"locale": "en-US", **attributes_for("en-US")}},
+            {"id": "vloc-tr", "attributes": {"locale": "tr", **attributes_for("tr")}}]}),
+        ("GET", "appInfoLocalizations", {"data": [
+            {"id": "iloc-en", "attributes": {"locale": "en-US", **attributes_for("en-US")}},
+            {"id": "iloc-tr", "attributes": {"locale": "tr", **attributes_for("tr")}}]}),
+        ("GET", "appStoreVersions", {"data": [
+            {"id": "v1", "attributes": {"appStoreState": "PREPARE_FOR_SUBMISSION"}}]}),
+        ("GET", "appInfos", {"data": [
+            {"id": "i1", "attributes": {"appStoreState": "PREPARE_FOR_SUBMISSION"}}]}),
+    ]
+    seen = _install_fake(script)
+    with tempfile.TemporaryDirectory() as raw:
+        summary = pathlib.Path(raw) / "summary"
+        code = publish.main(["--metadata-dir", str(root), "--summary", str(summary)])
+        report = summary.read_text(encoding="utf-8")
+
+    check("exit 0 — nothing to do", code, publish.EXIT_OK)
+    check("still wrote nothing", writes(seen), [])
+    check_true("and says so out loud", "nothing would change" in report.lower())
+
+
 def main() -> int:
     print("store_metadata_publish self-tests")
     test_empty_fields_are_skipped_never_sent()
@@ -460,6 +689,17 @@ def main() -> int:
     test_exit_codes()
     test_an_error_after_a_write_is_a_finding_not_could_not_measure()
     test_render_names_every_action_and_says_which_ran()
+    # ADR-072 / #281
+    test_changing_is_the_subset_that_actually_differs()
+    test_a_trailing_newline_is_not_a_change()
+    test_an_absent_locale_changes_everything_it_would_write()
+    test_unknown_published_state_assumes_it_would_change()
+    test_would_change_counts_across_the_plan()
+    test_a_dry_run_over_an_unpublished_listing_is_a_FINDING()
+    test_render_says_how_much_would_change()
+    test_render_says_so_when_nothing_would_change()
+    test_main_dry_run_over_the_real_metadata_tree_is_a_FINDING()
+    test_main_dry_run_exits_0_when_the_listing_already_matches()
 
     if _failures:
         print(f"\n{len(_failures)} FAILED: {', '.join(_failures)}")

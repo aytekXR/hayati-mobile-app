@@ -114,6 +114,11 @@ class Action(NamedTuple):
     `files` is what the read-back will expect back if this action succeeds — the
     committed filenames, not the attribute names, because `audit_findings` is
     keyed on files (ADR-071 D5.1).
+
+    `changing` is the subset of `files` whose value differs from what Apple holds
+    (ADR-072 D1). ⚠️ **It never decides what is SENT** — the write always sends
+    every field, because *make it so* must not depend on the comparison being
+    right. It decides what the report says and what the exit code means.
     """
 
     locale: str
@@ -122,6 +127,7 @@ class Action(NamedTuple):
     path: str
     body: dict
     files: dict[str, str]
+    changing: dict[str, str]
 
 
 class Finding(NamedTuple):
@@ -180,12 +186,39 @@ def _files_for(files: dict[str, str], fieldmap: dict[str, str]) -> dict[str, str
     }
 
 
+def _changing(
+    files: dict[str, str],
+    fieldmap: dict[str, str],
+    published: dict[str, str] | None,
+) -> dict[str, str]:
+    """The subset of `files` whose value differs from what Apple holds.
+
+    ⚠️ `published is None` means **the caller never looked**, and every field is
+    then reported as changing. Not knowing is not the same as nothing to do, and
+    a tool that answered "nothing to do" because it had not read is the exact
+    defect ADR-072 exists to fix.
+
+    The comparison is `store_metadata_audit.normalize` and nothing else: every
+    committed file ends in a newline and Apple's stored value does not, so a
+    second dialect of "differs" would report all eight fields as changing forever
+    — and two tools disagreeing about one listing is what this ADR is about.
+    """
+    if published is None:
+        return dict(files)
+    return {
+        name: text
+        for name, text in files.items()
+        if normalize(published.get(fieldmap[name])) != normalize(text)
+    }
+
+
 def _action(
     locale: str,
     resource: str,
     attributes: dict[str, str],
     files: dict[str, str],
     *,
+    changing: dict[str, str],
     existing_id: str | None,
     parent_type: str,
     parent_key: str,
@@ -205,6 +238,7 @@ def _action(
             path=f"/v1/{resource}/{existing_id}",
             body={"data": {"type": resource, "id": existing_id, "attributes": dict(attributes)}},
             files=files,
+            changing=changing,
         )
     return Action(
         locale=locale,
@@ -219,6 +253,7 @@ def _action(
             }
         },
         files=files,
+        changing=changing,
     )
 
 
@@ -229,8 +264,13 @@ def plan(
     app_info_id: str,
     existing_version: dict[str, str],
     existing_app_info: dict[str, str],
+    published: dict[str, dict] | None = None,
 ) -> list[Action]:
     """Every request, in the order it will be sent.
+
+    `published` is `{locale: attributes}` as `audit.published_locales` returns it.
+    It decides only what each action reports as **changing** (ADR-072 D1); omit it
+    and every field is assumed to change, which is the safe direction.
 
     Locales in sorted order for a stable report; **within a locale, app info
     first** (ADR-071 D2) — that ordering is the whole isolation strategy, so it
@@ -241,6 +281,7 @@ def plan(
     for locale in sorted(expected):
         files = expected[locale]
         info_attributes, version_attributes = writable_fields(files)
+        holds = None if published is None else (published.get(locale) or {})
         if info_attributes:
             actions.append(
                 _action(
@@ -248,6 +289,7 @@ def plan(
                     APP_INFO_TYPE,
                     info_attributes,
                     _files_for(files, APP_INFO_FIELDS),
+                    changing=_changing(_files_for(files, APP_INFO_FIELDS), APP_INFO_FIELDS, holds),
                     existing_id=existing_app_info.get(locale),
                     parent_type="appInfos",
                     parent_key="appInfo",
@@ -261,6 +303,7 @@ def plan(
                     VERSION_TYPE,
                     version_attributes,
                     _files_for(files, VERSION_FIELDS),
+                    changing=_changing(_files_for(files, VERSION_FIELDS), VERSION_FIELDS, holds),
                     existing_id=existing_version.get(locale),
                     parent_type="appStoreVersions",
                     parent_key="appStoreVersion",
@@ -359,8 +402,19 @@ def read_back_expectation(outcome: Outcome) -> dict[str, dict[str, str]]:
     return expectation
 
 
-def exit_code(*, refusals: int, read_back: int) -> int:
-    """0 or 1. **2 cannot reach here, and that is the decision** (ADR-071 D7).
+def would_change(actions: list[Action]) -> int:
+    """How many committed fields the listing does not already carry (ADR-072 D2)."""
+    return sum(len(action.changing) for action in actions)
+
+
+def exit_code(*, refusals: int, read_back: int, would_change: int = 0) -> int:
+    """0 or 1: **one rule — exit 1 when the listing differs from what we committed,
+    or something failed.** Two callers supply different measurements of it, because
+    they ask at different moments (ADR-072 D2): a dry run compares BEFORE the
+    attempt (`would_change`), a write compares AFTER it (`read_back`). The write
+    path is untouched by ADR-072.
+
+    **2 cannot reach here, and that is the decision** (ADR-071 D7).
 
     Every path that could answer "could not measure" returns EXIT_CANNOT_MEASURE
     from `main` BEFORE the first write is attempted; after that, an error is a
@@ -369,7 +423,7 @@ def exit_code(*, refusals: int, read_back: int) -> int:
     rather than computes reads as a bug, and the boundary belongs where it is
     actually enforced.
     """
-    if refusals or read_back:
+    if refusals or read_back or would_change:
         return EXIT_FINDING
     return EXIT_OK
 
@@ -387,14 +441,26 @@ def render(outcome: Outcome, *, dry_run: bool) -> str:
         lines.append("nothing to publish: every committed field is empty.")
         return "\n".join(lines)
 
+    total_changing = would_change(outcome.planned)
     lines.append(f"plan ({len(outcome.planned)} request(s)):")
     for action in outcome.planned:
         attributes = action.body["data"]["attributes"]
         names = ", ".join(sorted(k for k in attributes if k != "locale"))
         lines.append(
             f"  {action.locale}: {action.verb} {action.resource} "
-            f"— {len(action.files)} field(s): {names}"
+            f"— {len(action.files)} field(s), {len(action.changing)} would change"
+            f": {names}"
         )
+    lines.append("")
+    if total_changing:
+        lines.append(
+            f"{total_changing} field(s) would change — the listing does not yet "
+            f"carry what this ref committed."
+        )
+    else:
+        # Say it OUT LOUD. A tool that only speaks when something is wrong is
+        # indistinguishable from a tool that is not running (lesson 65).
+        lines.append("nothing would change — the listing already carries every committed field.")
     if not dry_run:
         lines.append("")
         lines.append(f"written: {len(outcome.written)} of {len(outcome.planned)} request(s)")
@@ -455,6 +521,12 @@ def main(argv: list[str] | None = None) -> int:
             for row in tf.version_localizations(token, version["id"])
             if (row.get("attributes") or {}).get("locale")
         }
+        # ADR-072 D1. The reads above keep only `{locale: id}` — ids are all a
+        # WRITER needs — so there is nothing to compare against, which is what
+        # revision 1 of that ADR got wrong. `published_locales` already merges
+        # both resources into exactly the shape the comparison wants, and it is
+        # read-only, so the dry run stays a dry run.
+        published = audit.published_locales(token, app["id"], version=version)
     except AscError as failure:
         print(f"COULD NOT MEASURE: {failure}", file=sys.stderr)
         return EXIT_CANNOT_MEASURE
@@ -468,6 +540,7 @@ def main(argv: list[str] | None = None) -> int:
         app_info_id=app_info_id,
         existing_version=existing_version,
         existing_app_info=existing_app_info,
+        published=published,
     )
 
     def call(method: str, path: str, body: dict | None = None) -> dict:
@@ -503,7 +576,16 @@ def main(argv: list[str] | None = None) -> int:
 
     print(report)
     emit(args.summary, "### store metadata publish\n\n```\n" + report + "\n```")
-    return exit_code(refusals=len(outcome.findings), read_back=len(read_back_findings))
+    # ADR-072 D2. A dry run answers "is the listing already what we committed?"
+    # and must never exit 0 while it is not — which is what it did, glossed as
+    # `published`, while the auditor exited 1 about the same listing. A WRITE
+    # answers the same question one moment later, through the read-back, and that
+    # path is untouched.
+    return exit_code(
+        refusals=len(outcome.findings),
+        read_back=len(read_back_findings),
+        would_change=would_change(actions) if mode == MODE_DRY_RUN else 0,
+    )
 
 
 def _app_info_state(token: str, app_id: str) -> tuple[str, dict[str, str]]:
