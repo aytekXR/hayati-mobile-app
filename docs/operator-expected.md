@@ -1,6 +1,6 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-09-02 UTC (Session 096)
+**Last Updated:** 2026-09-03 UTC (Session 098)
 
 > This file is a **live checkpoint**, not a history. It carries only the current
 > state and what is open right now. What each session did, and why, lives in
@@ -8,9 +8,9 @@
 
 ## Current Status
 
-- Session: **097** (complete)
-- Goal: **run the new lane against Apple for the first time and put its plan in front of you**
-- Status: **Complete** — it ran, it worked, and the plan is in item 6(b) below
+- Session: **098** (complete)
+- Goal: **stop the two store-metadata lanes disagreeing about your listing**
+- Status: **Complete** — they agree now, and item 6(b) below is unchanged and still waiting on you
 - Completion: **~58%** of the iOS MVP, to public launch
 - Production Readiness: **Integration Ready**
 
@@ -76,6 +76,7 @@ drift checks measuring instead of skipping.
 | **095** | The tool that checks your store listing could only say a field *"differs"*. Now it says *how* — and the first honest answer was that seven of your nine English fields contain **nothing at all**. Also: five documents (one of them in code) claimed your app is called `İkimiz`; it is `ikimiz`, and the guard that exists to protect that name would not have caught a careful person following the wrong instruction. |
 | **096** | Built the thing that fixes it: your store copy can now be published **one language at a time**, so the Turkish listing Apple keeps refusing stops taking the English one down with it. **Nothing has been published** — that is your decision, item 6(b), and item 6(c) just got smaller because this no longer needs a release build. |
 | **097** | Pointed it at Apple for the first time, in the mode that writes nothing. **It worked**, and **item 6(b) now shows you exactly what would be published.** It also caught itself telling a small lie — a run that published nothing was reporting *"published"* — which is filed as #281 and does not affect anything you are being asked. |
+| **098** | Fixed that lie. The two tools that look at your store listing now agree with each other, and the report says **how much would change** — 15 fields — instead of just *"different"*. One of those numbers is a small piece of good news: your app's **name** is the one field already correct at Apple, confirmed independently by both tools. |
 
 Everything is merged to `main` and CI is green.
 
@@ -345,12 +346,12 @@ Read item 6(b) and answer it. Everything else on this page is downstream of item
 
 ## Next Session Goal
 
-**Session 098 — #281: the publish lane reports what would CHANGE, and stops
-voting.** The lane's dry run currently exits *"0, published"* having published
-nothing, while the checker says *"1, finding"* about the same listing. Two tools
-disagreeing about one subject is how one of them stops being believed. Designed
-and reviewed in ADR-072; the code is a session's, needs nothing from you, and
-changes nothing about the decision in item 6(b).
+**Session 099 — #121: prove whether a dead step in the release lane is really
+dead, by reading fastlane's own source instead of waiting for a release.** It is
+the last open issue whose central question can be answered without you.
 
 ⚠️ **After that, the queue is genuinely yours.** Every remaining open issue is
-waiting on billing, a phone, a lawyer, a secret, or a decision on this page.
+waiting on billing, a phone, a lawyer, a secret, or a decision on this page —
+re-derived at the end of session 098 rather than assumed. **The most useful thing
+you can do next is item 6(b)**: it needs no money, no hardware and nobody else,
+and it is the only one that unblocks work rather than waiting on it.

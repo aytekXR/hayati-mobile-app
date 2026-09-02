@@ -1,9 +1,9 @@
-# Resume Prompt — Session 098
+# Resume Prompt — Session 099
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
-> Read `session-context.md` and `session-lessons.md` (numbered to **155**) first.
+> Read `session-context.md` and `session-lessons.md` (numbered to **157**) first.
 > Re-derive the session number from `git log`.
 >
 > ⚠️ **`session-context.md` §2/§3 changed again in S096** — the toolchain is
@@ -11,81 +11,85 @@
 > the table is a claim like any other (lesson **146**).
 >
 > ⚠️ **BEFORE PLANNING, OPEN THE ADR THAT OWNS THIS OBJECTIVE** (lesson **145**).
-> Here that is **ADR-072**, and S097 wrote it — read it as a claim to check. It is
-> already reviewed pre-code and carries three corrections; start from it, not from
-> the issue title.
+> Here that is **ADR-032 D4**, which *kept* the step this session is about and
+> said exactly what it lacked. Read it as the thing to discharge, not to re-argue.
 >
-> ⚠️ **AND POINT ONE LENS AT THE OBJECTIVE ITSELF** (lesson **154**). S097 found
-> something interesting on the way to its objective and spent itself on that
-> instead. **The tell is checkable: if your diff does not touch the file your
-> acceptance criteria name, you have changed objective.**
+> ⚠️ **AND POINT ONE LENS AT THE OBJECTIVE ITSELF** (lesson **154**). **If your
+> diff does not touch the file your acceptance criteria name, you have changed
+> objective.**
 
-**Objective: #281 — the publish lane's dry run exits `0` and calls it
-"published" having published nothing, while the auditor exits `1` on the same
-listing. Make them agree, and stop the lane voting.**
+**Objective: #121 — settle whether `release.yml`'s `write App Store Connect API
+key` step is dead, by READING THE INSTALLED FASTLANE rather than by waiting for a
+release run.** Restore `ruby` + `bundle` (the last missing toolchain) and use the
+gem source to answer the question ADR-032 D4 recorded as unanswerable from here.
 
 ### ⚠️ First, three commands. Quote all three before planning.
 
 ```sh
-for c in node npm python3 java dart flutter ruby gh git firebase; do printf '%-9s ' "$c"; command -v $c || echo MISSING; done
-gh workflow run testflight-testers.yml -f store_metadata_audit=true    # the auditor's verdict
-gh workflow run publish-store-metadata.yml                             # the publisher's — confirm BLANK, writes nothing
+for c in node npm python3 java dart flutter ruby bundle gh git firebase; do printf '%-9s ' "$c"; command -v $c || echo MISSING; done
+gh workflow run publish-store-metadata.yml     # confirm BLANK — writes nothing
+gh issue view 121 --json body -q .body
 ```
 
-Measured 2026-09-02 (S097) — **re-measure, do not inherit**:
+⚠️ **`java`, `dart` and `flutter` read MISSING until you export PATH** — they are
+installed (`session-context.md` §3). `ruby`/`bundle` are the genuinely absent
+ones, and restoring them is step one of this objective.
 
-* `ruby`/`bundle` **MISSING**; everything else present. `flutter` and `java` are
-  **not on PATH** — export them (`session-context.md` §3);
-* **the two lanes disagree, and that is the objective**: the auditor exits **1**
-  (seven `en-US` fields `PUBLISHED IS EMPTY`, `tr` absent), the publisher's dry
-  run exits **0**, glossed as *published*, having sent nothing;
-* `prod_pulse` still exits **2 — could not measure** (the instrument, not
-  production — operator item 10).
+### Why this is the objective, and why it is not a release run
 
-### Why this, and what is already decided
+Everything else is operator-blocked — re-derived, not inherited, at the end of
+S098 (§3). **#121 is the one open issue whose central question can be answered
+without the founder**, and only because the answer lives in a gem this box can
+now install.
 
-**ADR-072 designed it and a pre-code review has already corrected it three
-times** — so this session's job is to build a reviewed design, not to re-derive
-it. The three corrections are the parts most likely to be got wrong:
+`release.yml` writes the App Store Connect `.p8` to xcodebuild's auto-discovery
+path, `$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8`. That step
+exists for **ADR-021 D5's cloud signing**, which ADR-032 replaced with fastlane
+`match`. The issue's own evidence says nothing reads it any more — and
+**ADR-032 D4 KEPT it anyway**, on ADR-029 D2's precedent: *"very likely dead" is
+not "proven dead"*, and the cost of being wrong is a broken release the founder
+cannot debug.
 
-1. **The data is not there.** `main` reads both resources and keeps only
-   `{locale: id}`, throwing the attributes away, because ids are all a *writer*
-   needs. Call `audit.published_locales()` in the dry-run path — it already
-   merges both resources into the shape `audit_findings` wants, and the dry run
-   stays read-only.
-2. **The two paths are two implementations of one rule.** A dry run compares
-   **before** the attempt; a write compares **after**, via the read-back. Do not
-   go looking for a shared code path — the write path is **untouched**.
-3. **The lane must stop voting.** Under the new rule a dry run over today's
-   listing exits **1** forever, so without `continue-on-error: true` every run
-   reddens — the cries-wolf failure with its sign flipped (ADR-047 D4's shape).
+**That precedent is about not making a blind EDIT. It is not a reason to avoid
+LOOKING** — and *query the platform, not the docs* is this repo's standing rule.
+`fastlane`'s own source will say whether `app_store_connect_api_key`, `match`,
+`pilot` or `deliver` ever consults that path, and whether `xcodebuild
+-allowProvisioningUpdates` still needs it under **manual** signing with an
+explicit `ExportOptions.plist`.
 
 ### Acceptance
 
-1. **The three commands are run and quoted**, and the two lanes' disagreement is
-   shown before and after.
-2. **ADR-072 read first**, and its claims checked — S097 wrote it (lesson 145).
-3. **A dry run over the current listing exits 1** and says how many fields would
-   change; **over a matching listing exits 0**; **a successful write still exits
-   0** via the untouched read-back path.
-4. **The lane is green in both cases.** Its colour carries nothing.
-5. **Self-tests for each, mutation-checked**, with any non-discriminating mutant
-   **recorded rather than removed** (S095 and S096 each had one).
-6. **An ADR amendment or a note committed BEFORE the code** if anything in
-   ADR-072 turns out wrong, **with its index row in the same commit** — ADR-067's
-   lint has caught three sessions.
-7. **Re-run the dry run at the end and quote it.** The change is about what that
-   run says; a session that does not run it has not verified it.
+1. **The three commands are run and quoted**, with `ruby`/`bundle` restored and
+   the version `Gemfile.lock` pins (`fastlane 2.237.0`) actually installed.
+2. **ADR-032 D4 and #121 read first**, and D4's bound quoted before any
+   conclusion. **It is a bound on editing, not on reading — say so explicitly.**
+3. **The question answered FROM THE GEM SOURCE**, with file paths and quoted
+   lines from the installed fastlane, not from documentation and not from memory.
+   ⚠️ **Only the vendor can refute a vendor API shape** — the gem *is* the vendor.
+4. **Say plainly which half is proven** (lesson **78**): reading the source can
+   prove *"nothing in these lanes reads that path"*; it **cannot** prove
+   *"xcodebuild never reads it"*, because `xcodebuild` is not in the gem. If the
+   answer needs a real run, **say so and stop** — that is a clean outcome.
+5. **If it is proven dead**: delete the step, amend **ADR-032 D4** with the
+   evidence, and **an ADR or amendment committed BEFORE the code** with its index
+   row in the same commit.
+6. **If it is NOT proven dead**: leave it, and write down *what* consults the path
+   — the issue itself says that is a genuinely useful fact worth recording rather
+   than re-deriving.
+7. ⚠️ **Do NOT dispatch the release lane.** §7, and operator 6(c) is unanswered.
 
 ### What is NOT this session's
 
-* ⚠️ **Writing to App Store Connect.** Operator **6(b)** carries the plan and is
-  unanswered; **do not pass `confirm`.**
-* **The Turkish name** (6(a)), **billing** (1), **the RevenueCat invoker** (2),
-  **the four secrets** (3), **a build** (4), **the legal bundle** (5), **the
-  firebase login** (10).
-* **#136** — ADR-059 D3 decided it; **#71** — its own issue says *"this is not a
-  bug"*. **Do not re-derive either.**
+* **Dispatching `release.yml`** (6(c)), **writing to App Store Connect** (6(b)),
+  **the Turkish name** (6(a)), **billing** (1), **the invoker** (2), **the four
+  secrets** (3), **a build** (4), **the legal bundle** (5), **the firebase
+  login** (10).
+* **#136** — ADR-059 D3 decided it. **#71** — its own issue says *"this is not a
+  bug"* and ADR-025 D5.ii decided the arrangement is correct. **#242** — ADR-060
+  D6. **Do not re-derive any of the three.**
+* **#63** — ADR-025 records it as a whole-app decision. ⚠️ **Putting the question
+  into `operator-expected.md` IS a session's and has never been done**; answering
+  it is not. Do that only if #121 closes early.
 
 ---
 
@@ -96,11 +100,13 @@ it. The three corrections are the parts most likely to be got wrong:
 | **The dev box** | **Mostly restored** (S096): Flutter 3.44.5, Java 21, Dart 3.12.2, firebase-tools 15.22.4, node, python3, gh. **`ruby`/`bundle` still MISSING** — fastlane cannot run here. Flutter/Java **not on PATH**. ⚠️ git-over-HTTPS is intercepted on this network; Flutter's remote is on SSH |
 | **Production** | 🔴 **DOWN since 2026-08-22**, and **unmeasurable from here** — operator 10 |
 | **The App Store listing** | 🔴 **EMPTY and NOT SUBMITTABLE.** 7/9 `en-US` fields blank at Apple; `tr` absent; only `name` ever set |
-| **The publish lane** | **BUILT, MERGED, AND RUN** — S097's dry run (33681088334) worked on first contact and confirmed four of ADR-071's assumptions. Its exit code is what #281 fixes |
+| **The publish lane** | **BUILT, RUN, AND HONEST.** Since #281 its dry run exits **1** — agreeing with the auditor — and the lane does not vote. Run 33686025994: *15 field(s) would change* |
 | **Push, device side** | **STILL 0 of 4 registered** |
 | **The ADR index** | **WHOLE — 72 records, 72 rows**, gated (ADR-067) |
+| **The queue** | ⚠️ **After #281, every open issue but #121 is operator-blocked** — re-derived at the end of S098 from `gh issue list`, not inherited. **Re-derive it again** |
 | **#204 / #278** | **OPEN**, both founder-gated (6(a), 6(b), 6(c)) |
-| **#281** | **OPEN — this session.** Designed and reviewed in ADR-072 |
+| **#121** | **OPEN — this session** |
+| **#281** | **CLOSED** by S098 |
 | **#242 / #263** | OPEN and correctly blocked. Do not re-derive |
 
 ### What S096/S097 changed that a later session will trip over
