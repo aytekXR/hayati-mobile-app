@@ -673,6 +673,49 @@ def test_main_dry_run_exits_0_when_the_listing_already_matches() -> None:
     check_true("and says so out loud", "nothing would change" in report.lower())
 
 
+def test_every_exit_writes_a_summary() -> None:
+    print("ADR-072 D3.1: continue-on-error makes EVERY exit green — so every exit must SPEAK")
+    # ⚠️ Found by the built-diff review. The step is now `continue-on-error`, so
+    # the job is green whatever happens; REFUSED and COULD-NOT-MEASURE returned
+    # before `emit` was reached, leaving a green job with an EMPTY summary —
+    # "nothing happened" to anyone glancing at it. That is the shape this ADR is
+    # about, introduced by the fix for it.
+    root = pathlib.Path(__file__).resolve().parents[2] / "fastlane" / "metadata"
+
+    def summary_after(argv: list[str]) -> tuple[int, str]:
+        """Run `main` and read the summary DEFENSIVELY.
+
+        ⚠️ An absent file must fail the assertion below, not raise: a mutant that
+        reddens the suite with a FileNotFoundError has proven the crash, not the
+        property this test advertises (lesson 76, hit twice in S096).
+        """
+        with tempfile.TemporaryDirectory() as raw:
+            summary = pathlib.Path(raw) / "summary"
+            code = publish.main(argv + ["--summary", str(summary)])
+            text = summary.read_text(encoding="utf-8") if summary.exists() else "<NO SUMMARY WRITTEN>"
+            return code, text
+
+    code, text = summary_after(["--metadata-dir", str(root), "--confirm", "publish"])
+    check("refused", code, publish.EXIT_REFUSED)
+    check_true("and it SAYS so in the summary", "REFUSED" in text)
+
+    code, text = summary_after(["--metadata-dir", "/nonexistent/metadata/tree"])
+    check("could not measure — no metadata tree", code, publish.EXIT_CANNOT_MEASURE)
+    check_true("and it SAYS so too", "COULD NOT MEASURE" in text)
+
+    # ⚠️ The OTHER could-not-measure path: the tree is fine and APPLE is not.
+    # A mutant removing that emit SURVIVED until this case existed — the first
+    # two exercised only the metadata-tree branch, and one `emit` per branch is
+    # one test per branch (recurring shape 5: a guard that guards one path).
+    tf._token = lambda: "token"
+    tf.find_app = lambda _t, _b: {"id": "app"}
+    tf._call = lambda *_a, **_k: (_ for _ in ()).throw(tf.AscError("HTTP 401: bad key"))
+    code, text = summary_after(["--metadata-dir", str(root)])
+    check("could not measure — Apple refused the read", code, publish.EXIT_CANNOT_MEASURE)
+    check_true("and that one speaks as well", "COULD NOT MEASURE" in text)
+    check_true("quoting Apple", "401" in text)
+
+
 def main() -> int:
     print("store_metadata_publish self-tests")
     test_empty_fields_are_skipped_never_sent()
@@ -700,6 +743,7 @@ def main() -> int:
     test_render_says_so_when_nothing_would_change()
     test_main_dry_run_over_the_real_metadata_tree_is_a_FINDING()
     test_main_dry_run_exits_0_when_the_listing_already_matches()
+    test_every_exit_writes_a_summary()
 
     if _failures:
         print(f"\n{len(_failures)} FAILED: {', '.join(_failures)}")

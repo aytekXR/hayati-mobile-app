@@ -479,6 +479,19 @@ def emit(path: str | None, text: str) -> None:
         handle.write(text + "\n")
 
 
+def emit_terse(path: str | None, headline: str) -> None:
+    """A one-line summary for the paths that end before there is a report.
+
+    ⚠️ Since ADR-072 D3.1 the step is `continue-on-error`, so **every** exit is a
+    green job. The verdict therefore has to live in the summary, and REFUSED and
+    COULD-NOT-MEASURE used to return before `emit` was ever reached — a green job
+    with an empty summary, which is *"nothing happened"* to anyone glancing at it.
+    That is the shape this whole ADR is about, and it was introduced by the fix
+    for it. Found by the built-diff review.
+    """
+    emit(path, "### store metadata publish\n\n```\n" + headline + "\n```")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--metadata-dir", default="fastlane/metadata")
@@ -496,18 +509,19 @@ def main(argv: list[str] | None = None) -> int:
 
     mode = resolve_mode(args.confirm)
     if mode == MODE_REFUSED:
-        print(
+        message = (
             f"REFUSED (nothing was sent): --confirm must be exactly "
-            f"{CONFIRM_LITERAL!r}, and it was {args.confirm!r}. Omit it entirely "
-            f"for a dry run.",
-            file=sys.stderr,
+            f"{CONFIRM_LITERAL!r}. Omit it entirely for a dry run."
         )
+        print(message, file=sys.stderr)
+        emit_terse(args.summary, message)
         return EXIT_REFUSED
 
     try:
         expected = audit.expected_locales(pathlib.Path(args.metadata_dir))
     except (AscError, OSError) as failure:
         print(f"COULD NOT MEASURE: {failure}", file=sys.stderr)
+        emit_terse(args.summary, f"COULD NOT MEASURE: {failure}")
         return EXIT_CANNOT_MEASURE
 
     # Everything up to here is read-only, so an error is still EXIT 2.
@@ -529,9 +543,12 @@ def main(argv: list[str] | None = None) -> int:
         published = audit.published_locales(token, app["id"], version=version)
     except AscError as failure:
         print(f"COULD NOT MEASURE: {failure}", file=sys.stderr)
+        emit_terse(args.summary, f"COULD NOT MEASURE: {failure}")
         return EXIT_CANNOT_MEASURE
     except Exception as failure:  # noqa: BLE001 - exit 2 is the honest answer
-        print(f"COULD NOT MEASURE: {type(failure).__name__}: {failure}", file=sys.stderr)
+        detail = f"{type(failure).__name__}: {failure}"
+        print(f"COULD NOT MEASURE: {detail}", file=sys.stderr)
+        emit_terse(args.summary, f"COULD NOT MEASURE: {detail}")
         return EXIT_CANNOT_MEASURE
 
     actions = plan(
