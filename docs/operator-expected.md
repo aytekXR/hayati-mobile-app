@@ -174,6 +174,39 @@ gcloud run services add-iam-policy-binding revenuecatwebhook \
   --member=allUsers --role=roles/run.invoker
 ```
 
+⚠️ **This is an IAM grant, not a key.** No RevenueCat API key belongs here, and
+none belongs in this repository at all.
+
+#### 2.1 — ⚠️ The webhook also needs a shared token, and this file had never said so
+
+`revenueCatWebhook` **fail-closes with 503 until `RC_WEBHOOK_TOKEN` is set**
+(ADR-013 D1). It is not an API key: RevenueCat sends whatever string you type into
+its dashboard **verbatim** in the `Authorization` header, and the Function compares
+it constant-time. **You invent the string; it must be identical in two places:**
+
+1. Google **Secret Manager** in `hayatiapp-prod`, as `RC_WEBHOOK_TOKEN`
+   (ADR-048 lists it there alongside `LLM_API_KEY`);
+2. the RevenueCat dashboard's webhook **Authorization** field.
+
+**Could not measure whether prod already holds it** — the dev box's firebase token
+returns HTTP 403 on the Secret Manager API, which needs `secretmanager.viewer`.
+*Could not measure* is not *missing*: check it in the console before creating a
+second one.
+
+**Where RevenueCat's three credentials actually go**, since they are easy to mix up
+and only two of them exist in this repo:
+
+| credential | shape | where it lives |
+|---|---|---|
+| iOS **publishable** SDK key | `appl_…` | repo **variable** `REVENUECAT_IOS_API_KEY` — ships inside the binary, public by design. **Already set.** |
+| webhook **shared token** | a string you choose | Secret Manager `RC_WEBHOOK_TOKEN` + the same string in the RC dashboard. **Above.** |
+| **v2 secret API key** | `sk_…` | ⚠️ **nothing in this repository reads one.** ADR-013's mirror is webhook-driven and never calls RevenueCat's REST API; #41 lists RC-REST reconciliation as future work. Do not add one until something needs it |
+
+⚠️ **No credential is ever committed** (`architecture.md` §9). Secrets reach CI via
+`gh secret set` and the Function via Secret Manager — never a file in the tree, and
+never a `workflow_dispatch` input, because this repository is **public** and
+dispatch inputs are recorded in run metadata.
+
 ### 3. Four secrets — without them, nothing is watching production
 
 **None of these four exists.** Verified today: `gh secret list` returns five
