@@ -371,6 +371,44 @@ jobs:
         # ExportOptions.plist names the profile, so `-allowProvisioningUpdates`
         # (which `flutter build ipa` always passes) has nothing to resolve.
         #
+        # ⚠️ THE FASTLANE HALF OF THAT IS NOW PROVEN, NOT REASONED (ADR-073),
+        # read out of the gem `Gemfile.lock` pins — fastlane 2.237.0 — so it is
+        # the code this lane actually loads:
+        #
+        #   * `fastlane/lib/fastlane/actions/app_store_connect_api_key.rb`:
+        #       key: key_content || File.binread(File.expand_path(key_filepath))
+        #     All three lanes pass `key_content:`, so the file branch is
+        #     UNREACHABLE. fastlane never reads a .p8 off disk here.
+        #   * `fastlane_core/lib/fastlane_core/itunes_transporter.rb`,
+        #     `TransporterExecutor#prepare`: when fastlane needs a .p8 on disk it
+        #     writes its OWN, `"wb"` and unconditional — into `Dir.mktmpdir`.
+        #     The `~/.appstoreconnect/private_keys` branch is taken ONLY by
+        #     `ShellScriptTransporterExecutor`, which `use_shell_script` selects
+        #     for Xcode 6, Windows or the FASTLANE_ITUNES_TRANSPORTER_USE_SHELL_SCRIPT
+        #     feature flag. This job runs on macos-26, so it never is.
+        #
+        # Two more read paths were checked and are also unreachable: spaceship's
+        # `Token.create` (`key ||= File.binread(filepath)` — the action passes
+        # `key:` through the hash) and all 212 bundled actions, none of which
+        # names this path. `match` runs BEFORE the build and reads certificates,
+        # never the API key.
+        #
+        # So NOTHING IN FASTLANE reads, writes or looks at this path on this
+        # runner. ⚠️ That does NOT make the step proven dead, and the difference
+        # is the whole of #121. Said precisely: this file is written by the FIRST
+        # step of sign-upload, so it is present for the WHOLE lane — match, the
+        # signing settings, the build and the upload. Every phase implemented IN
+        # THE GEM has been checked and none touches it; `xcodebuild`, invoked by
+        # `flutter build ipa`, is the one component that is not in the gem and is
+        # the one whose behaviour is unknown. One unknown left, not two.
+        #
+        # ⚠️ Conditional caveat, recorded because it is invisible here: on a
+        # ShellScript-executor machine (Xcode 6 / Windows / that feature flag)
+        # `ItunesTransporter#upload` does `FileUtils.rm_rf(api_key[:key_dir])` in
+        # an `ensure`, and key_dir is then `~/.appstoreconnect/private_keys` —
+        # i.e. fastlane would delete a developer's key directory after an upload.
+        # Not this runner. Do not carry this sentence without its condition.
+        #
         # It is kept anyway on this repo's own precedent: ADR-029 D2 refused to
         # touch `CODE_SIGN_IDENTITY` because that would be "a blind edit to a
         # signing path from a Linux box with no Mac". The lane demonstrably works

@@ -1,9 +1,9 @@
-# Resume Prompt — Session 099
+# Resume Prompt — Session 100
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
-> Read `session-context.md` and `session-lessons.md` (numbered to **157**) first.
+> Read `session-context.md` and `session-lessons.md` (numbered to **159**) first.
 > Re-derive the session number from `git log`.
 >
 > ⚠️ **`session-context.md` §2/§3 changed again in S096** — the toolchain is
@@ -11,85 +11,75 @@
 > the table is a claim like any other (lesson **146**).
 >
 > ⚠️ **BEFORE PLANNING, OPEN THE ADR THAT OWNS THIS OBJECTIVE** (lesson **145**).
-> Here that is **ADR-032 D4**, which *kept* the step this session is about and
-> said exactly what it lacked. Read it as the thing to discharge, not to re-argue.
+> Here that is **ADR-025 Appendix A**, which records this as a *whole-app
+> decision* and cites #63 rather than asserting compliance. **Read it as the
+> reason this is the founder's, not as a design to implement.**
 >
-> ⚠️ **AND POINT ONE LENS AT THE OBJECTIVE ITSELF** (lesson **154**). **If your
-> diff does not touch the file your acceptance criteria name, you have changed
-> objective.**
+> ⚠️ **AND CHECK THE OBJECTIVE ITSELF BEFORE BUILDING ANYTHING** (lessons **145**,
+> **154**). S099's prompt named #121 as open when **ADR-056 D4 had already
+> decided it** — the corollary landing on a prompt, one session after that lesson
+> was cited in it. **This prompt makes a claim too: that #63's question has never
+> been put to the founder. Check `operator-expected.md` before believing it.**
 
-**Objective: #121 — settle whether `release.yml`'s `write App Store Connect API
-key` step is dead, by READING THE INSTALLED FASTLANE rather than by waiting for a
-release run.** Restore `ruby` + `bundle` (the last missing toolchain) and use the
-gem source to answer the question ADR-032 D4 recorded as unanswerable from here.
+**Objective: #63 — put the icon-family decision to the founder.** The brandkit
+specifies **Phosphor**; the app ships **28 Material `Icons.*`** and Phosphor is
+not a dependency. ADR-025 records the divergence honestly and cites this issue —
+but **nobody has ever asked the founder which way to resolve it.**
 
 ### ⚠️ First, three commands. Quote all three before planning.
 
 ```sh
-for c in node npm python3 java dart flutter ruby bundle gh git firebase; do printf '%-9s ' "$c"; command -v $c || echo MISSING; done
-gh workflow run publish-store-metadata.yml     # confirm BLANK — writes nothing
-gh issue view 121 --json body -q .body
+grep -c "Icons\." app/lib -r ; grep -rn "phosphor" app/pubspec.yaml || echo "phosphor: absent"
+gh workflow run publish-store-metadata.yml            # confirm BLANK — writes nothing
+gh issue list --state open --limit 40 --json number,title -q '.[]|"\(.number) \(.title[0:60])"' | sort -n
 ```
 
-⚠️ **`java`, `dart` and `flutter` read MISSING until you export PATH** — they are
-installed (`session-context.md` §3). `ruby`/`bundle` are the genuinely absent
-ones, and restoring them is step one of this objective.
+The third one is the one that matters: **re-derive the queue.** S098 and S099
+both found it entirely operator-blocked below their own objective, and that claim
+expires — an issue may have been unblocked by a founder action since.
 
-### Why this is the objective, and why it is not a release run
+### Why this, and what a session may and may not do
 
-Everything else is operator-blocked — re-derived, not inherited, at the end of
-S098 (§3). **#121 is the one open issue whose central question can be answered
-without the founder**, and only because the answer lives in a gem this box can
-now install.
+ADR-025 Appendix A states the shipped rule — *one consistent icon family at a
+consistent weight; today that is Material outline* — and names two ways out:
 
-`release.yml` writes the App Store Connect `.p8` to xcodebuild's auto-discovery
-path, `$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8`. That step
-exists for **ADR-021 D5's cloud signing**, which ADR-032 replaced with fastlane
-`match`. The issue's own evidence says nothing reads it any more — and
-**ADR-032 D4 KEPT it anyway**, on ADR-029 D2's precedent: *"very likely dead" is
-not "proven dead"*, and the cost of being wrong is a broken release the founder
-cannot debug.
+* **(a) migrate to Phosphor** — a dependency, 28 call sites, the RTL mirror net
+  reworked (Material icons auto-mirror via `matchTextDirection`; Phosphor glyphs
+  do not), a second icon font against the size cap, and a full golden re-baseline;
+* **(b) amend the brandkit** to record Material outline as the shipped system, the
+  way §10 already records the contrast exception.
 
-**That precedent is about not making a blind EDIT. It is not a reason to avoid
-LOOKING** — and *query the platform, not the docs* is this repo's standing rule.
-`fastlane`'s own source will say whether `app_store_connect_api_key`, `match`,
-`pilot` or `deliver` ever consults that path, and whether `xcodebuild
--allowProvisioningUpdates` still needs it under **manual** signing with an
-explicit `ExportOptions.plist`.
+**Both are the founder's call — it is their brand.** ⚠️ **What is a session's is
+putting the question, with its costs, where they will see it.** That has never
+been done, and it is the whole objective. **Do not pick (b) because it is
+cheaper.**
 
 ### Acceptance
 
-1. **The three commands are run and quoted**, with `ruby`/`bundle` restored and
-   the version `Gemfile.lock` pins (`fastlane 2.237.0`) actually installed.
-2. **ADR-032 D4 and #121 read first**, and D4's bound quoted before any
-   conclusion. **It is a bound on editing, not on reading — say so explicitly.**
-3. **The question answered FROM THE GEM SOURCE**, with file paths and quoted
-   lines from the installed fastlane, not from documentation and not from memory.
-   ⚠️ **Only the vendor can refute a vendor API shape** — the gem *is* the vendor.
-4. **Say plainly which half is proven** (lesson **78**): reading the source can
-   prove *"nothing in these lanes reads that path"*; it **cannot** prove
-   *"xcodebuild never reads it"*, because `xcodebuild` is not in the gem. If the
-   answer needs a real run, **say so and stop** — that is a clean outcome.
-5. **If it is proven dead**: delete the step, amend **ADR-032 D4** with the
-   evidence, and **an ADR or amendment committed BEFORE the code** with its index
-   row in the same commit.
-6. **If it is NOT proven dead**: leave it, and write down *what* consults the path
-   — the issue itself says that is a genuinely useful fact worth recording rather
-   than re-deriving.
-7. ⚠️ **Do NOT dispatch the release lane.** §7, and operator 6(c) is unanswered.
+1. **The three commands run and quoted**, and the queue re-derived rather than
+   inherited from §3 below.
+2. **ADR-025 Appendix A and #63 read first**, and this prompt's claim — that the
+   question has never been put — **checked against `operator-expected.md`**. If it
+   is already there, say so and stop: that is a clean outcome.
+3. **`operator-expected.md` gains the decision**, with **both** options, their
+   real costs (the mirror-net rework and the golden re-baseline are the expensive
+   part of (a), not the dependency), and a plain statement that either is
+   defensible. ⚠️ **Do not recommend one.** ADR-025 already leans, and repeating
+   the lean as advice is how a founder decision becomes a session's by attrition.
+4. **No code, no `pubspec.yaml` change, no golden touched.** If the diff contains
+   a `.dart` file you have changed objective (lesson **154**).
+5. **If the queue turns out to have something unblocked and larger**, take that
+   instead and say why — this objective is small on purpose, because it is what
+   was left.
 
 ### What is NOT this session's
 
-* **Dispatching `release.yml`** (6(c)), **writing to App Store Connect** (6(b)),
-  **the Turkish name** (6(a)), **billing** (1), **the invoker** (2), **the four
-  secrets** (3), **a build** (4), **the legal bundle** (5), **the firebase
-  login** (10).
-* **#136** — ADR-059 D3 decided it. **#71** — its own issue says *"this is not a
-  bug"* and ADR-025 D5.ii decided the arrangement is correct. **#242** — ADR-060
-  D6. **Do not re-derive any of the three.**
-* **#63** — ADR-025 records it as a whole-app decision. ⚠️ **Putting the question
-  into `operator-expected.md` IS a session's and has never been done**; answering
-  it is not. Do that only if #121 closes early.
+* **Choosing (a) or (b).** The founder's brand, the founder's call.
+* **#121's experiment** — operator 6(c). **Publishing store copy** — 6(b).
+* **Billing** (1), **the invoker** (2), **the four secrets** (3), **a build** (4),
+  **the legal bundle** (5), **the firebase login** (10).
+* **#136** (ADR-059 D3), **#71** (its own issue says *"this is not a bug"*),
+  **#242** (ADR-060 D6). **Do not re-derive any of the three.**
 
 ---
 
@@ -105,8 +95,10 @@ explicit `ExportOptions.plist`.
 | **The ADR index** | **WHOLE — 72 records, 72 rows**, gated (ADR-067) |
 | **The queue** | ⚠️ **After #281, every open issue but #121 is operator-blocked** — re-derived at the end of S098 from `gh issue list`, not inherited. **Re-derive it again** |
 | **#204 / #278** | **OPEN**, both founder-gated (6(a), 6(b), 6(c)) |
-| **#121** | **OPEN — this session** |
+| **#121** | **OPEN** — fastlane half PROVEN inert (ADR-073); the xcodebuild half needs 6(c) |
+| **#63** | **OPEN — this session**, and it is a question to ASK, not to answer |
 | **#281** | **CLOSED** by S098 |
+| **The toolchain** | Flutter/Java/Dart/firebase-tools restored; **`ruby` still absent and that is fine** — ADR-073 read the gem with `tar`, and `ruby-full` would need `sudo` (lesson **158**) |
 | **#242 / #263** | OPEN and correctly blocked. Do not re-derive |
 
 ### What S096/S097 changed that a later session will trip over
@@ -141,15 +133,20 @@ explicit `ExportOptions.plist`.
 
 ## 2. Then, in priority order
 
-**1 — restore `ruby` + `bundle`**, the last missing toolchain: it is what stops a
-session exercising a fastlane change, which **ADR-070 D3 and ADR-071 D1 both cite
-as a reason for choosing a REST tool over a lane fix**. A download, no credential.
-**2 — #121** (the dead `.p8` step in the release lane) — still needs a real
-release run, so it rides operator 6(c). **3 — #63** (Phosphor vs the shipped
-Material icons): ⚠️ **not simply a session's** — ADR-025 records it as a whole-app
-decision, and its option (b) *"amend the brandkit to record what shipped"* is a
-brand decision the founder has never been asked to make. **Putting that question
-into `operator-expected.md` is a session's; answering it is not.**
+⚠️ **There is no priority list any more, and that is the finding.** S098 and
+S099 each re-derived the queue and found everything below their own objective
+waiting on billing, a phone, a lawyer, a secret, or a decision on
+`operator-expected.md`. After #63's question is asked, **a session should expect
+to end per §4** — and that is a clean outcome, not a failure (S093's precedent).
+
+⚠️ **Re-derive it anyway.** *"No unblocked engineering"* is a claim to re-derive
+every session, never to inherit — and a founder action between sessions can
+change it without anyone saying so.
+
+**`ruby` is deliberately NOT on this list.** ADR-073 answered #121's fastlane half
+by reading the gem with `tar`; installing `ruby-full` needs `sudo` and would make
+an operator dependency out of nothing (lesson **158**). Install it when something
+needs to *run* fastlane, which is a release run, which is 6(c).
 
 ⚠️ **After #281, be honest about the queue.** Every remaining open issue is
 waiting on billing, a phone, a lawyer, a secret, or a decision on

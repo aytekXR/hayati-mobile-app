@@ -5017,3 +5017,61 @@ Pass 2's three considered-empty lenses were change-awareness correctness, the ex
 **Operator dependency:** unchanged. **6(b)** still carries the plan and is still unanswered; nothing was published and `confirm` was never passed.
 
 **Next objective written to resume-prompt.md:** see §4 — the queue below #281 is now entirely operator-blocked, and S099 opens by re-deriving that rather than inheriting it.
+
+## Session 099 — 2026-09-03 — #121: the .p8 step is PROVEN inert to fastlane, still unproven against xcodebuild (ADR-073)
+
+**Objective (from resume-prompt.md):** #121 — settle whether `release.yml`'s `write App Store Connect API key` step is dead, by reading the installed fastlane rather than waiting for a release run. Restore `ruby` + `bundle`.
+
+**Outcome:** done, and **half of it was already decided.** #121 stays **open**, which is the honest state. Nothing deleted, nothing dispatched, and **Ruby was not installed because it turned out not to be needed.**
+
+### ⚠️ The objective was mis-scoped by its own prompt
+
+**ADR-056 D4 had already decided #121** — the step is not deleted, on ADR-029 D2's grounds — and had gone further and **designed the experiment that settles it**: redirect the destination to a path nothing can auto-discover, run the lane, read the outcome; a failure is then attributable rather than cryptic, which deleting outright throws away. The prompt named it as open. That is **lesson 145's corollary landing on a prompt**, written by the previous session one session after it cited that same lesson.
+
+What the prompt got **right** was its bound (acceptance 4): reading the vendor source can prove *"nothing in fastlane reads that path"* and cannot prove *"xcodebuild never does"*. That is precisely what happened.
+
+### Measured without installing Ruby (lesson 158)
+
+`ruby-full` needs `sudo`, unavailable non-interactively — which would have made an **operator dependency out of nothing**. None of it was needed: **a `.gem` is a tar archive, and reading Ruby does not require running it.** fastlane **2.237.0**, the version `Gemfile.lock` pins — confirmed independently by `release_lane_lint.dart`'s own check.
+
+| claim | evidence in fastlane 2.237.0 |
+|---|---|
+| never reads a pre-existing `.p8` | `app_store_connect_api_key.rb` — `key: key_content \|\| File.binread(...)`; all three lanes pass `key_content:`, and Ruby's `""` is truthy, so the branch is unreachable for **any** string |
+| nor does the layer below | `spaceship/.../token.rb` — `key ||= File.binread(filepath)`, also unreachable. **Found by the review's critic**; this ADR had checked one read path and there were two |
+| writes its **own** when it needs one | `itunes_transporter.rb`, `TransporterExecutor#prepare` — `"wb"`, unconditional |
+| ...into a **temp dir** here | the home path is `ShellScriptTransporterExecutor`-only; `pilot` and `deliver` both construct with `use_shell_script = false, altool_compatible_command: true`, and **Altool and Java both use the temp dir** — so the conclusion does not depend on which is selected |
+
+**Nothing in fastlane reads, writes or looks at `~/.appstoreconnect/private_keys` on this runner.** None of the 212 bundled actions names it; `match` runs before the build and reads *certificates*, never the API key.
+
+### Why it stays open
+
+**`xcodebuild` is not in the gem.** Said precisely, because the loose version is tempting: the file is written by the first step of `sign-upload` and is present for the **whole** lane. Every phase implemented *in the gem* has been checked and none touches it; the one component not in the gem is the one whose behaviour is unknown. **#121 goes from two unknowns to one** — and *"the step is proven dead"* would be the false summary that gets remembered (lesson 78).
+
+### ⚠️ A hazard nearly shipped, then measured away (lesson 159)
+
+`FileUtils.rm_rf(api_key[:key_dir])` in `#upload`'s `ensure`, with `key_dir` set to the home path, looked like **fastlane deleting a developer's key directory after every upload.** Real only on an Xcode-6/Windows/feature-flagged machine. Recorded as **conditional**, not shipped as a finding. Lesson 135 is usually aimed at a claim someone handed you; the harder case is the one you produced yourself and like.
+
+### One thing that changed since D4 declined
+
+D4 declined *"for timing rather than principle: a failed release costs more than usual right now, because a build is the single thing blocking push-notification testing."* **A build is no longer that** — production has been down since 2026-08-22 and operator item 4 now says to cut a build *after* billing. A failed release costs less today than when the experiment was declined. **Put to the founder under 6(c); not decided here.**
+
+**Commits:** `4e6d0e6` (ADR before the edit), `07c8eea` (the step's comment carries the citations) — PR **#284**.
+
+**CI:** green.
+
+**Docs touched:** `docs/adr/073-*.md` (new), `docs/adr/README.md`, `.github/workflows/release.yml` (**comment-only — 29 insertions, 0 deletions; no executable line moved**), `docs/session-lessons.md` (158–159), `docs/operator-expected.md`, `docs/resume-prompt.md`, this file. Issue **#121** carries the citations so nobody re-derives them.
+
+### Review
+
+**5 agents**, 4 claim-vs-source probes × 2 verifiers + a completeness critic. `agents_error` **0**; `agents_empty_result` **4**, **all CONSIDERED-empty**; `failed_empty` **0**. **0 findings.** The first clean pass in five sessions — and unsurprising for a diff whose entire content is citations both sides could check against the same downloaded source. The critic still earned its place: it found the **second** read path (`spaceship`'s `Token.create`) and confirmed the conclusion holds under *every* executor branch, not just the selected one. Both folded in.
+
+⚠️ **And a count was caught by me rather than by the review, for once:** the evidence table grew to four rows while still saying *"Three facts"*. Lesson **157**, working — the number was re-read after the change rather than before.
+
+### Notes / debt logged
+
+* **ADR-032 D4 and ADR-056 D4 are untouched.** Both decided correctly on the evidence they had; editing an accepted ADR to look better informed than it was is how a decision log stops being one.
+* The proof is **version-pinned** to fastlane 2.237.0. A `Gemfile.lock` bump re-opens it, and the citation says which version so that is visible rather than silent.
+
+**Operator dependency:** unchanged. **6(b)** still carries the publish plan and is still unanswered; **6(c)** now also carries the #121 experiment, with its cost stated and its timing objection noted as inverted.
+
+**Next objective written to resume-prompt.md:** Session 100 — **#63**: put the icon-family decision to the founder. ADR-025 records it as a whole-app decision that **has never been asked**, and asking is a session's job while answering is not. It is the last thing on the board that a session can move.
