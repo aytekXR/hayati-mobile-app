@@ -175,7 +175,7 @@ blocked by an ADR, above and in §3.
 | **#136 step 1**, **#48**, **#15** | the device | On-device observation nobody has made |
 | **An analytics vendor sink** | founder + lawyer | #247 |
 | **#250**, **#13** | M6.5 | Gate-3 gated |
-| **#115**, **#41**, **#63**, **#71** | founder | A world-reachable endpoint; a real RC key (#41 is operator item 0's); brandkit decisions |
+| **#115**, **#41**, **#63**, **#71** | founder | A world-reachable endpoint; a live RevenueCat key, which does not exist yet (⚠️ #41's body still cites *"operator item 0"* — that number was retired when the checklist was renumbered; the live chain is items **2** and **8**); brandkit decisions |
 
 ---
 
