@@ -17,7 +17,7 @@
 | Completion | **~58%** of the iOS MVP, to public launch |
 | Production Readiness | **Integration Ready** |
 | Production | 🟡 **Billing RESTORED 2026-09-03 ~22:05 UTC** after 12 days down. The webhook answers again; the first successful daily sweep is still pending — item 1 |
-| Open operator items | **items 1, 2 and 10 are DONE**; 3–9 stand |
+| Open operator items | **1, 2 and 10 DONE**; **9 is now the urgent one** — billing is live and nothing watches the bill; 3–8 stand |
 
 **Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — every milestone closed,
 the code builds, signs and passes its gates. The question bank is **2.1%** — 21 of
@@ -66,9 +66,24 @@ ran. `prod_pulse` still exits **1**, correctly: it is keyed on the sweep's own
 record, so a punctual scheduler over a backend that was dead at the time reads
 red (ADR-063).
 
+**The scheduler's own record, read today**, so the next reader knows exactly what
+to look for rather than re-deriving it:
+
+```
+state           : ENABLED
+schedule        : 0 * * * *   (Etc/UTC — hourly, on the hour)
+lastAttemptTime : 2026-09-03T22:00:00Z
+status.code     : 13          <-- that attempt FAILED; billing was still off
+scheduleTime    : 2026-09-03T23:00:00Z   <-- the next attempt
+```
+
 > **The next hourly sweep is the proof.** Re-run:
 > `python3 tool/ci/prod_pulse.py --project hayatiapp-prod --from-firebase-cli`
 > — **0** means the daily loop is genuinely running.
+
+⚠️ **`status.code` has no `message` field.** Reading it with a `.get("message",
+"…succeeded")`-shaped default prints a confident success line while the code says
+13 — which happened today. Read `status.code`, not a message that is not there.
 
 ⚠️ **`hayatiapp-dev` stays unbilled** (your decision). It is still linked to the
 old closed `012195-7EF76F-3A9083` and reports `billingEnabled: false`. The cost is
@@ -289,18 +304,38 @@ Turkish solo pack, a known placeholder. Target: 400/300/300.
 - **Sandbox purchase test**, once Apple's pricing propagation clears.
 - **Enable Dependabot alerts** (~1 min); optionally make `gemfile-lock-verify` a required check.
 
-### 9. A Firebase budget alert
+### 9. ⚠️ A budget alert — now the most urgent thing on this page
 
 Item 3's watcher catches the *symptom* days late; a budget alert catches the
-*cause*. **Had one existed, the current outage would have been hours rather than
-days.**
+*cause*. **Had one existed, the outage just closed would have been hours rather
+than 12 days.** Billing is live again as of today and **nothing is watching the
+bill.**
 
-> <https://console.cloud.google.com/billing/012195-7EF76F-3A9083/budgets> →
-> **Create budget** → scope it to the billing account → set an amount and the
-> alert thresholds → make sure the notification email is one you read.
+⚠️ **The URL this item carried was the CLOSED account** (`012195-7EF76F-3A9083`)
+and would have sent you to the wrong place. The live one:
 
-⚠️ **Do this in the same sitting as item 1**, while you are already in the billing
-console. It is the cheapest protection on this page.
+> <https://console.cloud.google.com/billing/01D7C5-DBC2D5-E53938/budgets>
+> → **CREATE BUDGET**
+
+| field | what to choose |
+|---|---|
+| **Scope** | Projects → **`hayatiapp-prod`** only. The account now carries someone else's spending too; scoping to the project keeps their costs out of your alerts |
+| **Amount** | a small **monthly** figure. With no live users real spend should be ≈ zero, so this is an **early warning**, not a cap — set it low enough to fire before a runaway costs anything |
+| **Thresholds** | 50% / 90% / 100%, on **Actual** spend (not *Forecasted* — you want what happened, not a prediction) |
+| **Email** | ⚠️ see below |
+
+⚠️ **Check the email recipients explicitly.** Budget alerts default to the billing
+account's admins, and **the account is on someone else's identity now** — so the
+warning could land with them and not you. Verified today that your identity does
+hold `billing.accounts.update` and `billing.budgets.create` on it, so you should
+be among the defaults; confirm it on the creation screen anyway. **An alert sent
+to an address you do not read is not an alert.**
+
+⚠️ **A session cannot do this one for you**, and the reason is worth recording so
+nobody retries it: the Cloud Billing Budget API answers `SERVICE_DISABLED` for the
+firebase CLI's own consumer project (`563584335869` — Google's, not yours), so the
+API path is closed from here even though the permission is present. **The console
+enables it for you in the same flow.**
 
 ### 10. ✅ DONE — the dev box is signed in (kept for the trap it left behind)
 
