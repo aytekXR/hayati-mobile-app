@@ -16,7 +16,7 @@
 |---|---|
 | Completion | **~58%** of the iOS MVP, to public launch |
 | Production Readiness | **Integration Ready** |
-| Production | 🔴 **DOWN for 12 days** (since 2026-08-22) |
+| Production | 🔴 **DOWN for 12 days** (since 2026-08-22) — a new billing account is now linked but reads `open: false`; **an open one exists**, see item 1 |
 | Open operator items | **10**, none closed yet |
 
 **Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — every milestone closed,
@@ -40,10 +40,46 @@ checks measuring instead of skipping.
 
 Ordered by how much each unblocks. Every line below was verified on 2026-09-03.
 
-### 1. 🔴 Restore billing — 12 days down, everything waits on it
+### 1. 🔴 Restore billing — 12 days down, and one link away
 
-Account **`012195-7EF76F-3A9083`** is **closed**, and both projects report billing
-**off at the project**, not only at the card.
+⚠️ **State as of 2026-09-03, measured against the Cloud Billing API directly —
+not inferred.** A new billing account has been attached to `hayatiapp-prod`, and
+it is **not working yet**:
+
+```
+projects/hayatiapp-prod/billingInfo
+  billingAccountName : billingAccounts/01D7C5-DBC2D5-E53938
+  billingEnabled     : true          <-- means LINKED, not PAYING (ADR-066)
+
+billingAccounts/01D7C5-DBC2D5-E53938
+  open : false                       <-- this is the field that decides
+```
+
+**And there is an OPEN account already on the same identity.** All four visible:
+
+| account | open | name |
+|---|---|---|
+| `012195-7EF76F-3A9083` | **false** | Firebase Payment — the original |
+| **`0197C1-36BA04-63DDFB`** | ✅ **true** | Firebase Payment |
+| `01D7C5-DBC2D5-E53938` | **false** | Firebase Payment — *currently linked to prod* |
+| `01D923-0AD9FC-3FF4C5` | **false** | My Billing Account |
+
+**So the remaining step is not "pay" — it is "link prod to the account that is
+already open".**
+
+> <https://console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod>
+> → **Change billing account** → **`0197C1-36BA04-63DDFB`**.
+
+Then re-measure (below). If the open account is not the one you intend to be
+charged, open `01D7C5-DBC2D5-E53938` in the console instead and find out why it
+is closed — a new account stays closed until its payment method is accepted.
+
+**`hayatiapp-dev` is deliberately left unbilled** (founder decision, 2026-09-03):
+it is linked to the old closed account and reports `billingEnabled: false`. Cost
+is the reason, and the cost of *that* is that dev Functions cannot be deployed or
+exercised — `session-context.md`'s *"dev is a session's to exercise"* does not
+hold while this stands. CI is unaffected: the emulator suites run against
+`demo-hayati`, not this project.
 
 **Blocked by this:** every server function. No daily question is assigned, no
 notification is composed, no purchase can be processed.
@@ -75,13 +111,12 @@ boot initialises Firebase before the first frame; if that fails the app shows
 
 #### 1.2 — How to get it: two routes
 
-**Route A — reopen the account you already have** (preferred; keeps the history
-and the same id):
+**Route A — link prod to the account that is already open** (what the
+measurement above says to do; no new signup, no new card):
 
-1. Open <https://console.cloud.google.com/billing/012195-7EF76F-3A9083>
-2. If it reads *closed*, use the reactivate/reopen action and attach a working
-   payment method.
-3. Confirm **both** `hayatiapp-prod` **and** `hayatiapp-dev` are linked to it.
+1. <https://console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod>
+2. **Change billing account** → **`0197C1-36BA04-63DDFB`** (`open: true`).
+3. ⚠️ **Link `hayatiapp-prod` only.** Dev stays unbilled by decision — above.
 
 **Route B — create a fresh billing account** (if A refuses, e.g. the card or the
 account cannot be recovered):
@@ -89,11 +124,11 @@ account cannot be recovered):
 1. <https://console.cloud.google.com/billing> → **Create account**.
 2. Choose country and add a card. ⚠️ **The currency is fixed when the account is
    created and cannot be changed afterwards** — pick deliberately.
-3. Link both projects. Per project:
+3. Link **`hayatiapp-prod` only**:
    `https://console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod`
-   and the same URL with `project=hayatiapp-dev`.
+   Dev stays unbilled by decision.
 
-**Then, on the Firebase side**, make sure each project is on **Blaze**:
+**Then, on the Firebase side**, make sure `hayatiapp-prod` is on **Blaze**:
 Firebase Console → the project → ⚙ **Project settings** → **Usage and billing** →
 **Details & settings** → **Modify plan** → **Blaze (pay as you go)**.
 
@@ -109,15 +144,24 @@ exactly **item 9**.
 
 #### 1.4 — How to confirm it worked
 
-The Firebase Console showing **Blaze** on both projects is the first check. The
-authoritative one needs **item 10** done first:
+✅ **Item 10 is done — the dev box is logged in, so this now measures for real:**
 
 ```sh
-python3 tool/ci/prod_pulse.py --from-firebase-cli   # 0 = the loop is running
+python3 tool/ci/prod_pulse.py --project hayatiapp-prod --from-firebase-cli
 ```
 
-⚠️ Until item 10 is done this answers **`2 — could not measure`**, which means
-*"I cannot see"*, **not** *"production is down"*. Do not read one as the other.
+`0` = the daily loop is running. Today it exits **1** and names the cause:
+
+```
+FINDING: the linked billing account is CLOSED. The project still reports
+billingEnabled:true — that only means it is LINKED — while Cloud Run refuses
+every invocation with 'billing is disabled for this project'.
+most recent refusal (2026-08-29T01:00:02Z): billing is disabled for this project.
+```
+
+⚠️ **Do not read `billingEnabled: true` as success.** ADR-066 exists because that
+exact field produced a wrong instruction before: it means *linked*, and the
+account's own `open` field is what decides.
 
 ### 2. Grant the RevenueCat webhook a public invoker — money is at stake
 
@@ -298,14 +342,19 @@ days.**
 ⚠️ **Do this in the same sitting as item 1**, while you are already in the billing
 console. It is the cheapest protection on this page.
 
-### 10. The dev box needs YOUR Firebase sign-in
+### 10. ✅ DONE — the dev box is signed in (kept for the trap it left behind)
 
 The machine was rebuilt around **2026-08-31**. A session restored everything it
 could by itself — Flutter, Java, the Dart SDK and `firebase-tools` are all back and
 app-side checks run locally again. **What is left is the one step that is yours**,
 because it is an interactive sign-in with your Google identity:
 
-> On the dev box: `firebase login`
+✅ **Done on 2026-09-03.** `prod_pulse.py --from-firebase-cli` now returns a real
+verdict instead of *"could not measure"*, and that is how item 1's state above was
+established.
+
+**This item stays on the page only for its trap**, which cost a measurement
+earlier the same day and will recur on the next rebuild:
 
 ⚠️ **Do not check this by looking for the file.**
 `~/.config/configstore/firebase-tools.json` **exists today and is still not a
@@ -316,14 +365,11 @@ to run a probe:
 python3 tool/ci/prod_pulse.py --from-firebase-cli   # 2 = still not logged in
 ```
 
-**Blocked by this:** every local production check — `prod_pulse.py`,
-`push_delivery_probe.py`, `rules_drift.py`, `functions:log`, `functions:list`. They
-all answer *"could not measure"*, which is honest, but it means **a session cannot
-tell the difference between "production is down" and "I cannot see production"**
-without you.
-
-Not urgent while production is down anyway. **It becomes urgent the moment you do
-item 1**, because that is when someone needs to confirm it worked.
+`~/.config/configstore/firebase-tools.json` **existed while still not being a
+login** — installing `firebase-tools` creates it empty, and only the `tokens` key
+appearing makes it real. The only honest check is to run a probe and read its exit
+code. **Delete this item once it has survived one rebuild without anyone falling
+for it.**
 
 ---
 
