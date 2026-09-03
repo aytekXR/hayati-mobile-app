@@ -16,8 +16,8 @@
 |---|---|
 | Completion | **~58%** of the iOS MVP, to public launch |
 | Production Readiness | **Integration Ready** |
-| Production | 🔴 **DOWN for 12 days** (since 2026-08-22) — a new billing account is now linked but reads `open: false`; **an open one exists**, see item 1 |
-| Open operator items | **10** — item 2's IAM half and item 10 are done; the rest stand |
+| Production | 🟡 **Billing RESTORED 2026-09-03 ~22:05 UTC** after 12 days down. The webhook answers again; the first successful daily sweep is still pending — item 1 |
+| Open operator items | **items 1, 2 and 10 are DONE**; 3–9 stand |
 
 **Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — every milestone closed,
 the code builds, signs and passes its gates. The question bank is **2.1%** — 21 of
@@ -40,204 +40,99 @@ checks measuring instead of skipping.
 
 Ordered by how much each unblocks. Every line below was verified on 2026-09-03.
 
-### 1. 🔴 Restore billing — 12 days down, and one link away
+### 1. ✅ Billing is RESTORED — waiting on the first successful sweep
 
-⚠️ **State as of 2026-09-03, measured against the Cloud Billing API directly —
-not inferred.** A new billing account has been attached to `hayatiapp-prod`, and
-it is **not working yet**:
+**Done 2026-09-03 ~22:05 UTC.** Account `01D7C5-DBC2D5-E53938` (the one already
+linked to `hayatiapp-prod`) was **activated** — the payment instrument is on
+someone else's identity, which is why our token could not see it open earlier.
+Both conditions now hold, which is the pair ADR-066 exists to keep apart:
 
 ```
-projects/hayatiapp-prod/billingInfo
-  billingAccountName : billingAccounts/01D7C5-DBC2D5-E53938
-  billingEnabled     : true          <-- means LINKED, not PAYING (ADR-066)
-
-billingAccounts/01D7C5-DBC2D5-E53938
-  open : false                       <-- this is the field that decides
+projects/hayatiapp-prod/billingInfo   billingEnabled : true    (LINKED)
+billingAccounts/01D7C5-DBC2D5-E53938  open           : true    (PAYING)
 ```
 
-**And there is an OPEN account already on the same identity.** All four visible:
+**What came back with it**, measured rather than assumed:
 
-| account | open | name |
+| | before | now |
 |---|---|---|
-| `012195-7EF76F-3A9083` | **false** | Firebase Payment — the original |
-| **`0197C1-36BA04-63DDFB`** | ✅ **true** | Firebase Payment |
-| `01D7C5-DBC2D5-E53938` | **false** | Firebase Payment — *currently linked to prod* |
-| `01D923-0AD9FC-3FF4C5` | **false** | My Billing Account |
+| Cloud Scheduler API | HTTP 403 — the API was off with billing | **readable**; job **ENABLED** |
+| `revenueCatWebhook` | HTML 500 *"billing is disabled"* | **the function's own JSON** — see item 2 |
 
-**So the remaining step is not "pay" — it is "link prod to the account that is
-already open".**
+⚠️ **Not finished yet, and the remaining line is honest:** no
+`question_rollover: sweep complete` record exists, because the **22:00 UTC sweep
+attempted and failed** (gRPC 13) — billing was restored a few minutes *after* it
+ran. `prod_pulse` still exits **1**, correctly: it is keyed on the sweep's own
+record, so a punctual scheduler over a backend that was dead at the time reads
+red (ADR-063).
 
-> <https://console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod>
-> → **Change billing account** → **`0197C1-36BA04-63DDFB`**.
+> **The next hourly sweep is the proof.** Re-run:
+> `python3 tool/ci/prod_pulse.py --project hayatiapp-prod --from-firebase-cli`
+> — **0** means the daily loop is genuinely running.
 
-Then re-measure (below). If the open account is not the one you intend to be
-charged, open `01D7C5-DBC2D5-E53938` in the console instead and find out why it
-is closed — a new account stays closed until its payment method is accepted.
+⚠️ **`hayatiapp-dev` stays unbilled** (your decision). It is still linked to the
+old closed `012195-7EF76F-3A9083` and reports `billingEnabled: false`. The cost is
+that dev Functions cannot be deployed or exercised, so `session-context.md`'s
+*"dev is a session's to exercise"* does not hold while this stands. CI is
+unaffected — the emulator suites run against `demo-hayati`.
 
-**`hayatiapp-dev` is deliberately left unbilled** (founder decision, 2026-09-03):
-it is linked to the old closed account and reports `billingEnabled: false`. Cost
-is the reason, and the cost of *that* is that dev Functions cannot be deployed or
-exercised — `session-context.md`'s *"dev is a session's to exercise"* does not
-hold while this stands. CI is unaffected: the emulator suites run against
-`demo-hayati`, not this project.
+⚠️ **Item 9 is now the urgent one.** Billing is live and **nothing is watching the
+bill.**
 
-**Blocked by this:** every server function. No daily question is assigned, no
-notification is composed, no purchase can be processed.
+### 2. ✅ The webhook works — only RevenueCat's own dashboard is unverified
 
-#### 1.1 — Why a paid plan is unavoidable
+Three things were needed and all three are now **proven by the function's own
+response**, not inferred:
 
-Not a preference — an architectural consequence. `functions/src/index.ts` exports
-**nine Cloud Functions**, and they are the product:
+```
+$ curl -X POST https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app -d '{}'
+HTTP 401  {"error":"unauthorized"}
+```
 
-| function | what it is |
+That single line settles all of it, because of how the handler is ordered
+(`revenuecat-webhook.ts`): the **503 `unconfigured`** branch is checked
+**before** the token compare, *"so a misconfiguration can never be mistaken for
+an unauthorized caller"*. Getting **401 and not 503**, with no header sent, means:
+
+| | proof |
 |---|---|
-| `createInvite` · `invitePreview` · `joinInvite` | the entire pairing flow |
-| `questionRollover` | the sweep that assigns the daily question |
-| `answerReveal` | the reveal — the app's central moment |
-| `registerPushToken` · `unregisterPushToken` | notifications |
-| `revenueCatWebhook` | purchase → Premium |
-| `coachProxy` | the coach |
+| the container runs | a JSON body came back, not Google's HTML error page — **billing works** |
+| the request reaches it | not a Cloud Run 403 — **the invoker grant works** (granted 2026-09-03, `allUsers` → `roles/run.invoker`) |
+| `RC_WEBHOOK_TOKEN` is set and non-empty | the 503 branch was **not** taken — **the secret is bound and populated** (version 1, revision `revenuecatwebhook-00005-mok`) |
 
-**Cloud Functions do not run on the free (Spark) plan.** That is what item 1 has
-always been about, and it is why every other server item below is downstream.
-ADR-002 chose Firebase over Supabase with vendor lock-in recorded as an accepted
-trade-off; leaving it now would mean rewriting all nine functions, the security
-rules, auth, offline persistence, push and the data model. It is a rebuild, not a
-setting.
+This is `session-context.md` §8's own test — *"JSON = fixed, HTML 403 = broken"* —
+answering **fixed**.
 
-⚠️ **The app does not merely lose features without it — it does not start.** The
-boot initialises Firebase before the first frame; if that fails the app shows
-`BootFailureApp`, a failure screen (ADR-039).
+#### 2.1 — The one thing left: does RevenueCat send the same string?
 
-#### 1.2 — How to get it: two routes
+RevenueCat sends whatever is in its dashboard **verbatim** in the `Authorization`
+header — no `Bearer`, no HMAC (ADR-013 D1). Nothing here can read RevenueCat's
+console, so this is yours:
 
-**Route A — link prod to the account that is already open** (what the
-measurement above says to do; no new signup, no new card):
-
-1. <https://console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod>
-2. **Change billing account** → **`0197C1-36BA04-63DDFB`** (`open: true`).
-3. ⚠️ **Link `hayatiapp-prod` only.** Dev stays unbilled by decision — above.
-
-**Route B — create a fresh billing account** (if A refuses, e.g. the card or the
-account cannot be recovered):
-
-1. <https://console.cloud.google.com/billing> → **Create account**.
-2. Choose country and add a card. ⚠️ **The currency is fixed when the account is
-   created and cannot be changed afterwards** — pick deliberately.
-3. Link **`hayatiapp-prod` only**:
-   `https://console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod`
-   Dev stays unbilled by decision.
-
-**Then, on the Firebase side**, make sure `hayatiapp-prod` is on **Blaze**:
-Firebase Console → the project → ⚙ **Project settings** → **Usage and billing** →
-**Details & settings** → **Modify plan** → **Blaze (pay as you go)**.
-
-#### 1.3 — What it should cost, and the one thing to do while you are in there
-
-Blaze is pay-as-you-go and **keeps Spark's free quotas**. With **no live users**
-and production currently serving nothing, the expected bill is negligible. The
-real risk is not the amount — it is that **nobody is watching it**, which is
-exactly **item 9**.
-
-> **Do item 9 in the same sitting.** It takes a minute and it is the difference
-> between finding out in hours and finding out in days.
-
-#### 1.4 — How to confirm it worked
-
-✅ **Item 10 is done — the dev box is logged in, so this now measures for real:**
-
-```sh
-python3 tool/ci/prod_pulse.py --project hayatiapp-prod --from-firebase-cli
-```
-
-`0` = the daily loop is running. Today it exits **1** and names the cause:
-
-```
-FINDING: the linked billing account is CLOSED. The project still reports
-billingEnabled:true — that only means it is LINKED — while Cloud Run refuses
-every invocation with 'billing is disabled for this project'.
-most recent refusal (2026-08-29T01:00:02Z): billing is disabled for this project.
-```
-
-⚠️ **Do not read `billingEnabled: true` as success.** ADR-066 exists because that
-exact field produced a wrong instruction before: it means *linked*, and the
-account's own `open` field is what decides.
-
-### 2. The RevenueCat webhook — Google's side is DONE; RevenueCat's side is unverified
-
-✅ **`allUsers` → `roles/run.invoker` was granted on 2026-09-03** (authorised by
-you, `session-context.md` §7). Read back from the service's own policy:
-
-```
-bindings: [{ role: roles/run.invoker, members: [allUsers] }]
-```
-
-**Proven by the service, not by the API's reply.** The webhook's log message
-changed at exactly that moment:
-
-```
-21:50:23  W  The request was not authenticated. Either allow unauthenticated
-             invocations or set the proper Authorization header.        <- IAM refusing
-22:01:48  E  The request failed because billing is disabled for this project.
-```
-
-So the endpoint is reachable now and **billing is the only thing left in front of
-it** — Google's own words, not our inference. The old `gcloud run services
-add-iam-policy-binding` instruction is deleted because it is done.
-
-#### 2.1 — ⚠️ The webhook also needs a shared token, and this file had never said so
-
-`revenueCatWebhook` **fail-closes with 503 until `RC_WEBHOOK_TOKEN` is set**
-(ADR-013 D1). It is not an API key: RevenueCat sends whatever string you type into
-its dashboard **verbatim** in the `Authorization` header, and the Function compares
-it constant-time. **You invent the string; it must be identical in two places:**
-
-1. Google **Secret Manager** in `hayatiapp-prod`, as `RC_WEBHOOK_TOKEN`
-   (ADR-048 lists it there alongside `LLM_API_KEY`);
-2. the RevenueCat dashboard's webhook **Authorization** field.
-
-✅ **It already exists, and it is already bound.** Measured 2026-09-03 — and *not*
-through Secret Manager, which still refuses this token with HTTP 403. The deployed
-Cloud Run service's own container config says it, which needs only
-`run.services.get`:
-
-```
-revenuecatwebhook  (revision revenuecatwebhook-00005-mok)
-  SECRET  RC_WEBHOOK_TOKEN -> projects/hayatiapp-prod/secrets/RC_WEBHOOK_TOKEN : 1
-```
-
-So the Function side is **complete**: deployed, secret created, secret bound.
-⚠️ **The one thing left is the other end** — whether the RevenueCat dashboard's
-webhook `Authorization` field holds **the same string** as version 1 of that
-secret. That is in RevenueCat's console, which nothing here can read.
-
-> Read the value: Secret Manager → `RC_WEBHOOK_TOKEN` → version 1 → *View secret
-> value*. (Or, after `gcloud auth login`:
+> **Read the value:** Secret Manager → `RC_WEBHOOK_TOKEN` → version 1 → *View
+> secret value*. (Or, after `gcloud auth login`:
 > `gcloud secrets versions access 1 --secret=RC_WEBHOOK_TOKEN --project=hayatiapp-prod`.)
 >
-> Then RevenueCat → your project → **Integrations → Webhooks**:
+> **RevenueCat** → your project → **Integrations → Webhooks**:
 > URL `https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app`,
-> **Authorization** = that exact string, sent verbatim with no `Bearer` prefix.
+> **Authorization** = that exact string, no prefix.
+>
+> **Then press RevenueCat's "Send test event".** A 200 there is end-to-end proof.
+> A 401 means the two strings differ.
 
-⚠️ **Public + no token is not a hole.** Until `RC_WEBHOOK_TOKEN` exists the
-Function refuses everyone with 503, so the order of these two steps cannot expose
-anything. It also means the endpoint is now internet-reachable and will burn a
-little quota answering strangers — one more reason to do **item 9**.
-
-**Where RevenueCat's three credentials actually go**, since they are easy to mix up
-and only two of them exist in this repo:
+**Where RevenueCat's three credentials go**, since they are easy to confuse and
+only two exist here:
 
 | credential | shape | where it lives |
 |---|---|---|
-| iOS **publishable** SDK key | `appl_…` | repo **variable** `REVENUECAT_IOS_API_KEY` — ships inside the binary, public by design. **Already set.** |
-| webhook **shared token** | a string you choose | Secret Manager `RC_WEBHOOK_TOKEN` + the same string in the RC dashboard. **Above.** |
-| **v2 secret API key** | `sk_…` | ⚠️ **nothing in this repository reads one.** ADR-013's mirror is webhook-driven and never calls RevenueCat's REST API; #41 lists RC-REST reconciliation as future work. Do not add one until something needs it |
+| iOS **publishable** SDK key | `appl_…` | repo **variable** `REVENUECAT_IOS_API_KEY` — ships in the binary, public by design. **Already set** |
+| webhook **shared token** | a string you choose | Secret Manager `RC_WEBHOOK_TOKEN` **and** the RC dashboard. **Google side done** |
+| **v2 secret API key** | `sk_…` | ⚠️ **nothing in this repository reads one.** ADR-013's mirror is webhook-driven and never calls RevenueCat's REST API; #41 lists RC-REST reconciliation as future work |
 
 ⚠️ **No credential is ever committed** (`architecture.md` §9). Secrets reach CI via
 `gh secret set` and the Function via Secret Manager — never a file in the tree, and
-never a `workflow_dispatch` input, because this repository is **public** and
-dispatch inputs are recorded in run metadata. ⚠️ **A key pasted into a chat, an
-issue or a PR is a burned key — rotate it rather than reusing it.**
+never a `workflow_dispatch` input, because this repository is **public**. **A key
+pasted into a chat, an issue or a PR is a burned key — rotate it.**
 
 ### 3. Four secrets — without them, nothing is watching production
 
@@ -445,8 +340,8 @@ session can fix it.
 
 These block **public launch**:
 
-1. **Nothing runs on the server** — item 1. Every item below is downstream.
-2. **Payments cannot complete** — the invoker grant is done; what remains is `RC_WEBHOOK_TOKEN` (item 2.1), and the serving layer refuses everything until item 1 anyway.
+1. ~~Nothing runs on the server~~ — **billing restored 2026-09-03**; awaiting the first successful sweep (item 1).
+2. **Payments** — Google's side is done and proven; what remains is matching the token in RevenueCat's dashboard (item 2.1).
 3. **Push has never been delivered** — item 4; 0 of 4 devices registered.
 4. **The App Store listing is not submittable** — seven of nine English fields empty at Apple, Turkish absent. Items 6(a) and 6(b).
 5. **Prod-vs-`main` drift is unmeasured**, not passing — both checks skip for one missing secret (item 3).
