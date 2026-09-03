@@ -49,17 +49,22 @@ can refute a vendor API shape*, and the gem **is** the vendor.
 
 ## Decision 1 — The fastlane half is CLOSED, by citation
 
-Three facts, each with its file and its line, from fastlane **2.237.0**:
+Four facts, each with its file and its symbol, from fastlane **2.237.0**:
 
 | claim | evidence |
 |---|---|
-| fastlane never reads a pre-existing key file in this lane | `fastlane/lib/fastlane/actions/app_store_connect_api_key.rb`, in `Actions#run`: `key: key_content \|\| File.binread(File.expand_path(key_filepath))`. **`key_content` is what the Fastfile passes** — all three lanes do, `key_content: ENV.fetch("ASC_API_KEY_P8_BASE64")` — so the `File.binread` branch is **unreachable** |
+| fastlane never reads a pre-existing key file in this lane | `fastlane/lib/fastlane/actions/app_store_connect_api_key.rb`, in `AppStoreConnectApiKeyAction.run`: `key: key_content \|\| File.binread(File.expand_path(key_filepath))`. **`key_content` is what the Fastfile passes** — all three lanes do. ⚠️ And the branch is unreachable for **any string**, not merely a non-empty one: Ruby's `""` is truthy, so `"" \|\| x` is `""` |
+| ...and neither does the layer below it | `spaceship/lib/spaceship/connect_api/token.rb`, `Token.create`: `key ||= ENV['SPACESHIP_CONNECT_API_KEY']` then `key ||= File.binread(filepath)`. **Also unreachable** — the action passes `key:` through the hash. Found by the review's completeness critic; this ADR had checked one read path and there were two |
 | when fastlane needs a `.p8` on disk it **writes its own** | `fastlane_core/lib/fastlane_core/itunes_transporter.rb`, `TransporterExecutor#prepare`: `File.open(File.join(api_key[:key_dir], "AuthKey_#{api_key[:key_id]}.p8"), "wb")` — created from the key it already holds, and `"wb"` overwrites unconditionally |
-| on **this** runner that directory is a temp dir, not the home path | same method: the home path is used **only** `if self.kind_of?(ShellScriptTransporterExecutor)`; every other executor gets `Dir.mktmpdir("deliver-")`. `ItunesTransporter#initialize` sets `use_shell_script` only for Xcode 6, Windows, or the `FASTLANE_ITUNES_TRANSPORTER_USE_SHELL_SCRIPT` feature flag, and `should_use_altool?` requires `Helper.xcode_at_least?(14)`. **`sign-upload` runs on `macos-26`** — so the executor is Altool or Java, never ShellScript |
+| on **this** runner that directory is a temp dir, not the home path | same method: the home path is used **only** `if self.kind_of?(ShellScriptTransporterExecutor)`; **every other executor gets `Dir.mktmpdir("deliver-")`**. `ItunesTransporter#initialize` sets `use_shell_script` only for Xcode 6, Windows, or the `FASTLANE_ITUNES_TRANSPORTER_USE_SHELL_SCRIPT` flag; `pilot/lib/pilot/build_manager.rb` and `deliver/lib/deliver/runner.rb` **both** construct it with `use_shell_script = false` and `altool_compatible_command: true`, and `should_use_altool?` additionally requires `!Helper.user_defined_itms_path?` (unset here) and `xcode_at_least?(14)`. **`sign-upload` runs on `macos-26`.** ⚠️ **The conclusion does not depend on which one is selected** — Altool and Java both use the temp dir, so only ShellScript could reach the home path, and nothing here selects it |
 
 **Conclusion: nothing in fastlane 2.237.0 reads, writes, or looks at
 `~/.appstoreconnect/private_keys` on this lane's runner.** ADR-032 D4's sentence
-was right about fastlane and is now citable rather than plausible.
+was right about fastlane and is now citable rather than plausible. The review's
+critic widened the sweep and found the same: **none of the 212 bundled actions
+references that path**, and `match` — which runs *before* the build — takes its
+credential as `Token.from(hash:)` and reads only *certificates*, never the API
+key.
 
 ### 1.1 — A hazard this ADR nearly reported, and did not
 
@@ -80,9 +85,16 @@ have just produced yourself and like the look of.
 
 D4 declined deletion on one ground: *"A session that can watch a real run should
 delete it and confirm"*, and no session can. **That is still true**, and D1 does
-not touch it — `xcodebuild` is not in the gem, and
-`flutter build ipa --export-options-plist` runs **before** the upload, so the
-step's file *is* present during the only phase that could consult it.
+not touch it: **`xcodebuild` is not in the gem.**
+
+⚠️ **Said precisely, because the loose version is tempting.** The file is written
+by the first step of `sign-upload` and is therefore present for **the whole
+lane** — `match`, `update_code_signing_settings`, `flutter build ipa`, and the
+upload. It is *not* true that the build is "the only phase that could consult
+it"; what is true is that **every phase implemented in the gem has been checked
+and none touches the path**, and the one component that is not in the gem —
+`xcodebuild`, invoked by `flutter build ipa` — is the one whose behaviour is
+unknown. That is a narrower and more defensible sentence than the first draft's.
 
 So the state of #121 is now exactly one unknown instead of two:
 

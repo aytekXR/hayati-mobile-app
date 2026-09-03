@@ -38,6 +38,39 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**159 — The finding you have just discovered and like the look of is the one you are least likely to check.** *(S099, ADR-073 1.1)*
+Reading fastlane's `TransporterExecutor#prepare` turned up
+`FileUtils.rm_rf(api_key[:key_dir])` in an `ensure`, with `key_dir` set to
+`~/.appstoreconnect/private_keys`. **fastlane recursively deleting a developer's
+App Store Connect key directory after every upload** — vivid, alarming, and it was
+one keystroke from being written up as a finding.
+It is real only on a `ShellScriptTransporterExecutor` machine (Xcode 6, Windows,
+or a feature flag). This runner selects Altool, so the `rm_rf` targets a temp
+directory. **Nothing was wrong with the reading; what was missing was the second
+question — *does this code path execute here?*** Lesson **135** says measure the
+load-bearing claim yourself, and it is usually aimed at a claim someone *handed*
+you. The harder case is the one you produced: a discovery arrives with its own
+momentum, it is interesting, it makes the session look sharp, and every one of
+those is a reason to slow down rather than to publish. **Before writing a finding,
+say out loud which branch reaches it, and check.**
+
+**158 — You do not have to run a language to read it.** *(S099, ADR-073)*
+S099's prompt made *"restore `ruby` + `bundle`"* step one of the objective —
+which meant `ruby-full`, which needs `sudo`, which is not available
+non-interactively, which would have turned a session's task into an **operator
+dependency invented out of nothing.** None of it was necessary. The question was
+*what does fastlane do with this file*, and the answer is in the gem:
+```sh
+curl -sSL -o f.gem https://rubygems.org/downloads/fastlane-2.237.0.gem
+tar xf f.gem && tar xzf data.tar.gz -C src
+```
+**A `.gem` is a tar archive. A wheel is a zip. A jar is a zip. `npm pack` gives
+you a tarball.** *Query the platform, not the docs* — and the platform's source is
+almost always downloadable without its toolchain. ⚠️ **Pin the version you read
+to the version the project resolves** (here `Gemfile.lock`'s 2.237.0, confirmed
+independently by `release_lane_lint.dart`), and say so, because a proof read out
+of `latest` is a proof about somebody else's build.
+
 **157 — A count written mid-change is stale by the end of the change.** *(S095–S098, seven times)*
 Across four sessions, **seven** counts went out wrong, and it was the same
 mechanism every time — not carelessness about arithmetic, but **writing the

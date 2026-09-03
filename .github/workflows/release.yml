@@ -387,11 +387,20 @@ jobs:
         #     for Xcode 6, Windows or the FASTLANE_ITUNES_TRANSPORTER_USE_SHELL_SCRIPT
         #     feature flag. This job runs on macos-26, so it never is.
         #
+        # Two more read paths were checked and are also unreachable: spaceship's
+        # `Token.create` (`key ||= File.binread(filepath)` — the action passes
+        # `key:` through the hash) and all 212 bundled actions, none of which
+        # names this path. `match` runs BEFORE the build and reads certificates,
+        # never the API key.
+        #
         # So NOTHING IN FASTLANE reads, writes or looks at this path on this
         # runner. ⚠️ That does NOT make the step proven dead, and the difference
-        # is the whole of #121: `xcodebuild` is not in the gem, and
-        # `flutter build ipa` runs BEFORE the upload, so this file IS present
-        # during the only phase that could consult it. One unknown left, not two.
+        # is the whole of #121. Said precisely: this file is written by the FIRST
+        # step of sign-upload, so it is present for the WHOLE lane — match, the
+        # signing settings, the build and the upload. Every phase implemented IN
+        # THE GEM has been checked and none touches it; `xcodebuild`, invoked by
+        # `flutter build ipa`, is the one component that is not in the gem and is
+        # the one whose behaviour is unknown. One unknown left, not two.
         #
         # ⚠️ Conditional caveat, recorded because it is invisible here: on a
         # ShellScript-executor machine (Xcode 6 / Windows / that feature flag)

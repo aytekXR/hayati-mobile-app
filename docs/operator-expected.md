@@ -1,6 +1,6 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-09-03 UTC (Session 098)
+**Last Updated:** 2026-09-03 UTC (Session 099)
 
 > This file is a **live checkpoint**, not a history. It carries only the current
 > state and what is open right now. What each session did, and why, lives in
@@ -8,9 +8,9 @@
 
 ## Current Status
 
-- Session: **098** (complete)
-- Goal: **stop the two store-metadata lanes disagreeing about your listing**
-- Status: **Complete** — they agree now, and item 6(b) below is unchanged and still waiting on you
+- Session: **099** (complete)
+- Goal: **prove whether a dead step in the release lane is really dead, without spending a release on it**
+- Status: **Complete** — half proven, and the half that is left is item 6(c) below
 - Completion: **~58%** of the iOS MVP, to public launch
 - Production Readiness: **Integration Ready**
 
@@ -77,6 +77,7 @@ drift checks measuring instead of skipping.
 | **096** | Built the thing that fixes it: your store copy can now be published **one language at a time**, so the Turkish listing Apple keeps refusing stops taking the English one down with it. **Nothing has been published** — that is your decision, item 6(b), and item 6(c) just got smaller because this no longer needs a release build. |
 | **097** | Pointed it at Apple for the first time, in the mode that writes nothing. **It worked**, and **item 6(b) now shows you exactly what would be published.** It also caught itself telling a small lie — a run that published nothing was reporting *"published"* — which is filed as #281 and does not affect anything you are being asked. |
 | **098** | Fixed that lie. The two tools that look at your store listing now agree with each other, and the report says **how much would change** — 15 fields — instead of just *"different"*. One of those numbers is a small piece of good news: your app's **name** is the one field already correct at Apple, confirmed independently by both tools. |
+| **099** | A step in the release pipeline has been suspected dead for months, and nobody could prove it without spending a release to find out. Half of it is now **proven** — read out of fastlane's own published source, which turns out not to need fastlane installed. The other half needs one release, and it is item 6(c). |
 
 Everything is merged to `main` and CI is green.
 
@@ -276,6 +277,22 @@ run). Lower stakes, and no longer on the critical path.
 ⚠️ A dispatch uploads a real binary to your TestFlight. That is the cost. It is
 about 30 free macOS minutes otherwise.
 
+**What 6(c) now buys, concretely.** Session 099 proved from fastlane's own source
+that **fastlane never touches** the App Store Connect key file the release lane
+writes to disk — so half of #121 is settled. What is left is whether Apple's own
+`xcodebuild` reads it, and that cannot be read out of any source we have.
+
+The experiment is **not** a deletion — that would throw away the signal. It moves
+the file somewhere nothing can find it and runs the lane: **identical run = the
+step is dead and goes; a failure names the missing key at that exact path**, which
+is diagnosable rather than cryptic.
+
+⚠️ **And the reason this was declined before has reversed.** It was put off
+because *"a build is the single thing blocking push-notification testing"* — so a
+failed release was expensive. It is not that any more: production is down, and
+item 4 above now says to cut a build **after** billing. **A failed release costs
+you less today than when this was last considered.** Your call either way.
+
 ### 7. Content — the largest single gap in the product
 
 **21 of 1000 questions exist** (7 per locale, solo only). The couple questions are
@@ -346,9 +363,13 @@ Read item 6(b) and answer it. Everything else on this page is downstream of item
 
 ## Next Session Goal
 
-**Session 099 — #121: prove whether a dead step in the release lane is really
-dead, by reading fastlane's own source instead of waiting for a release.** It is
-the last open issue whose central question can be answered without you.
+**Session 100 — #63: put a brand decision to you that nobody has ever asked.**
+Your brandkit specifies **Phosphor** icons; the app ships **28 Material** ones,
+and the design record has been carrying that as a known divergence rather than a
+question. Session 100 will write up both ways out and what each costs — and
+deliberately **will not recommend one**, because it is your brand.
+
+It is the last thing on the board a session can move.
 
 ⚠️ **After that, the queue is genuinely yours.** Every remaining open issue is
 waiting on billing, a phone, a lawyer, a secret, or a decision on this page —
