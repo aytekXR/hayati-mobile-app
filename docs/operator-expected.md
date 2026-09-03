@@ -163,7 +163,7 @@ most recent refusal (2026-08-29T01:00:02Z): billing is disabled for this project
 exact field produced a wrong instruction before: it means *linked*, and the
 account's own `open` field is what decides.
 
-### 2. The RevenueCat webhook — the IAM half is DONE; a token is still missing
+### 2. The RevenueCat webhook — Google's side is DONE; RevenueCat's side is unverified
 
 ✅ **`allUsers` → `roles/run.invoker` was granted on 2026-09-03** (authorised by
 you, `session-context.md` §7). Read back from the service's own policy:
@@ -196,10 +196,28 @@ it constant-time. **You invent the string; it must be identical in two places:**
    (ADR-048 lists it there alongside `LLM_API_KEY`);
 2. the RevenueCat dashboard's webhook **Authorization** field.
 
-**Could not measure whether prod already holds it** — the dev box's firebase token
-returns HTTP 403 on the Secret Manager API, which needs `secretmanager.viewer`.
-*Could not measure* is not *missing*: check it in the console before creating a
-second one.
+✅ **It already exists, and it is already bound.** Measured 2026-09-03 — and *not*
+through Secret Manager, which still refuses this token with HTTP 403. The deployed
+Cloud Run service's own container config says it, which needs only
+`run.services.get`:
+
+```
+revenuecatwebhook  (revision revenuecatwebhook-00005-mok)
+  SECRET  RC_WEBHOOK_TOKEN -> projects/hayatiapp-prod/secrets/RC_WEBHOOK_TOKEN : 1
+```
+
+So the Function side is **complete**: deployed, secret created, secret bound.
+⚠️ **The one thing left is the other end** — whether the RevenueCat dashboard's
+webhook `Authorization` field holds **the same string** as version 1 of that
+secret. That is in RevenueCat's console, which nothing here can read.
+
+> Read the value: Secret Manager → `RC_WEBHOOK_TOKEN` → version 1 → *View secret
+> value*. (Or, after `gcloud auth login`:
+> `gcloud secrets versions access 1 --secret=RC_WEBHOOK_TOKEN --project=hayatiapp-prod`.)
+>
+> Then RevenueCat → your project → **Integrations → Webhooks**:
+> URL `https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app`,
+> **Authorization** = that exact string, sent verbatim with no `Bearer` prefix.
 
 ⚠️ **Public + no token is not a hole.** Until `RC_WEBHOOK_TOKEN` exists the
 Function refuses everyone with 503, so the order of these two steps cannot expose
