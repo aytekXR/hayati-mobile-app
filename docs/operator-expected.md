@@ -17,7 +17,7 @@
 | Completion | **~58%** of the iOS MVP, to public launch |
 | Production Readiness | **Integration Ready** |
 | Production | 🔴 **DOWN for 12 days** (since 2026-08-22) — a new billing account is now linked but reads `open: false`; **an open one exists**, see item 1 |
-| Open operator items | **10**, none closed yet |
+| Open operator items | **10** — item 2's IAM half and item 10 are done; the rest stand |
 
 **Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — every milestone closed,
 the code builds, signs and passes its gates. The question bank is **2.1%** — 21 of
@@ -163,19 +163,27 @@ most recent refusal (2026-08-29T01:00:02Z): billing is disabled for this project
 exact field produced a wrong instruction before: it means *linked*, and the
 account's own `open` field is what decides.
 
-### 2. Grant the RevenueCat webhook a public invoker — money is at stake
+### 2. The RevenueCat webhook — the IAM half is DONE; a token is still missing
 
-Verified today: the webhook answers **HTTP 403**, so RevenueCat cannot deliver.
-**A real purchase would charge the customer and never unlock Premium** (#115).
+✅ **`allUsers` → `roles/run.invoker` was granted on 2026-09-03** (authorised by
+you, `session-context.md` §7). Read back from the service's own policy:
 
-```sh
-gcloud run services add-iam-policy-binding revenuecatwebhook \
-  --region=europe-west1 --project=hayatiapp-prod \
-  --member=allUsers --role=roles/run.invoker
+```
+bindings: [{ role: roles/run.invoker, members: [allUsers] }]
 ```
 
-⚠️ **This is an IAM grant, not a key.** No RevenueCat API key belongs here, and
-none belongs in this repository at all.
+**Proven by the service, not by the API's reply.** The webhook's log message
+changed at exactly that moment:
+
+```
+21:50:23  W  The request was not authenticated. Either allow unauthenticated
+             invocations or set the proper Authorization header.        <- IAM refusing
+22:01:48  E  The request failed because billing is disabled for this project.
+```
+
+So the endpoint is reachable now and **billing is the only thing left in front of
+it** — Google's own words, not our inference. The old `gcloud run services
+add-iam-policy-binding` instruction is deleted because it is done.
 
 #### 2.1 — ⚠️ The webhook also needs a shared token, and this file had never said so
 
@@ -193,6 +201,11 @@ returns HTTP 403 on the Secret Manager API, which needs `secretmanager.viewer`.
 *Could not measure* is not *missing*: check it in the console before creating a
 second one.
 
+⚠️ **Public + no token is not a hole.** Until `RC_WEBHOOK_TOKEN` exists the
+Function refuses everyone with 503, so the order of these two steps cannot expose
+anything. It also means the endpoint is now internet-reachable and will burn a
+little quota answering strangers — one more reason to do **item 9**.
+
 **Where RevenueCat's three credentials actually go**, since they are easy to mix up
 and only two of them exist in this repo:
 
@@ -205,7 +218,8 @@ and only two of them exist in this repo:
 ⚠️ **No credential is ever committed** (`architecture.md` §9). Secrets reach CI via
 `gh secret set` and the Function via Secret Manager — never a file in the tree, and
 never a `workflow_dispatch` input, because this repository is **public** and
-dispatch inputs are recorded in run metadata.
+dispatch inputs are recorded in run metadata. ⚠️ **A key pasted into a chat, an
+issue or a PR is a burned key — rotate it rather than reusing it.**
 
 ### 3. Four secrets — without them, nothing is watching production
 
@@ -414,7 +428,7 @@ session can fix it.
 These block **public launch**:
 
 1. **Nothing runs on the server** — item 1. Every item below is downstream.
-2. **Payments cannot complete** — item 2, and refused by the serving layer anyway until item 1.
+2. **Payments cannot complete** — the invoker grant is done; what remains is `RC_WEBHOOK_TOKEN` (item 2.1), and the serving layer refuses everything until item 1 anyway.
 3. **Push has never been delivered** — item 4; 0 of 4 devices registered.
 4. **The App Store listing is not submittable** — seven of nine English fields empty at Apple, Turkish absent. Items 6(a) and 6(b).
 5. **Prod-vs-`main` drift is unmeasured**, not passing — both checks skip for one missing secret (item 3).
