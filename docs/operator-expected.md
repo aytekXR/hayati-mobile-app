@@ -16,23 +16,24 @@
 |---|---|
 | Completion | **~58%** of the iOS MVP, to public launch |
 | Production Readiness | **Integration Ready** |
-| Production | 🟡 **Billing RESTORED 2026-09-03 ~22:05 UTC** after 12 days down. The webhook answers again; the first successful daily sweep is still pending — item 1 |
+| Production | 🟢 **UP.** Billing restored 2026-09-03 ~22:05 UTC after 12 days down; the **23:00 UTC sweep completed** (`assigned=1, failed=0`) and `prod_pulse` exits **0** — item 1 |
 | Open operator items | **1, 2 and 10 DONE**; **9 is now the urgent one** — billing is live and nothing watches the bill; 3–8 stand |
 
-**Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — every milestone closed,
-the code builds, signs and passes its gates. The question bank is **2.1%** — 21 of
+**Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — the code builds, signs
+and passes its gates. ⚠️ *"Every milestone closed" is not true and was written
+here: **M5.3 has no ✅** in `implementation-plan.md`.* The question bank is **2.1%** — 21 of
 1000 questions (measured today: 7 each in `solo_ar`, `solo_en`, `solo_tr`).
 Weighting engineering at 60% and content at 40%: `(0.60 × 95) + (0.40 × 2.1) ≈ 58`.
 **The engineering is nearly done; content and the items below are the gap.**
 
-**Integration Ready**, not Beta Ready: production has been down 12 days, no push
-has ever reached any phone, the RevenueCat webhook answers **HTTP 403** (verified
-today), and nothing is watching production. *Beta Ready* would mean real people
+**Integration Ready**, not Beta Ready: no push has ever reached any phone, the
+listing is unpublished, and nothing is watching production. *(The webhook's
+**HTTP 403** stood here until 2026-09-03; it now answers its own JSON — item 2.)* *Beta Ready* would mean real people
 using real features on real devices, and that has never happened.
 
-**To reach Beta Ready:** billing restored and verified · one push delivered to a
-real phone · a current build on devices (the last is **25 days** old) · the drift
-checks measuring instead of skipping.
+**To reach Beta Ready:** ~~billing restored and verified~~ ✅ · one push delivered
+to a real phone · a current build on devices (**a build is in flight** — item 4) ·
+the drift checks measuring instead of skipping.
 
 ---
 
@@ -40,7 +41,7 @@ checks measuring instead of skipping.
 
 Ordered by how much each unblocks. Every line below was verified on 2026-09-03.
 
-### 1. ✅ Billing is RESTORED — waiting on the first successful sweep
+### 1. ✅ CLOSED — billing restored and the sweep proven
 
 **Done 2026-09-03 ~22:05 UTC.** Account `01D7C5-DBC2D5-E53938` (the one already
 linked to `hayatiapp-prod`) was **activated** — the payment instrument is on
@@ -77,9 +78,10 @@ status.code     : 13          <-- that attempt FAILED; billing was still off
 scheduleTime    : 2026-09-03T23:00:00Z   <-- the next attempt
 ```
 
-> **The next hourly sweep is the proof.** Re-run:
-> `python3 tool/ci/prod_pulse.py --project hayatiapp-prod --from-firebase-cli`
-> — **0** means the daily loop is genuinely running.
+**The next hourly sweep was the proof, and it passed.** The **23:00 UTC** run
+completed — `question_rollover: sweep complete`, `assigned=1, failed=0,
+seasonalCalendarUnavailable=False` — and `prod_pulse` now exits **0**. The daily
+loop is genuinely running. **Nothing further is needed from you on this item.**
 
 ⚠️ **`status.code` has no `message` field.** Reading it with a `.get("message",
 "…succeeded")`-shaped default prints a confident success line while the code says
@@ -113,7 +115,7 @@ an unauthorized caller"*. Getting **401 and not 503**, with no header sent, mean
 |---|---|
 | the container runs | a JSON body came back, not Google's HTML error page — **billing works** |
 | the request reaches it | not a Cloud Run 403 — **the invoker grant works** (granted 2026-09-03, `allUsers` → `roles/run.invoker`) |
-| `RC_WEBHOOK_TOKEN` is set and non-empty | the 503 branch was **not** taken — **the secret is bound and populated** (version 1, revision `revenuecatwebhook-00005-mok`) |
+| `RC_WEBHOOK_TOKEN` is set and non-empty | the 503 branch was **not** taken — **the secret is bound and populated** (**version 2**, revision `revenuecatwebhook-00007-tof`, redeployed 2026-09-03; the invoker grant survived the redeploy and `functions_drift` exits **0**) |
 
 This is `session-context.md` §8's own test — *"JSON = fixed, HTML 403 = broken"* —
 answering **fixed**.
@@ -124,9 +126,9 @@ RevenueCat sends whatever is in its dashboard **verbatim** in the `Authorization
 header — no `Bearer`, no HMAC (ADR-013 D1). Nothing here can read RevenueCat's
 console, so this is yours:
 
-> **Read the value:** Secret Manager → `RC_WEBHOOK_TOKEN` → version 1 → *View
-> secret value*. (Or, after `gcloud auth login`:
-> `gcloud secrets versions access 1 --secret=RC_WEBHOOK_TOKEN --project=hayatiapp-prod`.)
+> **Read the value:** Secret Manager → `RC_WEBHOOK_TOKEN` → **version 2** (the
+> live one — version 1 is superseded) → *View secret value*. (Or, after
+> `gcloud auth login`: `gcloud secrets versions access 2 --secret=RC_WEBHOOK_TOKEN --project=hayatiapp-prod`.)
 >
 > **RevenueCat** → your project → **Integrations → Webhooks**:
 > URL `https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app`,
@@ -166,15 +168,22 @@ the deploy one are **read-only** service accounts.
 
 ### 4. Cut a build, install it, allow notifications
 
-The last build is **119, cut 2026-08-09 — 25 days ago.** Everything merged since
-is on nobody's phone.
+The last build on devices is **119, cut 2026-08-09 — 26 days ago.** Everything
+merged since is on nobody's phone.
 
-> Dispatch the release lane → install from TestFlight → open the app to the paired
-> home screen → tap **Allow** on the notification prompt.
+**A new build was dispatched 2026-09-04** (release run **#20**, from `main`) at
+your request. Its number is `100 + run number`.
 
-⚠️ **Do this after item 1.** Before billing is restored the registration call is
-refused, so you would spend the permission prompt — which iOS shows **once per
-install** — and learn nothing.
+> Install it from TestFlight → open the app to the paired home screen → tap
+> **Allow** on the notification prompt.
+
+✅ **Item 1's precondition is now met**, which is why this is your turn: before
+billing was restored the registration call was refused, and you would have spent
+the permission prompt — which iOS shows **once per install** — for nothing.
+
+⚠️ **This is the first push ever attempted.** 0 of 4 registered devices have
+received one. A silent failure here is a *finding*, not a mistake — report what
+the phone does.
 
 ### 5. The legal bundle — one decision, three drafted parts, six questions
 
@@ -182,11 +191,15 @@ install** — and learn nothing.
 is **not in force**: `CURRENT_LEGAL_VERSION` is still **2** and nobody has been
 re-prompted.
 
-| | the gap it closes |
-|---|---|
-| **#226** | the notice denies push, and never names the device address or the phone's own status report |
-| **#249** | the record of your consent — version, when, age confirmation — is stored, handed over on request, and named nowhere |
-| **#258** | what account deletion actually removes was under-described |
+| | the gap it closes | issue |
+|---|---|---|
+| **#226** | the notice denies push, and never names the device address or the phone's own status report | **OPEN** |
+| **#249** | the record of your consent — version, when, age confirmation — is stored, handed over on request, and named nowhere | **closed** — the clause is in the draft |
+| **#258** | what account deletion actually removes was under-described | **closed** — the clause is in the draft |
+
+⚠️ **Two of those three issues are closed and the third is not.** Closing them
+recorded that the *wording exists*; it did not put it in force. The decision below
+is what puts it in force, and it is unaffected by the issue tracker.
 
 **What is needed from you:** read the draft, put it in front of your lawyer with
 the **six** questions in `docs/legal/README.md`, and say go — or say what to change.
@@ -308,8 +321,8 @@ Turkish solo pack, a known placeholder. Target: 400/300/300.
 
 Item 3's watcher catches the *symptom* days late; a budget alert catches the
 *cause*. **Had one existed, the outage just closed would have been hours rather
-than 12 days.** Billing is live again as of today and **nothing is watching the
-bill.**
+than 12 days.** Billing has been live since **2026-09-03** and **nothing is watching
+the bill.**
 
 ⚠️ **The URL this item carried was the CLOSED account** (`012195-7EF76F-3A9083`)
 and would have sent you to the wrong place. The live one:
