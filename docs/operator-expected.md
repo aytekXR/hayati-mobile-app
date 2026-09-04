@@ -15,7 +15,7 @@
 | | |
 |---|---|
 | Completion | **~58%** of the iOS MVP, to public launch |
-| Production Readiness | **Integration Ready** |
+| Production Readiness | **Integration Ready** — build **120** is on TestFlight; the first push is now testable |
 | Production | 🟢 **UP.** Billing restored 2026-09-03 ~22:05 UTC after 12 days down; the **23:00 UTC sweep completed** (`assigned=1, failed=0`) and `prod_pulse` exits **0** — item 1 |
 | Open operator items | **1, 2 and 10 DONE**; **9 is now the urgent one** — billing is live and nothing watches the bill; 3–8 stand |
 
@@ -171,10 +171,12 @@ the deploy one are **read-only** service accounts.
 The last build on devices is **119, cut 2026-08-09 — 26 days ago.** Everything
 merged since is on nobody's phone.
 
-**A new build was dispatched 2026-09-04** (release run **#20**, from `main`) at
-your request. Its number is `100 + run number`.
+✅ **Build 120 is on TestFlight.** Release run **#20** from `main`, 2026-09-04:
+uploaded 00:47:48 UTC (*"Successfully uploaded package to App Store Connect"*) and
+**assigned to the `Friends` group at 00:54:05** — `assigned build 120 to 'Friends'`,
+7 testers. Read from the job log, not from the green tick.
 
-> Install it from TestFlight → open the app to the paired home screen → tap
+> Install **120** from TestFlight → open the app to the paired home screen → tap
 > **Allow** on the notification prompt.
 
 ✅ **Item 1's precondition is now met**, which is why this is your turn: before
@@ -218,10 +220,16 @@ release notes, privacy URL or support URL. The only field ever set is the app's
 
 ```
 audited App Store version: 1.0 state=PREPARE_FOR_SUBMISSION
+FINDING: 8 problem(s) with the published copy.
   - en-US: description differs — PUBLISHED IS EMPTY — published 0 vs committed 1454 code points
   ... all seven the same ...
-  - tr: NOT PUBLISHED
+  - tr: NOT PUBLISHED — no localization exists on the editable App Store version
 ```
+
+*Re-measured **in the release lane itself** on 2026-09-04 (run #20) — the first
+time this audit has ever run in position rather than on a branch. It exited **1**
+with all 8 findings and, correctly, **did not redden the release**: the binary
+shipped anyway (ADR-020 D8's rule, working as designed).*
 
 Two consequences: **publishing our copy cannot overwrite anything of yours** —
 there is nothing there — and **a listing with no description, subtitle, keywords
@@ -232,9 +240,22 @@ settling (a).
 
 #### 6(a) — The Turkish name. Apple refuses `ikimiz` for `tr`
 
-The `tr` listing has failed to publish on **every release since build 112**.
-Apple's refusal is *"the app name is already being used by another app"* — display
-names are unique per locale and someone else holds this one for Turkish. **A
+The `tr` listing has failed to publish on **every release since build 112**, and
+**build 120 confirmed it again in position.** Apple's exact words, from run #20's
+log — `deliver` dies at `Activating version language tr...`, one second in:
+
+```
+Spaceship::UnexpectedResponse
+[!] Cannot add localization due to app name. - You cannot add this
+    localization because the app name is already being used by another
+    app. If you have trademark rights to this name and would like it
+    released for your use, submit a claim.
+```
+
+⚠️ **It aborts the whole lane step, so the English half never gets its turn
+either** — which is exactly why `publish-store-metadata.yml` exists: it writes
+**per locale**, so `tr`'s refusal no longer takes `en-US` down with it. Display
+names are unique per locale and someone else holds `ikimiz` for Turkish. **A
 product decision, not a click** (#204). Three options, none a session should pick:
 
 1. a distinct Turkish display name in `fastlane/metadata/tr/name.txt`;
@@ -302,6 +323,13 @@ you less today than when this was last considered.**
 > **The decision:** yes, once, for this purpose — or no, and it waits for your next
 > real release. A dispatch uploads a real binary to your TestFlight; that is the
 > cost, and about 30 free macOS minutes otherwise.
+
+⚠️ **A release WAS dispatched on 2026-09-04 (run #20) and this experiment was NOT
+run in it.** You asked for a TestFlight build, so the lane went out **unmodified**
+— the `.p8` step wrote to its normal path and the run passed. That is the correct
+reading of what you authorised, and it means **#121 is exactly as open as it was**:
+the redirect still needs its own dispatch. Recorded so nobody later mistakes run
+#20's green for the experiment's answer.
 
 ### 7. Content — the largest single gap in the product
 
