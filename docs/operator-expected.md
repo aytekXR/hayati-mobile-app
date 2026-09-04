@@ -16,23 +16,24 @@
 |---|---|
 | Completion | **~58%** of the iOS MVP, to public launch |
 | Production Readiness | **Integration Ready** |
-| Production | 🔴 **DOWN for 12 days** (since 2026-08-22) |
-| Open operator items | **10**, none closed yet |
+| Production | 🟢 **UP.** Billing restored 2026-09-03 ~22:05 UTC after 12 days down; the **23:00 UTC sweep completed** (`assigned=1, failed=0`) and `prod_pulse` exits **0** — item 1 |
+| Open operator items | **1, 2 and 10 DONE**; **9 is now the urgent one** — billing is live and nothing watches the bill; 3–8 stand |
 
-**Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — every milestone closed,
-the code builds, signs and passes its gates. The question bank is **2.1%** — 21 of
+**Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — the code builds, signs
+and passes its gates. ⚠️ *"Every milestone closed" is not true and was written
+here: **M5.3 has no ✅** in `implementation-plan.md`.* The question bank is **2.1%** — 21 of
 1000 questions (measured today: 7 each in `solo_ar`, `solo_en`, `solo_tr`).
 Weighting engineering at 60% and content at 40%: `(0.60 × 95) + (0.40 × 2.1) ≈ 58`.
 **The engineering is nearly done; content and the items below are the gap.**
 
-**Integration Ready**, not Beta Ready: production has been down 12 days, no push
-has ever reached any phone, the RevenueCat webhook answers **HTTP 403** (verified
-today), and nothing is watching production. *Beta Ready* would mean real people
+**Integration Ready**, not Beta Ready: no push has ever reached any phone, the
+listing is unpublished, and nothing is watching production. *(The webhook's
+**HTTP 403** stood here until 2026-09-03; it now answers its own JSON — item 2.)* *Beta Ready* would mean real people
 using real features on real devices, and that has never happened.
 
-**To reach Beta Ready:** billing restored and verified · one push delivered to a
-real phone · a current build on devices (the last is **25 days** old) · the drift
-checks measuring instead of skipping.
+**To reach Beta Ready:** ~~billing restored and verified~~ ✅ · one push delivered
+to a real phone · a current build on devices (**a build is in flight** — item 4) ·
+the drift checks measuring instead of skipping.
 
 ---
 
@@ -40,95 +41,115 @@ checks measuring instead of skipping.
 
 Ordered by how much each unblocks. Every line below was verified on 2026-09-03.
 
-### 1. 🔴 Restore billing — 12 days down, everything waits on it
+### 1. ✅ CLOSED — billing restored and the sweep proven
 
-Account **`012195-7EF76F-3A9083`** is **closed**, and both projects report billing
-**off at the project**, not only at the card.
+**Done 2026-09-03 ~22:05 UTC.** Account `01D7C5-DBC2D5-E53938` (the one already
+linked to `hayatiapp-prod`) was **activated** — the payment instrument is on
+someone else's identity, which is why our token could not see it open earlier.
+Both conditions now hold, which is the pair ADR-066 exists to keep apart:
 
-**Blocked by this:** every server function. No daily question is assigned, no
-notification is composed, no purchase can be processed.
+```
+projects/hayatiapp-prod/billingInfo   billingEnabled : true    (LINKED)
+billingAccounts/01D7C5-DBC2D5-E53938  open           : true    (PAYING)
+```
 
-#### 1.1 — Why a paid plan is unavoidable
+**What came back with it**, measured rather than assumed:
 
-Not a preference — an architectural consequence. `functions/src/index.ts` exports
-**nine Cloud Functions**, and they are the product:
+| | before | now |
+|---|---|---|
+| Cloud Scheduler API | HTTP 403 — the API was off with billing | **readable**; job **ENABLED** |
+| `revenueCatWebhook` | HTML 500 *"billing is disabled"* | **the function's own JSON** — see item 2 |
 
-| function | what it is |
+⚠️ **Not finished yet, and the remaining line is honest:** no
+`question_rollover: sweep complete` record exists, because the **22:00 UTC sweep
+attempted and failed** (gRPC 13) — billing was restored a few minutes *after* it
+ran. `prod_pulse` still exits **1**, correctly: it is keyed on the sweep's own
+record, so a punctual scheduler over a backend that was dead at the time reads
+red (ADR-063).
+
+**The scheduler's own record, read today**, so the next reader knows exactly what
+to look for rather than re-deriving it:
+
+```
+state           : ENABLED
+schedule        : 0 * * * *   (Etc/UTC — hourly, on the hour)
+lastAttemptTime : 2026-09-03T22:00:00Z
+status.code     : 13          <-- that attempt FAILED; billing was still off
+scheduleTime    : 2026-09-03T23:00:00Z   <-- the next attempt
+```
+
+**The next hourly sweep was the proof, and it passed.** The **23:00 UTC** run
+completed — `question_rollover: sweep complete`, `assigned=1, failed=0,
+seasonalCalendarUnavailable=False` — and `prod_pulse` now exits **0**. The daily
+loop is genuinely running. **Nothing further is needed from you on this item.**
+
+⚠️ **`status.code` has no `message` field.** Reading it with a `.get("message",
+"…succeeded")`-shaped default prints a confident success line while the code says
+13 — which happened today. Read `status.code`, not a message that is not there.
+
+⚠️ **`hayatiapp-dev` stays unbilled** (your decision). It is still linked to the
+old closed `012195-7EF76F-3A9083` and reports `billingEnabled: false`. The cost is
+that dev Functions cannot be deployed or exercised, so `session-context.md`'s
+*"dev is a session's to exercise"* does not hold while this stands. CI is
+unaffected — the emulator suites run against `demo-hayati`.
+
+⚠️ **Item 9 is now the urgent one.** Billing is live and **nothing is watching the
+bill.**
+
+### 2. ✅ The webhook works — only RevenueCat's own dashboard is unverified
+
+Three things were needed and all three are now **proven by the function's own
+response**, not inferred:
+
+```
+$ curl -X POST https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app -d '{}'
+HTTP 401  {"error":"unauthorized"}
+```
+
+That single line settles all of it, because of how the handler is ordered
+(`revenuecat-webhook.ts`): the **503 `unconfigured`** branch is checked
+**before** the token compare, *"so a misconfiguration can never be mistaken for
+an unauthorized caller"*. Getting **401 and not 503**, with no header sent, means:
+
+| | proof |
 |---|---|
-| `createInvite` · `invitePreview` · `joinInvite` | the entire pairing flow |
-| `questionRollover` | the sweep that assigns the daily question |
-| `answerReveal` | the reveal — the app's central moment |
-| `registerPushToken` · `unregisterPushToken` | notifications |
-| `revenueCatWebhook` | purchase → Premium |
-| `coachProxy` | the coach |
+| the container runs | a JSON body came back, not Google's HTML error page — **billing works** |
+| the request reaches it | not a Cloud Run 403 — **the invoker grant works** (granted 2026-09-03, `allUsers` → `roles/run.invoker`) |
+| `RC_WEBHOOK_TOKEN` is set and non-empty | the 503 branch was **not** taken — **the secret is bound and populated** (**version 2**, revision `revenuecatwebhook-00007-tof`, redeployed 2026-09-03; the invoker grant survived the redeploy and `functions_drift` exits **0**) |
 
-**Cloud Functions do not run on the free (Spark) plan.** That is what item 1 has
-always been about, and it is why every other server item below is downstream.
-ADR-002 chose Firebase over Supabase with vendor lock-in recorded as an accepted
-trade-off; leaving it now would mean rewriting all nine functions, the security
-rules, auth, offline persistence, push and the data model. It is a rebuild, not a
-setting.
+This is `session-context.md` §8's own test — *"JSON = fixed, HTML 403 = broken"* —
+answering **fixed**.
 
-⚠️ **The app does not merely lose features without it — it does not start.** The
-boot initialises Firebase before the first frame; if that fails the app shows
-`BootFailureApp`, a failure screen (ADR-039).
+#### 2.1 — The one thing left: does RevenueCat send the same string?
 
-#### 1.2 — How to get it: two routes
+RevenueCat sends whatever is in its dashboard **verbatim** in the `Authorization`
+header — no `Bearer`, no HMAC (ADR-013 D1). Nothing here can read RevenueCat's
+console, so this is yours:
 
-**Route A — reopen the account you already have** (preferred; keeps the history
-and the same id):
+> **Read the value:** Secret Manager → `RC_WEBHOOK_TOKEN` → **version 2** (the
+> live one — version 1 is superseded) → *View secret value*. (Or, after
+> `gcloud auth login`: `gcloud secrets versions access 2 --secret=RC_WEBHOOK_TOKEN --project=hayatiapp-prod`.)
+>
+> **RevenueCat** → your project → **Integrations → Webhooks**:
+> URL `https://revenuecatwebhook-mzym2uw5gq-ew.a.run.app`,
+> **Authorization** = that exact string, no prefix.
+>
+> **Then press RevenueCat's "Send test event".** A 200 there is end-to-end proof.
+> A 401 means the two strings differ.
 
-1. Open <https://console.cloud.google.com/billing/012195-7EF76F-3A9083>
-2. If it reads *closed*, use the reactivate/reopen action and attach a working
-   payment method.
-3. Confirm **both** `hayatiapp-prod` **and** `hayatiapp-dev` are linked to it.
+**Where RevenueCat's three credentials go**, since they are easy to confuse and
+only two exist here:
 
-**Route B — create a fresh billing account** (if A refuses, e.g. the card or the
-account cannot be recovered):
+| credential | shape | where it lives |
+|---|---|---|
+| iOS **publishable** SDK key | `appl_…` | repo **variable** `REVENUECAT_IOS_API_KEY` — ships in the binary, public by design. **Already set** |
+| webhook **shared token** | a string you choose | Secret Manager `RC_WEBHOOK_TOKEN` **and** the RC dashboard. **Google side done** |
+| **v2 secret API key** | `sk_…` | ⚠️ **nothing in this repository reads one.** ADR-013's mirror is webhook-driven and never calls RevenueCat's REST API; #41 lists RC-REST reconciliation as future work |
 
-1. <https://console.cloud.google.com/billing> → **Create account**.
-2. Choose country and add a card. ⚠️ **The currency is fixed when the account is
-   created and cannot be changed afterwards** — pick deliberately.
-3. Link both projects. Per project:
-   `https://console.cloud.google.com/billing/linkedaccount?project=hayatiapp-prod`
-   and the same URL with `project=hayatiapp-dev`.
-
-**Then, on the Firebase side**, make sure each project is on **Blaze**:
-Firebase Console → the project → ⚙ **Project settings** → **Usage and billing** →
-**Details & settings** → **Modify plan** → **Blaze (pay as you go)**.
-
-#### 1.3 — What it should cost, and the one thing to do while you are in there
-
-Blaze is pay-as-you-go and **keeps Spark's free quotas**. With **no live users**
-and production currently serving nothing, the expected bill is negligible. The
-real risk is not the amount — it is that **nobody is watching it**, which is
-exactly **item 9**.
-
-> **Do item 9 in the same sitting.** It takes a minute and it is the difference
-> between finding out in hours and finding out in days.
-
-#### 1.4 — How to confirm it worked
-
-The Firebase Console showing **Blaze** on both projects is the first check. The
-authoritative one needs **item 10** done first:
-
-```sh
-python3 tool/ci/prod_pulse.py --from-firebase-cli   # 0 = the loop is running
-```
-
-⚠️ Until item 10 is done this answers **`2 — could not measure`**, which means
-*"I cannot see"*, **not** *"production is down"*. Do not read one as the other.
-
-### 2. Grant the RevenueCat webhook a public invoker — money is at stake
-
-Verified today: the webhook answers **HTTP 403**, so RevenueCat cannot deliver.
-**A real purchase would charge the customer and never unlock Premium** (#115).
-
-```sh
-gcloud run services add-iam-policy-binding revenuecatwebhook \
-  --region=europe-west1 --project=hayatiapp-prod \
-  --member=allUsers --role=roles/run.invoker
-```
+⚠️ **No credential is ever committed** (`architecture.md` §9). Secrets reach CI via
+`gh secret set` and the Function via Secret Manager — never a file in the tree, and
+never a `workflow_dispatch` input, because this repository is **public**. **A key
+pasted into a chat, an issue or a PR is a burned key — rotate it.**
 
 ### 3. Four secrets — without them, nothing is watching production
 
@@ -147,15 +168,22 @@ the deploy one are **read-only** service accounts.
 
 ### 4. Cut a build, install it, allow notifications
 
-The last build is **119, cut 2026-08-09 — 25 days ago.** Everything merged since
-is on nobody's phone.
+The last build on devices is **119, cut 2026-08-09 — 26 days ago.** Everything
+merged since is on nobody's phone.
 
-> Dispatch the release lane → install from TestFlight → open the app to the paired
-> home screen → tap **Allow** on the notification prompt.
+**A new build was dispatched 2026-09-04** (release run **#20**, from `main`) at
+your request. Its number is `100 + run number`.
 
-⚠️ **Do this after item 1.** Before billing is restored the registration call is
-refused, so you would spend the permission prompt — which iOS shows **once per
-install** — and learn nothing.
+> Install it from TestFlight → open the app to the paired home screen → tap
+> **Allow** on the notification prompt.
+
+✅ **Item 1's precondition is now met**, which is why this is your turn: before
+billing was restored the registration call was refused, and you would have spent
+the permission prompt — which iOS shows **once per install** — for nothing.
+
+⚠️ **This is the first push ever attempted.** 0 of 4 registered devices have
+received one. A silent failure here is a *finding*, not a mistake — report what
+the phone does.
 
 ### 5. The legal bundle — one decision, three drafted parts, six questions
 
@@ -163,11 +191,15 @@ install** — and learn nothing.
 is **not in force**: `CURRENT_LEGAL_VERSION` is still **2** and nobody has been
 re-prompted.
 
-| | the gap it closes |
-|---|---|
-| **#226** | the notice denies push, and never names the device address or the phone's own status report |
-| **#249** | the record of your consent — version, when, age confirmation — is stored, handed over on request, and named nowhere |
-| **#258** | what account deletion actually removes was under-described |
+| | the gap it closes | issue |
+|---|---|---|
+| **#226** | the notice denies push, and never names the device address or the phone's own status report | **OPEN** |
+| **#249** | the record of your consent — version, when, age confirmation — is stored, handed over on request, and named nowhere | **closed** — the clause is in the draft |
+| **#258** | what account deletion actually removes was under-described | **closed** — the clause is in the draft |
+
+⚠️ **Two of those three issues are closed and the third is not.** Closing them
+recorded that the *wording exists*; it did not put it in force. The decision below
+is what puts it in force, and it is unaffected by the issue tracker.
 
 **What is needed from you:** read the draft, put it in front of your lawyer with
 the **six** questions in `docs/legal/README.md`, and say go — or say what to change.
@@ -285,27 +317,52 @@ Turkish solo pack, a known placeholder. Target: 400/300/300.
 - **Sandbox purchase test**, once Apple's pricing propagation clears.
 - **Enable Dependabot alerts** (~1 min); optionally make `gemfile-lock-verify` a required check.
 
-### 9. A Firebase budget alert
+### 9. ⚠️ A budget alert — now the most urgent thing on this page
 
 Item 3's watcher catches the *symptom* days late; a budget alert catches the
-*cause*. **Had one existed, the current outage would have been hours rather than
-days.**
+*cause*. **Had one existed, the outage just closed would have been hours rather
+than 12 days.** Billing has been live since **2026-09-03** and **nothing is watching
+the bill.**
 
-> <https://console.cloud.google.com/billing/012195-7EF76F-3A9083/budgets> →
-> **Create budget** → scope it to the billing account → set an amount and the
-> alert thresholds → make sure the notification email is one you read.
+⚠️ **The URL this item carried was the CLOSED account** (`012195-7EF76F-3A9083`)
+and would have sent you to the wrong place. The live one:
 
-⚠️ **Do this in the same sitting as item 1**, while you are already in the billing
-console. It is the cheapest protection on this page.
+> <https://console.cloud.google.com/billing/01D7C5-DBC2D5-E53938/budgets>
+> → **CREATE BUDGET**
 
-### 10. The dev box needs YOUR Firebase sign-in
+| field | what to choose |
+|---|---|
+| **Scope** | Projects → **`hayatiapp-prod`** only. The account now carries someone else's spending too; scoping to the project keeps their costs out of your alerts |
+| **Amount** | a small **monthly** figure. With no live users real spend should be ≈ zero, so this is an **early warning**, not a cap — set it low enough to fire before a runaway costs anything |
+| **Thresholds** | 50% / 90% / 100%, on **Actual** spend (not *Forecasted* — you want what happened, not a prediction) |
+| **Email** | ⚠️ see below |
+
+⚠️ **Check the email recipients explicitly.** Budget alerts default to the billing
+account's admins, and **the account is on someone else's identity now** — so the
+warning could land with them and not you. Verified today that your identity does
+hold `billing.accounts.update` and `billing.budgets.create` on it, so you should
+be among the defaults; confirm it on the creation screen anyway. **An alert sent
+to an address you do not read is not an alert.**
+
+⚠️ **A session cannot do this one for you**, and the reason is worth recording so
+nobody retries it: the Cloud Billing Budget API answers `SERVICE_DISABLED` for the
+firebase CLI's own consumer project (`563584335869` — Google's, not yours), so the
+API path is closed from here even though the permission is present. **The console
+enables it for you in the same flow.**
+
+### 10. ✅ DONE — the dev box is signed in (kept for the trap it left behind)
 
 The machine was rebuilt around **2026-08-31**. A session restored everything it
 could by itself — Flutter, Java, the Dart SDK and `firebase-tools` are all back and
 app-side checks run locally again. **What is left is the one step that is yours**,
 because it is an interactive sign-in with your Google identity:
 
-> On the dev box: `firebase login`
+✅ **Done on 2026-09-03.** `prod_pulse.py --from-firebase-cli` now returns a real
+verdict instead of *"could not measure"*, and that is how item 1's state above was
+established.
+
+**This item stays on the page only for its trap**, which cost a measurement
+earlier the same day and will recur on the next rebuild:
 
 ⚠️ **Do not check this by looking for the file.**
 `~/.config/configstore/firebase-tools.json` **exists today and is still not a
@@ -316,14 +373,11 @@ to run a probe:
 python3 tool/ci/prod_pulse.py --from-firebase-cli   # 2 = still not logged in
 ```
 
-**Blocked by this:** every local production check — `prod_pulse.py`,
-`push_delivery_probe.py`, `rules_drift.py`, `functions:log`, `functions:list`. They
-all answer *"could not measure"*, which is honest, but it means **a session cannot
-tell the difference between "production is down" and "I cannot see production"**
-without you.
-
-Not urgent while production is down anyway. **It becomes urgent the moment you do
-item 1**, because that is when someone needs to confirm it worked.
+`~/.config/configstore/firebase-tools.json` **existed while still not being a
+login** — installing `firebase-tools` creates it empty, and only the `tokens` key
+appearing makes it real. The only honest check is to run a probe and read its exit
+code. **Delete this item once it has survived one rebuild without anyone falling
+for it.**
 
 ---
 
@@ -334,8 +388,8 @@ session can fix it.
 
 These block **public launch**:
 
-1. **Nothing runs on the server** — item 1. Every item below is downstream.
-2. **Payments cannot complete** — item 2, and refused by the serving layer anyway until item 1.
+1. ~~Nothing runs on the server~~ — **billing restored 2026-09-03**; awaiting the first successful sweep (item 1).
+2. **Payments** — Google's side is done and proven; what remains is matching the token in RevenueCat's dashboard (item 2.1).
 3. **Push has never been delivered** — item 4; 0 of 4 devices registered.
 4. **The App Store listing is not submittable** — seven of nine English fields empty at Apple, Turkish absent. Items 6(a) and 6(b).
 5. **Prod-vs-`main` drift is unmeasured**, not passing — both checks skip for one missing secret (item 3).

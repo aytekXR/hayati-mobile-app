@@ -46,7 +46,7 @@ _Environment facts below were last re-measured **2026-08-05**._
 * **A concurrent session on another machine can merge to `main` and consume your session
   number.** Re-derive the session number and the queue from `git log` + `gh issue list`,
   never from a document's prose.
-* `gcloud` is **not installed** and there is **no ADC**. ~~Cloud Scheduler and Eventarc state
+* ⚠️ **`gcloud` IS installed** since the rebuild — `/snap/bin/gcloud`, measured S099 — but it has **no credentialed accounts** (`gcloud auth list` → *No credentialed accounts*), so every `gcloud` command needs an interactive `gcloud auth login` first. There is still **no ADC**. *(This line said `gcloud` was not installed at all until S099; the conclusion below is unaffected, because the firebase-CLI token is still the credential a session actually has.)* ~~Cloud Scheduler and Eventarc state
   cannot be verified from here.~~ **That was wrong, and it cost 37 hours (S068, #219.)**
   The firebase CLI's stored refresh token carries the **`cloud-platform`** scope, so
   `tool/ci/rules_drift.py`'s existing `token_from_firebase_cli()` mints a token that reads
