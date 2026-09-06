@@ -254,6 +254,18 @@ jobs:
       # mapping each reddens the assertion that names it.
       - name: app id capability WRITE self-tests
         run: python3 tool/ci/appid_capability_enable_test.py
+      # ADR-075. The capability probe answers "is it ticked on the App ID"; this
+      # one answers the question a PHONE asks — "does the profile we sign with
+      # actually GRANT it" — and the two came apart in production on 2026-09-06.
+      # Registered in the same commit as the tool: an unregistered test is a
+      # green run that proves nothing, and this one guards a decision (ask the
+      # founder for a MATCH_BOOTSTRAP release) that is expensive in both
+      # directions. The load-bearing assertions are the could-not-measure ones —
+      # no profile, wrong type, another app's profile and an undecodable blob
+      # must never read as "the entitlement is missing", because that sends
+      # someone to regenerate a signing artifact on no evidence.
+      - name: provisioning profile entitlement probe self-tests
+        run: python3 tool/ci/profile_entitlements_test.py
       # ADR-034: the behavioural half of the advisory-delta gate. The gate itself
       # runs in functions-rules (it needs npm); these tests are hermetic — no npm,
       # no network, no emulator — so they belong here with the other pre-`pub get`

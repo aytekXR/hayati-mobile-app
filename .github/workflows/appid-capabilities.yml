@@ -58,6 +58,10 @@ on:
         description: 'Comma-separated capabilities that must be ticked (blank = plain read-out)'
         required: false
         default: 'PUSH_NOTIFICATIONS,ASSOCIATED_DOMAINS,APP_ATTEST'
+      require_entitlements:
+        description: 'Comma-separated entitlements the PROVISIONING PROFILE must grant (blank = skip)'
+        required: false
+        default: 'aps-environment'
       enable:
         description: 'WRITES TO APPLE. One capability to tick. Needs confirm=ENABLE. Invalidates provisioning profiles.'
         required: false
@@ -157,5 +161,48 @@ jobs:
             1) echo "::error::a required capability is NOT ticked on $BUNDLE_ID — see the read-out above; this is a founder action (operator-expected 4(a) / 2(d))" ;;
             2) echo "::error::COULD NOT MEASURE the App ID capabilities — nobody looked, so nothing above is evidence about the portal" ;;
             *) echo "::error::appid_capabilities.py exited $status, which is outside its documented taxonomy" ;;
+          esac
+          exit "$status"
+      # ADR-075 — the OTHER half of the same question, and the half that turned
+      # out to matter. The step above reads the App ID; iOS reads the
+      # PROVISIONING PROFILE, and `match` fetches profiles READONLY (ADR-032) so
+      # a profile minted before a capability was ticked keeps being served
+      # forever. On 2026-09-06 PUSH_NOTIFICATIONS was ticked and no phone had an
+      # APNs address — which is exactly the state those two facts produce.
+      #
+      # `!cancelled()` rather than the default: the two reads answer INDEPENDENT
+      # questions, and a capability finding above must not swallow the profile
+      # answer below. It is read-only, so running it after a refused write is
+      # harmless and occasionally the most useful thing in the log.
+      - name: read what the provisioning profile grants
+        if: ${{ !cancelled() }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+          REQUIRE_ENTITLEMENTS: ${{ inputs.require_entitlements }}
+        run: |
+          if [ -z "$REQUIRE_ENTITLEMENTS" ]; then
+            echo "::notice::require_entitlements blank — profile read skipped"
+            exit 0
+          fi
+          args=(--bundle-id "$BUNDLE_ID")
+          IFS=',' read -r -a wanted <<< "$REQUIRE_ENTITLEMENTS"
+          for entitlement in "${wanted[@]}"; do
+            entitlement="${entitlement#"${entitlement%%[![:space:]]*}"}"
+            entitlement="${entitlement%"${entitlement##*[![:space:]]}"}"
+            if [ -n "$entitlement" ]; then args+=(--require "$entitlement"); fi
+          done
+          set +e
+          python3 tool/ci/profile_entitlements.py "${args[@]}"
+          status=$?
+          set -e
+          # Never through a pipe — `$?` after a pipe is the PIPE's status.
+          case "$status" in
+            0) echo "::notice::the profile grants every required entitlement" ;;
+            1) echo "::error::the PROFILE does not grant a required entitlement — the binary claims it and iOS will refuse it at runtime. Recovery is a one-run MATCH_BOOTSTRAP=true release; that is a founder action (ADR-032, session-context §7)" ;;
+            2) echo "::error::COULD NOT MEASURE the profile — nobody read one, so nothing above is evidence about what the release lane signs with" ;;
+            *) echo "::error::profile_entitlements.py exited $status, outside its documented taxonomy" ;;
           esac
           exit "$status"
