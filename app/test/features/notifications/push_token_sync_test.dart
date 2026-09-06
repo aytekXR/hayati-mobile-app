@@ -44,6 +44,13 @@ class _FakeRepository implements PushTokenRepository {
   }
 }
 
+/// Apple's actual sentence when the signing profile does not carry the
+/// entitlement — the string this whole slice exists to surface. Hoisted to a
+/// constant because inlining it pushes the cascade past the line limit, and a
+/// reformat is a worse reason to paraphrase Apple than none at all.
+const _apnsEntitlementRefusal =
+    "no valid 'aps-environment' entitlement string found for application";
+
 class _FakeSource implements PushTokenSource {
   String? token = 'device-token';
 
@@ -991,8 +998,7 @@ void main() {
       source
         ..tokenOnlyAfterPermission = true
         ..statusOverride = PushPermission.granted
-        ..apnsFailure =
-            "no valid 'aps-environment' entitlement string found for application";
+        ..apnsFailure = _apnsEntitlementRefusal;
       final auth = FakeAuthRepository(initialUser: user);
       final container = containerFor(auth);
       container.read(pushTokenSyncProvider);
@@ -1037,7 +1043,7 @@ void main() {
     // the enclosing catch — a claim about the PERMISSION seam, which was never
     // touched.
     test(
-      'a THROWING refusal read degrades to captureExhausted, not permissionUnreadable',
+      'a THROWING refusal read degrades to captureExhausted',
       () async {
         source
           ..tokenOnlyAfterPermission = true
