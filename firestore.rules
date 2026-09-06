@@ -47,7 +47,8 @@ service cloud.firestore {
           && request.resource.data.pushDiagnostic.at == request.time
           && (!('detail' in request.resource.data.pushDiagnostic)
             || request.resource.data.pushDiagnostic.detail in
-              ['permissionRequestRefused', 'captureExhausted', 'registerFailed', 'permissionUnreadable']));
+              ['permissionRequestRefused', 'captureExhausted', 'registerFailed', 'permissionUnreadable',
+               'apnsRegistrationRefused']));
     }
 
     // ⚠️ Load-bearing, and it protects NOTHING — it keeps a legitimate write

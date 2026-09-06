@@ -570,19 +570,41 @@ class PushTokenSync extends _$PushTokenSync {
       // capture finishing a second late overwrite a stored
       // `denied + permissionRequestRefused` — the single most valuable fact this
       // field can hold — with a detail that merely restates the state.
-      return switch (await source.permissionStatus()) {
-        PushPermission.denied => (PushRegistrationState.denied, null),
-        PushPermission.notDetermined => (
-          PushRegistrationState.notDetermined,
-          null,
-        ),
-        // Permission is held and there is still no address: the ADR-044 window,
-        // or the link ADR-046 D6 hardened. A retry is the honest offer.
-        PushPermission.granted => (
-          PushRegistrationState.awaitingDeviceToken,
-          PushDiagnosticDetail.captureExhausted,
-        ),
-      };
+      // A switch STATEMENT rather than the expression this used to be: the
+      // granted branch now needs an await of its own, and exhaustiveness is the
+      // property worth keeping — a sixth PushPermission must break this file
+      // rather than fall through to a default nobody wrote.
+      switch (await source.permissionStatus()) {
+        case PushPermission.denied:
+          return (PushRegistrationState.denied, null);
+        case PushPermission.notDetermined:
+          return (PushRegistrationState.notDetermined, null);
+        case PushPermission.granted:
+          // Permission is held and there is still no address. Until S101 that
+          // was the end of what could be said, and `captureExhausted` said it.
+          //
+          // ⚠️ ASK THE OS WHICH FAILURE THIS IS — it already knows. iOS calls
+          // `didFailToRegisterForRemoteNotificationsWithError` when APNs
+          // declines, and that answer is now readable through the port. A
+          // refusal and a silence present identically here and have opposite
+          // remedies: silence means wait (the ADR-044 window, the link ADR-046
+          // D6 hardened), refusal means the signed entitlement is wrong and no
+          // retry will ever repair it.
+          final refusal = await _apnsRefusal(source);
+          if (refusal != null) {
+            // The reason itself is never written to Firestore — the vocabulary
+            // is closed (ADR-049 D9) and an OS string is not in it. It goes to
+            // the device log, where whoever has the phone attached can read it,
+            // while the enum carries the part a session can read remotely.
+            debugPrint('PushTokenSync: APNs REFUSED registration — $refusal');
+          }
+          return (
+            PushRegistrationState.awaitingDeviceToken,
+            refusal == null
+                ? PushDiagnosticDetail.captureExhausted
+                : PushDiagnosticDetail.apnsRegistrationRefused,
+          );
+      }
     } catch (failure) {
       debugPrint(
         'PushTokenSync.permissionStatus failed: ${failure.runtimeType}',
@@ -591,6 +613,25 @@ class PushTokenSync extends _$PushTokenSync {
         PushRegistrationState.awaitingDeviceToken,
         PushDiagnosticDetail.permissionUnreadable,
       );
+    }
+  }
+
+  /// The OS's APNs refusal reason, or null — and **never a throw**.
+  ///
+  /// It has its own guard rather than riding the caller's `try` on purpose: that
+  /// one maps any escape to [PushDiagnosticDetail.permissionUnreadable], which
+  /// is a claim about the PERMISSION seam. A channel that is missing its native
+  /// half would then be reported as a broken permission read — a wrong answer
+  /// two links from the truth, which is the exact confusion ADR-049 exists to
+  /// end. Silence here degrades to the honest `captureExhausted` instead.
+  Future<String?> _apnsRefusal(PushTokenSource source) async {
+    try {
+      return await source.apnsRegistrationFailure();
+    } catch (failure) {
+      debugPrint(
+        'PushTokenSync.apnsRegistrationFailure failed: ${failure.runtimeType}',
+      );
+      return null;
     }
   }
 

@@ -71,6 +71,13 @@ class _FakeSource implements PushTokenSource {
 
   @override
   Stream<String> tokenRefreshes() => const Stream<String>.empty();
+
+  /// Null: this row's tests are about what the SCREEN shows, and ADR-046 D2
+  /// merged both no-address states into one on purpose — the person holding the
+  /// phone gets the same sentence and the same button either way. The split
+  /// this returns null for is for the session reading the report, not the user.
+  @override
+  Future<String?> apnsRegistrationFailure() async => null;
 }
 
 void main() {

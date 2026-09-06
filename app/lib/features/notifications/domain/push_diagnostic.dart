@@ -29,9 +29,33 @@ enum PushDiagnosticDetail {
   permissionRequestRefused,
 
   /// ADR-044's bounded capture loop ran to its end and produced no token, with
-  /// permission held. APNs never answered — the link ADR-042 D5 left unverified
-  /// and ADR-046 D6 hardened, or the `.p8` that no API can read.
+  /// permission held, **and iOS never said why** — no refusal was recorded.
+  /// APNs was asked and stayed silent: still thinking, unreachable, or a
+  /// handoff that never happened (the link ADR-042 D5 left unverified and
+  /// ADR-046 D6 hardened).
+  ///
+  /// ⚠️ Since S101 this is the NARROWER of a pair. It used to mean "no token,
+  /// for one of two very different reasons"; [apnsRegistrationRefused] now
+  /// carries the other one, and the remedies diverge completely — this one says
+  /// wait and retry, that one says the entitlement is wrong and no amount of
+  /// waiting will fix it.
   captureExhausted,
+
+  /// Permission is held and **iOS actively REFUSED** to register this device
+  /// with APNs — `didFailToRegisterForRemoteNotificationsWithError` fired
+  /// (S101).
+  ///
+  /// The sharper sibling of [captureExhausted], and it outranks it wherever
+  /// both are true: a refusal is a statement, an exhausted loop is the absence
+  /// of one. The classic cause is an `aps-environment` entitlement the signing
+  /// profile does not carry, which no retry, no reinstall and no permission
+  /// grant can repair — it needs a new build.
+  ///
+  /// **This fact was computed by the OS on every affected launch and thrown
+  /// away**: `firebase_messaging` handles the callback with a bare `NSLog`,
+  /// which on a TestFlight build reaches nobody. The whole point of this member
+  /// is that "nothing arrived" stops being one symptom with four causes.
+  apnsRegistrationRefused,
 
   /// A token existed and `registerPushToken` threw. The device is fine; the
   /// server leg is not. This is the #219 shape, and it is invisible in

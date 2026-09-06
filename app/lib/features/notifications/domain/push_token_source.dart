@@ -106,4 +106,23 @@ abstract interface class PushTokenSource {
   /// Tokens as FCM rotates them. A refresh invalidates the previous token, so
   /// each event is a full re-registration rather than an addition.
   Stream<String> tokenRefreshes();
+
+  /// Why the platform REFUSED to give this device a push address, or null.
+  ///
+  /// **The question [isReadyForToken] cannot answer.** That one reports whether
+  /// an address has arrived; a `false` from it is the same `false` whether APNs
+  /// is still thinking or has already declined. Those two have opposite
+  /// remedies — wait, versus fix the entitlement — and telling them apart cost
+  /// this project builds 115–120 and every notification anyone ever expected.
+  ///
+  /// Null is the ORDINARY answer and must never be read as health: it says only
+  /// that no refusal has been recorded. Implementations with no such concept
+  /// (every non-iOS platform, and every fake that does not model one) return
+  /// null, so a caller gains resolution where it exists and loses nothing where
+  /// it does not.
+  ///
+  /// Fail-open like the rest of this port: an implementation that cannot answer
+  /// returns null rather than throwing. A diagnostic that can throw into the
+  /// boot path is a worse bug than the blindness it cures (ADR-039 D1).
+  Future<String?> apnsRegistrationFailure();
 }

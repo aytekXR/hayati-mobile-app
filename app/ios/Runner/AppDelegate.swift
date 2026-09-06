@@ -54,12 +54,67 @@ import UIKit
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
+    // An address arrived, so any earlier refusal is HISTORY, not the current
+    // state. Leaving it set would let one transient failure at launch label a
+    // working device "refused" for the rest of the install — the diagnostic's
+    // job is to describe now, and a stale fact reads exactly like a fresh one.
+    AppDelegate.apnsRegistrationFailure = nil
     if FirebaseApp.app() != nil {
       Messaging.messaging().apnsToken = deviceToken
     }
     super.application(
       application,
       didRegisterForRemoteNotificationsWithDeviceToken: deviceToken
+    )
+  }
+
+  /// Why iOS refused to register this device with APNs, or nil.
+  ///
+  /// Main-thread only by construction: both remote-notification callbacks and
+  /// the `FlutterMethodChannel` handler that reads this all run on the platform
+  /// thread, so a plain static needs no synchronisation. It is deliberately NOT
+  /// persisted — a refusal from a previous launch says nothing about this one.
+  private static var apnsRegistrationFailure: String?
+
+  /// The FAILURE twin of the callback above, and the whole reason this pair
+  /// exists (S101).
+  ///
+  /// **`didRegisterForRemoteNotificationsWithDeviceToken` has a sibling that
+  /// nobody in this project had ever implemented.** When APNs refuses, iOS calls
+  /// THIS one with a real `NSError` — and `firebase_messaging`'s own handler
+  /// does `NSLog(@"%@", error.localizedDescription)` and nothing else
+  /// (`FLTFirebaseMessagingPlugin.m`, 16.5.0). An `NSLog` on a TestFlight build
+  /// reaches nobody: it is not a crash report, not a Crashlytics record, and not
+  /// readable from any machine a session can touch.
+  ///
+  /// So the single most useful fact about a dead notification chain — *did APNs
+  /// say NO, or did it say nothing at all* — was being computed by the OS, handed
+  /// to the app, and thrown away. Every failure downstream then collapsed into
+  /// ADR-049's `captureExhausted`, which honestly reports "the loop ended with no
+  /// token" and cannot distinguish a refusal from a slow answer. Measured
+  /// 2026-09-06: `awaitingDeviceToken / captureExhausted` on a phone whose
+  /// permission was granted, with `0/4` accounts ever registered, and no way to
+  /// tell which of the two it was without another release.
+  ///
+  /// `super` is called for the same reason the success twin calls it:
+  /// `FlutterAppDelegate` implements this selector and forwards it to every
+  /// registered plugin (`FlutterAppDelegate.mm` -> `FlutterPluginAppLifeCycleDelegate`),
+  /// so dropping it would silently unhook anything else that wants the failure.
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    // `localizedDescription`, not the whole NSError. It crosses into Dart and
+    // is logged there; it is deliberately NOT stored, because the field it would
+    // land in carries a CLOSED vocabulary (ADR-049 D9) that an OS string is not
+    // a member of. So the enum travels to the server and the sentence stays on
+    // the device — and the sentence is worth having: the classic value is
+    // "no valid 'aps-environment' entitlement string found for application",
+    // which names the fault outright to whoever has the phone attached.
+    AppDelegate.apnsRegistrationFailure = error.localizedDescription
+    super.application(
+      application,
+      didFailToRegisterForRemoteNotificationsWithError: error
     )
   }
 
@@ -161,6 +216,14 @@ import UIKit
           return
         }
         result(enrollmentBytes.base64EncodedString())
+
+      case "apnsRegistrationFailure":
+        // nil is the ORDINARY answer and does NOT mean "fine": it means iOS has
+        // not refused, which on a device still waiting is indistinguishable from
+        // a refusal that has not happened yet. The Dart side reads it exactly
+        // that way — a non-nil value SHARPENS `captureExhausted` into a refusal,
+        // and nil leaves the existing, honest "no token yet" alone.
+        result(AppDelegate.apnsRegistrationFailure)
 
       case "openNotificationSettings":
         // ADR-046 Decision 4. The ONLY place a declined notification permission
