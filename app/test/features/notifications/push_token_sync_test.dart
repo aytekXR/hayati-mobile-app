@@ -69,6 +69,7 @@ class _FakeSource implements PushTokenSource {
     if (apnsFailureThrows != null) throw apnsFailureThrows!;
     return apnsFailure;
   }
+
   Exception? currentTokenThrows;
   int currentTokenCalls = 0;
 
@@ -1042,26 +1043,23 @@ void main() {
     // `captureExhausted` instead of being mapped to `permissionUnreadable` by
     // the enclosing catch — a claim about the PERMISSION seam, which was never
     // touched.
-    test(
-      'a THROWING refusal read degrades to captureExhausted',
-      () async {
-        source
-          ..tokenOnlyAfterPermission = true
-          ..statusOverride = PushPermission.granted
-          ..apnsFailureThrows = Exception('no native half on this platform');
-        final auth = FakeAuthRepository(initialUser: user);
-        final container = containerFor(auth);
-        container.read(pushTokenSyncProvider);
-        await pumpEventQueue();
+    test('a THROWING refusal read degrades to captureExhausted', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusOverride = PushPermission.granted
+        ..apnsFailureThrows = Exception('no native half on this platform');
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
 
-        expect(recorder.diagnostics, [
-          const PushDiagnostic(
-            state: PushRegistrationState.awaitingDeviceToken,
-            detail: PushDiagnosticDetail.captureExhausted,
-          ),
-        ]);
-      },
-    );
+      expect(recorder.diagnostics, [
+        const PushDiagnostic(
+          state: PushRegistrationState.awaitingDeviceToken,
+          detail: PushDiagnosticDetail.captureExhausted,
+        ),
+      ]);
+    });
 
     // `captureExhausted` means "permission is HELD and the loop still produced
     // nothing" — the statement that indicts APNs. On a phone that refused, the
