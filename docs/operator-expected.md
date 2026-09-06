@@ -219,8 +219,35 @@ that reaches nobody. So *"APNs said no"* and *"APNs said nothing"* — two failu
 with **opposite** remedies — were arriving as the same silence. **That is fixed
 and rides the next build** (ADR-074).
 
-**Nothing is asked of you right now.** The next build will either name the fault
-or rule it out; both are progress the last six builds could not produce.
+**And the obvious suspect turned out to be innocent** (ADR-075). An entitlement
+has to survive three places — the binary, the App ID, and the **provisioning
+profile** — and iOS checks the third, which nothing here had ever been able to
+read. It can be read now, and it is fine:
+
+```
+match AppStore com.beyondkaira.hayati  [ACTIVE]  created 2026-08-07
+  ✅ aps-environment = 'production'
+```
+
+That matters because the next step would otherwise have been asking **you** to
+run a `MATCH_BOOTSTRAP` release — a one-shot that changes how your binary signs.
+It would have cost a bootstrap, a regenerated profile, a release, and the same
+silence at the end. **All three links are now proven intact.**
+
+#### One thing that WOULD help, and it takes ten seconds
+
+The capture window is bounded (~7.5 seconds after the permission grant), and your
+phone has not re-tried since 13:24 — the report has not moved. **Opening the
+app's Settings screen re-runs it**: the notification row calls a fresh capture on
+mount, so if APNs answered at any point after that window, the token registers
+immediately.
+
+> Open **ikimiz → Settings**, look at the notification row, and tell me what it
+> says. Then I re-read the report and, if a token appeared, send you a real test
+> notification to prove the last link.
+
+If it still says it is waiting, that is not wasted either — the next build now
+carries the callback that makes iOS name its reason instead of staying silent.
 
 ### 5. The legal bundle — one decision, three drafted parts, six questions
 
