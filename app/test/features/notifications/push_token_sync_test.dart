@@ -44,8 +44,32 @@ class _FakeRepository implements PushTokenRepository {
   }
 }
 
+/// Apple's actual sentence when the signing profile does not carry the
+/// entitlement — the string this whole slice exists to surface. Hoisted to a
+/// constant because inlining it pushes the cascade past the line limit, and a
+/// reformat is a worse reason to paraphrase Apple than none at all.
+const _apnsEntitlementRefusal =
+    "no valid 'aps-environment' entitlement string found for application";
+
 class _FakeSource implements PushTokenSource {
   String? token = 'device-token';
+
+  /// What the OS says about an APNs REFUSAL (S101). Null is the ordinary
+  /// answer — iOS has not refused — and models every device that is merely
+  /// still waiting. A non-null string is the sharper fact `captureExhausted`
+  /// cannot express, and the two must not be confusable: they have opposite
+  /// remedies.
+  String? apnsFailure;
+  Exception? apnsFailureThrows;
+  int apnsFailureCalls = 0;
+
+  @override
+  Future<String?> apnsRegistrationFailure() async {
+    apnsFailureCalls++;
+    if (apnsFailureThrows != null) throw apnsFailureThrows!;
+    return apnsFailure;
+  }
+
   Exception? currentTokenThrows;
   int currentTokenCalls = 0;
 
@@ -959,8 +983,83 @@ void main() {
             detail: PushDiagnosticDetail.captureExhausted,
           ),
         ]);
+        // The refusal WAS asked for and answered null. Asserted so the test
+        // above proves "iOS did not refuse" rather than "nobody asked" — those
+        // record the same detail and only one of them is a measurement.
+        expect(source.apnsFailureCalls, greaterThan(0));
       },
     );
+
+    // The pair this whole slice exists for. Both phones look identical from
+    // every other instrument — permission held, no token, loop exhausted — and
+    // the remedies are opposite: one waits, the other needs a new build. The OS
+    // knew which was which on every launch and the answer was reaching an
+    // NSLog.
+    test('an APNs REFUSAL outranks captureExhausted', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusOverride = PushPermission.granted
+        ..apnsFailure = _apnsEntitlementRefusal;
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
+
+      expect(recorder.diagnostics, [
+        const PushDiagnostic(
+          state: PushRegistrationState.awaitingDeviceToken,
+          detail: PushDiagnosticDetail.apnsRegistrationRefused,
+        ),
+      ]);
+    });
+
+    // The granted-branch-only rule, extended to the new member. A phone that
+    // DECLINED has an explanation already, and `denied` carries it; claiming a
+    // refusal there would be the restatement problem one member over — and
+    // worse, it would overwrite `permissionRequestRefused` with a fact about a
+    // link the user never reached.
+    test('a refusal is never claimed on a DENIED phone', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusOverride = PushPermission.denied
+        ..apnsFailure = 'stale refusal from an earlier launch';
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
+
+      expect(recorder.diagnostics, [
+        const PushDiagnostic(state: PushRegistrationState.denied),
+      ]);
+      // Not merely unreported — never ASKED. The read lives inside the granted
+      // branch, and a channel round-trip on a path that could not use the answer
+      // is how a "harmless" extra call becomes a boot-path cost.
+      expect(source.apnsFailureCalls, 0);
+    });
+
+    // The fail-direction that matters most, because getting it wrong points the
+    // next reader two links away from the fault. `_apnsRefusal` has its own
+    // guard precisely so a missing native half degrades to the honest
+    // `captureExhausted` instead of being mapped to `permissionUnreadable` by
+    // the enclosing catch — a claim about the PERMISSION seam, which was never
+    // touched.
+    test('a THROWING refusal read degrades to captureExhausted', () async {
+      source
+        ..tokenOnlyAfterPermission = true
+        ..statusOverride = PushPermission.granted
+        ..apnsFailureThrows = Exception('no native half on this platform');
+      final auth = FakeAuthRepository(initialUser: user);
+      final container = containerFor(auth);
+      container.read(pushTokenSyncProvider);
+      await pumpEventQueue();
+
+      expect(recorder.diagnostics, [
+        const PushDiagnostic(
+          state: PushRegistrationState.awaitingDeviceToken,
+          detail: PushDiagnosticDetail.captureExhausted,
+        ),
+      ]);
+    });
 
     // `captureExhausted` means "permission is HELD and the loop still produced
     // nothing" — the statement that indicts APNs. On a phone that refused, the

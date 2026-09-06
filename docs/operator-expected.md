@@ -181,9 +181,46 @@ your request. Its number is `100 + run number`.
 billing was restored the registration call was refused, and you would have spent
 the permission prompt — which iOS shows **once per install** — for nothing.
 
-⚠️ **This is the first push ever attempted.** 0 of 4 registered devices have
-received one. A silent failure here is a *finding*, not a mistake — report what
-the phone does.
+### 4.1 — You did it, it failed, and the failure was USEFUL (2026-09-06)
+
+You installed 120, allowed notifications, answered, and your partner answered
+ninety seconds later. **The server did everything right and no phone made a
+sound.** Production logs, your own timestamps:
+
+```
+13:26:10Z (16:26 TSİ)  you answered    -> one-answer -> push to partner -> no-tokens
+13:27:56Z (16:28 TSİ)  partner answered -> revealed, streak applied
+                                        -> push to you -> no-tokens
+```
+
+The trigger fired, found the right partner, applied the streak. **The only broken
+link is the address**: `registerPushToken` has *never been called by anyone*, and
+`0 of 4` accounts have a device registered.
+
+**Your phone's own report says why, and it is the first one this system has ever
+produced** (the diagnostic shipped in build 120):
+
+```
+awaitingDeviceToken / captureExhausted — 2026-09-06T13:24:56Z
+```
+
+Your tap **worked** — permission is held. What failed is the step after it: iOS
+never handed the app an APNs address.
+
+**Four suspects were eliminated by measurement, not by reasoning:** the App ID
+capability is ticked (re-read today), `aps-environment` is declared *and proven*
+by build 120 having codesigned at all, FCM auto-init is on, and the manual
+handoff ADR-046 D6 added is in place.
+
+⚠️ **The fifth could not be eliminated, because nobody was listening.** iOS
+reports an APNs refusal on a callback this app never implemented — the only
+handler in the process was the Firebase plugin's, which writes it to a device log
+that reaches nobody. So *"APNs said no"* and *"APNs said nothing"* — two failures
+with **opposite** remedies — were arriving as the same silence. **That is fixed
+and rides the next build** (ADR-074).
+
+**Nothing is asked of you right now.** The next build will either name the fault
+or rule it out; both are progress the last six builds could not produce.
 
 ### 5. The legal bundle — one decision, three drafted parts, six questions
 

@@ -544,6 +544,11 @@ describe('users/{uid}', () => {
       'captureExhausted',
       'registerFailed',
       'permissionUnreadable',
+      // S101. The rules list and the Dart enum are held equal by
+      // push_diagnostic_vocabulary_parity_test.dart; THIS list is the third
+      // copy and nothing holds it — so a member added to the other two without
+      // this one is a rule nobody ever proved a client can actually write.
+      'apnsRegistrationRefused',
     ]) {
       it(`accepts detail '${detail}' (the closed ADR-049 vocabulary)`, async () => {
         await seedAliceProfile();

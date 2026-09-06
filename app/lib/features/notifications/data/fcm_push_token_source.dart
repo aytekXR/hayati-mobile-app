@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+import '../../../core/platform/device_privacy_channel.dart';
 import '../domain/push_token_source.dart';
 
 /// The FCM implementation of [PushTokenSource] (ADR-042 D2 step 4).
@@ -41,10 +42,17 @@ import '../domain/push_token_source.dart';
 /// not inert. What a phone actually reports is measured, never assumed:
 /// `python3 tool/ci/push_delivery_probe.py --from-firebase-cli`.
 class FcmPushTokenSource implements PushTokenSource {
-  FcmPushTokenSource({FirebaseMessaging? messaging})
-    : _messaging = messaging ?? FirebaseMessaging.instance;
+  FcmPushTokenSource({
+    FirebaseMessaging? messaging,
+    DevicePrivacyChannel? channel,
+  }) : _messaging = messaging ?? FirebaseMessaging.instance,
+       _channel = channel ?? const DevicePrivacyChannel();
 
   final FirebaseMessaging _messaging;
+
+  /// The app's ONE platform channel (ADR-018 D6), for the one push fact the
+  /// `firebase_messaging` plugin has but does not expose: the APNs refusal.
+  final DevicePrivacyChannel _channel;
 
   @override
   Future<PushPermission> permissionStatus() async {
@@ -118,4 +126,19 @@ class FcmPushTokenSource implements PushTokenSource {
 
   @override
   Stream<String> tokenRefreshes() => _messaging.onTokenRefresh;
+
+  @override
+  Future<String?> apnsRegistrationFailure() async {
+    // Only iOS has the callback this reads; asking anywhere else would cross the
+    // channel for an answer the native side does not model.
+    if (!Platform.isIOS) return null;
+    try {
+      return await _channel.apnsRegistrationFailure();
+    } catch (_) {
+      // A missing channel handler (an older native half, a test harness with no
+      // platform) is "cannot tell", not "refused". Claiming a refusal we did not
+      // observe would be worse than the silence this method exists to break.
+      return null;
+    }
+  }
 }

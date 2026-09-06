@@ -122,8 +122,24 @@ DETAIL_DIAGNOSIS = {
         "path RAN. (Not 'the user tapped no': after the first dialog iOS answers "
         "from its standing record without showing anything.)"),
     "captureExhausted": (
-        "ADR-044's bounded capture ran to its END with no token — APNs never "
-        "answered. Suspect the .p8 upload or the swizzling ADR-046 D6 hardened."),
+        "ADR-044's bounded capture ran to its END with no token and iOS never "
+        "said WHY — no refusal was recorded. APNs was asked and stayed silent: "
+        "still thinking, unreachable, or a handoff that never happened (the "
+        "swizzling ADR-046 D6 hardened). Since S101 this is the NARROW reading; "
+        "an actual refusal reports as apnsRegistrationRefused instead. "
+        "NOT the .p8 — that key governs whether FCM may talk to APNs on the "
+        "SERVER side and shows up at send time as THIRD_PARTY_AUTH_ERROR; it "
+        "has no part in whether a device gets an APNs address."),
+    "apnsRegistrationRefused": (
+        "iOS ACTIVELY REFUSED to register this device with APNs — "
+        "didFailToRegisterForRemoteNotificationsWithError fired with permission "
+        "held. This is a statement, not an absence, and it outranks "
+        "captureExhausted wherever both could apply. NO RETRY CAN FIX IT: the "
+        "classic cause is an aps-environment entitlement the signing profile "
+        "does not carry, which needs a new build, not another tap. The OS's own "
+        "sentence is in the DEVICE log (Console.app with the phone attached, "
+        "search 'APNs REFUSED') — it is deliberately not written to Firestore, "
+        "because the stored vocabulary is closed (ADR-049 D9)."),
     "registerFailed": (
         "a token EXISTED and the registerPushToken callable THREW. The device is "
         "fine; the server leg is not. This is the #219 shape, and it is invisible "
