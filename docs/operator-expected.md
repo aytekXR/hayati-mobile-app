@@ -234,20 +234,45 @@ run a `MATCH_BOOTSTRAP` release — a one-shot that changes how your binary sign
 It would have cost a bootstrap, a regenerated profile, a release, and the same
 silence at the end. **All three links are now proven intact.**
 
-#### One thing that WOULD help, and it takes ten seconds
+#### 4.2 — Where the hunt landed, and the one thing left
 
-The capture window is bounded (~7.5 seconds after the permission grant), and your
-phone has not re-tried since 13:24 — the report has not moved. **Opening the
-app's Settings screen re-runs it**: the notification row calls a fresh capture on
-mount, so if APNs answered at any point after that window, the token registers
-immediately.
+Your phone tried **twice**, 78 minutes apart (13:24:56 and 14:42:56), and got no
+address both times. That rules out bad luck: a timing race does not survive an
+hour and a fresh app launch.
 
-> Open **ikimiz → Settings**, look at the notification row, and tell me what it
-> says. Then I re-read the report and, if a token appeared, send you a real test
-> notification to prove the last link.
+Everything that could be checked without your phone has been:
 
-If it still says it is waiting, that is not wasted either — the next build now
-carries the callback that makes iOS name its reason instead of staying silent.
+| link | verdict |
+|---|---|
+| the server sends | ✅ proven — both pushes were built and addressed correctly |
+| the binary claims the entitlement | ✅ `Runner.entitlements`, in git |
+| the App ID permits it | ✅ measured, run 34038316432 |
+| **the signing profile grants it** | ✅ measured, run 34040358971 — `ACTIVE`, `aps-environment = production` |
+| the device has an address | ❌ **no**, twice |
+
+**And then the last link turned out to have a hole in it.** *Who actually asks
+APNs for an address?* Nobody in this app — the request came entirely from the
+Firebase plugin, which issues it during launch **only if Firebase is already
+configured at that instant**. This app configures Firebase from Dart code (there
+is no `GoogleService-Info.plist`), so whether that condition is true at that
+moment is an ordering nobody here chose or can see. If it is false, **nothing
+ever asks**, and the phone waits forever for an answer to a question that was
+never put.
+
+**That is now fixed** (ADR-076): the app asks iOS itself, every time it notices
+it has no address. Apple documents the call as safe to repeat, so it costs
+nothing if the plugin was already doing it — and it is the whole feature if it
+was not.
+
+> **What is needed: one more TestFlight build.** It carries two things — the fix
+> above, and the callback that makes iOS *state its reason* if it refuses
+> (ADR-074) instead of failing silently. Either the notification arrives, or we
+> get the sentence that names the fault. **That is a release dispatch, which I do
+> not do without asking** (`session-context.md` §7) — say the word.
+
+⚠️ Honest bound: the fix is a **candidate**, not a diagnosis. It removes a real
+dependency on vendor ordering, and it is the best-supported explanation left
+standing — but nothing here has touched a phone.
 
 ### 5. The legal bundle — one decision, three drafted parts, six questions
 
