@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 
 /// The app's FIRST (and only) platform channel — ONE channel for the whole
 /// device-privacy layer (ADR-018 Decision 6): one native registration site, one
-/// seam discipline. It carries the six native methods this layer needs:
+/// seam discipline. It carries the seven native methods this layer needs:
 ///
 /// * `supportsAlternateIcons` → `bool`
 /// * `getAlternateIconName` → `String?` (null = the primary icon)
@@ -68,6 +68,16 @@ class DevicePrivacyChannel {
   /// rather than saying nothing.
   Future<String?> apnsRegistrationFailure() =>
       _channel.invokeMethod<String>('apnsRegistrationFailure');
+
+  /// Ask iOS to register this device with APNs (S101).
+  ///
+  /// **Idempotent by Apple's contract**: a repeat re-delivers the existing
+  /// device token rather than doing work. That is what makes it safe to call
+  /// whenever the app notices it has no address — and the reason it is a
+  /// separate method from anything that asks the USER for something, which is
+  /// emphatically not idempotent on iOS.
+  Future<void> ensureRemoteNotificationRegistration() =>
+      _channel.invokeMethod<void>('ensureRemoteNotificationRegistration');
 }
 
 /// The single channel name. The Swift half registers exactly this (Decision 6).

@@ -217,6 +217,39 @@ import UIKit
         }
         result(enrollmentBytes.base64EncodedString())
 
+      case "ensureRemoteNotificationRegistration":
+        // ASK APNs OURSELVES, rather than hoping the plugin already did (S101).
+        //
+        // This is ADR-046 D6's argument one step EARLIER in the same chain. D6
+        // stopped depending on swizzling to deliver the APNs token; this stops
+        // depending on the plugin's launch-time ordering to REQUEST one.
+        //
+        // `firebase_messaging` 16.5.0 calls `registerForRemoteNotifications`
+        // from `setupNotificationHandlingWithRemoteNotification:` — reached from
+        // the launch notification or `scene:willConnectToSession:` — and only
+        // `if ([FIRMessaging messaging].isAutoInitEnabled)`. This app has a
+        // SceneDelegate, configures Firebase from pure-Dart `FirebaseOptions`
+        // with NO `GoogleService-Info.plist`, and therefore has no
+        // `FirebaseApp` at all until Dart's `main()` reaches
+        // `Firebase.initializeApp`. Whether that check lands before or after
+        // configuration is an ordering this project does not control and cannot
+        // observe from Linux — and if it lands early, NOTHING EVER ASKS APNs,
+        // `getAPNSToken()` stays nil for the life of the install, and the
+        // symptom is a phone with permission granted and no address. Measured
+        // 2026-09-06: exactly that, twice, 78 minutes apart.
+        //
+        // Calling it here removes the dependency instead of reasoning about it.
+        // Apple documents the call as idempotent — a repeat re-delivers the
+        // existing token to `didRegisterForRemoteNotificationsWithDeviceToken`
+        // — so this is free when the plugin already succeeded, and it is the
+        // whole feature when it did not.
+        //
+        // Main thread: `UIApplication` mutation, same rule as the icon swap.
+        DispatchQueue.main.async {
+          UIApplication.shared.registerForRemoteNotifications()
+          result(nil)
+        }
+
       case "apnsRegistrationFailure":
         // nil is the ORDINARY answer and does NOT mean "fine": it means iOS has
         // not refused, which on a device still waiting is indistinguishable from

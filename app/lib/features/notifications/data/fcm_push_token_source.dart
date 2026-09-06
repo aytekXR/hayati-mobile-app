@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -106,11 +107,45 @@ class FcmPushTokenSource implements PushTokenSource {
     // platform test, nothing to assert about that a fake would not also satisfy.
     if (!Platform.isIOS) return true;
     try {
-      return await _messaging.getAPNSToken() != null;
+      if (await _messaging.getAPNSToken() != null) return true;
     } catch (_) {
       // Not "no" — "cannot tell". The caller retries either way, and a throw
       // here must never be louder than a null.
       return false;
+    }
+    // NO ADDRESS YET — so make sure somebody actually ASKED for one (S101).
+    //
+    // ⚠️ This is not a retry of the read; it is a retry of the REQUEST, and
+    // until now nothing in this project made that request itself.
+    // `firebase_messaging` issues `registerForRemoteNotifications` from its
+    // launch/scene setup and only when `[FIRMessaging messaging]
+    // .isAutoInitEnabled` — a check whose ordering against Dart's
+    // `Firebase.initializeApp` this app does not control, because it configures
+    // Firebase from pure-Dart options with no `GoogleService-Info.plist`. If
+    // that check lands before there is a `FirebaseApp`, nothing ever asks APNs
+    // and `getAPNSToken()` is nil forever: permission granted, no address, no
+    // error — the state measured in production on 2026-09-06, twice, 78 minutes
+    // apart.
+    //
+    // Apple documents the call as idempotent, so this is free when the plugin
+    // already succeeded. Fire-and-forget: it must not make the readiness answer
+    // depend on a channel round-trip, and the bounded loop above will ask again
+    // in half a second either way (ADR-044 D1).
+    unawaited(_askApnsToRegister());
+    return false;
+  }
+
+  /// Request APNs registration, swallowing everything.
+  ///
+  /// A missing native half (an older binary, a platform with no such concept)
+  /// must not turn the readiness probe into a throw — the caller reads a throw
+  /// as "not yet" and would keep its meaning, but the log line would blame the
+  /// wrong link, which is the confusion ADR-049 exists to end.
+  Future<void> _askApnsToRegister() async {
+    try {
+      await _channel.ensureRemoteNotificationRegistration();
+    } catch (_) {
+      // Nothing to say that the diagnostic does not already say better.
     }
   }
 
