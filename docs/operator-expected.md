@@ -289,6 +289,27 @@ standing — but until 121 is installed, nothing here has touched a phone. As of
 this writing the last device report is still **2026-09-06T14:42:56Z**, which
 predates 121: it has not been installed yet.
 
+#### 4.3 — A near-miss worth knowing about (issue #293)
+
+Before handing you a build, one thing was checked that could have made the whole
+exercise pointless: **can your phone actually WRITE the new diagnostic?**
+
+The new report value rides a security rule with a closed list of allowed values.
+If production were running the old list, your phone would try to report
+`apnsRegistrationRefused`, Firestore would reject it, the app would swallow the
+rejection by design — and **build 121's whole diagnostic half would have been
+silently dead on the one build cut to carry it.**
+
+Measured instead of assumed: the live production ruleset contains **no mention of
+this field at all** — it is 62 lines behind the code and never received that gate.
+So the write is unconstrained and **the report will record.** ✅
+
+**It works because of a gap, not because of a guarantee**, and that is filed as
+**#293**: the rule that is supposed to validate this field is doing nothing in
+production, in either direction. Deploying the current ruleset is a prod deploy
+and therefore yours to authorise — it is **not** needed for the notification test
+and should not be mixed into it.
+
 ### 5. The legal bundle — one decision, three drafted parts, six questions
 
 `docs/legal/proposed/` holds the version-3 draft of all three privacy policies. It
