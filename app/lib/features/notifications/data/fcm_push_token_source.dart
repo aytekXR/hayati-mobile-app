@@ -106,13 +106,29 @@ class FcmPushTokenSource implements PushTokenSource {
     // Thin by contract (ADR-042 D2): one call, no branches of its own beyond the
     // platform test, nothing to assert about that a fake would not also satisfy.
     if (!Platform.isIOS) return true;
+    // Mutable, not `final`: Dart's definite-assignment analysis rejects a final
+    // local written from both the try and the catch, and the catch must be able
+    // to answer — that is the whole point of the fall-through below.
+    var hasAddress = false;
     try {
-      if (await _messaging.getAPNSToken() != null) return true;
+      hasAddress = await _messaging.getAPNSToken() != null;
     } catch (_) {
       // Not "no" — "cannot tell". The caller retries either way, and a throw
       // here must never be louder than a null.
-      return false;
+      //
+      // ⚠️ It FALLS THROUGH to the request below rather than returning, and
+      // that is the correction to this method's first version (S101, found by
+      // reviewing the change after it shipped in build 121). A throw here is
+      // *cannot tell whether we have an address* — which is precisely when
+      // asking for one matters most — and the early return made the one branch
+      // that most needs the request the only branch that skipped it.
+      //
+      // It is also not hypothetical in this app's shape: `getAPNSToken()`
+      // reaches `[FIRMessaging messaging]`, a default-app accessor, and this
+      // app has no `FirebaseApp` until Dart configures one. That is the same
+      // root cause ADR-076 is about, arriving as a throw instead of a nil.
     }
+    if (hasAddress) return true;
     // NO ADDRESS YET — so make sure somebody actually ASKED for one (S101).
     //
     // ⚠️ This is not a retry of the read; it is a retry of the REQUEST, and
