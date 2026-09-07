@@ -264,15 +264,30 @@ it has no address. Apple documents the call as safe to repeat, so it costs
 nothing if the plugin was already doing it — and it is the whole feature if it
 was not.
 
-> **What is needed: one more TestFlight build.** It carries two things — the fix
-> above, and the callback that makes iOS *state its reason* if it refuses
-> (ADR-074) instead of failing silently. Either the notification arrives, or we
-> get the sentence that names the fault. **That is a release dispatch, which I do
-> not do without asking** (`session-context.md` §7) — say the word.
+> ✅ **Build 121 is on TestFlight** — release run **#21**, 2026-09-06 16:16:47
+> UTC, `assigned build 121 to 'Friends'` (7 testers), read from the job log. It
+> carries **both** halves: the fix above, and the callback that makes iOS *state
+> its reason* if it refuses (ADR-074) instead of failing silently.
+>
+> **Install 121 and open the app to the paired home screen.** You will not be
+> asked for permission again — iOS shows that dialog once per install and you
+> already granted it, which is exactly why this build had to do the asking on
+> its own side instead.
+>
+> Then tell me, and I re-read the report. **Three outcomes, all of them
+> progress:**
+>
+> | what the report says | what it means |
+> |---|---|
+> | a token is registered | **it worked** — I send a real test notification to prove the last link |
+> | `apnsRegistrationRefused` | iOS refused and **named the reason**; the sentence is in the device log, and the fault is finally addressable |
+> | `captureExhausted` still | the request went out and APNs stayed silent — which points at the network path, not at this app |
 
 ⚠️ Honest bound: the fix is a **candidate**, not a diagnosis. It removes a real
-dependency on vendor ordering, and it is the best-supported explanation left
-standing — but nothing here has touched a phone.
+dependency on vendor ordering and is the best-supported explanation left
+standing — but until 121 is installed, nothing here has touched a phone. As of
+this writing the last device report is still **2026-09-06T14:42:56Z**, which
+predates 121: it has not been installed yet.
 
 ### 5. The legal bundle — one decision, three drafted parts, six questions
 
