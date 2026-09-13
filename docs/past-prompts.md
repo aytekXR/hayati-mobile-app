@@ -5336,3 +5336,103 @@ the wrong reason. Caught by reading the mutated file instead of the exit code.
 * **Nothing deployed, no release dispatched, no build cut.** Build 122 is *not*
   requested: §4.4 says what 121 does and does not carry, and lets the founder
   decide whether that matters yet.
+
+---
+
+## Session 103 — 2026-09-13 — the wedge explains itself, and ADR-055's own guard could be silenced by a hang (ADR-078)
+
+**Objective (from `resume-prompt.md`):** make the `integration-emulator` wedge
+EXPLAIN itself, and find out whether the dependency that wedges can be removed
+(ci-debt **#15**).
+
+**Outcome:** done. The instrument ships, the dependency is proven **not**
+removable from vendor source, and the build found a defect older than the
+objective — **the watchdog could be prevented from firing at all.**
+
+### The queue, re-derived rather than inherited
+
+**18 open.** And command one confirmed lesson **160** on live data, which is the
+reason that lesson exists: the last run that *actually ran* `integration-emulator`
+on `main` before today was the **failure** at `3b0eaf32`, with three `skipped`
+stacked on top of it. S102's merge ran it for real — **green** — which closed the
+six-day red.
+
+### What the failure actually is, from the vendor rather than from a guess
+
+`flutter_tools/ios/simulators.dart`, `IOSSimulator.startApp`: *"Error waiting for
+a debug connection: The log reader failed unexpectedly"* is the **null** branch of
+`await vmServiceDiscovery?.uri`, and `ProtocolDiscovery` documents that null as
+*"returns null if the log reader shuts down before any uri is found."* The reader
+is `xcrun simctl spawn <id> log stream --style json --predicate …`, whose
+predicate carries two special cases for **`UIScene` lifecycle** messages — and
+this app has a `SceneDelegate` (ADR-076). Recorded as a place to look, **not** as
+a cause.
+
+So the question that splits the failure is *did the app ever print the URI?* —
+ADR-074's shape one layer out, two failures with opposite remedies arriving as
+one silence.
+
+### ⚠️ The finding: ADR-055's remedy contained ADR-055's failure mode
+
+Writing the self-test for a hanging `xcrun` showed the script hanging **before
+reaching any of this session's additions**, at `xcrun simctl list devices booted`
+— **unbounded since ADR-055 shipped**, and pointed at the same simulator the suite
+had just been declared wedged against. No `exit 124`, so the job runs to
+`timeout-minutes`, GitHub says `cancelled`, and `slack_notify.sh` sends nothing
+for `cancelled` by design.
+
+**`|| true` is what made it invisible** — it swallows a status, never a hang, and
+nobody re-reads a line that already looks careful.
+
+| | before | after |
+|---|---|---|
+| stubbed `xcrun` that sleeps forever | **no 124 at all**, killed by the harness | **exit 124 in 19s** |
+
+⚠️ **The design review called this a risk the change would introduce.** It was
+older than the change. The distinction mattered: *"do not add the capture"* would
+have left the hazard in place and looked like caution.
+
+### Three defects in this session's own work, all caught by RUNNING
+
+* **The window** — `--last 5m` would have reached back to ten minutes *after* the
+  launch it exists to capture, and returned *"no URI line"*: the same answer it
+  gives when the app never printed one. Caught by checking the design against the
+  incident's timestamps **before any code existed**. Lesson **163**.
+* **`grep -c` exits 1 when the count is zero**, so `$(grep -c … || echo 0)`
+  printed the count *and* the fallback — `0\n0` — and the number beside the label
+  stopped being a number. Visible in the first output the stub produced.
+* **shellcheck SC2012** on `ls -t … | head -3`. The box has no shellcheck, so CI
+  proved this half (lesson **78**) — and the proper fix mattered beyond the lint:
+  *"the newest three crash reports"* would hand back three from an **earlier
+  suite** and present them as this wedge's evidence. Now `-mmin -60`.
+
+### The dependency, answered from source rather than from `--help`
+
+`--device-vmservice-port` is absent on `flutter test` and present on
+`flutter run`. **That is not the reason it cannot help.** `ProtocolDiscovery`
+*always* subscribes to `logReader.logLines`, and `devicePort` is only a filter on
+an already-scraped URI. A fixed port narrows which URI is accepted and gives no
+second way to find one. mDNS exists only in `getVMServiceDiscoveryForAttach`, not
+in `startApp`. **Log-scraping is structurally how `flutter test` attaches to a
+simulator.** Recorded, not attempted.
+
+### Verification
+
+`integration_watchdog_test.sh` **30 → 43 passed**, including the case that decides
+whether this is an instrument or a regression. `slack_notify_test` 25,
+`assert_emulator_functions_test` 10. A `workflow_dispatch` run on the branch came
+back **green including `integration-emulator`** on the real macOS runner.
+
+⚠️ **And the honest bound, stated rather than implied: a green dispatch proves the
+job is unbroken, NOT that the capture works** — a healthy run never times out. So
+the boot step now also runs `log show` once while everything is healthy and prints
+the line count, because D1.2's control is worthless if the query does not work on
+this runner at all, and a wedge is the worst moment to find that out.
+
+### Notes / debt logged
+
+* **Two lessons: 163, 164.**
+* **`ci-debt #15` updated and left OPEN** (D5). The wedge is still undiagnosed;
+  this makes the next one attributable. *"The flake is handled"* is the summary
+  that would otherwise get remembered (lesson 78).
+* **No operator dependency.** Nothing deployed, no release, no build.

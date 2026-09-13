@@ -38,6 +38,43 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**164 — A guard's own failure mode is the one nobody tests, because testing it means making the guard fail.** *(S103, ADR-078 D2.2 — and S102, ADR-077 D5, one session earlier)*
+`integration_watchdog.sh` exists to convert a silent hang into a named failure.
+Its timeout path called `xcrun simctl list devices booted` — **unbounded** —
+against the very simulator the suite had just been declared wedged against. A
+`simctl` that never returns means `exit 124` is never reached, the job runs to
+`timeout-minutes`, GitHub reports **`cancelled`**, and `slack_notify.sh` sends
+nothing for `cancelled` **by design**. *ADR-055's failure mode, sitting inside
+ADR-055's own remedy*, from the day it shipped.
+⚠️ **And `|| true` is what made it invisible.** The block ended `} >&2 || true`,
+which reads like protection and protects against the wrong thing: it swallows a
+**status**, never a **hang**. Nobody re-reads a line that already looks careful.
+It was found only by writing a test that made the guard fail — a stub `xcrun`
+that sleeps forever — which is the test nobody writes, because every other test
+in the file asks *"does the guard fire?"* and this one asks *"can the guard be
+prevented from firing?"* **Measured both ways: before, no 124 at all; after
+bounding every diagnostic, 124 in 19s.**
+This is the second consecutive session to find a guard green over the thing it
+exists to catch (lesson **162** was the first). **For every guard, ask what would
+stop it running at all, and write that test.**
+
+**163 — An instrument's window is part of the instrument, and a plausible one can be exactly wrong.** *(S103, ADR-078 D1.1)*
+ADR-078's first draft captured the device log with `log show --last 5m`. Five
+minutes is a sensible-looking number and it is precisely wrong, for a reason the
+incident's own timestamps give away: the watchdog fires after
+`WATCHDOG_SILENCE_SECONDS` of silence, and **the silence starts at the launch** —
+the launch is the last thing that printed. So at capture time the interesting
+moment is already **600 seconds old**, and a 5-minute window reaches back to ten
+minutes *after* it.
+The instrument would have returned *"no URI line"* — **the same answer it gives
+when the app genuinely never printed one** (lesson **150**). An instrument built
+to split one failure into three would have collapsed two of them back together,
+and nothing in its output would have shown it.
+The window is now derived from the suite's own elapsed time and **printed beside
+the verdict**. Generalise it: **whenever an instrument samples a window, the
+window is a claim — derive it from the thing being measured, and print it, so a
+negative result can never be mistaken for a measured absence.**
+
 **162 — A guard that walks a hand-kept list can only be as complete as the list, and its silence reads as coverage.** *(S102, ADR-077 D5)*
 `device_privacy_channel_parity_test.dart` exists for one failure mode, in its own
 words: *"a renamed method … compiles perfectly and ships a **silently dead
