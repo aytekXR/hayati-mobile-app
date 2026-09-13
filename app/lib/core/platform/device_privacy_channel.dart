@@ -19,6 +19,15 @@ import 'package:flutter/services.dart';
 ///   on a TestFlight build reaches nobody. Sixth method on the SAME channel for
 ///   the reason the fifth was: the alternative is a package to wrap one
 ///   `UIApplicationDelegate` callback.
+/// * `ensureRemoteNotificationRegistration` → void (ADR-076 D1, S101). Ask APNs
+///   for an address, because until S101 **nothing in this project ever did** —
+///   the request came only from `firebase_messaging`, behind an
+///   initialisation-ordering check this app does not control. Idempotent by
+///   Apple's contract, which is what makes it safe to fire whenever the app
+///   notices it has no address. ⚠️ **This bullet was missing for one session**
+///   while the sentence above already said *seven* (added S102); the count and
+///   the list are now both checked by
+///   `device_privacy_channel_parity_test.dart`.
 /// * `openNotificationSettings` → void (ADR-046 Decision 4). One more method on
 ///   the SAME channel rather than a new package: `permission_handler`,
 ///   `app_settings` and `url_launcher` would each add a transitive dependency

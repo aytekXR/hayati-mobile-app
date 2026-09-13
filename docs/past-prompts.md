@@ -5075,3 +5075,264 @@ D4 declined *"for timing rather than principle: a failed release costs more than
 **Operator dependency:** unchanged. **6(b)** still carries the publish plan and is still unanswered; **6(c)** now also carries the #121 experiment, with its cost stated and its timing objection noted as inverted.
 
 **Next objective written to resume-prompt.md:** Session 100 — **#63**: put the icon-family decision to the founder. ADR-025 records it as a whole-app decision that **has never been asked**, and asking is a session's job while answering is not. It is the last thing on the board that a session can move.
+
+---
+
+## Sessions 100 and 101 — 2026-09-04 → 2026-09-07 — reconstructed by S102 from git, because neither wrote an entry
+
+⚠️ **These two entries are written by Session 102 from the commit record, not by
+the sessions that did the work.** `project-rules.md` #2 requires an entry per
+session and both skipped it, so the narrative below is what `git log`, the ADRs
+and `operator-expected.md` can support — no more. Read them as a reconstruction,
+and prefer the ADRs where they disagree.
+
+### Session 100 — 2026-09-04 — `operator-expected.md` rewritten to be a checkpoint again (PRs #285, #286)
+
+**Objective as written in `resume-prompt.md`: #63, the icon-family decision.
+That is not what the session did**, and #63 is still open — it finally becomes
+operator item **11** at S102.
+
+What it actually did, and it was worth doing: the checkpoint file's own header
+says *"a live checkpoint, not a history"* and it had stopped being one. Removed:
+the session-by-session table, the "Plan Changes" section, the archaeology inside
+6(b)/6(c), and references to #281. **Nothing in items 1–10 was closed**, and the
+commit says that was measured before anything was deleted. Item numbers were
+preserved, and the file now says so at the top.
+
+Then **#286**: billing was restored on 2026-09-03 after a 12-day outage, the
+23:00 UTC sweep completed (`assigned=1, failed=0`), `prod_pulse` went to **0**,
+and the RevenueCat webhook was proven in a single `curl` — a **JSON** 401 rather
+than Google's HTML 403. Items 1, 2 and 10 closed.
+
+### Session 101 — 2026-09-06/07 — the push-notification hunt: three ADRs, one build, and a hole found after it shipped (ADR-074, ADR-075, ADR-076)
+
+**The best-executed session in this file's recent history, and the one that left
+the most for the next session to clean up.** Both halves are worth recording.
+
+The founder installed build 120, granted permission, and **no phone made a
+sound** while the server did everything right. The diagnostic shipped in 120 —
+the first this system ever produced — said `awaitingDeviceToken /
+captureExhausted`, twice, **78 minutes apart**. A timing race does not survive
+an hour and a fresh launch, so the hunt was for a link, not a window.
+
+| | |
+|---|---|
+| **ADR-074** | iOS already says *why* APNs refused, on a callback this app had never implemented — the only reader was the plugin's `NSLog`, which on TestFlight reaches nobody. *"APNs said no"* and *"APNs said nothing"* were arriving as the same silence |
+| **ADR-075** | the obvious suspect is **innocent**. An entitlement must survive three places and iOS checks the third — the **provisioning profile** — which nothing here had ever been able to read. Now readable: `ACTIVE`, `aps-environment = production`. That measurement is what stopped a `MATCH_BOOTSTRAP` release being asked of the founder for nothing |
+| **ADR-076** | **nobody had ever ASKED APNs for an address.** The request came only from `firebase_messaging`, behind `isAutoInitEnabled` at plugin-setup time — and this app has no `FirebaseApp` until Dart configures one from pure-Dart options. An ordering nobody chose, under the one call the whole feature rests on |
+
+**Build 121 went out the same day** carrying both halves, and is still
+uninstalled.
+
+⚠️ **What S101 left behind, all three found by S102:**
+
+1. **A hole in ADR-076's own fix**, which S101 found itself at the very end and
+   committed as `8a28215` — *and then never pushed, never opened a PR, and never
+   wrote the ADR*. The commit sat on a local branch for six days.
+2. **`main`'s `integration-emulator` failed on ADR-076's merge** and the three
+   runs after it skipped the job (docs-only, by design), so the red stood
+   unexamined. Lesson **160**.
+3. **Two methods added to the one platform channel across ADR-074 and ADR-076,
+   and neither pinned** in the sentinel whose entire purpose is to catch a
+   renamed channel method. Lesson **162**, and the more serious of the three.
+
+**Docs touched:** `docs/adr/074/075/076-*.md`, `docs/adr/README.md`,
+`docs/operator-expected.md`, `.github/workflows/appid-capabilities.yml`,
+`tool/ci/profile_entitlements.py`. **Not touched:** `past-prompts.md`,
+`session-lessons.md`, `resume-prompt.md`.
+
+---
+
+## Session 102 — 2026-09-13 — the fix that was never pushed, and a sentinel that was green over the method the feature rests on (ADR-077)
+
+**Objective:** none inherited that was usable. `resume-prompt.md` still declared
+**Session 100** and #63, two sessions after that had been overtaken. The session
+re-derived state from the repository instead: **one unpushed commit**, a
+**six-day-old unexamined red** on `main`, and a stale checkpoint.
+
+**Outcome:** `8a28215` landed with its ADR, its guard and its record; two issues
+closed on fresh measurement; one superseded PR closed; the checkpoint rewritten;
+**#63 finally put to the founder** as operator item 11.
+
+### What the review found, and it was not in the diff under review
+
+The diff under review was three lines of control flow. **The defect that
+mattered was `device_privacy_channel_parity_test.dart` being green over an
+unpinned surface** — five methods pinned, seven on the channel, and the two
+missing were ADR-074's and ADR-076's. Renaming
+`ensureRemoteNotificationRegistration` on either side reproduces ADR-076's own
+bug behind a fully green pipeline.
+
+Fixed structurally: the **reverse direction** now derives both method sets from
+the two files, so an *unpinned* method is a red test; and the dartdoc's own
+count is gated — it said *"the seven native methods"* over a list of **six**.
+Mutation-checked four ways.
+
+### The sentinel, and the mutation that caught the test
+
+D1's branch cannot be tested on Linux, and that was established rather than
+asserted: `Platform.isIOS` is `dart:io`'s (not
+`debugDefaultTargetPlatformOverride`, and `IOOverrides` does not cover
+`Platform`); the change is invisible through a `Future<bool>` port; the fake
+cannot throw from `isReadyForToken`. A widened port and ADR-042 D2's
+*"deliberately untested"* licence were both refused, with reasons.
+
+⚠️ **The third mutation caught the test rather than the code.** *Is the request
+still made?* was written as `contains('_askApnsToRegister()')` scoped to the next
+`@override` — and passed **with the call site deleted**, because the private
+helper has no annotation and its own declaration sat inside the window. The
+standing lesson — *mutation-check every guard AND the test, in both directions*
+— earning its place again.
+
+### `main`'s red, cleared on path evidence rather than on a later green
+
+`integration-emulator` failed at `3b0eaf3` and the correlation was exact: green
+at ADR-074's merge, green at ADR-075's, red at ADR-076's. It is the known
+simulator flake, and the load-bearing evidence is **not** that something passed
+afterwards: `auth_emulator_test.dart` never touches `PushTokenSync`,
+`FcmPushTokenSource` or the channel, so ADR-076's code is not executed by the
+suite that hung; S088 hit the identical signature on a diff of docs and Python
+only; and the hang is *before* any test reports. **ci-debt #15 stays open and
+undiagnosed.** A `workflow_dispatch` run of `ci.yml` on the branch was fired to
+put `integration-emulator` over the fix directly — the job is `main`-only, and
+dispatch is the documented way to get its verdict pre-merge.
+
+### A probe that reported "none", caught by its control
+
+Writing #63 up needed one number: how many of the app's 23 Material icons
+auto-mirror in RTL? The first probe said **zero** — a clean answer that would
+have gone to the founder as *"the RTL rework is free"*. It said zero because
+Flutter's declarations are multi-line and the check only saw the first line; it
+could not have returned anything else. `arrow_back` mirrors, and 303
+declarations in that file do. **The real answer is 2, at 4 call sites** — still
+good news, and now true. Lesson **161**.
+
+### Issues closed, both re-measured rather than closed on the record of their fix
+
+* **#115** — the webhook answers its **own** JSON today (`401
+  {"error":"unauthorized"}`, measured 2026-09-13), which is that issue's own
+  acceptance test; control `invitePreview` → 200. The handler's documented
+  ordering (503 *before* the token compare) means 401-and-not-503 also proves
+  `RC_WEBHOOK_TOKEN` is bound. The dashboard token match stays open as item 2.1.
+* **#278** — the per-locale writer is built, dispatch-only, gated on a typed
+  `PUBLISH`, and self-tested (re-run that day, exit 0), including the test that
+  *is* the defect: `test_a_refused_locale_does_not_stop_the_others`. Publishing
+  is still 6(b) and it has never been run in write mode.
+* **PR #287** closed as superseded — it documents build **120** as the one to
+  install, and `main` has recorded 120 installed and 121 shipped.
+
+### A third wrong "none", and the repo already held the answer
+
+Item 11's first version told the founder there was *"no app-size gate in CI to
+point at, so the second-font cost is a judgement"*. **There is one.**
+`tool/build_size_report.dart --max-mb 200` runs in `release.yml` (ADR-022 D4) and
+**fails the build** over budget — and `past-prompts.md` itself already said so,
+at the S0xx entry listing *"build-report ✅ real prod --release build + the 200 MB
+size gate"*. The grep that produced "none" searched
+`size.cap|ipa.size|MAX_.*SIZE|app size` and matched neither the tool's filename
+nor the phrase the repo actually uses.
+
+⚠️ **Lesson 161 for the third time in one session** — and the worst of the three,
+because this one shipped into a founder-facing document before it was caught, and
+because the repository contained the refutation the whole time.
+
+The correction is worth more than the erratum: read from **build 121's own job
+log** (release run #21), `Runner.app` is **65.46 MB against a 200 MB budget —
+PASS**, with about **134 MB of headroom**, and the app already carries **3.8 MB**
+of fonts across thirteen faces. An icon font is a few hundred KB. **So size is
+not a reason to prefer either option** — the first version had quietly left a
+cost sitting on (a)'s side of a decision the founder is supposed to make freely.
+
+⚠️ **One copy of the wrong sentence survives in the commit message of `aea56e0`**,
+which is pushed and cannot be rewritten. It does not reach `main`: the squash
+body is written fresh and does not repeat it. Noted here because *a correction is
+finished when every copy of it is gone* (lesson **141**), and this one has a copy
+that cannot be removed — so it gets a pointer instead.
+
+### One more thing, found by accident while writing item 11
+
+Checking whether **PR #172** (the nginx vhost, open since 2026-08-02) was still
+needed turned into a submission blocker nobody had recorded. `fastlane/metadata/{en-US,tr}/`
+point Apple's **support** and **privacy** URLs at `https://ikimiz.beyondkaira.com/`,
+and that domain **serves nothing**: the TLS handshake fails (the VPS certificate
+is `CN = ams.beyondkaira.com` with nine SANs and **no `ikimiz`**) and plain HTTP
+is a 404. ⚠️ **The certificate has been reissued since the PR was opened and
+`ikimiz` still was not added** — `test.` was, so the box has been touched.
+
+The AASA is fine, and measured: `ikimiz.web.app/.well-known/apple-app-site-association`
+→ **200 `application/json`**, which is ADR-040's claim holding. What exists
+nowhere is `/privacy` — `ikimiz.web.app/privacy` is a **404**, and
+`deploy-site.yml` (which would render it from `docs/legal/`) **has never run**
+and refuses by default while the legal texts still carry the founder-entity
+placeholder. Correctly.
+
+Filed as **#296**, recorded as operator **6(d)**, and PR #172 now carries a
+comment stating what it waits on — *VPS or Firebase Hosting*, one sentence from
+the founder — instead of dangling for a seventh week.
+
+### The containment run
+
+`integration-emulator` is `main`-only, so the PR cannot run it; the job's own
+comment names the way round and it was used. `gh workflow run ci.yml --ref <branch>`
+→ run **34751782953** → **`integration-emulator success`** over a tree containing
+everything in `3b0eaf3`. ⚠️ Recorded in ADR-077 D3 as **containment, not
+diagnosis**: a pass is compatible with *"the flake did not happen this time"*,
+which is what a flake is. What it does refute is the regression hypothesis, which
+predicts a reproducible failure.
+
+### The second review pass found three defects in this session's own work
+
+`session-context.md` §5.3 runs the review twice — once on the design, once on the
+built diff. The design pass produced the sentinel and the parity fix. **The
+built-diff pass found the sentinel green over the likeliest re-introduction of
+the very bug it guards.**
+
+| what | before | now |
+|---|---|---|
+| `return false;` in the catch | fails ✅ | fails ✅ |
+| **`if (hasAddress) return false;`** | **PASSED** ❌ | fails ✅ |
+| `if (hasAddress) { return false; }` | fails, but on the anti-vacuity check — never reached the invariant | fails ✅ |
+| **a `}` in a comment, then a return** | **PASSED** ❌ | fails ✅ |
+
+⚠️ **That third row said "PASSED" until the table was actually run.** It had been
+reasoned from the regex; restoring the old sentinel from `bc3accb` and running it
+showed the old guard did fail that mutation — by erroring in `setUpAll` on the
+`no {` assertion, never reaching the `return` check. **Right for the wrong
+reason**, inside an entry about a guard that was green for the wrong reason.
+
+The `return` scan had been anchored to the start of a line, because the catch
+body is all comments and its prose contains the word *return*. An anchor misses a
+conditional return — **and this file writes single-line conditional returns three
+times.** Fixed by removing the reason for the anchor: walk to the matching brace
+skipping `//` comments, keep the body and a comment-stripped copy, scan the
+stripped copy unanchored.
+
+Two more, both in the founder's page: **§4.2's outcomes table still promised that
+`captureExhausted` means "the network path, not this app"**, which §4.4 had just
+made unsafe for build 121 — a tired reader stopping at the first table draws the
+wrong conclusion. And **6(d) said "TLS handshake fails"** when the handshake
+reaches CERT verify and it is *verification* that fails; the effect is identical,
+the cause is a certificate, and a certificate is what the founder is being asked
+to fix.
+
+⚠️ **The refuting verifier called the sentinel finding REFUTED and was wrong.** It
+argued the lines the finding cited sit outside the scanned window — true, and
+about the *evidence* rather than the *claim*. Four minutes with the regex settled
+it. The standing lesson holds: *a panel is an INPUT to judgement, not a substitute
+for measuring.*
+
+⚠️ **And lesson 161 landed twice in one session.** The first attempt at the fourth
+mutation was itself broken — a `\n` in a double-quoted shell argument stayed
+literal, so the whole insert landed as one comment line and the test passed for
+the wrong reason. Caught by reading the mutated file instead of the exit code.
+
+### Notes / debt logged
+
+* **Three lessons: 160, 161, 162.**
+* **`resume-prompt.md` and `past-prompts.md` had been skipped for two sessions.**
+  The reconstruction above is what a third session could recover; some of what
+  S100 and S101 knew is simply gone. `project-rules.md` #2 is cheap and this is
+  what it costs to skip.
+* **Nothing deployed, no release dispatched, no build cut.** Build 122 is *not*
+  requested: §4.4 says what 121 does and does not carry, and lets the founder
+  decide whether that matters yet.

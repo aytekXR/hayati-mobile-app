@@ -143,3 +143,27 @@ was silent may be that the question was never asked.*
 - The plugin may change its ordering in a future release and make this
   redundant. It stays anyway: ADR-046 D6's assignment is redundant when swizzling
   works, and it is kept for the same reason.
+
+---
+
+## Appendix A — D2 was not implemented on the throw path (added S102)
+
+**This ADR's decisions stand; its implementation did not match D2 on one path,
+and build 121 shipped with the gap.** Recorded here rather than corrected
+silently, because an ADR that quietly acquires the code it wishes it had stops
+being a decision log.
+
+**D2 says the request fires from `isReadyForToken` "when the answer is *no
+address*".** The `catch` around `getAPNSToken()` returned `false` before
+reaching the request, so the one path that means *cannot tell whether we have an
+address* — the state D1 exists for, and the state this app's own
+`FirebaseApp`-ordering problem is most likely to produce as a **throw** rather
+than a nil — was the only path that never asked.
+
+**Closed by ADR-077 D1.** The read now records into a local and every path
+converges on the request; no return value changed. **ADR-077 D4** records what
+that means for build 121, which is on TestFlight and does not carry the fix.
+
+⚠️ **The Consequences section's *"78 tests pass locally"* is not reproducible at
+this tree.** The notifications folder yields **69**; the whole suite yields
+**1883** (at `3b0eaf3`). See ADR-077's Erratum for the commands and counts.

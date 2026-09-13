@@ -1,130 +1,192 @@
-# Resume Prompt — Session 100
+# Resume Prompt — Session 103
 
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
-> Read `session-context.md` and `session-lessons.md` (numbered to **159**) first.
+> Read `session-context.md` and `session-lessons.md` (numbered to **162**) first.
 > Re-derive the session number from `git log`.
 >
-> ⚠️ **`session-context.md` §2/§3 changed again in S096** — the toolchain is
-> mostly **restored** now (Flutter, Java, Dart, firebase-tools). Still measure it;
-> the table is a claim like any other (lesson **146**).
+> ⚠️ **S100 and S101 wrote no `past-prompts.md` entry and never regenerated this
+> file.** S102 reconstructed both from git and said so in the entry. If this
+> prompt is the only thing you read, you will be reading a third-hand account —
+> **open ADR-074/075/076/077 themselves**, they are first-hand.
 >
 > ⚠️ **BEFORE PLANNING, OPEN THE ADR THAT OWNS THIS OBJECTIVE** (lesson **145**).
-> Here that is **ADR-025 Appendix A**, which records this as a *whole-app
-> decision* and cites #63 rather than asserting compliance. **Read it as the
-> reason this is the founder's, not as a design to implement.**
+> Here that is **ADR-055** — the watchdog — and it is worth reading as a success:
+> it turned a silent `cancelled` into a named `failure`, exactly as designed. The
+> objective below is the *next* question, not a complaint about that one.
 >
 > ⚠️ **AND CHECK THE OBJECTIVE ITSELF BEFORE BUILDING ANYTHING** (lessons **145**,
-> **154**). S099's prompt named #121 as open when **ADR-056 D4 had already
-> decided it** — the corollary landing on a prompt, one session after that lesson
-> was cited in it. **This prompt makes a claim too: that #63's question has never
-> been put to the founder. Check `operator-expected.md` before believing it.**
+> **154**). S102's own queue pass produced **two wrong calls** that only reading
+> the issues caught: it reported **#71** as unblocked engineering when #71's body
+> says *"this is not a bug"* and names a brandkit-revision decision, and **#48**
+> as unblocked when #48 says *"worth revisiting **on device**"*. **An agent's
+> classification is a claim.**
 
-**Objective: #63 — put the icon-family decision to the founder.** The brandkit
-specifies **Phosphor**; the app ships **28 Material `Icons.*`** and Phosphor is
-not a dependency. ADR-025 records the divergence honestly and cites this issue —
-but **nobody has ever asked the founder which way to resolve it.**
+**Objective: make the `integration-emulator` wedge EXPLAIN itself — and find out
+whether the dependency that wedges can be removed.**
 
-### ⚠️ First, three commands. Quote all three before planning.
+*(The live issue is **#15**, open. **#208** is CLOSED and is cited throughout as
+history — it is the incident ADR-055's watchdog was built from, not an open
+ticket. Do not reopen it or treat it as work.)*
+
+This suite has hung **three times** — S065 (#208, 38 minutes of silence), S088
+(on a diff of docs and Python only), and S101's ADR-076 merge. Each time the
+answer has been *"the known flake"*, and each time that has been correct and
+useless. **It has now cost three sessions' attention and one six-day unexamined
+red on `main`** (lesson **160**).
+
+### ⚠️ First, four commands. Quote all four before planning.
 
 ```sh
-grep -c "Icons\." app/lib -r ; grep -rn "phosphor" app/pubspec.yaml || echo "phosphor: absent"
-gh workflow run publish-store-metadata.yml            # confirm BLANK — writes nothing
+gh run list --workflow ci.yml --branch main --limit 6 --json databaseId,headSha,conclusion
+# then for each: gh run view <id> --json jobs -q '.jobs[]|"\(.name) \(.conclusion)"'
+#   ^ lesson 160: "CI is green" is a claim about the last run that INCLUDED the job
 gh issue list --state open --limit 40 --json number,title -q '.[]|"\(.number) \(.title[0:60])"' | sort -n
+grep -n "simulator state" -A 20 tool/ci/integration_watchdog.sh
 ```
 
-The third one is the one that matters: **re-derive the queue.** S098 and S099
-both found it entirely operator-blocked below their own objective, and that claim
-expires — an issue may have been unblocked by a founder action since.
+The second is the one that matters: **re-derive the queue.** S102 closed #115 and
+#278 and filed **#296**, so it is **18**, not 19 — and a founder action since may
+have unblocked something. Never inherit it.
 
-### Why this, and what a session may and may not do
+### What is already known, so you do not re-derive it
 
-ADR-025 Appendix A states the shipped rule — *one consistent icon family at a
-consistent weight; today that is Material outline* — and names two ways out:
+S102 read the failing job log of run **34042187123** in full. At the moment the
+watchdog fired, its own diagnostic block printed:
 
-* **(a) migrate to Phosphor** — a dependency, 28 call sites, the RTL mirror net
-  reworked (Material icons auto-mirror via `matchTextDirection`; Phosphor glyphs
-  do not), a second icon font against the size cap, and a full golden re-baseline;
-* **(b) amend the brandkit** to record Material outline as the shipped system, the
-  way §10 already records the contrast exception.
+| | |
+|---|---|
+| the simulator | `hayati-ci (…) (Booted)` — **alive** |
+| ports 8080 / 9099 / 5001 | **all three ANSWERING** — the emulators were fine |
+| the suite | `No tests ran.` |
+| the tool | **`Error waiting for a debug connection: The log reader failed unexpectedly`** |
 
-**Both are the founder's call — it is their brand.** ⚠️ **What is a session's is
-putting the question, with its costs, where they will see it.** That has never
-been done, and it is the whole objective. **Do not pick (b) because it is
-cheaper.**
+So it is **not** the emulators, **not** a dead simulator, and **not** a slow
+runner. `flutter test` never attached: it discovers the Dart VM service by
+**scraping the simulator's system log**, and that reader failed. Everything after
+that is silence by construction, because the tests never started.
+
+### The two halves, and the second is the one that matters
+
+**(1) Make it speak.** The watchdog's diagnostic block knows about the simulator
+and the ports and nothing about the app. On timeout it should also capture, all
+best-effort and never fatal (the block's existing discipline):
+
+* the simulator's own log — `xcrun simctl spawn <udid> log show --last 5m --style compact`, or `log collect`;
+* whether the app process exists at all — `xcrun simctl spawn <udid> launchctl list | grep hayati`;
+* any crash report under `~/Library/Logs/DiagnosticReports`;
+* a `sample`/`spindump` of the `dartvm` child, so a wedge inside Dart is distinguishable from never having connected;
+* uploaded as an artifact (`actions/upload-artifact`, already used at `ci.yml:393`) rather than only inlined, because a `log show` is large.
+
+**(2) Ask whether the dependency can be removed at all** — this is ADR-076's
+argument in a different costume, and it is why this objective is worth a session.
+*The app depends on log-scraping to be attached to, and nobody here chose that.*
+
+⚠️ **S102 did the first ten minutes of this so you do not repeat it**, on Flutter
+3.44.5, `flutter test --help` / `flutter run --help`:
+
+| flag | on `flutter run` | on `flutter test` |
+|---|---|---|
+| `--device-vmservice-port` | **yes** — *"look for vmservice connections only from the specified port"* | **NO** |
+| `--host-vmservice-port` | **yes** | **NO** |
+| `--dds-port` | yes | **yes** |
+| `--file-reporter <reporter>:<path>` | — | **yes** |
+
+So the obvious fix — pin the port so nothing has to be scraped — **is not
+available on the command the suite actually runs.** That is a starting point, not
+a conclusion: the remaining questions are whether `--dds-port` changes the
+attach path at all, whether the suites could run under `flutter drive` or
+`flutter run` (which do take the flags) without losing what
+`integration_test` gives them, and whether a newer Flutter has moved this.
+**Measure each; do not conclude any.**
+
+⚠️ **`--file-reporter json:<path>` may be the cheapest real win here** and is
+worth evaluating first: the watchdog's guard is *silence on stdout*, and a file
+reporter writes results somewhere the watchdog could read even when the console
+has gone quiet. It does **not** help with a hang that happens *before any test
+runs*, which is this specific failure — say so rather than overselling it.
+
+If the dependency cannot be removed, say so with the evidence and ship (1)
+alone — that is a complete session.
 
 ### Acceptance
 
-1. **The three commands run and quoted**, and the queue re-derived rather than
+1. **The four commands run and quoted**, and the queue re-derived rather than
    inherited from §3 below.
-2. **ADR-025 Appendix A and #63 read first**, and this prompt's claim — that the
-   question has never been put — **checked against `operator-expected.md`**. If it
-   is already there, say so and stop: that is a clean outcome.
-3. **`operator-expected.md` gains the decision**, with **both** options, their
-   real costs (the mirror-net rework and the golden re-baseline are the expensive
-   part of (a), not the dependency), and a plain statement that either is
-   defensible. ⚠️ **Do not recommend one.** ADR-025 already leans, and repeating
-   the lean as advice is how a founder decision becomes a session's by attrition.
-4. **No code, no `pubspec.yaml` change, no golden touched.** If the diff contains
-   a `.dart` file you have changed objective (lesson **154**).
-5. **If the queue turns out to have something unblocked and larger**, take that
-   instead and say why — this objective is small on purpose, because it is what
-   was left.
+2. **ADR-055 read first**, and the watchdog's existing timeout block read before
+   adding to it — it already handles "absent tools must not turn a useful
+   timeout report into a second failure", and that discipline is kept.
+3. **The instrumentation is PROVEN to fire, not asserted.** `integration_watchdog_test.sh`
+   exists and is the right place; a new capture path that has never executed is
+   a claim (lesson **161** — and an absence needs a control that should PASS).
+   ⚠️ **And prove it in CI, not only locally**: the box has no `xcrun`, so every
+   new branch is the `(not available)` branch here. `gh workflow run ci.yml --ref <branch>`
+   runs `integration-emulator` on a branch — that is the documented way and S102
+   used it.
+4. **Part (2) answered either way, with the command that answered it.** *"A fixed
+   VM-service port removes the log reader from the path"* and *"it does not"* are
+   both good outcomes; *"it probably would"* is not.
+5. **ADR written FIRST** (lesson **115**), with its index row — `dart tool/adr_index_lint.dart`
+   is a real gate and will fail the build without the row. Next number is **078**.
+6. **`ci-debt #15` is updated, not closed.** Unless the wedge is actually
+   diagnosed, it stays open; ADR-077 D3 was careful about exactly this and the
+   next session should be too.
 
 ### What is NOT this session's
 
-* **Choosing (a) or (b).** The founder's brand, the founder's call.
-* **#121's experiment** — operator 6(c). **Publishing store copy** — 6(b).
-* **Billing** (1), **the invoker** (2), **the four secrets** (3), **a build** (4),
-  **the legal bundle** (5), **the firebase login** (10).
-* **#136** (ADR-059 D3), **#71** (its own issue says *"this is not a bug"*),
-  **#242** (ADR-060 D6). **Do not re-derive any of the three.**
+* **A build, a release, a deploy.** Nothing on this objective needs one.
+* **#63** — now operator item **11**, waiting on the founder. **Do not decide it.**
+* **#71** and **#48** — see the warning at the top; both are gated and their own
+  issue bodies say so.
+* **#293** (the prod ruleset), **#242** (ADR-060), **#136**, **#226**, **#243**,
+  **#247** — each decided or blocked by an ADR or an operator item.
 
 ---
 
-## 1. Where things stand *(measured 2026-09-02 — re-measure, do not inherit)*
+## 1. Where things stand *(measured 2026-09-13 — re-measure, do not inherit)*
 
 | | State |
 |---|---|
-| **The dev box** | **Mostly restored** (S096): Flutter 3.44.5, Java 21, Dart 3.12.2, firebase-tools 15.22.4, node, python3, gh. **`ruby`/`bundle` still MISSING** — fastlane cannot run here. Flutter/Java **not on PATH**. ⚠️ git-over-HTTPS is intercepted on this network; Flutter's remote is on SSH |
-| **Production** | 🔴 **DOWN since 2026-08-22**, and **unmeasurable from here** — operator 10 |
-| **The App Store listing** | 🔴 **EMPTY and NOT SUBMITTABLE.** 7/9 `en-US` fields blank at Apple; `tr` absent; only `name` ever set |
-| **The publish lane** | **BUILT, RUN, AND HONEST.** Since #281 its dry run exits **1** — agreeing with the auditor — and the lane does not vote. Run 33686025994: *15 field(s) would change* |
-| **Push, device side** | **STILL 0 of 4 registered** |
-| **The ADR index** | **WHOLE — 72 records, 72 rows**, gated (ADR-067) |
-| **The queue** | ⚠️ **After #281, every open issue but #121 is operator-blocked** — re-derived at the end of S098 from `gh issue list`, not inherited. **Re-derive it again** |
-| **#204 / #278** | **OPEN**, both founder-gated (6(a), 6(b), 6(c)) |
-| **#121** | **OPEN** — fastlane half PROVEN inert (ADR-073); the xcodebuild half needs 6(c) |
-| **#63** | **OPEN — this session**, and it is a question to ASK, not to answer |
-| **#281** | **CLOSED** by S098 |
-| **The toolchain** | Flutter/Java/Dart/firebase-tools restored; **`ruby` still absent and that is fine** — ADR-073 read the gem with `tar`, and `ruby-full` would need `sudo` (lesson **158**) |
-| **#242 / #263** | OPEN and correctly blocked. Do not re-derive |
+| **The dev box** | `flutter` 3.44.5, `dart` 3.12.2, `java` 21, `node`, `python3`, `gh`, `firebase-tools` — **present but NOT on PATH**: `export PATH=~/flutter/bin:~/.local/share/java/jdk-21.0.12.1+1-jre/bin:$PATH`. **`ruby`/`bundle` still absent and that is fine** (ADR-073, lesson 158). **No `xcrun`, no `shellcheck`** |
+| **Production** | 🟢 **UP** since 2026-09-03. `prod_pulse` exits **0**; the hourly sweep runs. ⚠️ **Nothing watches the bill** — operator 9 |
+| **`main`** | green — but ⚠️ **the last run that actually RAN `integration-emulator` was S101's, and it FAILED**; three docs-only runs skipped past it (lesson **160**). S102's merge re-runs it for real |
+| **Push, device side** | **STILL 0 of 4 registered.** Build **121** is on TestFlight, **uninstalled**, and §4.4 records that it does **not** carry ADR-077 D1 |
+| **The App Store listing** | 🔴 EMPTY and NOT SUBMITTABLE. 7/9 `en-US` fields blank; `tr` absent (#204 → operator 6(a)) — **and its support/privacy URLs serve nothing** (#296 → operator **6(d)**, new at S102) |
+| **The ADR index** | **WHOLE — 77 records, 77 rows**, gated by ADR-067's lint |
+| **The queue** | **18 open**: S102 closed **#115** and **#278** on fresh measurement and filed **#296**. PR **#287** closed as superseded; **PR #172** now carries a stated blocker instead of dangling |
+| **Tests** | `flutter test` **1888** at S102's merge · `flutter analyze` clean · `dart format` clean (497 files) |
+| **#63** | **OPEN, and finally ASKED** — operator item **11**, with measured costs and no recommendation |
 
-### What S096/S097 changed that a later session will trip over
+### What S102 changed that a later session will trip over
 
-* **`session-context.md` §2/§3 describe a restored toolchain**, including the SSH
-  workaround Flutter needs on this network.
-* **A workflow can write to the founder's live App Store listing.** Dispatch-only,
-  dry-run by default, gated on a typed literal — but `confirm: PUBLISH` is the
-  whole distance between a report and a publication.
-* **`operator-expected.md` 6(b) now carries a real plan** rather than a question.
-  If you change what the lane would do, **that block goes stale** — it quotes a
-  specific run.
-* **ADR-071's `except` clause was widened** after a `URLError` on one locale was
-  found aborting the rest — #278's own defect inside the tool written to fix it
-  (lesson **151**).
+* **`device_privacy_channel_parity_test.dart` now derives its method sets from
+  the two files** rather than walking a literal. Adding a channel method without
+  pinning it is now a **red test** — that is deliberate, and the failure message
+  says what to do.
+* **The dartdoc's own method count is gated.** Editing
+  `DevicePrivacyChannel`'s class comment without keeping the count and the
+  bullets in step fails the suite.
+* **A new sentinel pins a COMMENT**: `fcm_push_token_source_sentinel_test.dart`
+  requires the phrase *"FALLS THROUGH"* in one catch block. It is load-bearing
+  prose — the invariant it protects is the **absence** of a `return` — and
+  ADR-077 D2 argues that case. Reword the comment and the suite goes red.
+* **`operator-expected.md` gained item 11 and §4.4**, and its Blockers / Next
+  Step / Next Session Goal were rewritten. If you change what build 121 means,
+  **§4.4 goes stale** — it makes a specific promise about how to read a
+  `captureExhausted` from it.
 
 ### Still true from earlier sessions
 
 * **Open the ADR that owns the objective before planning** (lesson **145**), and
-  check an objective before HANDING it on — S096 ruled out two candidates that way.
+  check the objective before HANDING it on.
 * **Cite a SYMBOL, not a line number** (lesson **144**).
 * **A correction is finished when every COPY of it is gone** (lesson **141**).
 * **`architecture.md` §7's first sentence is sentinel-parsed** — append after it.
-* **`integration-emulator` never runs on a PR**; watch the post-merge `main` run.
-* **Repeated pushes cancel the macOS gate**; verify `ios-build-smoke` actually
-  COMPILED via `gh api repos/:owner/:repo/actions/jobs/<id>/logs`.
+* **`integration-emulator` never runs on a PR** — and now also **will not re-run
+  on a docs-only push to `main`**, which is lesson **160**.
+* **Repeated pushes cancel the macOS gate** on a PR ref; a `push` to `main` keys
+  on the COMMIT and is never cancelled by the next one (ADR-024 D8).
 * `FORMAT_VERSION` is **3**, pinned by **four** assertions (lesson 108).
 * **`main` is protected** — a close commit needs its own PR.
 * **git identity** on this box: `Aytek E <62661118+aytekXR@users.noreply.github.com>`.
@@ -133,28 +195,22 @@ cheaper.**
 
 ## 2. Then, in priority order
 
-⚠️ **There is no priority list any more, and that is the finding.** S098 and
-S099 each re-derived the queue and found everything below their own objective
-waiting on billing, a phone, a lawyer, a secret, or a decision on
-`operator-expected.md`. After #63's question is asked, **a session should expect
-to end per §4** — and that is a clean outcome, not a failure (S093's precedent).
+⚠️ **Re-derive this; never inherit it.** As measured at S102's close, after this
+objective the board is:
 
-⚠️ **Re-derive it anyway.** *"No unblocked engineering"* is a claim to re-derive
-every session, never to inherit — and a founder action between sessions can
-change it without anyone saying so.
+1. **This objective** — ci-debt **#15** (open; #208 is closed history), above.
+   The only unblocked engineering with a real cost attached to leaving it.
+2. **#250** (Android Auto-Backup vs `SharedPreferences`, three places) — real,
+   and **M6.5/Gate-3 gated** by the roadmap. Do not start it without saying why
+   the gate does not apply.
+3. **#13** (Android instant verification) — same gate.
+4. Everything else waits on **a secret (3)**, **a phone (4)**, **a lawyer (5)**,
+   **a founder decision (6(a)/6(b)/6(c), 11)**, **a budget alert (9)**, or
+   **content (7)**.
 
-**`ruby` is deliberately NOT on this list.** ADR-073 answered #121's fastlane half
-by reading the gem with `tar`; installing `ruby-full` needs `sudo` and would make
-an operator dependency out of nothing (lesson **158**). Install it when something
-needs to *run* fastlane, which is a release run, which is 6(c).
-
-⚠️ **After #281, be honest about the queue.** Every remaining open issue is
-waiting on billing, a phone, a lawyer, a secret, or a decision on
-`operator-expected.md`. A session that cannot find unblocked work should say so
-and end per §4 — **S093 did exactly that and it was correct.**
-
-⚠️ **#242, #136 and #71 are NOT in this list, deliberately** — each is decided or
-blocked by an ADR, above and in §3.
+⚠️ **"No unblocked engineering" is a claim to re-derive every session**, never to
+inherit — and a founder action between sessions can change it without anyone
+saying so. S102 found three real pieces of work while *believing* that claim.
 
 ---
 
@@ -162,20 +218,20 @@ blocked by an ADR, above and in §3.
 
 | What | Blocked on | Why a session cannot take it alone |
 |---|---|---|
-| 🔴 **Restoring billing** | **founder** | A closed account is a payment instrument on their Google identity. Everything server-side is downstream |
-| 🔴 **Seeing whether production is alive** | **founder** | Operator 10 — the box has no `firebase login`; every local probe answers 2 |
+| **Push reaching a phone** | the founder's phone | Operator 4. Build 121 is on TestFlight and uninstalled; every link that can be measured from CI has been |
+| **A budget alert** | founder | Operator 9, and the most urgent thing on the page — billing is live and unwatched |
+| **The four secrets** | founder | Operator 3. `rules-drift` and `functions-drift` skip without them; #165 and #263 are downstream |
+| **Deploying the prod ruleset** | founder | #293 — the live ruleset is **62 lines behind `main`**. A prod deploy, `session-context.md` §7 |
 | **Publishing ANY store copy** | founder | Operator 6(b): ADR-020 D8's review gate has never been discharged, and the copy is AI-drafted |
-| **The Turkish localization** | founder | Apple refuses the **name** (6(a)) |
-| **Exercising the release lane** | founder | Operator 6(c) |
-| **Arming the watcher** | founder | `PROD_PULSE_VIEWER_SA`, operator 3 |
-| **A build carrying everything since ADR-046** | founder | Last build **119**, cut 2026-08-09 |
-| **M3.4's last inch** | the founder's phone | One permission grant |
-| **Deploying rules/functions** | founder | §7, downstream of billing |
-| **#226**, **#243** | founder / lawyer | A consent re-gate; a definitional sentence |
-| **#136 step 1**, **#48**, **#15** | the device | On-device observation nobody has made |
-| **An analytics vendor sink** | founder + lawyer | #247 |
+| **The Turkish localization** | founder | Apple refuses the **name** — 6(a), #204 |
+| **Exercising the release lane** | founder | Operator 6(c) — and #121's experiment rides it |
+| **#63 / the icon family** | founder | Operator **11**, now asked with measured costs |
+| **#71** | founder | A brandkit revision. **Its own body says "this is not a bug"** |
+| **#48**, **#15**, **#136** | a device | Each issue says so in its own text |
+| **#226**, **#243**, **#247** | founder / lawyer | A consent re-gate, a privacy decision, a vendor sink |
+| **#242** | ADR-060 | Correctly unbuilt — no emitter before there is a sink |
 | **#250**, **#13** | M6.5 | Gate-3 gated |
-| **#115**, **#41**, **#63**, **#71** | founder | A world-reachable endpoint; a live RevenueCat key, which does not exist yet (⚠️ #41's body still cites *"operator item 0"* — that number was retired when the checklist was renumbered; the live chain is items **2** and **8**); brandkit decisions |
+| **#296 / PR #172** | founder | ⚠️ **New, and a submission blocker.** The support and privacy URLs in `fastlane/metadata` point at `ikimiz.beyondkaira.com`, which **serves nothing** — TLS fails, HTTP 404, and the VPS certificate has no SAN for it (re-measured 2026-09-13; the cert was reissued in the interval and `ikimiz` still was not added). The AASA *is* fine, from `ikimiz.web.app`. **VPS or Firebase Hosting is one sentence from the founder**, and item 5 comes first either way — operator **6(d)** |
 
 ---
 
@@ -185,46 +241,61 @@ Append to `past-prompts.md` → regenerate this file (one objective) → refresh
 `operator-expected.md` → commit + push → verify CI → **watch the post-merge `main`
 run** (`integration-emulator` is main-only) → `codegraph sync`.
 
-> ⚠️ **THE REVIEW RUNS TWICE**, and S096 is the clearest case yet for why. Its
-> design pass found ten real defects **including a tool that could not run at
-> all**; its built-diff pass found the one thing no design pass could see — an
-> `except AscError` that let a network error abort every remaining locale, which
-> is the very defect the tool was written to prevent (lesson **151**).
+> ⚠️ **DO NOT SKIP THE CLOSE.** S100 and S101 both did, and S102 spent a third of
+> itself reconstructing them from `git log`. Some of what those sessions knew is
+> simply gone. `project-rules.md` #2 is two files and ten minutes.
 
-> ⚠️ **WRITE THE ADR FIRST** (lesson **115**), with its index row.
+> ⚠️ **THE REVIEW RUNS TWICE** — once on the design, once on the built diff.
+> S102's review found its headline defect (the unpinned channel methods)
+> **outside the diff under review**: the diff was three lines of control flow and
+> the defect was in a test file nobody had touched. Point a lens at what the
+> change *rests on*, not only at what it changes.
 
-> ⚠️ **Report `agents_error` and `agents_empty_result` as numbers**, and say
+> ⚠️ **WRITE THE ADR FIRST** (lesson **115**), with its index row. The next number
+> is **078** and `dart tool/adr_index_lint.dart` will fail the build without the row.
+
+> ⚠️ **MUTATION-CHECK EVERY GUARD *AND* THE TEST, IN BOTH DIRECTIONS** (standing).
+> S102 hit this **twice, on the same sentinel**. First: a
+> `contains('_askApnsToRegister()')` scoped "up to the next `@override`" was
+> satisfied by the private helper's own *declaration* with the call site deleted.
+> Then the built-diff review found the `return` check **green over three of four
+> mutations** — an anchored `^\s*return` cannot see `if (cond) return false;`, and
+> that is the file's own house style. **Enumerate the mutations before writing the
+> guard**, and write down which ones you ran.
+>
+> ⚠️ **AND READ THE MUTATED FILE, NOT THE EXIT CODE.** One of those four mutations
+> was itself broken — a `\n` in a double-quoted shell argument stayed literal, so
+> the insert landed as a comment and the test passed for the wrong reason.
+>
+> ⚠️ **A REFUTING VERIFIER CAN BE WRONG, AND ITS GROUNDS ARE CHECKABLE.** S102's
+> panel returned REFUTED on the real finding above, arguing about the finding's
+> *evidence* rather than its *claim*. *The panel is an INPUT to judgement*
+> (standing lesson) — if refuting it takes four minutes, take the four minutes.
+
+> ⚠️ **AN ABSENCE NEEDS A CONTROL THAT SHOULD PASS** (lesson **161**). A probe
+> reporting "none" is the cheapest wrong answer there is, and nobody argues with
+> a clean result.
+
+> ⚠️ **A GUARD THAT WALKS A HAND-KEPT LIST IS ONLY AS COMPLETE AS THE LIST**
+> (lesson **162**). Derive the inventory from the artefact, in both directions.
+
+> ⚠️ **"CI IS GREEN" IS A CLAIM ABOUT THE LAST RUN THAT INCLUDED THE JOB**
+> (lesson **160**). Check when the main-only jobs last actually RAN.
+
+> ⚠️ **A NUMBER IS A CLAIM AND THE COMMAND BESIDE IT MUST BE THE ONE YOU RAN**
+> (lessons **133**, **149**, **153**). S102 found two live examples: ADR-076's
+> *"78 tests"* (unreproducible — 69 / 151 / 1883, each with its command) and
+> three resume prompts' *"28 Material icons"* (it is **34 call sites, 23
+> distinct**).
+
+> ⚠️ **REPORT `agents_error` and `agents_empty_result` AS NUMBERS**, and say
 > whether an empty lens was **considered**-empty or **failed**-empty.
 
 > ⚠️ **FREEZE THE TREE BEFORE THE REVIEW** (lesson **113**); `git status` must be
-> EMPTY after every review workflow returns.
+> EMPTY after every review workflow returns. ⚠️ **S102's review agents wrote a
+> file into the tree** — a test the session then kept, rewrote and mutation-tested,
+> which is fine, but it was found by `git status` and not by anyone announcing it.
 
-> ⚠️ **A NUMBER IS A CLAIM AND THE COMMAND BESIDE IT MUST BE THE ONE YOU RAN**
-> (lessons **133**, **149**, **153**). Across S095 and S096 that went wrong **six
-> times**: four counts, one truncated run read as a total, and one `grep` quoted
-> without the `-i` that produced its own number — the last written while
-> correcting the first.
-
-> ⚠️ **ASK WHAT ELSE YOUR VERDICT IS COMPATIBLE WITH** (lesson **150**).
-
-> ⚠️ **IF YOUR ADR DECLINES TO BUILD SOMETHING, POINT A LENS AT THAT DECISION**
-> (lesson **147**) — and **check where the thing you are protecting actually
-> lives** before deciding not to build the door (lesson **152**).
-
-> ⚠️ **RUNNING THE THING IS THE DELIVERABLE** (lesson **154**). A defect found on
-> the way to an objective goes to `gh issue create`, not into the diff. **If your
-> diff does not touch the file your acceptance criteria name, you have changed
-> objective** — and the technical lenses will not tell you, because they have no
-> opinion about whether your work should exist. Point one lens at the objective.
-
-> ⚠️ **TWO INSTRUMENTS OVER ONE SUBJECT MUST NOT RETURN OPPOSITE VERDICTS**
-> (lesson **155**) — and check what the exit code's own GLOSS claims, because that
-> is the half a human reads.
-
-> ⚠️ **AN ISOLATION GUARANTEE IS ONLY AS WIDE AS ITS `except` CLAUSE**
-> (lesson **151**). Enumerate what the layer below you actually raises; a suite
-> written from the failure you have in mind tests the failure you have in mind.
-
-> ⚠️ **SELF-REVIEW DOES NOT CATCH SELF-FLATTERY** (lesson **143**). **Seven**
+> ⚠️ **SELF-REVIEW DOES NOT CATCH SELF-FLATTERY** (lesson **143**). **Eight**
 > consecutive sessions have shipped an ADR whose worst error was caught by an
 > outside reader comparing a claim to its source — never by a lens reading prose.
