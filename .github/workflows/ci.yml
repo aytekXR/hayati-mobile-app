@@ -783,6 +783,18 @@ jobs:
           DEVICE_ID=$(xcrun simctl create hayati-ci 'iPhone 16' "$RUNTIME")
           xcrun simctl bootstatus "$DEVICE_ID" -b
           echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          # ADR-078 D1.2's premise, measured once per run instead of assumed.
+          # The wedge capture reads the simulator's unified log and treats ZERO
+          # lines as a broken measurement rather than as "the app was silent".
+          # That control is only worth anything if `log show` works on this
+          # runner AT ALL — which a stubbed self-test can never establish, and
+          # which a wedge is a terrible time to discover. One second, here,
+          # while everything is healthy.
+          LINES=$(xcrun simctl spawn "$DEVICE_ID" log show --last 10s --style compact 2>/dev/null | wc -l | tr -d ' ')
+          echo "ADR-078: log show returned $LINES lines from a freshly booted sim"
+          if [ "$LINES" -eq 0 ]; then
+            echo "::warning title=ADR-078 control::log show returned NOTHING on a booted simulator — the wedge capture's line-count control cannot discriminate on this runner"
+          fi
       # emulators:exec starts auth+firestore, WAITS for readiness, runs the
       # script, tears the emulators down, and propagates the exit code — one
       # deterministic pass/fail, no orphans, no manual port-poll (W4: no silent
