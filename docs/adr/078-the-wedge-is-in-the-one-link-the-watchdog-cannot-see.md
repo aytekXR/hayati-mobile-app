@@ -101,9 +101,15 @@ outcomes, each pointing somewhere different:
 
 | what the device log says | what it means | where the fault is |
 |---|---|---|
-| the URI line **is** there | the app started and announced itself; the reader shut down before seeing it | **the tool / the `log stream` pipe** — and a retry would have worked |
+| the URI line **is** there, app process **present** | the app started and announced itself; the reader shut down before seeing it | **the tool / the `log stream` pipe** — and a retry would have worked |
+| the URI line **is** there, app process **absent** | it announced itself and then died | **the app** — after listen, so the crash report is the diagnosis, not the log |
 | **no** URI line, app process **present** | the app launched and never reached the engine's listen | **the app or the engine** — and this repo has a `SceneDelegate`, which the predicate above has two special cases for |
-| **no** URI line, app process **absent** | it never launched, or it died | **launch / crash** — the crash report says which |
+| **no** URI line, app process **absent** | it never launched, or it died before listening | **launch / crash** — the crash report says which |
+
+⚠️ **It was three rows until the design review, and the missing one was
+`URI present, process absent`** — an app that announces itself and *then* dies.
+Three rows would have filed that under *"the reader missed it"* and sent the next
+session hunting a tooling bug with a crash report sitting unread on disk.
 
 ⚠️ **The second row is not a neutral possibility.** ADR-076 established that this
 app has a `UIApplicationSceneManifest` and configures Firebase from pure-Dart
@@ -143,6 +149,37 @@ bounds are later tuned. And the window it actually used is **printed beside the
 result**, so *"no URI line in the last N seconds"* can never be read as *"no URI
 line"*.
 
+### ⚠️ D1.2 — every row above assumes the query WORKED, so the query reports its own control
+
+`log show` reads a ring buffer. **Nothing here has established that a
+seventeen-minute-old line survives in it**, and this box has no `xcrun` to find
+out. If it does not, *"no URI line"* is returned for a third reason — the line
+aged out — and the instrument collapses the very worlds D1 exists to separate,
+one layer down from the mistake D1.1 already caught. **The same failure twice in
+one decision is a pattern, not an accident.**
+
+So the capture never reports a bare verdict. It reports, beside it:
+
+* **the window it used**, in seconds (D1.1);
+* **the total number of lines** the query returned for that window;
+* **the number of lines from the app's own process image**
+  (`com.beyondkaira.hayati`).
+
+**Zero total lines on a booted simulator that just completed an Xcode build and a
+launch is not an answer — it is a broken measurement**, and it now looks like
+one. That is the repo's own exit taxonomy applied to a log query: *could not
+measure* must never be able to read as *measured, and the answer is no*
+(ADR-041, ADR-047 D4).
+
+⚠️ **A control marker was the design review's suggestion and is deliberately NOT
+taken.** Writing a known string into the simulator's log at suite start would be
+a cleaner control — but it needs a mechanism this box cannot verify, it adds a
+step that can itself fail silently, and its absence would then be ambiguous in
+exactly the way it was meant to remove. **The line counts are a control that
+needs no new mechanism and cannot fail to exist**, which is the weaker instrument
+and the honest one. If a future session verifies a marker on a real runner, this
+is the decision to revisit.
+
 ## Decision 2 — What else is captured, and the discipline it inherits
 
 The existing block's rule is stated in its own comment — *"best-effort and never
@@ -162,6 +199,37 @@ through the step environment. If it is ever absent the block says so and skips �
 it must never guess a device, because `simctl list devices booted` can return
 more than one and the wrong log is worse than no log.
 
+### ⚠️ D2.1 — the capture is BOUNDED, because an unbounded one would destroy the guarantee it rides on
+
+**The blocking finding of the design review, and it is the kind that turns an
+instrument into the failure it was built to report.**
+
+Every command added here runs **after the silence bound has fired and before the
+process-group kill**, i.e. on a runner that has already demonstrated something is
+wedged. `xcrun simctl spawn … log show` talks to that same wedged simulator. **If
+it hangs, the watchdog never reaches `exit 124`** — the job runs to
+`timeout-minutes`, GitHub reports **`cancelled`**, and `slack_notify.sh` sends
+nothing by design (ADR-024 D2). That is *precisely* the outcome ADR-055 was built
+to eliminate, reintroduced by the instrument meant to explain it.
+
+⚠️ **And `|| true` does not help.** It swallows a non-zero status; it does not
+bound a hang. The existing block's `{ … } >&2 || true` is protection against the
+wrong failure mode.
+
+⚠️ **macOS ships no coreutils `timeout`** — ADR-055's own header says so, which is
+why the watchdog implements its bound in portable bash rather than depending on
+`brew install coreutils` inside a CI job. So the fix reuses the machinery already
+in this file: each diagnostic command runs as a **backgrounded child in its own
+process group**, polled, and **killed if it exceeds a small fixed bound**. The
+script already does exactly this for the suite itself (`set -m`, `$!`,
+`kill -TERM -"$pid"`), so this is the same pattern at a smaller scale, not a new
+mechanism.
+
+**The bound is asserted, not assumed.** The self-test's most important new case
+is a stub `xcrun` that **hangs forever**: the watchdog must still exit **124**,
+still name the suite, and still do so inside the harness's own timeout. That
+single case is what keeps this ADR from being a regression.
+
 ## Decision 3 — The capture is PROVEN by stubbing the vendor tool, not by waiting for a wedge
 
 Two facts make the obvious proof impossible: **this box has no `xcrun`**, and a
@@ -180,7 +248,27 @@ arguments and prints a scripted device log. The self-test then asserts
   whether the process appears;
 * that with **no `xcrun` on PATH at all**, the watchdog still exits **124** and
   still names the suite — the ADR-055 guarantee is unchanged, which is the
-  property most likely to be broken by adding to this block.
+  property most likely to be broken by adding to this block;
+* ⚠️ **that with an `xcrun` stub that HANGS FOREVER, the watchdog still exits
+  124, still names the suite, and still finishes inside the harness's own
+  timeout** — D2.1's case, and the one that decides whether this ADR is an
+  instrument or a regression;
+* that the **line counts and the window** are printed beside every verdict
+  (D1.1, D1.2), so a broken query cannot be read as a negative result.
+
+**The artifact path is named rather than left to the implementation.** The
+watchdog runs from `app/` inside `emulators:exec`, so a bare relative path would
+land somewhere nobody collects. It writes to
+**`"${GITHUB_WORKSPACE:-$PWD}/watchdog-device-log.txt"`**, and the job gains an
+`actions/upload-artifact` step with `if: failure()` pointed at it.
+
+**And the plumbing is proven on the real runner too, not only in the stub.**
+`integration-emulator` is main-only, so the branch is dispatched —
+`gh workflow run ci.yml --ref <branch>` — and the run must come back **green**,
+demonstrating that the addition does not break a healthy job. ⚠️ **A green
+dispatch does not exercise the capture**, because a healthy run never times out;
+it proves absence of regression and nothing more, and the difference is stated
+here so a later reader does not mistake one for the other.
 
 ⚠️ **And the mutations are enumerated before the guard is written** (S102's
 lesson, twice over): deleting the `log show` call, pointing it at a discovered
