@@ -38,6 +38,60 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**162 — A guard that walks a hand-kept list can only be as complete as the list, and its silence reads as coverage.** *(S102, ADR-077 D5)*
+`device_privacy_channel_parity_test.dart` exists for one failure mode, in its own
+words: *"a renamed method … compiles perfectly and ships a **silently dead
+feature behind a green pipeline**."* It pinned **five** methods. The channel had
+**seven**. The two it did not pin were the two most recent — ADR-074's and
+ADR-076's — and the second is the one the entire push feature rests on, so a
+rename of it would have reproduced ADR-076's own bug (nobody asks APNs, no
+address, no error) with every gate green.
+**Two consecutive sessions added a method to the one platform channel and
+neither added it to the pin**, and nothing anywhere went red, because *a test
+that iterates an inventory proves each entry and says nothing about what is
+missing from the inventory.* The fix is not a longer list: **derive the
+inventory from the artefact, in both directions.** The sentinel now reads every
+`case "x"` out of the Swift and every `invokeMethod('x')` out of the Dart and
+requires both sets to equal the pin, so an **unpinned** method is a red test.
+Generalise it: whenever a guard's coverage is a literal in the guard, ask what
+adds to the surface without touching that literal — and make the surface tell
+you instead.
+
+**161 — A probe that reports NOTHING needs a positive control, or you have measured your own regex.** *(S102, operator item 11)*
+Writing the #63 icon question up for the founder needed one number: of the 23
+Material icons this app uses, how many auto-mirror in RTL? The probe said
+**zero**, which was a tidy answer that would have gone into a founder-facing
+document as *"the RTL rework is free."*
+It said zero because Flutter declares those icons across **multiple lines** —
+`IconData(` then its arguments — and the check only ever saw the first line. It
+could not have returned anything else for any input. One control caught it:
+`arrow_back` **does** mirror, and 303 declarations in that file carry
+`matchTextDirection: true`, so a probe reporting zero across the board was
+reporting on itself. The real answer is **2** (`chevron_right`,
+`backspace_outlined`) at 4 call sites — still good news, and now true.
+The standing lesson *"a probe whose control passes is a broken probe"* is about
+a control that should FAIL. **This is its mirror image: an absence needs a
+control that should PASS.** A finding of "none" is the cheapest thing in the
+world to produce by accident, and it is the shape most likely to be believed,
+because nobody argues with a clean result.
+
+**160 — A post-merge-only job's red does not stay visible: the next runs SKIP it rather than re-run it.** *(S102, ADR-077 D3)*
+`integration-emulator` is `main`-only by cost design (ADR-006/ADR-029 D6) and
+skips docs-only pushes (ci-debt #17, closed and correct). It **failed** on
+ADR-076's merge; the three `main` runs after it were docs-only and **skipped**
+it. So `main`'s last actual verdict was red, three green ticks sat on top of it,
+and it stood **unexamined for six days** — through two sessions that each ended
+with a green pipeline in front of them.
+Every piece of that is working as designed, which is the point. ADR-024's Slack
+notifier reports the run nobody is watching, and ADR-024 D8 stopped the close
+commit from cancelling it; neither can make a session *act* on the report.
+**When a job is main-only, "CI is green" is a claim about the last run that
+included it, not about `main`** — so the close sequence's *"watch the post-merge
+main run"* needs its companion: **before opening, check when the main-only jobs
+last actually RAN**, not when they last reported. One command:
+`gh run list --workflow ci.yml --branch main --limit 6 --json databaseId,headSha`
+then read the job list of each.
+
 **159 — The finding you have just discovered and like the look of is the one you are least likely to check.** *(S099, ADR-073 1.1)*
 Reading fastlane's `TransporterExecutor#prepare` turned up
 `FileUtils.rm_rf(api_key[:key_dir])` in an `ensure`, with `key_dir` set to
