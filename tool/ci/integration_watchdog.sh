@@ -296,11 +296,34 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
       # it gives when the app never printed one (lesson 150).
       win=$((elapsed + 120))
       log_file="${GITHUB_WORKSPACE:-$PWD}/watchdog-device-log.txt"
+      verdict_file="$(mktemp)"
       {
         echo "--- device log, last ${win}s (ADR-078) ---"
         echo "  device   : $DEVICE_ID"
         echo "  full log : $log_file"
       } >&2
+
+      # ⚠️ THE VERDICT QUERY IS FILTERED, AND THAT IS A CORRECTION (ADR-078 D1.3).
+      # The first version asked for the whole unfiltered window and was KILLED BY
+      # ITS OWN BOUND at 30s. `log show` emits oldest-first, so the surviving
+      # output was the slice FURTHEST from the thing being measured: on run
+      # 34759401891 it asked back to 13:26:04, the suite went silent at 13:36:48,
+      # and the delivered file ended at 13:28:43. It then answered "no URI line"
+      # about a period it had never seen — and the line count said 770920, so the
+      # control was satisfied. `apsd` alone wrote 510724 of those lines.
+      #
+      # A predicate makes the verdict question hundreds of lines instead of three
+      # quarters of a million, so it completes well inside the bound and cannot be
+      # drowned. It encodes a hypothesis, which is exactly why the UNFILTERED file
+      # below is still kept as the artifact.
+      run_bounded "$DIAG_BOUND_SECONDS" \
+        xcrun simctl spawn "$DEVICE_ID" log show --last "${win}s" --style compact \
+        --predicate 'processImagePath CONTAINS "Runner" OR senderImagePath ENDSWITH "/Flutter" OR eventMessage CONTAINS "VM Service"' \
+        >"$verdict_file" 2>&1 || true
+
+      # The unfiltered capture, for the question nobody has thought to ask yet.
+      # Bounded too, and therefore possibly truncated — which is now SAID rather
+      # than left for a reader to infer from a file that looks complete.
       run_bounded "$DIAG_BOUND_SECONDS" \
         xcrun simctl spawn "$DEVICE_ID" log show --last "${win}s" --style compact \
         >"$log_file" 2>&1 || true
@@ -312,9 +335,39 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
       # beside a number has to be the one that produced it, and it has to have
       # produced only that). `|| true` keeps the count and drops the status.
       count_in() { local n; n="$(grep -c "$2" "$1" 2>/dev/null || true)"; echo "${n:-0}" | head -1 | tr -d ' '; }
-      total_lines="$(wc -l <"$log_file" 2>/dev/null || echo 0)"; total_lines="${total_lines// /}"
-      app_lines="$(count_in "$log_file" "$APP_BUNDLE_ID")"
-      uri_lines="$(count_in "$log_file" 'VM Service is listening on\|Observatory listening on')"
+      first_ts() { grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' "$1" 2>/dev/null | head -1; }
+      last_ts()  { grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' "$1" 2>/dev/null | tail -1; }
+
+      total_lines="$(wc -l <"$verdict_file" 2>/dev/null || echo 0)"; total_lines="${total_lines// /}"
+      raw_lines="$(wc -l <"$log_file" 2>/dev/null || echo 0)"; raw_lines="${raw_lines// /}"
+      app_lines="$(count_in "$verdict_file" 'Runner\[')"
+      uri_lines="$(count_in "$verdict_file" 'VM Service is listening on\|Observatory listening on')"
+
+      # ⚠️ THE DELIVERED SPAN IS A SECOND CLAIM (ADR-078 D1.3). Asking for the
+      # right window and GETTING it are different things, and the line count
+      # cannot tell them apart — 770920 lines looked like a healthy measurement
+      # of a period the file did not contain. So the window that came back is
+      # printed beside the one that was asked for, and a capture that does not
+      # reach back to the moment the silence began says CANNOT MEASURE instead
+      # of answering.
+      span_first="$(first_ts "$verdict_file")"
+      span_last="$(last_ts "$verdict_file")"
+
+      # ⚠️ PORTABLE, and that is not a nicety. `date -r <epoch>` is BSD; on GNU
+      # `-r` means "reference FILE" and the call fails. The watchdog runs on
+      # macOS in CI and its self-test runs on ubuntu in `quality`, so a
+      # BSD-only conversion yields an EMPTY string on the machine that tests it
+      # — and an empty string compares less than every timestamp, which makes
+      # the CANNOT MEASURE branch below unable to fire. A guard that silently
+      # no-ops on one of the two platforms it runs on is the failure this whole
+      # ADR keeps finding (lesson 164). Try BSD, then GNU, then fail CLOSED.
+      epoch_iso() {
+        date -u -r "$1" '+%Y-%m-%d %H:%M:%S' 2>/dev/null && return 0
+        date -u -d "@$1" '+%Y-%m-%d %H:%M:%S' 2>/dev/null && return 0
+        return 1
+      }
+      asked_back_to="$(epoch_iso $((now - win)) || echo "")"
+      silence_began="$(epoch_iso $((now - silent_for)) || echo "")"
       {
         # ⚠️ THE COUNTS ARE THE CONTROL (ADR-078 D1.2). `log show` reads a ring
         # buffer and nothing here has established that a seventeen-minute-old
@@ -322,10 +375,31 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
         # line aged out — and the instrument collapses the worlds it exists to
         # separate. ZERO TOTAL LINES on a booted simulator that just built and
         # launched an app is a BROKEN MEASUREMENT, not an answer.
-        echo "  lines in window      : $total_lines   <- 0 means the QUERY failed, not that the app was silent"
-        echo "  lines from the app   : $app_lines     ($APP_BUNDLE_ID)"
+        echo "  window ASKED FOR     : ${win}s (back to ${asked_back_to:-?})"
+        echo "  window DELIVERED     : ${span_first:-(none)} .. ${span_last:-(none)}"
+        echo "  silence began around : ${silence_began:-?}   <- the log MUST reach this"
+        echo "  lines (filtered)     : $total_lines   <- 0 means the QUERY failed, not that the app was silent"
+        echo "  lines (unfiltered)   : $raw_lines  in $log_file (bounded, so possibly TRUNCATED)"
+        echo "  lines from the app   : $app_lines     (process Runner)"
         echo "  'VM Service listening': $uri_lines"
+        if [ -z "$span_last" ]; then
+          echo "  VERDICT              : CANNOT MEASURE — the capture returned no timestamped lines"
+        elif [ -z "$silence_began" ]; then
+          # FAIL CLOSED. If this box can convert neither way, the comparison
+          # below is meaningless and must not be allowed to read as a negative
+          # result — the whole point of D1.3.
+          echo "  VERDICT              : CANNOT MEASURE — no portable date conversion here, so the"
+          echo "                         delivered window cannot be checked against the silence"
+        elif [ "$silence_began" \> "$span_last" ]; then
+          echo "  VERDICT              : ⚠️ CANNOT MEASURE — the capture ends BEFORE the silence began,"
+          echo "                         so 'no URI line' says nothing about the launch (ADR-078 D1.3)"
+        elif [ "$uri_lines" -gt 0 ]; then
+          echo "  VERDICT              : the app DID announce the VM Service — the reader missed it (tooling)"
+        else
+          echo "  VERDICT              : the app did NOT announce the VM Service in the covered window"
+        fi
       } >&2
+      rm -f "$verdict_file"
 
       echo "--- is the app process alive? ---" >&2
       run_bounded "$DIAG_BOUND_SECONDS" \

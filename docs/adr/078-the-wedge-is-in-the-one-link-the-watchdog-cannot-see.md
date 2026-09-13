@@ -180,6 +180,74 @@ needs no new mechanism and cannot fail to exist**, which is the weaker instrumen
 and the honest one. If a future session verifies a marker on a real runner, this
 is the decision to revisit.
 
+### ⚠️ D1.3 — the instrument fired on its FIRST real wedge and returned a confident wrong answer
+
+**Run 34759401891, 2026-09-13 — the fourth occurrence, and the first with the
+instrument in place.** `auth_emulator_test.dart` went `SILENT for 601s`. It
+worked: the artifact uploaded, the window was derived, the counts printed.
+
+```
+--- device log, last 1252s (ADR-078) ---
+  lines in window      : 770920   <- 0 means the QUERY failed, not that the app was silent
+  lines from the app   : 0     (com.beyondkaira.hayati)
+  'VM Service listening': 0
+--- is the app process alive? ---
+43075	0	UIKitApplication:com.beyondkaira.hayati[6ee2][rb-legacy]
+```
+
+Read at face value that is row three: **no URI, process present → the app
+launched and never reached the engine's listen.** A real attribution, on the
+first try.
+
+**It is not safe, and the artifact is what shows why.** The capture ran at
+`13:46:56` asking `--last 1252s`, i.e. back to `13:26:04`. The delivered file
+spans
+
+```
+first line  2026-09-13 13:26:07
+last  line  2026-09-13 13:28:43
+```
+
+**two and a half minutes** — and the suite went silent at **`13:36:48`**, eight
+minutes *after* the log ends. **The captured window does not contain the launch
+at all.**
+
+⚠️ **The cause is this ADR's own D2.1 colliding with its own D1.1.** `log show`
+emits oldest-first; `run_bounded` killed it at the 30s bound
+(`13:46:56 → 13:47:36`); so the output was truncated to the *oldest* slice of the
+requested range — the 2.5 minutes furthest from the thing being measured. Both
+decisions are individually correct. **Together they produce an instrument that
+answers confidently about a period it never saw.**
+
+⚠️ **And D1.2's control could not see it.** The line count was **770,920** — not
+zero, so *"the query worked"*. The control checks that lines came back, never
+that the **window** came back. `apsd` alone wrote **510,724** of those lines; the
+signal was drowned before it was truncated.
+
+**So the honest verdict for run 34759401891 is CANNOT MEASURE, and the reading
+above is retracted.** What survives is only what does not depend on the log:
+`launchctl` showed `UIKitApplication:com.beyondkaira.hayati` **alive** at capture
+time. That alone is worth having and is new.
+
+**Three changes follow, and the first is the one that generalises:**
+
+1. **Report the DELIVERED span, not just the requested one.** First and last
+   timestamp of the captured file, printed beside the request, and an explicit
+   **`CANNOT MEASURE`** whenever the delivered span fails to reach the moment the
+   silence began. A window is a claim; *getting* it is a second claim.
+2. **Ask a filtered question for the verdict.** The verdict query now carries a
+   predicate — the app's own process and Flutter's sender image — which is
+   hundreds of lines instead of three quarters of a million, completes inside the
+   bound, and cannot be drowned by `apsd`.
+3. **Keep the unfiltered capture as the artifact**, with its own bound, and label
+   it as possibly truncated. The grep still encodes today's hypothesis; the file
+   still outlives it; it just may no longer claim to be complete.
+
+⚠️ **This is lesson 163 one level deeper than lesson 163.** D1.1 fixed *asking*
+for the wrong window. D1.3 is *asking* for the right one and not noticing that a
+different, equally correct decision prevented it arriving. **An instrument's
+window is not settled until you check what came back.**
+
 ## Decision 2 — What else is captured, and the discipline it inherits
 
 The existing block's rule is stated in its own comment — *"best-effort and never

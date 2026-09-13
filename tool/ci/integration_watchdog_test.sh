@@ -362,7 +362,8 @@ else
   ok "device-log: reports the URI line when it is present"
 fi
 # D1.2 — the control. Without these a broken query reads as a negative result.
-if ! grep -q "lines in window" "$OUT" || ! grep -q "lines from the app" "$OUT"; then
+if ! grep -q "lines (filtered)" "$OUT" || ! grep -q "lines (unfiltered)" "$OUT" \
+   || ! grep -q "lines from the app" "$OUT"; then
   bad "device-log: prints the line counts that control the verdict (D1.2)" "$(grep -i 'lines' "$OUT" || echo '(absent)')"
 else
   ok "device-log: prints the line counts that control the verdict (D1.2)"
@@ -376,10 +377,12 @@ else
 fi
 
 # --- 5b.2 no URI line -> the other rows -----------------------------------
+# The app's own process is `Runner` — the count is over the PROCESS, not the
+# bundle id, because on the first real wedge the bundle id appeared ZERO times
+# in 770920 lines while the app was demonstrably running (ADR-078 D1.3).
 rm -f "$TMP/xcrun-args"
-STUB_LAUNCHCTL="" write_stub 'app start
-com.example.stub did a thing
-nothing else happened'
+NOWTS2="$(date -u '+%Y-%m-%d %H:%M:%S')"
+STUB_LAUNCHCTL="" write_stub "$NOWTS2 Df Runner[9:9] app start, and nothing else happened"
 STUB_LAUNCHCTL="" run_stubbed
 if ! grep -q "'VM Service listening': 0" "$OUT"; then
   bad "device-log: reports ZERO when the URI line is absent" "$(grep -i 'VM Service' "$OUT" || echo '(absent)')"
@@ -390,6 +393,41 @@ if ! grep -q "lines from the app   : 1" "$OUT"; then
   bad "device-log: counts the app's own lines" "$(grep -i 'from the app' "$OUT" || echo '(absent)')"
 else
   ok "device-log: counts the app's own lines"
+fi
+
+# --- 5b.2b ⚠️ A CAPTURE THAT ENDS BEFORE THE SILENCE SAYS SO (ADR-078 D1.3) --
+#
+# THE lesson of the first real wedge. On run 34759401891 the capture asked for
+# the right window, was killed by its own 30s bound mid-stream, and — because
+# `log show` emits oldest-first — kept the slice FURTHEST from the launch. It
+# then answered "no URI line" about a period it had never seen, while the line
+# count (770920) satisfied the control. Asking for a window and GETTING it are
+# two claims, and only the delivered timestamps can tell them apart.
+rm -f "$TMP/xcrun-args"
+STUB_LAUNCHCTL="123 0 com.example.stub" write_stub '1999-01-01 00:00:01 Df something[1:1] an ancient line'
+STUB_LAUNCHCTL="123 0 com.example.stub" run_stubbed
+if ! grep -q "CANNOT MEASURE" "$OUT"; then
+  bad "device-log: a capture ending before the silence says CANNOT MEASURE" "$(grep -i verdict "$OUT" || echo '(no verdict line)')"
+else
+  ok "device-log: a capture ending before the silence says CANNOT MEASURE"
+fi
+if ! grep -q "window DELIVERED" "$OUT"; then
+  bad "device-log: prints the DELIVERED window, not only the requested one" "$(grep -i window "$OUT" || echo '(absent)')"
+else
+  ok "device-log: prints the DELIVERED window, not only the requested one"
+fi
+
+# --- 5b.2c a capture that DOES cover the silence gives a real verdict -----
+rm -f "$TMP/xcrun-args"
+NOWTS="$(date -u '+%Y-%m-%d %H:%M:%S')"
+STUB_LAUNCHCTL="123 0 com.example.stub" write_stub "$NOWTS Df Runner[9:9] The Dart VM Service is listening on http://127.0.0.1:1/x=/"
+STUB_LAUNCHCTL="123 0 com.example.stub" run_stubbed
+if grep -q "CANNOT MEASURE" "$OUT"; then
+  bad "device-log: a covering capture is NOT reported as unmeasurable" "$(grep -i verdict "$OUT")"
+elif ! grep -q "the app DID announce the VM Service" "$OUT"; then
+  bad "device-log: a covering capture with the URI says the reader missed it" "$(grep -i verdict "$OUT" || echo '(absent)')"
+else
+  ok "device-log: a covering capture with the URI blames the reader, not the app"
 fi
 
 # --- 5b.3 ⚠️ A HANGING xcrun MUST NOT COST THE 124 (ADR-078 D2.1) ---------
