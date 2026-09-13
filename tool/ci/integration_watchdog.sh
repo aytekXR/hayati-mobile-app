@@ -334,9 +334,22 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
 
       # The crash report is the diagnosis when the app announced itself and then
       # died — the row that did NOT exist until the design review added it.
-      echo "--- newest crash reports ---" >&2
-      ls -t "$HOME/Library/Logs/DiagnosticReports/"*.ips 2>/dev/null | head -3 >&2 \
-        || echo "  (none)" >&2
+      #
+      # ⚠️ TIME-BOUNDED, not "the newest three". `ls -t … | head -3` would happily
+      # hand back three reports from an EARLIER suite in the same job and present
+      # them as this wedge's evidence — a confident wrong answer, which is the
+      # failure this whole ADR is about. `-mmin -60` says "during this job" and
+      # prints nothing when there is nothing, which is the honest empty.
+      # (It also drops shellcheck SC2012, which is how this was noticed: the
+      # box has no shellcheck and CI found it. Lesson 78 — say which half you
+      # proved and which half CI proved.)
+      echo "--- crash reports from the last hour ---" >&2
+      crash_out="$(find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -name '*.ips' -mmin -60 2>/dev/null | head -5)"
+      if [ -n "$crash_out" ]; then
+        echo "$crash_out" >&2
+      else
+        echo "  (none in the last hour)" >&2
+      fi
     elif [ -z "${DEVICE_ID:-}" ]; then
       # ⚠️ NEVER GUESS A DEVICE. `simctl list devices booted` can return more
       # than one, and the wrong device's log is worse than no log — it would
