@@ -1,6 +1,6 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-09-03 UTC (Session 099)
+**Last Updated:** 2026-09-13 UTC (Session 102)
 
 > This file is a **live checkpoint, not a history.** It carries only what is
 > **open right now**. Closed items are deleted, not archived — what each session
@@ -17,7 +17,7 @@
 | Completion | **~58%** of the iOS MVP, to public launch |
 | Production Readiness | **Integration Ready** |
 | Production | 🟢 **UP.** Billing restored 2026-09-03 ~22:05 UTC after 12 days down; the **23:00 UTC sweep completed** (`assigned=1, failed=0`) and `prod_pulse` exits **0** — item 1 |
-| Open operator items | **1, 2 and 10 DONE**; **9 is now the urgent one** — billing is live and nothing watches the bill; 3–8 stand |
+| Open operator items | **1, 2 and 10 DONE**; **9 is the urgent one** — billing is live and nothing watches the bill; 3–8 stand; **11 is new** — a brand decision, and the first thing here that costs you nothing but a choice |
 
 **Completion — ~58%.** Engineering (M0–M6.3) is **~95%** — the code builds, signs
 and passes its gates. ⚠️ *"Every milestone closed" is not true and was written
@@ -166,20 +166,29 @@ secrets and not one of them is on this list.
 Setup steps: `docs/adr/064-*.md` (watcher), `docs/adr/041-*.md` (drift). All but
 the deploy one are **read-only** service accounts.
 
-### 4. Cut a build, install it, allow notifications
+### 4. Install build 121 and open the app to the paired home screen
 
-The last build on devices is **119, cut 2026-08-09 — 26 days ago.** Everything
-merged since is on nobody's phone.
+**Where this stands, in one line: 120 is installed and told us why it failed;
+121 is on TestFlight carrying the fix and has not been installed.**
 
-**A new build was dispatched 2026-09-04** (release run **#20**, from `main`) at
-your request. Its number is `100 + run number`.
+| build | cut | on your phone? | what it gave us |
+|---|---|---|---|
+| 119 | 2026-08-09 | superseded | — |
+| 120 | 2026-09-04, run #20 | ✅ installed, permission **granted** | the first diagnostic this system has ever produced — §4.1 |
+| **121** | **2026-09-06, run #21** | ❌ **not yet** | the fix, and the callback that makes a refusal speak — §4.2 |
 
-> Install it from TestFlight → open the app to the paired home screen → tap
-> **Allow** on the notification prompt.
+> **Install 121 from TestFlight → open the app to the paired home screen.** You
+> will **not** be asked for permission again: iOS shows that dialog once per
+> install and you already granted it, which is exactly why 121 had to do its
+> asking on the app's own side instead.
 
-✅ **Item 1's precondition is now met**, which is why this is your turn: before
-billing was restored the registration call was refused, and you would have spent
-the permission prompt — which iOS shows **once per install** — for nothing.
+⚠️ **This is still the one thing on this page that only a phone can answer.** The
+whole server half is proven (§4.1) and every link that can be measured from CI
+has been (§4.2). What has never happened is a device reporting an address.
+
+✅ **Item 1's precondition was met before 120 went out**, which is why the
+permission prompt was not wasted: before billing was restored the registration
+call would have been refused, and iOS shows that dialog **once per install**.
 
 ### 4.1 — You did it, it failed, and the failure was USEFUL (2026-09-06)
 
@@ -309,6 +318,32 @@ So the write is unconstrained and **the report will record.** ✅
 production, in either direction. Deploying the current ruleset is a prod deploy
 and therefore yours to authorise — it is **not** needed for the notification test
 and should not be mixed into it.
+
+#### 4.4 — ⚠️ 121 carries a HOLE in the fix, found after it shipped (ADR-077)
+
+Said plainly, because a version number should not have to be decoded.
+
+**Build 121 does not carry everything.** Reviewing ADR-076's change *after* it
+went out turned up a gap in it: the code asks iOS for an address when it reads
+back *"no address"*, and falls through correctly — **but when that read throws
+an error instead of answering, the old code gave up and asked nobody.** The
+branch whose own comment says *"not 'no' — cannot tell"* was the only branch that
+never asked, and *cannot tell* is exactly the state this app's Firebase setup is
+most likely to produce.
+
+**What that changes for you: almost nothing, and here is the honest version.**
+
+| | |
+|---|---|
+| **Still install 121?** | **Yes.** The hole only bites if that read *throws*. A plain *"no address"* — the case your phone has shown twice — reaches the request in 121 just fine |
+| **If 121 registers a token** | It worked. Nothing below matters and I send you a real test notification |
+| **If 121 still says `captureExhausted`** | That reading is **no longer clean**: one path could have skipped the ask. **Build 122 is what makes it unambiguous** |
+| **Do you need to do anything now?** | **No.** No build is being cut and none is being asked for |
+
+**Cost of finding it now rather than later: a build.** Cost of finding it after
+you had installed 122 on the strength of a clean-looking 121: a round trip
+through your phone, and a conclusion drawn from a measurement that had a hole in
+it.
 
 ### 5. The legal bundle — one decision, three drafted parts, six questions
 
@@ -504,47 +539,123 @@ appearing makes it real. The only honest check is to run a probe and read its ex
 code. **Delete this item once it has survived one rebuild without anyone falling
 for it.**
 
+### 11. A brand decision nobody has ever put to you — Phosphor or Material (#63)
+
+**This is the only item on this page that needs no money, no hardware, no lawyer
+and nobody but you.** It has also been named as *"the next session's objective"*
+three times and never actually written down for you, which is why it is a
+numbered item now instead of a promise.
+
+**The situation.** `brandkit` §5 specifies **Phosphor** icons. The app ships
+**Material** ones. `ADR-025` has recorded that honestly as a known divergence
+since the design arc, and the shipped rule it states — *one consistent icon
+family at a consistent weight* — is satisfied. Nothing is broken. **What has
+never happened is anyone asking you which family is the real one.**
+
+**Measured today, so the numbers are not inherited** (the commands are beside
+them because earlier write-ups of this said "28 icons" and that is not the count
+at this ref):
+
+| | |
+|---|---|
+| `Icons.*` call sites in `app/lib` | **34** — `grep -rno "Icons\.[a-zA-Z_]*" app/lib \| wc -l` |
+| distinct icons used | **23** — the same, `sort -u` |
+| files touched | **15** |
+| `phosphor` in `app/pubspec.yaml` | **absent** |
+| committed goldens (the re-baseline ceiling) | **360** — `git ls-files 'app/test/**/*.png' \| wc -l` |
+
+### Two ways out. Both are defensible and **neither is recommended here**
+
+**(a) Migrate the app to Phosphor.** The brandkit becomes true.
+
+* one new dependency and a second icon font in the bundle;
+* **23 distinct icons across 34 call sites in 15 files**;
+* a golden re-baseline — **360 committed PNGs is the ceiling**, and any golden
+  rendering an icon moves;
+* **the RTL mirroring, which is smaller than it has been described.** The usual
+  argument is that Material icons auto-mirror in Arabic and Phosphor glyphs do
+  not, so the whole mirror net needs rework. Measured against Flutter's own
+  `icons.dart`: of the 23 icons this app uses, **2 auto-mirror** —
+  `chevron_right` and `backspace_outlined` — at **4 call sites** between them.
+  *(Control: 303 icons in that file do declare mirroring, and `arrow_back` is
+  one, so the measurement can tell the difference.)*
+
+**(b) Amend the brandkit** to record Material outline as the shipped icon system.
+
+* a documentation change, the way §10 already records the contrast exception;
+* the app does not move, no goldens move, no dependency is added;
+* the cost is that the brandkit stops specifying and starts describing — on this
+  one line.
+
+⚠️ **Do not read the cost asymmetry as a recommendation.** (b) is cheaper and
+(a) is a day's work, and that is *not* the question. The question is which icon
+family is **ikimiz**, and that is yours the way the name and the palette are
+yours. A session picking (b) because it is cheaper is how a founder's decision
+becomes a session's by attrition — which is precisely what has been happening to
+this one for three sessions.
+
+**What I need from you: one word — *Phosphor* or *Material*.** Either way #63
+closes, a session does the work or writes the amendment, and the design record
+stops carrying an open question as a footnote.
+
 ---
 
 ## Current Blockers
 
-🔴 **Production is down** (item 1). Everything server-side is downstream and no
-session can fix it.
+🟢 **Production is UP** (item 1, restored 2026-09-03) — the line here said *"down"*
+for ten days after it came back. What is down is nothing; what is **unwatched**
+is everything, which is item 9.
 
 These block **public launch**:
 
-1. ~~Nothing runs on the server~~ — **billing restored 2026-09-03**; awaiting the first successful sweep (item 1).
+1. ~~Nothing runs on the server~~ — ✅ **closed.** Billing restored 2026-09-03 and the 23:00 UTC sweep completed (`assigned=1, failed=0`); `prod_pulse` exits **0** (item 1).
 2. **Payments** — Google's side is done and proven; what remains is matching the token in RevenueCat's dashboard (item 2.1).
-3. **Push has never been delivered** — item 4; 0 of 4 devices registered.
+3. **Push has never been delivered** — item 4; 0 of 4 devices registered. **Build 121 is on TestFlight and uninstalled**, and §4.4 says what it does and does not carry.
 4. **The App Store listing is not submittable** — seven of nine English fields empty at Apple, Turkish absent. Items 6(a) and 6(b).
-5. **Prod-vs-`main` drift is unmeasured**, not passing — both checks skip for one missing secret (item 3).
+5. **Prod-vs-`main` drift is unmeasured**, not passing — both checks skip for one missing secret (item 3). ⚠️ And it is no longer only a measurement gap: the **live ruleset is 62 lines behind `main`** (§4.3, #293).
 6. **Legal texts are unreviewed**, with three blanks — items 5 and 8.
 7. **Content is ~2% authored** — item 7.
-8. **The analytics funnel emits into a no-op** in production; turning it on needs the legal change in item 5 first.
+8. **Nothing is watching the bill** — item 9, and it became urgent the moment billing came back.
+9. **The analytics funnel emits into a no-op** in production; turning it on needs the legal change in item 5 first.
 
 **Not blockers, recorded so they are not mistaken for one:** #242 (the three
-server-side money events) is open and *correctly* unbuilt — ADR-060 decided not to
-build an emitter before there is somewhere to emit. #278 (publish per locale) is
-open, built and deliberately unrun pending 6(b).
+server-side money events) is open and *correctly* unbuilt — ADR-060 decided not
+to build an emitter before there is somewhere to emit.
+
+⚠️ **Two issues closed on 2026-09-13, both re-measured rather than closed on the
+record of their fix.** **#115** — the RevenueCat webhook now answers *its own*
+JSON (`401 {"error":"unauthorized"}`) instead of Google's HTML, which is that
+issue's own acceptance test; the dashboard token match stays open as **2.1**.
+**#278** — the per-locale writer is built, gated and self-tested (run again that
+day, exit 0); publishing it is still **6(b)** and it has never been run in write
+mode.
 
 ---
 
 ## Next Step
 
-**Two things, and neither waits on the other.**
+**Three things, and none of them waits on another.**
 
-1. **Item 1** — restore billing, and set the budget alert (item 9) while you are
-   in the console. Everything server-side is downstream of it.
-2. **Item 6(b)** — the only item that needs no money, no hardware and nobody else.
+1. **Item 9** — a budget alert. Billing is live and nothing is watching it; this
+   is the one that can cost real money while nobody is looking.
+2. **Item 4** — install **121** and open the app. The only question on this page
+   that a phone can answer, and it has never been answered.
+3. **Item 11** — one word, *Phosphor* or *Material*. The only item here that
+   costs nothing but a decision.
+
+**Item 6(b)** remains the largest thing you could unblock with a reading session
+rather than a purchase.
 
 ## Next Session Goal
 
-**Session 100 — #63: a brand decision nobody has ever put to you.** Your brandkit
-specifies **Phosphor** icons; the app ships **28 Material** ones, and the design
-record has carried that as a known divergence rather than a question. Session 100
-will write up both ways out and what each costs, and deliberately **will not
-recommend one**, because it is your brand.
+**There is no unblocked engineering objective left that a session can pick on its
+own, and that is a finding rather than a gap.** Session 102 re-derived the queue
+from `gh issue list` rather than inheriting it: of the open issues, the ones a
+session could act on alone are M6.5-gated (#13, #250), device-gated (#15, #48,
+#136) or brand-gated (#63 — now item **11**, above). Everything else waits on a
+secret, a lawyer, a phone, a release authorisation, or a decision on this page.
 
-**It is the last thing on the board a session can move.** After it, every open
-issue is waiting on billing, a phone, a lawyer, a secret, or a decision on this
-page.
+**So the next session's most useful work is whatever your answers open.** A
+word on item 11 starts a real slice; a report from 121 either ends the push hunt
+or points it at the network path; the item-3 secrets turn two skipped CI checks
+into measurements.
