@@ -164,6 +164,8 @@ jobs:
       # NOT path-filtered, because an ADR ships in the same push as its code.
       - name: adr index lint self-tests
         run: dart tool/adr_index_lint_test.dart
+      - name: coverage gate self-test (ADR-079 D5)
+        run: dart tool/coverage_gate_test.dart
       - name: adr index lint
         run: dart tool/adr_index_lint.dart
       # ADR-024 D1: the Slack notifier is bash, and bash gets neither
@@ -384,7 +386,22 @@ jobs:
         # Threshold ratchets +2% per milestone (test-suite.md §3); never lowered:
         # 60 → 62 at M1 close (Session 006) → 64 at M2 close (Session 010)
         # → 66 at M3 close (Session 014).
-        run: dart tool/coverage_gate.dart --min 68 app/coverage/lcov.info
+        # ADR-079. TWO bounds, and the second is the point. --min 86 is 1.75
+        # points under the 87.75% this suite measures; --max-slack 5 fails the
+        # build once the floor drifts more than five points below reality.
+        #
+        # ⚠️ WHY: this line read `--min 68` while the suite measured 87.75% —
+        # a ~1,630-line coverage regression would have passed. docs/test-suite.md
+        # §3 has said "ratchet: +2%/milestone, never lowered" since the M4 close
+        # AND recorded the gap in the same sentence ("68 ... measured 86.50%").
+        # A ratchet that depends on somebody remembering is prose. The slack
+        # bound makes the drift itself the failure, and the message names the
+        # floor to write.
+        #
+        # Both numbers live HERE, as literals, because ADR-079 D1 cannot stop a
+        # session widening the slack instead of raising the floor — it can only
+        # make that choice a visible line in a diff.
+        run: dart tool/coverage_gate.dart --min 86 --max-slack 5 app/coverage/lcov.info
       # Goldens are Linux-canonical (rendered/verified in this ubuntu job); on a
       # mismatch the comparator writes diffs to failures/ next to the test, so
       # upload them to make a red golden inspectable without re-running locally.

@@ -28,13 +28,30 @@ export default defineConfig({
       // (payload-policy, local-hour, recipients).
       exclude: ['src/index.ts', 'src/notifications/fcm-adapter.ts'],
       reporter: ['text', 'lcov'],
-      // test-suite.md §3: Functions target 85%, HARD FAIL below 80. Thresholds
-      // here are the hard gate; the 85% target is reviewed per PR, not enforced.
+      // ADR-079 D4. PER-METRIC, because one number for all four is what made
+      // the old table unusable: measured 2026-09-13 the suite is
+      // 97.43 stmts / 92.81 branches / 97.78 funcs / 97.68 lines, so BRANCHES is
+      // the binding metric at 92.81 and lines at 97.68 is not. A single 80
+      // hid that.
+      //
+      // ⚠️ These were 80/80/80/80 against a suite at ~97 — 17.7 points of slack
+      // on lines, and the same shape as the app gate ADR-079 is about: a
+      // threshold so far below the measurement that it cannot catch a
+      // regression. test-suite.md §3 also named an "85% target" that existed in
+      // NO config; it is gone rather than carried forward, because a target
+      // nothing measures is how §3 came to promise a `domain/` gate that was
+      // never built.
+      //
+      // ⚠️ ASYMMETRY, recorded rather than left to be discovered: the Dart gate
+      // polices its own currency (`coverage_gate.dart --max-slack` fails when
+      // the floor drifts too far below reality). Vitest has no such concept, so
+      // THESE NUMBERS CAN GO STALE THE OLD WAY. Parity would mean wrapping
+      // vitest the way coverage_gate.dart wraps lcov; not done here.
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80,
+        lines: 95,
+        functions: 95,
+        branches: 90,
+        statements: 95,
       },
     },
   },

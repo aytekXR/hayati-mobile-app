@@ -49,12 +49,18 @@ It asserts, over `ios/Runner.xcodeproj/project.pbxproj`: the app target has exac
 
 ## 3. Coverage goals
 
-| Scope | Target | Gate |
+| Scope | Expected | Gate |
 |---|---|---|
-| `domain/` (all features) | 90% | Hard fail <85% |
-| Functions (TS) | 85% | Hard fail <80% |
-| Overall Dart | 70% by M6 | Ratchet: starts 60%, +2%/milestone, never lowered — **68 since the M4 close** (measured 86.50%) |
+| Overall Dart | — | **`--min 86 --max-slack 5`**, in `ci.yml`. 87.75% measured 2026-09-13 (7236/8246). ⚠️ The gate now fails **in both directions**: below 86, and when the floor drifts more than 5 points under the measurement — because the previous row of this table said *"+2%/milestone, never lowered"* and the floor sat at **68** for eight milestones while every run printed PASS (ADR-079 D1) |
+| `domain/` (all features) | logic ≥ 74%, *not gated* | **No gate.** 63% measured 2026-09-13 (790/1254). **61% of that gap is `==`/`hashCode`/`toString` on sealed variants**, so an 85% gate would be met by padding — ADR-079 **D3 declines it**, and #298 asks whether the boilerplate should exist at all. The **74%** logic bucket is the honest figure and is **unguarded**: D3.1 states what that permits |
+| Functions (TS) | — | **95 stmts / 90 branches / 95 funcs / 95 lines**, in `functions/vitest.config.ts`. Measured 97.43 / 92.81 / 97.78 / 97.68. ⚠️ **Branches is the binding metric**, not lines; one number for all four is what made this row unusable. ⚠️ Vitest cannot express the slack check, so these **can go stale the old way** (ADR-079 D4) |
 | Screens with goldens | 100% of P0 screens | PR checklist |
+
+⚠️ **Every number in this table is dated and carries the command that produced
+it.** The row it replaces promised a `domain/` hard fail that **was never
+implemented**, and a Functions *"85% target"* that existed in **no config at
+all** — both read for months as gates that existed. A target nothing measures is
+indistinguishable from a gate nobody wrote.
 
 Coverage is a floor, not a goal — acceptance criteria in `implementation-plan.md` define sufficiency.
 

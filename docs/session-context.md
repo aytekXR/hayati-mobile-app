@@ -172,7 +172,11 @@ _Environment facts below were last re-measured **2026-08-05**._
   with your own review agents. Check `ss -ltn` for 8080/9099/5001.
 
 **Gates**
-* Coverage: **app 68**, **functions 80 hard / 85 target**.
+* Coverage: **app `--min 86 --max-slack 5`** (87.75% measured) · **functions 95/90/95/95**
+  (97.43/92.81/97.78/97.68 measured). ⚠️ **The app gate fails in BOTH directions** —
+  below the floor, and when the floor drifts >5 points under the measurement, because
+  it sat at 68 against a measured 87.75% for eight milestones (ADR-079). There is no
+  `domain/` gate and `test-suite.md` §3 now says so explicitly rather than promising one.
 * Content: packs authored under `content/packs/` **only** —
   `dart content/validator/validate.dart --sync`.
 * Goldens are Linux-canonical; re-measure the count with
