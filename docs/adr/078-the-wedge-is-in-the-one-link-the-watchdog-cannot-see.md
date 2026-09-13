@@ -93,7 +93,7 @@ On timeout, the watchdog asks the device log directly — **historically**
 is measuring:
 
 ```sh
-xcrun simctl spawn "$DEVICE_ID" log show --last <window> --style compact
+xcrun simctl spawn "$DEVICE_ID" log show --last "${window}s" --style compact
 ```
 
 and reports whether `Dart VM Service is listening on` appears at all. Three
@@ -110,6 +110,38 @@ app has a `UIApplicationSceneManifest` and configures Firebase from pure-Dart
 options — the same scene-lifecycle territory Flutter's own predicate carves out
 two clauses for. That is a reason to capture, not a conclusion; **no claim is
 made here that it is the cause.**
+
+### ⚠️ D1.1 — the window is DERIVED, and the first draft of this ADR got it wrong
+
+The first version of this decision said `--last 5m`. **Measured against the
+incident it was written for, 5 minutes misses everything that matters.** From run
+34042187123's own timestamps:
+
+```
+15:40:15  00:00 +0: loading integration_test/auth_emulator_test.dart
+15:47:06  Xcode build done.  229.5s          <- launch/attach begins here
+15:57:06  ##[error] ... SILENT for 600s      <- the watchdog fires
+```
+
+The gap from **build-done to fire is exactly 600s** — necessarily, because the
+silence bound starts counting at the last line of output, and the last line of
+output *is* the launch. So at the moment of capture the interesting window is
+**already `WATCHDOG_SILENCE_SECONDS` old**, and `--last 5m` reaches back only to
+15:52:06. It would have captured ten minutes of nothing and reported *"no URI
+line"* — which is the same answer it would give if the app had genuinely never
+printed one.
+
+⚠️ **That is lesson 150 exactly: a verdict compatible with two very different
+worlds, where everyone would have assumed the wrong one.** An instrument built to
+split one failure into three would have collapsed two of them back together, and
+nothing in its output would have shown it.
+
+So the window is **computed, not chosen**: the watchdog already tracks the
+suite's elapsed seconds, and the capture covers **the whole suite plus a margin**
+— which subsumes both the launch and the silent period regardless of how the
+bounds are later tuned. And the window it actually used is **printed beside the
+result**, so *"no URI line in the last N seconds"* can never be read as *"no URI
+line"*.
 
 ## Decision 2 — What else is captured, and the discipline it inherits
 
@@ -224,6 +256,9 @@ actually attributed.
 
 - **A stub proves plumbing, not diagnosis.** D3 says so rather than implying
   otherwise.
+- **The window is bounded by the suite, so the capture grows with it.** A long
+  first suite means a longer `log show`. Accepted: the alternative is a fixed
+  window that silently stops covering the launch, which D1.1 is about.
 - **`log show` on a wedged runner costs time** inside a job that has already
   spent its silence budget. It runs after the bound has fired and before the
   process-group kill, so it delays the failure by seconds, not minutes — and the
