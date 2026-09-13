@@ -290,7 +290,7 @@ was not.
 > |---|---|
 > | a token is registered | **it worked** — I send a real test notification to prove the last link |
 > | `apnsRegistrationRefused` | iOS refused and **named the reason**; the sentence is in the device log, and the fault is finally addressable |
-> | `captureExhausted` still | the request went out and APNs stayed silent — which points at the network path, not at this app |
+> | `captureExhausted` still | ⚠️ **read §4.4 before believing this row.** It used to mean *"the request went out and APNs stayed silent, so the fault is the network path, not this app"* — and in **121** that is no longer safe to conclude, because one path in 121 could have skipped the request entirely |
 
 ⚠️ Honest bound: the fix is a **candidate**, not a diagnosis. It removes a real
 dependency on vendor ordering and is the best-supported explanation left
@@ -472,13 +472,14 @@ reachable. **Measured 2026-09-13:**
 
 | | |
 |---|---|
-| `https://ikimiz.beyondkaira.com/` | **TLS handshake fails** — no HTTP response at all |
+| `https://ikimiz.beyondkaira.com/` | **the certificate does not match the name, so the connection is refused before any HTTP** — *"no alternative certificate subject name matches target host name"*. (Said precisely: the TLS handshake reaches CERT verify and **verification** fails. The effect is the same — there is no response — but the cause is a certificate, not a broken TLS stack) |
 | `http://ikimiz.beyondkaira.com/` | **404** |
 | the VPS certificate | `CN = ams.beyondkaira.com`, SANs: `ams, bedirhandemirel, beyondkaira.com, brier, matbu, pulse, test, www, yanki` — **no `ikimiz`** |
 
 DNS points `ikimiz.beyondkaira.com` at the VPS (`161.97.172.146`), so the name
-resolves to a box with neither a certificate nor a vhost for it. HSTS on the
-apex means there is no degraded HTTP mode either.
+resolves to a box with neither a certificate covering it nor a vhost for it.
+HSTS on the apex means there is no degraded HTTP mode either — a browser will
+not offer a click-through.
 
 ⚠️ **The certificate has been reissued since this was first reported** and
 `ikimiz` still was not added — PR #172 listed eight SANs on 2026-08-02 and there

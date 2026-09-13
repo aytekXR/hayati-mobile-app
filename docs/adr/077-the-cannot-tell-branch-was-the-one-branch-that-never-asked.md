@@ -136,6 +136,53 @@ private helper has no annotation, so its own *declaration* fell inside the
 window and satisfied the assertion with the call site deleted. **The test was
 green over the mutation until the mutation was actually run.**
 
+### ⚠️ D2.1 — and the built-diff review found the sentinel green over the likeliest re-introduction
+
+The design pass produced the sentinel; the **second** pass, over the built diff,
+found a hole in it. Recorded here because the sentinel's whole value is that it
+cannot be quietly wrong.
+
+The `return` check was anchored: `^\s*return[\s;]`, matched line by line. The
+anchor existed for a reason — the catch body is **all comments**, and its prose
+says *"rather than returning"* and *"the early return made"*, which an unanchored
+`\breturn\b` would match. But an anchored pattern **misses
+`if (cond) return false;`** — and a single-line conditional return is this file's
+own house style, used **three** times in it (`if (!Platform.isIOS) return true;`
+and two more). So the guard was green over the most plausible way the bug comes
+back.
+
+The fix removes the reason for the anchor rather than working around it: the
+extractor now walks to the **matching** brace while skipping `//` comments, and
+keeps two strings — the body verbatim, and the body with comments stripped. The
+`return` scan runs on the stripped text, unanchored.
+
+⚠️ **That also closed a second hole nobody had noticed**: the first extractor
+stopped at `source.indexOf('}', …)`, so a single `}` written inside one of the
+catch's own comment sentences would have silently truncated the window every
+assertion measures — green, over a fragment.
+
+**Re-mutation-checked, four ways, and the fourth is the one that matters:**
+
+| mutation into the catch | before | now |
+|---|---|---|
+| `return false;` | fails ✅ | fails ✅ |
+| **`if (hasAddress) return false;`** | **PASSES ❌** | fails ✅ |
+| `if (hasAddress) { return false; }` | **PASSES ❌** | fails ✅ |
+| a `}` in a comment, then `return false;` | **PASSES ❌** | fails ✅ |
+
+⚠️ **And the first attempt at that fourth mutation was itself broken** — a `\n`
+inside a double-quoted shell argument stayed literal, so the whole insert landed
+as one comment line and the test passed for the wrong reason. Caught by reading
+the mutated file instead of the exit code. **Lesson 161 twice in one session.**
+
+⚠️ **The refuting verifier got this one wrong, and that is worth recording.** It
+returned **REFUTED**, on the grounds that the lines the finding cited as evidence
+(`if (!Platform.isIOS) return true;` at the top of two methods) sit *outside* the
+window the regex scans — which is true, and is about the finding's **evidence**,
+not its **claim**. The claim was that a conditional return *inside* the catch
+would evade the guard, and four minutes with the regex confirms it does. *A panel
+is an input to judgement, not a substitute for measuring* (standing lesson).
+
 ## Decision 3 — The `integration-emulator` red on 3b0eaf3 is the known flake, and the evidence is not "it passed later"
 
 ADR-076's own merge run (**34042187123**, `3b0eaf3`) failed:

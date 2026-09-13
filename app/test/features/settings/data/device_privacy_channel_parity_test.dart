@@ -107,7 +107,7 @@ void main() {
     //   * every `case "x"` in the Swift handler is in the list;
     //   * every `Future<…> …invokeMethod…('x')` in the Dart client is in the list.
     final swiftCases = RegExp(
-      r'case "([A-Za-z]+)":',
+      r'case "([A-Za-z0-9_]+)":',
     ).allMatches(swift).map((m) => m.group(1)!).toSet();
     expect(
       swiftCases.difference(methods.toSet()),
@@ -119,7 +119,7 @@ void main() {
     );
 
     final dartInvocations = RegExp(
-      r"invokeMethod<[^>]*>\('([A-Za-z]+)'",
+      r"invokeMethod<[^>]*>\('([A-Za-z0-9_]+)'",
     ).allMatches(dart).map((m) => m.group(1)!).toSet();
     expect(
       dartInvocations.difference(methods.toSet()),

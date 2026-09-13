@@ -41,7 +41,22 @@ void main() {
       'lib/features/notifications/data/fcm_push_token_source.dart';
 
   late String source;
+
+  /// The catch block's body, verbatim — comments and all.
   late String catchBody;
+
+  /// The same body with `//` comments stripped: **the executable text**.
+  ///
+  /// ⚠️ This split is the correction the built-diff review forced (S102). The
+  /// first version scanned the body *including* its comments, which meant the
+  /// `return` check had to be anchored to the start of a line to avoid matching
+  /// the prose ("rather than returning", "the early return made"). A line
+  /// anchor misses `if (cond) return false;` — **and a single-line conditional
+  /// return is this file's own house style**, used three times in it. So the
+  /// sentinel would have been green over the most plausible re-introduction of
+  /// the exact bug it exists to prevent. Strip the prose, then no anchor is
+  /// needed and no `return` can hide behind a condition.
+  late String catchCode;
 
   setUpAll(() {
     final file = File(sourcePath);
@@ -80,52 +95,67 @@ void main() {
           'no `$catchOpener` after the getAPNSToken() read — the catch this '
           'invariant is about has been rewritten; re-read ADR-077 D1',
     );
+    // Walk to the MATCHING brace, skipping `//` comments, rather than taking
+    // the first `}`. ⚠️ Also a review correction: the first version stopped at
+    // `source.indexOf('}', …)`, which a single `}` written inside one of the
+    // catch's own comment sentences would have truncated — silently shrinking
+    // the window every assertion below measures, with nothing going red.
     final bodyStart = catchStart + catchOpener.length;
-    final bodyEnd = source.indexOf('}', bodyStart);
+    var depth = 1;
+    var i = bodyStart;
+    final code = StringBuffer();
+    while (i < source.length && depth > 0) {
+      if (source.startsWith('//', i)) {
+        final eol = source.indexOf('\n', i);
+        i = eol == -1 ? source.length : eol + 1;
+        continue;
+      }
+      final ch = source[i];
+      if (ch == '{') {
+        depth++;
+      } else if (ch == '}') {
+        depth--;
+        if (depth == 0) break;
+      }
+      code.write(ch);
+      i++;
+    }
     expect(
-      bodyEnd,
-      greaterThan(bodyStart),
-      reason: 'the catch block is not closed — unparseable, not passing',
-    );
-    catchBody = source.substring(bodyStart, bodyEnd);
-
-    // ⚠️ ANTI-VACUITY. The scan above stops at the first `}`, which is the
-    // catch's own closing brace ONLY while the body contains no nested block
-    // and no `}` inside a comment or string. If one ever appears, the window
-    // shrinks to a prefix and every assertion below would pass over a fragment
-    // — green, and measuring nothing. So: no `{` in the extracted body.
-    expect(
-      catchBody,
-      isNot(contains('{')),
+      depth,
+      0,
       reason:
-          'the catch body now contains a nested block or a brace in prose, so '
-          'this sentinel can no longer see all of it. Extract it properly '
-          '(match braces) before trusting the assertions below.',
+          'the catch block after getAPNSToken() is never closed — the source '
+          'did not parse, which is a failure and not a pass',
     );
+    catchBody = source.substring(bodyStart, i);
+    catchCode = code.toString();
   });
 
-  test('the getAPNSToken catch does NOT return — it falls through (ADR-077 D1)', () {
-    // THE INVARIANT. A `return` here is what shipped in build 121: the branch
-    // whose own comment says *"Not 'no' — 'cannot tell'"* was the only branch
-    // that never asked APNs for an address, which is the state where asking
-    // matters most.
-    //
-    // Matches a return STATEMENT (`return;`, `return false;`) at the start of a
-    // line, not the word "return" in the prose that explains why there is none.
-    final hasReturn = RegExp(
-      r'^\s*return[\s;]',
-      multiLine: true,
-    ).hasMatch(catchBody);
-    expect(
-      hasReturn,
-      isFalse,
-      reason:
-          'the catch after getAPNSToken() returns early again. A throw there '
-          'is *cannot tell whether we have an address*, and ADR-076 D1 exists '
-          'to make the app ASK for one in exactly that state. Fall through to '
-          'the request below (ADR-077 D1).',
-    );
-  });
+  test(
+    'the getAPNSToken catch does NOT return — it falls through (ADR-077 D1)',
+    () {
+      // THE INVARIANT. A `return` here is what shipped in build 121: the branch
+      // whose own comment says *"Not 'no' — 'cannot tell'"* was the only branch
+      // that never asked APNs for an address, which is the state where asking
+      // matters most.
+      //
+      // Scanned over `catchCode` — the body with its comments stripped — so the
+      // prose that explains the invariant ("rather than returning", "the early
+      // return made") cannot trip it, and **no line anchor is needed**. That
+      // matters: an anchored pattern misses `if (cond) return false;`, and this
+      // file writes single-line conditional returns three times.
+      final hasReturn = RegExp(r'\breturn\b').hasMatch(catchCode);
+      expect(
+        hasReturn,
+        isFalse,
+        reason:
+            'the catch after getAPNSToken() returns early again. A throw there '
+            'is *cannot tell whether we have an address*, and ADR-076 D1 exists '
+            'to make the app ASK for one in exactly that state. Fall through to '
+            'the request below (ADR-077 D1).',
+      );
+    },
+  );
 
   test('the request the fall-through exists to reach is still made', () {
     // The other half: falling through is worth nothing if the call it falls
