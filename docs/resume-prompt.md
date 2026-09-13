@@ -228,9 +228,22 @@ run** (`integration-emulator` is main-only) → `codegraph sync`.
 > is **078** and `dart tool/adr_index_lint.dart` will fail the build without the row.
 
 > ⚠️ **MUTATION-CHECK EVERY GUARD *AND* THE TEST, IN BOTH DIRECTIONS** (standing).
-> S102's sentinel was **green over its own mutation** until the mutation was run:
-> a `contains('_askApnsToRegister()')` scoped "up to the next `@override`" was
+> S102 hit this **twice, on the same sentinel**. First: a
+> `contains('_askApnsToRegister()')` scoped "up to the next `@override`" was
 > satisfied by the private helper's own *declaration* with the call site deleted.
+> Then the built-diff review found the `return` check **green over three of four
+> mutations** — an anchored `^\s*return` cannot see `if (cond) return false;`, and
+> that is the file's own house style. **Enumerate the mutations before writing the
+> guard**, and write down which ones you ran.
+>
+> ⚠️ **AND READ THE MUTATED FILE, NOT THE EXIT CODE.** One of those four mutations
+> was itself broken — a `\n` in a double-quoted shell argument stayed literal, so
+> the insert landed as a comment and the test passed for the wrong reason.
+>
+> ⚠️ **A REFUTING VERIFIER CAN BE WRONG, AND ITS GROUNDS ARE CHECKABLE.** S102's
+> panel returned REFUTED on the real finding above, arguing about the finding's
+> *evidence* rather than its *claim*. *The panel is an INPUT to judgement*
+> (standing lesson) — if refuting it takes four minutes, take the four minutes.
 
 > ⚠️ **AN ABSENCE NEEDS A CONTROL THAT SHOULD PASS** (lesson **161**). A probe
 > reporting "none" is the cheapest wrong answer there is, and nobody argues with

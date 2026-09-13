@@ -5252,6 +5252,46 @@ diagnosis**: a pass is compatible with *"the flake did not happen this time"*,
 which is what a flake is. What it does refute is the regression hypothesis, which
 predicts a reproducible failure.
 
+### The second review pass found three defects in this session's own work
+
+`session-context.md` §5.3 runs the review twice — once on the design, once on the
+built diff. The design pass produced the sentinel and the parity fix. **The
+built-diff pass found the sentinel green over the likeliest re-introduction of
+the very bug it guards.**
+
+| what | before | now |
+|---|---|---|
+| `return false;` in the catch | fails ✅ | fails ✅ |
+| **`if (hasAddress) return false;`** | **PASSED** ❌ | fails ✅ |
+| `if (hasAddress) { return false; }` | **PASSED** ❌ | fails ✅ |
+| a `}` in a comment, then a return | **PASSED** ❌ | fails ✅ |
+
+The `return` scan had been anchored to the start of a line, because the catch
+body is all comments and its prose contains the word *return*. An anchor misses a
+conditional return — **and this file writes single-line conditional returns three
+times.** Fixed by removing the reason for the anchor: walk to the matching brace
+skipping `//` comments, keep the body and a comment-stripped copy, scan the
+stripped copy unanchored.
+
+Two more, both in the founder's page: **§4.2's outcomes table still promised that
+`captureExhausted` means "the network path, not this app"**, which §4.4 had just
+made unsafe for build 121 — a tired reader stopping at the first table draws the
+wrong conclusion. And **6(d) said "TLS handshake fails"** when the handshake
+reaches CERT verify and it is *verification* that fails; the effect is identical,
+the cause is a certificate, and a certificate is what the founder is being asked
+to fix.
+
+⚠️ **The refuting verifier called the sentinel finding REFUTED and was wrong.** It
+argued the lines the finding cited sit outside the scanned window — true, and
+about the *evidence* rather than the *claim*. Four minutes with the regex settled
+it. The standing lesson holds: *a panel is an INPUT to judgement, not a substitute
+for measuring.*
+
+⚠️ **And lesson 161 landed twice in one session.** The first attempt at the fourth
+mutation was itself broken — a `\n` in a double-quoted shell argument stayed
+literal, so the whole insert landed as one comment line and the test passed for
+the wrong reason. Caught by reading the mutated file instead of the exit code.
+
 ### Notes / debt logged
 
 * **Three lessons: 160, 161, 162.**
