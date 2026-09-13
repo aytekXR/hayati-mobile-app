@@ -78,10 +78,33 @@ best-effort and never fatal (the block's existing discipline):
 **(2) Ask whether the dependency can be removed at all** — this is ADR-076's
 argument in a different costume, and it is why this objective is worth a session.
 *The app depends on log-scraping to be attached to, and nobody here chose that.*
-Investigate `--device-vmservice-port` / `--host-vmservice-port` on
-`flutter test integration_test/`, and whether a fixed port removes the reader
-from the path. **Measure it; do not conclude it.** If it cannot be removed, say
-so with the evidence and ship (1) alone — that is a complete session.
+
+⚠️ **S102 did the first ten minutes of this so you do not repeat it**, on Flutter
+3.44.5, `flutter test --help` / `flutter run --help`:
+
+| flag | on `flutter run` | on `flutter test` |
+|---|---|---|
+| `--device-vmservice-port` | **yes** — *"look for vmservice connections only from the specified port"* | **NO** |
+| `--host-vmservice-port` | **yes** | **NO** |
+| `--dds-port` | yes | **yes** |
+| `--file-reporter <reporter>:<path>` | — | **yes** |
+
+So the obvious fix — pin the port so nothing has to be scraped — **is not
+available on the command the suite actually runs.** That is a starting point, not
+a conclusion: the remaining questions are whether `--dds-port` changes the
+attach path at all, whether the suites could run under `flutter drive` or
+`flutter run` (which do take the flags) without losing what
+`integration_test` gives them, and whether a newer Flutter has moved this.
+**Measure each; do not conclude any.**
+
+⚠️ **`--file-reporter json:<path>` may be the cheapest real win here** and is
+worth evaluating first: the watchdog's guard is *silence on stdout*, and a file
+reporter writes results somewhere the watchdog could read even when the console
+has gone quiet. It does **not** help with a hang that happens *before any test
+runs*, which is this specific failure — say so rather than overselling it.
+
+If the dependency cannot be removed, say so with the evidence and ship (1)
+alone — that is a complete session.
 
 ### Acceptance
 
