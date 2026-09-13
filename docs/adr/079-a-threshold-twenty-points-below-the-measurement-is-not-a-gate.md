@@ -71,6 +71,14 @@ loud, at the moment it stops being true rather than eight milestones later.
 will have the same argument with the same file. It prints the measurement, the
 slack, and the value to set.
 
+### D1.1 — the values, committed here rather than chosen at the keyboard
+
+| | value | why |
+|---|---|---|
+| `--min` | **86** | 87.75 measured, so **1.75 points / 144 lines** of headroom. Tighter (87) leaves 62 lines and collides with ADR-042 D2's licence to ship a thin adapter untested — one 60-line adapter would eat it. Looser (85) doubles what a silent `domain/` regression can hide (D3.1) |
+| `--max-slack` | **5** | fires once the measurement reaches **91**. Wide enough that ordinary movement does not trip it, narrow enough that it would have fired years before 19.75 points accumulated — which is the whole complaint |
+| functions | **95** stmts / **90** branches / **95** funcs / **95** lines | branch coverage at **92.81** is the binding metric, not lines at 97.68. One number for all four is what produced a table nobody could act on |
+
 ⚠️ **And the slack bound is itself a claim that can rot**, which is worth saying
 rather than pretending otherwise: a session that hits this failure can satisfy it
 by widening `--max-slack` instead of raising `--min`. Nothing mechanical prevents
@@ -129,7 +137,25 @@ where the wording implies:
 **283 of the 464 missing lines — 61% — are hand-written `operator ==`,
 `hashCode` and `toString` on sealed-class variants.** `SoloAnswerException` is
 the shape: a sealed taxonomy whose every variant carries three boilerplate
-members, written out because the codebase does not use a code generator here.
+members.
+
+⚠️ **An earlier draft said this was "because the codebase does not use a code
+generator here". That is wrong and the correction matters.** The app *does* use
+one — `riverpod_generator`, producing **53 committed `.g.dart` files**. What it
+does not use is a generator for **value semantics**: no `freezed`, no
+`equatable`, and **no ADR records that choice**.
+
+**So the steelman deserves an answer rather than a dodge:** *the real finding
+might be that this code should not be hand-written at all.* It might. Adopting
+`freezed` or `equatable` for the domain types would delete most of those 283
+lines and raise `domain/` mechanically, without a single padding test — a
+strictly better outcome than either gating or not gating them.
+
+**It is also a far larger change than this objective** — a new dependency, a
+codegen step on files that have none today, and every domain type rewritten —
+and it is a decision about the codebase's shape rather than about a threshold.
+**Filed as an issue, not taken here**, and named so that D3 cannot be read as
+*"boilerplate is inevitable"*. It is not; it is merely not this session's.
 
 **So reaching 85% in `domain/` means writing tests that call `toString()` on
 exception variants.** That is coverage padding — executing lines without
@@ -141,11 +167,48 @@ written without measuring what `domain/` contains. It is replaced with what is
 true and checkable, and the reason is recorded so the next reader does not
 "restore" the 85% as though it had been lost.
 
+**The replacement row, drafted here so the diff cannot quietly say something
+softer:**
+
+> | `domain/` (all features) | logic ≥ 74%, *not gated* | **No gate.** 63% measured 2026-09-13 (790/1254). **61% of the gap is `==`/`hashCode`/`toString` on sealed variants** — an 85% gate would be met by padding, so ADR-079 D3 declines it. The **74%** logic bucket is the honest figure and is **unguarded**: see D3.1 for what that permits |
+
+⚠️ **It states what is expected AND that nothing enforces it**, because a row
+that only says *"no gate"* reads as a standard being lowered, and a row that only
+states a target reads as a gate that exists. Neither was true before; both halves
+have to be on the line.
+
 ⚠️ **What is NOT claimed:** that `domain/` is well covered. The logic bucket at
 **74%** is the honest number, and it is lower than the repo-wide 87.75% — which
 is the one real thing the global gate hides. That is filed rather than fixed
 here; inventing a second threshold in the same session that argues against
 unmeasured thresholds would be its own joke.
+
+### D3.1 — what declining actually costs, as a number
+
+A refusal that does not price itself is just a preference. **How much `domain/`
+regression can hide inside a global floor?** Computed from the same lcov:
+
+| global floor | lines that may go uncovered first | `domain/` could fall to |
+|---|---|---|
+| 85% | **227** | **45%** |
+| 86% | 144 | 51% |
+| 87% | 62 | 58% |
+
+**So D3 is not free: at an 85% floor, `domain/` could lose 29% of its covered
+lines with every gate green.** The tighter the global floor, the smaller that
+budget — which is a second, independent reason to set `--min` high, and the
+reason the two decisions cannot be taken separately.
+
+⚠️ **And there is a collision with this repo's own licence that a tighter floor
+creates.** ADR-042 D2 deliberately ships thin adapters *untested* — the
+`FcmPushTokenSource` shape, ~60 lines of platform call with no branches. At a
+floor with only 62 lines of headroom, **adding one such adapter fails CI**, and
+the author's cheapest escape is to write a test that asserts nothing. That is the
+padding this objective was most likely to cause, arriving through the front door.
+
+The floor must therefore leave room for one or two deliberately-untested
+adapters — which is what fixes the number below 87 rather than at it, and is
+stated here so the choice is visible rather than inferred.
 
 ## Decision 4 — The functions gate gets the same treatment and the same honesty
 
@@ -163,6 +226,61 @@ future session wanting parity would have to wrap `vitest` the way
 ⚠️ **Branch coverage is the binding one at 92.81%**, not lines at 97.68 — so the
 floors are not one number. Setting all four to the same value is what produced a
 table nobody could act on.
+
+## Decision 5 — The gate has no self-test, and it is one of only four tools here that do not
+
+Found while planning the mutation check, and it is the tidiest illustration of
+this ADR's own subject. Counted across every tool in the repo:
+
+```
+20 of 24 tools have a <name>_test.<ext> beside them.
+The four that do not:  coverage_gate.dart · build_size_report.dart
+                       rtl_lint.dart      · ci/appstore_screenshots.sh
+```
+
+**The guard this session is about is also one of the few nobody tested.** Its
+0/0 path, its `--min` parsing, its exit taxonomy — all of it has only ever been
+exercised by being run in CI against a real lcov that always passed.
+
+So `tool/coverage_gate_test.dart` is written **before** `--max-slack` exists, and
+the mutations are enumerated first (S102 and S103 each paid for learning this
+twice in one session):
+
+| mutation | must |
+|---|---|
+| coverage below `--min` | FAIL, exit 1 |
+| coverage above `--min + --max-slack` | FAIL, exit 1, **naming the floor to write** |
+| coverage inside the band | PASS, exit 0 |
+| `LF:0` everywhere (0/0) | exit **64** — *could not measure* must never read as green |
+| a missing / unreadable lcov path | exit 64 |
+| `--max-slack` absent | the slack check is **off**, and the tool behaves exactly as today |
+| `--min` above 100, or non-numeric | exit 64 |
+
+⚠️ **And lesson 164's question — what would stop the gate running at all?** Three
+answers, and each gets an assertion rather than a hope:
+
+1. **The `ci.yml` step is deleted or renamed.** Nothing in the repo notices today.
+   `coverage_gate_test.dart` asserts the workflow still invokes the tool **with
+   both bounds**, parsed out of `ci.yml` rather than restated — the shape
+   `integration_watchdog_test.sh` already uses for ADR-055's arithmetic.
+2. **`--coverage` is dropped from the `flutter test` step**, leaving a stale
+   `lcov.info` — or none. The 0/0 path covers *none*; for *stale* the honest
+   answer is that nothing can tell from the file alone, and that is recorded as a
+   limit rather than papered over.
+3. **The threshold is "fixed" by widening `--max-slack`.** Unpreventable by
+   construction (D1 says so); what the test can pin is that both numbers live in
+   `ci.yml` where a diff shows them.
+
+## Decision 6 — `session-context.md` §3 moves in the same diff
+
+§3's **Gates** block reads *"Coverage: app **68**, functions **80 hard / 85
+target**"*. It is read at the start of every session, and this ADR makes all four
+of those numbers wrong.
+
+⚠️ **The "85 target" for functions exists in no config at all** — a second
+unenforced number in the same breath as the one this ADR is about. It is removed
+rather than carried forward: a target nothing measures is how §3's `domain/` row
+came to promise a gate that was never built.
 
 ## Consequences
 
