@@ -106,9 +106,12 @@ class FcmPushTokenSource implements PushTokenSource {
     // Thin by contract (ADR-042 D2): one call, no branches of its own beyond the
     // platform test, nothing to assert about that a fake would not also satisfy.
     if (!Platform.isIOS) return true;
-    // Mutable, not `final`: Dart's definite-assignment analysis rejects a final
-    // local written from both the try and the catch, and the catch must be able
-    // to answer — that is the whole point of the fall-through below.
+    // Mutable, not `final`, and the analyzer's own words rather than a
+    // paraphrase of them (measured S102): flow analysis treats the try's write
+    // as possibly-done once the catch runs, so writing again there is a SECOND
+    // set of a final — `assignment_to_final_local`, *"The final variable
+    // 'hasAddress' can only be set once."* The catch must be able to answer,
+    // and that is the whole point of the fall-through below.
     var hasAddress = false;
     try {
       hasAddress = await _messaging.getAPNSToken() != null;

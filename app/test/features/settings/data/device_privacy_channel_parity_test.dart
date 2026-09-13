@@ -51,21 +51,35 @@ void main() {
     expect(swift, contains('"$channel"'));
   });
 
+  // The pin. Hoisted out of the first test at S102 so the REVERSE direction can
+  // read it too — a list that only one assertion can see cannot be checked for
+  // completeness, and it was incomplete for two sessions.
+  const methods = [
+    'supportsAlternateIcons',
+    'getAlternateIconName',
+    'setAlternateIconName',
+    'biometricEnrollmentState',
+    // ADR-046 D4. The one door out of a declined notification permission —
+    // and the method whose absence would be least visible, because the
+    // adapter's throw is caught by a settings row that would then just say
+    // "couldn't open Settings" on a perfectly healthy phone.
+    'openNotificationSettings',
+    // ⚠️ THE LIST STOPPED HERE FOR TWO SESSIONS (added S102). ADR-074 and
+    // ADR-076 each put a method on this channel and neither was pinned, so
+    // the sentinel written to stop *"a renamed method ships a silently dead
+    // feature behind a green pipeline"* did not cover the two newest methods
+    // — including the one the entire push feature now rests on. A rename of
+    // `ensureRemoteNotificationRegistration` on either side would have
+    // reproduced ADR-076's own bug (nobody asks APNs, no address, no error)
+    // with every gate green. That is the exact failure this file exists for.
+    'apnsRegistrationFailure',
+    'ensureRemoteNotificationRegistration',
+  ];
+
   test('every channel METHOD the Dart side calls is handled in Swift', () {
     // A typo here is not a crash — it is a `MissingPluginException` the adapters
     // swallow into `false`/`null`, i.e. a feature that quietly reports itself
     // unsupported and vanishes from the UI.
-    const methods = [
-      'supportsAlternateIcons',
-      'getAlternateIconName',
-      'setAlternateIconName',
-      'biometricEnrollmentState',
-      // ADR-046 D4. The one door out of a declined notification permission —
-      // and the method whose absence would be least visible, because the
-      // adapter's throw is caught by a settings row that would then just say
-      // "couldn't open Settings" on a perfectly healthy phone.
-      'openNotificationSettings',
-    ];
     for (final method in methods) {
       expect(
         dart,
@@ -78,6 +92,95 @@ void main() {
         reason: '$method has no Swift handler — the call would silently no-op',
       );
     }
+  });
+
+  test('and the pin is COMPLETE in both directions (S102)', () {
+    // ⚠️ WHY THIS EXISTS. The test above walks the list and proves each entry
+    // is on both sides — which says nothing about a method that is on both
+    // sides and NOT in the list. That is not hypothetical: `apnsRegistrationFailure`
+    // (ADR-074) and `ensureRemoteNotificationRegistration` (ADR-076) were both
+    // shipped, both wired end to end, and neither was pinned, so for two
+    // sessions the sentinel was green over an unpinned surface.
+    //
+    // Both directions, from the files themselves rather than from a count kept
+    // by hand:
+    //   * every `case "x"` in the Swift handler is in the list;
+    //   * every `Future<…> …invokeMethod…('x')` in the Dart client is in the list.
+    final swiftCases = RegExp(
+      r'case "([A-Za-z]+)":',
+    ).allMatches(swift).map((m) => m.group(1)!).toSet();
+    expect(
+      swiftCases.difference(methods.toSet()),
+      isEmpty,
+      reason:
+          'AppDelegate handles a channel method this sentinel does not pin — '
+          'add it to `methods` above (and to the dartdoc list), or the next '
+          'rename of it ships a dead feature behind a green pipeline',
+    );
+
+    final dartInvocations = RegExp(
+      r"invokeMethod<[^>]*>\('([A-Za-z]+)'",
+    ).allMatches(dart).map((m) => m.group(1)!).toSet();
+    expect(
+      dartInvocations.difference(methods.toSet()),
+      isEmpty,
+      reason:
+          'DevicePrivacyChannel invokes a method this sentinel does not pin — '
+          'add it to `methods` above',
+    );
+    expect(
+      dartInvocations,
+      hasLength(methods.length),
+      reason:
+          'the Dart client no longer invokes every pinned method — a pin over '
+          'a call site that is gone passes vacuously',
+    );
+  });
+
+  test('the dartdoc SAYS how many methods there are, and is right (S102)', () {
+    // The class dartdoc opens *"It carries the seven native methods this layer
+    // needs"* and then lists them. That sentence was already saying "seven"
+    // while only six bullets existed — the count and the list drifted apart
+    // inside one comment, which is how a reader learns to stop trusting either.
+    const words = {
+      'four': 4,
+      'five': 5,
+      'six': 6,
+      'seven': 7,
+      'eight': 8,
+      'nine': 9,
+      'ten': 10,
+    };
+    final stated = RegExp(
+      r'carries the (\w+) native methods',
+    ).firstMatch(dart)?.group(1);
+    expect(
+      stated,
+      isNotNull,
+      reason:
+          'the dartdoc no longer states a method count — restore the sentence '
+          'or delete this test deliberately, do not let it pass vacuously',
+    );
+    expect(
+      words[stated],
+      methods.length,
+      reason:
+          'the dartdoc says "$stated" but the channel pins ${methods.length} '
+          'methods',
+    );
+
+    final bullets = RegExp(
+      r'^/// \* `',
+      multiLine: true,
+    ).allMatches(dart).length;
+    expect(
+      bullets,
+      methods.length,
+      reason:
+          'the dartdoc lists $bullets methods but the channel pins '
+          '${methods.length} — a missing bullet is how the seventh method went '
+          'undocumented for a session',
+    );
   });
 
   test(
