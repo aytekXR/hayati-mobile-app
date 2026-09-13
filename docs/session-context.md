@@ -117,7 +117,20 @@ _Environment facts below were last re-measured **2026-08-05**._
 > | | |
 > |---|---|
 > | **present** | `node` 22, `npm` 10, `python3` 3.12, `gh`, `git`, `codegraph`, **`java` 21** (`~/.local/share/java/jdk-21.0.12.1+1-jre/bin`), **`flutter` 3.44.5** (`~/flutter/bin`, matching `ci.yml`'s `FLUTTER_VERSION`), **`dart` 3.12.2** (bundled with Flutter, and also standalone at `~/.local/share/dart-sdk/bin`), **`firebase-tools` 15.22.4** |
-> | **absent** | **`ruby`/`bundle`** — so `fastlane` cannot be run here at all; the **firebase LOGIN** — operator item 10 |
+> | **absent** | **`ruby`/`bundle`** — so `fastlane` cannot be run here at all; the **firebase LOGIN** — operator item 10; **`xcrun`** (and therefore every `simctl` path — only CI can exercise those) |
+>
+> ⚠️ **`shellcheck` IS obtainable here, without `sudo`** — and two CI round-trips
+> were spent finding that out the hard way (S103: an SC2012 and an SC2034, each
+> costing a dispatch). The release tarball installs to `~/.local/bin`:
+>
+> ```sh
+> curl -sSL -o /tmp/sc.tar.xz https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
+> tar -xJf /tmp/sc.tar.xz -C /tmp && mkdir -p ~/.local/bin && cp /tmp/shellcheck-v0.10.0/shellcheck ~/.local/bin/
+> shellcheck tool/ci/*.sh     # the exact command `quality` runs
+> ```
+>
+> **Run it before pushing any `tool/ci/*.sh` change.** `curl` reaches GitHub
+> releases on this network even though git-over-HTTPS is intercepted.
 >
 > ⚠️ **Flutter and Java are NOT on PATH by default.** Export them:
 > `export PATH=~/flutter/bin:~/.local/share/java/jdk-21.0.12.1+1-jre/bin:$PATH`.

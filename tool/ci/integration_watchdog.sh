@@ -402,9 +402,15 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
       rm -f "$verdict_file"
 
       echo "--- is the app process alive? ---" >&2
+      # ⚠️ Filtered on the BUNDLE ID, not on a loose "hayati" — the simulator
+      # itself is named `hayati-ci`, so the loose form can match the device and
+      # report a process that is not the app. On the first real wedge this line
+      # was the only evidence that survived the log's truncation
+      # (`UIKitApplication:com.beyondkaira.hayati` alive), so it has to be exact.
       run_bounded "$DIAG_BOUND_SECONDS" \
         xcrun simctl spawn "$DEVICE_ID" launchctl list 2>/dev/null \
-        | grep -i "hayati" | head -10 >&2 || echo "  (no hayati process in launchctl list)" >&2
+        | grep -F "$APP_BUNDLE_ID" | head -10 >&2 \
+        || echo "  (no $APP_BUNDLE_ID process in launchctl list)" >&2
 
       # The crash report is the diagnosis when the app announced itself and then
       # died — the row that did NOT exist until the design review added it.
