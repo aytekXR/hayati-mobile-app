@@ -281,6 +281,175 @@ for sv in 0 abc; do
 done
 
 # ---------------------------------------------------------------------------
+# 5b. ⚠️ THE DEVICE-LOG CAPTURE (ADR-078).
+#
+# This box has no `xcrun` and a wedge cannot be scheduled — three occurrences in
+# ~80 runs — so the capture is proven against a STUB `xcrun` placed first on
+# PATH, exactly as D3 says. The stub records its arguments and prints a scripted
+# device log, so the assertions below are about what the watchdog ASKED FOR and
+# what it CONCLUDED, not about a real simulator.
+#
+# ⚠️ The mutations these exist to catch were enumerated in ADR-078 D3 BEFORE the
+# guard was written (S102's lesson, paid for twice): delete the `log show` call;
+# point it at a discovered device instead of $DEVICE_ID; swallow its output; let
+# a missing `xcrun` escape as a non-124 exit; and — the one that decides whether
+# ADR-078 is an instrument or a regression — let a HANGING `xcrun` block the
+# path to `exit 124`.
+# ---------------------------------------------------------------------------
+stub_dir="$TMP/stub"
+mkdir -p "$stub_dir"
+
+# Runs the watchdog with a stubbed `xcrun` first on PATH and a fixed DEVICE_ID.
+# GITHUB_WORKSPACE is redirected into $TMP so the capture file never lands in
+# the repo during a test run.
+run_stubbed() {
+  OUT="$TMP/out"
+  PATH="$stub_dir:$PATH" \
+  DEVICE_ID="${STUB_DEVICE:-DEADBEEF-1234}" \
+  GITHUB_WORKSPACE="$TMP" \
+  WATCHDOG_HEARTBEAT_SECONDS=1 \
+  WATCHDOG_SILENCE_SECONDS="${STUB_SILENCE:-2}" \
+  WATCHDOG_DIAG_BOUND_SECONDS="${STUB_BOUND:-3}" \
+  WATCHDOG_APP_BUNDLE_ID=com.example.stub \
+    bash "$SCRIPT" 60 stub-suite bash -c 'sleep 30' >"$OUT" 2>&1
+  CODE=$?
+}
+
+write_stub() {  # $1 = the device-log body the stub prints for `log show`
+  cat >"$stub_dir/xcrun" <<STUB
+#!/usr/bin/env bash
+echo "\$*" >> "$TMP/xcrun-args"
+case "\$*" in
+  *"log show"*) cat <<'BODY'
+$1
+BODY
+    ;;
+  *launchctl*) echo "$STUB_LAUNCHCTL" ;;
+  *) echo "(stub xcrun: \$*)" ;;
+esac
+STUB
+  chmod +x "$stub_dir/xcrun"
+}
+
+# --- 5b.1 the URI line IS there -> the reader missed it -------------------
+rm -f "$TMP/xcrun-args"
+STUB_LAUNCHCTL="123 0 com.example.stub" write_stub 'app start
+The Dart VM Service is listening on http://127.0.0.1:51234/abc=/
+com.example.stub did a thing'
+STUB_LAUNCHCTL="123 0 com.example.stub" run_stubbed
+
+if [ "$CODE" -ne 124 ]; then
+  bad "device-log: still exits 124 with the capture in place" "code=$CODE"
+else
+  ok "device-log: still exits 124 with the capture in place"
+fi
+if ! grep -q "log show" "$TMP/xcrun-args" 2>/dev/null; then
+  bad "device-log: the timeout path asks for the device log" "$(cat "$TMP/xcrun-args" 2>/dev/null)"
+else
+  ok "device-log: the timeout path asks for the device log"
+fi
+# ⚠️ THE DEVICE MUST BE THE ONE IT WAS GIVEN. `simctl list devices booted` can
+# return more than one, and the wrong simulator's log answers "no URI line" with
+# total confidence about the wrong machine.
+if ! grep -q "DEADBEEF-1234" "$TMP/xcrun-args" 2>/dev/null; then
+  bad "device-log: queries \$DEVICE_ID, not a discovered device" "$(cat "$TMP/xcrun-args" 2>/dev/null)"
+else
+  ok "device-log: queries \$DEVICE_ID, not a discovered device"
+fi
+if ! grep -q "'VM Service listening': 1" "$OUT"; then
+  bad "device-log: reports the URI line when it is present" "$(grep -i 'VM Service' "$OUT" || echo '(absent)')"
+else
+  ok "device-log: reports the URI line when it is present"
+fi
+# D1.2 — the control. Without these a broken query reads as a negative result.
+if ! grep -q "lines in window" "$OUT" || ! grep -q "lines from the app" "$OUT"; then
+  bad "device-log: prints the line counts that control the verdict (D1.2)" "$(grep -i 'lines' "$OUT" || echo '(absent)')"
+else
+  ok "device-log: prints the line counts that control the verdict (D1.2)"
+fi
+# D1.1 — the window must be DERIVED. A literal 300 would mean someone restored
+# the `--last 5m` that misses the launch entirely.
+if ! grep -qE "device log, last [0-9]+s" "$OUT"; then
+  bad "device-log: prints the window it used (D1.1)" "$(grep -i 'device log' "$OUT" || echo '(absent)')"
+else
+  ok "device-log: prints the window it used (D1.1)"
+fi
+
+# --- 5b.2 no URI line -> the other rows -----------------------------------
+rm -f "$TMP/xcrun-args"
+STUB_LAUNCHCTL="" write_stub 'app start
+com.example.stub did a thing
+nothing else happened'
+STUB_LAUNCHCTL="" run_stubbed
+if ! grep -q "'VM Service listening': 0" "$OUT"; then
+  bad "device-log: reports ZERO when the URI line is absent" "$(grep -i 'VM Service' "$OUT" || echo '(absent)')"
+else
+  ok "device-log: reports ZERO when the URI line is absent"
+fi
+if ! grep -q "lines from the app   : 1" "$OUT"; then
+  bad "device-log: counts the app's own lines" "$(grep -i 'from the app' "$OUT" || echo '(absent)')"
+else
+  ok "device-log: counts the app's own lines"
+fi
+
+# --- 5b.3 ⚠️ A HANGING xcrun MUST NOT COST THE 124 (ADR-078 D2.1) ---------
+#
+# THE case. Every diagnostic runs against the same simulator that is already
+# wedged. If one hangs, this script never reaches `exit 124`, the job runs to
+# `timeout-minutes`, GitHub reports `cancelled`, and slack_notify.sh sends
+# nothing BY DESIGN (ADR-024 D2) — the exact outcome ADR-055 exists to remove,
+# reintroduced by the instrument built to explain it. `|| true` does not help:
+# it swallows a status, it does not bound a hang.
+rm -f "$TMP/xcrun-args"
+cat >"$stub_dir/xcrun" <<'STUB'
+#!/usr/bin/env bash
+sleep 3600
+STUB
+chmod +x "$stub_dir/xcrun"
+hang_start="$(date +%s)"
+STUB_BOUND=2 run_stubbed
+hang_elapsed=$(( $(date +%s) - hang_start ))
+if [ "$CODE" -ne 124 ]; then
+  bad "device-log: a HANGING xcrun still exits 124 (D2.1)" "code=$CODE after ${hang_elapsed}s"
+else
+  ok "device-log: a HANGING xcrun still exits 124 (D2.1)"
+fi
+if ! grep -q "stub-suite" "$OUT"; then
+  bad "device-log: a hanging xcrun still NAMES the suite" "$(head -3 "$OUT")"
+else
+  ok "device-log: a hanging xcrun still NAMES the suite"
+fi
+# The bound must actually bound: three diagnostics x 2s, plus the 5s kill grace,
+# must not approach the suite's own 60s wall clock.
+if [ "$hang_elapsed" -ge 40 ]; then
+  bad "device-log: the diagnostic bound actually bounds" "took ${hang_elapsed}s"
+else
+  ok "device-log: the diagnostic bound actually bounds (${hang_elapsed}s)"
+fi
+
+# --- 5b.4 no xcrun at all -> the ADR-055 guarantee is unchanged -----------
+rm -f "$stub_dir/xcrun"
+run_stubbed
+if [ "$CODE" -ne 124 ]; then
+  bad "device-log: no xcrun at all still exits 124" "code=$CODE"
+else
+  ok "device-log: no xcrun at all still exits 124"
+fi
+
+# --- 5b.5 no DEVICE_ID -> SKIP loudly, never guess a device ---------------
+OUT="$TMP/out"
+GITHUB_WORKSPACE="$TMP" WATCHDOG_HEARTBEAT_SECONDS=1 WATCHDOG_SILENCE_SECONDS=2 \
+  bash "$SCRIPT" 60 stub-suite bash -c 'sleep 30' >"$OUT" 2>&1
+CODE=$?
+if [ "$CODE" -ne 124 ]; then
+  bad "device-log: no DEVICE_ID still exits 124" "code=$CODE"
+elif ! grep -q "DEVICE_ID is not set" "$OUT"; then
+  bad "device-log: no DEVICE_ID says so instead of guessing a device" "$(tail -5 "$OUT")"
+else
+  ok "device-log: no DEVICE_ID says so instead of guessing a device"
+fi
+
+# ---------------------------------------------------------------------------
 # 6. ⚠️ THE ARITHMETIC GUARD (ADR-055 D2).
 #
 #    The watchdog can only convert `cancelled` into `failure` if its bounds fire

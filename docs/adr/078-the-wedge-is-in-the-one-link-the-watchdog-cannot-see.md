@@ -230,6 +230,44 @@ is a stub `xcrun` that **hangs forever**: the watchdog must still exit **124**,
 still name the suite, and still do so inside the harness's own timeout. That
 single case is what keeps this ADR from being a regression.
 
+### ⚠️ D2.2 — the hazard was already there, and had been since ADR-055
+
+**Writing that test found the defect in code this ADR did not touch.** With a
+stubbed `xcrun` that sleeps forever, the script hung — and it hung **before
+reaching any of ADR-078's additions**, at
+
+```
+--- simulator state ---
+```
+
+which is `xcrun simctl list devices booted`, unbounded, in the block ADR-055
+shipped. It talks to the same simulator the suite has just been declared wedged
+against.
+
+**So the guard built to stop a hang being silent could itself be silenced by a
+hang, in the exact situation it exists for.** A `simctl` that never returns means
+`exit 124` is never reached, the job runs to `timeout-minutes`, GitHub calls it
+**`cancelled`**, and `slack_notify.sh` sends nothing — ADR-055's own failure mode,
+sitting inside ADR-055's own remedy.
+
+⚠️ **The design review framed this as a risk ADR-078 would introduce.** It is
+older than that: this ADR only raises the odds by adding more `xcrun` calls. The
+distinction matters, because *"do not add the capture"* would have left the
+hazard in place and looked like caution.
+
+⚠️ **And `|| true` is what made it invisible.** The block has always ended
+`} >&2 || true`, which reads like protection and is protection against the wrong
+thing — it swallows a **status**, never a **hang**.
+
+Every call in that block is now bounded, `nc` included (`-w 2` as the cheap
+guard, `run_bounded` as the one that cannot be argued with). Measured after the
+fix: the same hanging stub now yields **exit 124 in 19s**.
+
+**This is the second time in two sessions that a guard was found green over the
+thing it exists to catch** — ADR-077 D5's channel sentinel, and now this. The
+common shape is worth naming: *a guard's own failure mode is the one nobody
+tests, because testing it means making the guard fail.*
+
 ## Decision 3 — The capture is PROVEN by stubbing the vendor tool, not by waiting for a wedge
 
 Two facts make the obvious proof impossible: **this box has no `xcrun`**, and a

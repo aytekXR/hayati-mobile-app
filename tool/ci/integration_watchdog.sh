@@ -115,6 +115,61 @@ started_at="$(date +%s)"
 # whole group when the wrapping command returns, so a leak is invisible locally
 # whether or not it would happen on a runner. This is written from the orphan
 # lines in the incident log, not from a local measurement.
+# ---------------------------------------------------------------------------
+# BOUNDED DIAGNOSTIC RUNNER (ADR-078 D2.1).
+#
+# ⚠️ WHY THIS EXISTS, and it is the load-bearing part of the whole addition.
+# Everything the timeout path runs happens AFTER the silence bound has fired —
+# i.e. on a runner that has already proved something is wedged — and it talks to
+# the same simulator that is wedged. If one of those commands HANGS, this script
+# never reaches `exit 124`; the job runs to `timeout-minutes`, GitHub reports
+# `cancelled`, and `slack_notify.sh` sends nothing by design (ADR-024 D2).
+# That is exactly the outcome ADR-055 exists to eliminate, reintroduced by the
+# instrument built to explain it.
+#
+# ⚠️ `|| true` IS NOT A DEFENCE. It swallows a non-zero status; it does not bound
+# a hang. The pre-ADR-078 block relied on `|| true` and was protected against the
+# wrong failure mode.
+#
+# macOS ships no coreutils `timeout` (ADR-055's header says so, which is why the
+# main bound is implemented in bash here rather than depending on `brew install
+# coreutils` inside a CI job). So this is the same pattern as the main loop, at a
+# smaller scale: own process group, poll, kill the GROUP on the bound.
+DIAG_BOUND_SECONDS="${WATCHDOG_DIAG_BOUND_SECONDS:-30}"
+
+# The app under test, for filtering the device log. Overridable so the self-test
+# can drive it, and named here rather than inline so the two greps below cannot
+# drift apart from each other (lesson 162's shape).
+APP_BUNDLE_ID="${WATCHDOG_APP_BUNDLE_ID:-com.beyondkaira.hayati}"
+
+run_bounded() {
+  local bound="$1"; shift
+  local tmp; tmp="$(mktemp)"
+  set -m
+  "$@" >"$tmp" 2>&1 &
+  local pid=$!
+  set +m
+  local waited=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$waited" -ge "$bound" ]; then
+      kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+      sleep 1
+      kill -KILL -"$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      cat "$tmp" 2>/dev/null || true
+      rm -f "$tmp"
+      echo "(watchdog: '$1' exceeded its ${bound}s diagnostic bound and was killed)"
+      return 124
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  wait "$pid" 2>/dev/null || true
+  cat "$tmp" 2>/dev/null || true
+  rm -f "$tmp"
+  return 0
+}
+
 set -m
 "$@" > >(tee "$out_file") 2>&1 &
 cmd_pid=$!
@@ -177,17 +232,35 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
     # Diagnosis, best-effort and never fatal: the two things that can wedge are
     # the simulator and the emulators. Absent tools must not turn a useful
     # timeout report into a second failure.
+    #
+    # ⚠️ EVERY CALL HERE IS BOUNDED, and that is a CORRECTION rather than a new
+    # precaution (ADR-078 D2.1). `xcrun simctl list devices booted` was
+    # unbounded from the day this block was written, and it talks to the same
+    # simulator the suite has just been declared wedged against. A `simctl` that
+    # never returns meant this script never reached `exit 124` — the job would
+    # run to `timeout-minutes`, GitHub would call it `cancelled`, and
+    # `slack_notify.sh` sends nothing for `cancelled` BY DESIGN (ADR-024 D2).
+    #
+    # So the guard ADR-055 built to stop a hang being silent could itself be
+    # silenced by a hang, in the one situation it exists for. `|| true` never
+    # protected against this: it swallows a STATUS, not a HANG.
+    #
+    # Measured, not reasoned: with a stubbed `xcrun` that sleeps forever, this
+    # block held the script for the full harness timeout and the suite's 124
+    # never arrived. The self-test now pins exactly that case.
     {
       echo "--- simulator state ---"
       if command -v xcrun >/dev/null 2>&1; then
-        xcrun simctl list devices booted 2>&1 | head -20 || true
+        run_bounded "$DIAG_BOUND_SECONDS" xcrun simctl list devices booted | head -20
       else
         echo "(xcrun not available)"
       fi
       echo "--- emulator ports ---"
       for port in 8080 9099 5001; do
         if command -v nc >/dev/null 2>&1; then
-          if nc -z 127.0.0.1 "$port" 2>/dev/null; then
+          # `-w 2` as well as the outer bound: nc's own connect timeout is the
+          # cheap guard, run_bounded is the one that cannot be argued with.
+          if run_bounded "$DIAG_BOUND_SECONDS" nc -z -w 2 127.0.0.1 "$port" >/dev/null; then
             echo "  127.0.0.1:$port  ANSWERING"
           else
             echo "  127.0.0.1:$port  no answer   <- the app could not have reached it"
@@ -197,6 +270,79 @@ while kill -0 "$cmd_pid" 2>/dev/null; do
         fi
       done
     } >&2 || true
+
+    # ------------------------------------------------------------------
+    # THE APP-TO-TOOL LINK (ADR-078 D1). Everything above measures the
+    # ENVIRONMENT — and in the incident this was written for, run 34042187123,
+    # every bit of it was HEALTHY: the simulator Booted, all three ports
+    # ANSWERING. The tool then said `No tests ran` beside "Error waiting for a
+    # debug connection: The log reader failed unexpectedly".
+    #
+    # Read from flutter_tools (ios/simulators.dart, IOSSimulator.startApp) that
+    # sentence is the NULL branch of `await vmServiceDiscovery?.uri`, and
+    # ProtocolDiscovery documents the null as "returns null if the log reader
+    # shuts down before any uri is found". The reader is literally
+    # `xcrun simctl spawn <id> log stream --style json --predicate ...`.
+    #
+    # So the question that splits the failure is: DID THE APP EVER PRINT THE
+    # URI? Two failures with opposite remedies were arriving as one silence —
+    # ADR-074's shape, one layer out.
+    if [ -n "${DEVICE_ID:-}" ] && command -v xcrun >/dev/null 2>&1; then
+      # ⚠️ THE WINDOW IS DERIVED, NOT CHOSEN (ADR-078 D1.1). At this moment the
+      # launch is already SILENCE_SECONDS old — the silence clock starts at the
+      # last line of output, and the last line of output IS the launch. A fixed
+      # `--last 5m` would have reached back to ten minutes AFTER the thing it
+      # exists to capture and reported "no URI line", which is the same answer
+      # it gives when the app never printed one (lesson 150).
+      win=$((elapsed + 120))
+      log_file="${GITHUB_WORKSPACE:-$PWD}/watchdog-device-log.txt"
+      {
+        echo "--- device log, last ${win}s (ADR-078) ---"
+        echo "  device   : $DEVICE_ID"
+        echo "  full log : $log_file"
+      } >&2
+      run_bounded "$DIAG_BOUND_SECONDS" \
+        xcrun simctl spawn "$DEVICE_ID" log show --last "${win}s" --style compact \
+        >"$log_file" 2>&1 || true
+
+      # ⚠️ `grep -c` EXITS 1 WHEN THE COUNT IS ZERO, so the obvious
+      # `$(grep -c … || echo 0)` prints the count AND the fallback — "0\n0" —
+      # and the number beside the label stops being a number. Found by running
+      # this against a stub rather than by reading it (lesson 153: the command
+      # beside a number has to be the one that produced it, and it has to have
+      # produced only that). `|| true` keeps the count and drops the status.
+      count_in() { local n; n="$(grep -c "$2" "$1" 2>/dev/null || true)"; echo "${n:-0}" | head -1 | tr -d ' '; }
+      total_lines="$(wc -l <"$log_file" 2>/dev/null || echo 0)"; total_lines="${total_lines// /}"
+      app_lines="$(count_in "$log_file" "$APP_BUNDLE_ID")"
+      uri_lines="$(count_in "$log_file" 'VM Service is listening on\|Observatory listening on')"
+      {
+        # ⚠️ THE COUNTS ARE THE CONTROL (ADR-078 D1.2). `log show` reads a ring
+        # buffer and nothing here has established that a seventeen-minute-old
+        # line survives it. Without these, "no URI line" has a THIRD cause — the
+        # line aged out — and the instrument collapses the worlds it exists to
+        # separate. ZERO TOTAL LINES on a booted simulator that just built and
+        # launched an app is a BROKEN MEASUREMENT, not an answer.
+        echo "  lines in window      : $total_lines   <- 0 means the QUERY failed, not that the app was silent"
+        echo "  lines from the app   : $app_lines     ($APP_BUNDLE_ID)"
+        echo "  'VM Service listening': $uri_lines"
+      } >&2
+
+      echo "--- is the app process alive? ---" >&2
+      run_bounded "$DIAG_BOUND_SECONDS" \
+        xcrun simctl spawn "$DEVICE_ID" launchctl list 2>/dev/null \
+        | grep -i "hayati" | head -10 >&2 || echo "  (no hayati process in launchctl list)" >&2
+
+      # The crash report is the diagnosis when the app announced itself and then
+      # died — the row that did NOT exist until the design review added it.
+      echo "--- newest crash reports ---" >&2
+      ls -t "$HOME/Library/Logs/DiagnosticReports/"*.ips 2>/dev/null | head -3 >&2 \
+        || echo "  (none)" >&2
+    elif [ -z "${DEVICE_ID:-}" ]; then
+      # ⚠️ NEVER GUESS A DEVICE. `simctl list devices booted` can return more
+      # than one, and the wrong device's log is worse than no log — it would
+      # answer "no URI line" with total confidence about the wrong simulator.
+      echo "--- device log: SKIPPED, DEVICE_ID is not set (ADR-078 D2) ---" >&2
+    fi
 
     # THE PROCESS GROUP, not the pid. `kill -TERM -<pid>` addresses the group
     # `set -m` created above, so the dartvm and simctl children die with the
