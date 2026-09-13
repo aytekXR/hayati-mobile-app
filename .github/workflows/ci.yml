@@ -783,6 +783,18 @@ jobs:
           DEVICE_ID=$(xcrun simctl create hayati-ci 'iPhone 16' "$RUNTIME")
           xcrun simctl bootstatus "$DEVICE_ID" -b
           echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+          # ADR-078 D1.2's premise, measured once per run instead of assumed.
+          # The wedge capture reads the simulator's unified log and treats ZERO
+          # lines as a broken measurement rather than as "the app was silent".
+          # That control is only worth anything if `log show` works on this
+          # runner AT ALL — which a stubbed self-test can never establish, and
+          # which a wedge is a terrible time to discover. One second, here,
+          # while everything is healthy.
+          LINES=$(xcrun simctl spawn "$DEVICE_ID" log show --last 10s --style compact 2>/dev/null | wc -l | tr -d ' ')
+          echo "ADR-078: log show returned $LINES lines from a freshly booted sim"
+          if [ "$LINES" -eq 0 ]; then
+            echo "::warning title=ADR-078 control::log show returned NOTHING on a booted simulator — the wedge capture's line-count control cannot discriminate on this runner"
+          fi
       # emulators:exec starts auth+firestore, WAITS for readiness, runs the
       # script, tears the emulators down, and propagates the exit code — one
       # deterministic pass/fail, no orphans, no manual port-poll (W4: no silent
@@ -843,6 +855,22 @@ jobs:
                  -d "$DEVICE_ID" -r expanded --timeout none || exit 1
                echo "::endgroup::"
              done'
+      # ADR-078. On a wedge the watchdog writes the simulator's unified log for
+      # the whole suite window to $GITHUB_WORKSPACE, and greps it for the one
+      # line that splits the failure: "VM Service is listening on". The grep's
+      # verdict and its controls are inline in the job log; THE WHOLE FILE comes
+      # here, because the grep encodes today's hypothesis and the file outlives
+      # it. `if: failure()` — a healthy run never writes it, and
+      # `if-no-files-found: ignore` keeps a red suite that failed for an
+      # ordinary reason from failing twice.
+      - name: upload the device log a wedge left behind
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: watchdog-device-log
+          path: watchdog-device-log.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
   # ADR-041 (issue #140) — is the ruleset the projects are SERVING the ruleset on
   # this ref? Two jobs, because the answer must never be able to look like "yes"

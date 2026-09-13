@@ -1,6 +1,6 @@
 # Operator Checkpoint
 
-**Last Updated:** 2026-09-13 UTC (Session 102)
+**Last Updated:** 2026-09-13 UTC (Session 103)
 
 > This file is a **live checkpoint, not a history.** It carries only what is
 > **open right now**. Closed items are deleted, not archived — what each session
@@ -710,12 +710,22 @@ rather than a purchase.
 
 ## Next Session Goal
 
-**There is no unblocked engineering objective left that a session can pick on its
-own, and that is a finding rather than a gap.** Session 102 re-derived the queue
-from `gh issue list` rather than inheriting it: of the open issues, the ones a
-session could act on alone are M6.5-gated (#13, #250), device-gated (#15, #48,
-#136) or brand-gated (#63 — now item **11**, above). Everything else waits on a
-secret, a lawyer, a phone, a release authorisation, or a decision on this page.
+⚠️ **"There is no unblocked engineering left" has now been wrong twice in a
+row, and it is worth recording why.** Session 102 wrote that sentence and then
+found three real pieces of work; Session 103 took the last of them and found a
+defect **older than its own objective** — a guard in CI that could be prevented
+from firing at all, in place since it shipped.
+
+**Neither was a new feature. Both were instruments that were green and could not
+act.** That appears to be where this project's remaining engineering risk
+actually lives, and Session 104's objective is the third of the same kind: the
+app's coverage gate enforces **68%** while the suite measures **87.75%**, so
+roughly 1,630 lines of coverage could vanish without turning anything red.
+
+**None of that changes what is yours.** Every item on this page still waits on a
+secret, a lawyer, a phone, a release authorisation, or a decision — and items
+**9**, **4**, **11** and **6(d)** are the four that cost you the least and unblock
+the most.
 
 **So the next session's most useful work is whatever your answers open.** A
 word on item 11 starts a real slice; a report from 121 either ends the push hunt
