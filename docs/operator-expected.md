@@ -632,6 +632,15 @@ at this ref):
   `chevron_right` and `backspace_outlined` — at **4 call sites** between them.
   *(Control: 303 icons in that file do declare mirroring, and `arrow_back` is
   one, so the measurement can tell the difference.)*
+* **the app-size argument turns out not to be an argument.** ⚠️ This line first
+  said there was *"no app-size gate in CI to point at"*, which was wrong —
+  `tool/build_size_report.dart --max-mb 200` runs in the **release** lane
+  (ADR-022 D4) and fails the build over budget. So there is a real number, and it
+  is comfortable: read from **build 121's own job log** (release run #21),
+  `Runner.app` is **65.46 MB against a 200 MB budget — PASS**, about **134 MB of
+  headroom**. The app already ships **3.8 MB** of fonts across thirteen faces.
+  An icon font is a few hundred KB. **Size is not a reason to prefer either
+  option**, and saying so removes a cost that was silently weighing against (a).
 
 **(b) Amend the brandkit** to record Material outline as the shipped icon system.
 

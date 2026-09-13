@@ -5221,6 +5221,34 @@ good news, and now true. Lesson **161**.
 * **PR #287** closed as superseded — it documents build **120** as the one to
   install, and `main` has recorded 120 installed and 121 shipped.
 
+### A third wrong "none", and the repo already held the answer
+
+Item 11's first version told the founder there was *"no app-size gate in CI to
+point at, so the second-font cost is a judgement"*. **There is one.**
+`tool/build_size_report.dart --max-mb 200` runs in `release.yml` (ADR-022 D4) and
+**fails the build** over budget — and `past-prompts.md` itself already said so,
+at the S0xx entry listing *"build-report ✅ real prod --release build + the 200 MB
+size gate"*. The grep that produced "none" searched
+`size.cap|ipa.size|MAX_.*SIZE|app size` and matched neither the tool's filename
+nor the phrase the repo actually uses.
+
+⚠️ **Lesson 161 for the third time in one session** — and the worst of the three,
+because this one shipped into a founder-facing document before it was caught, and
+because the repository contained the refutation the whole time.
+
+The correction is worth more than the erratum: read from **build 121's own job
+log** (release run #21), `Runner.app` is **65.46 MB against a 200 MB budget —
+PASS**, with about **134 MB of headroom**, and the app already carries **3.8 MB**
+of fonts across thirteen faces. An icon font is a few hundred KB. **So size is
+not a reason to prefer either option** — the first version had quietly left a
+cost sitting on (a)'s side of a decision the founder is supposed to make freely.
+
+⚠️ **One copy of the wrong sentence survives in the commit message of `aea56e0`**,
+which is pushed and cannot be rewritten. It does not reach `main`: the squash
+body is written fresh and does not repeat it. Noted here because *a correction is
+finished when every copy of it is gone* (lesson **141**), and this one has a copy
+that cannot be removed — so it gets a pointer instead.
+
 ### One more thing, found by accident while writing item 11
 
 Checking whether **PR #172** (the nginx vhost, open since 2026-08-02) was still
