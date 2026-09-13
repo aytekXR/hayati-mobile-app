@@ -43,8 +43,8 @@ grep -n "simulator state" -A 20 tool/ci/integration_watchdog.sh
 ```
 
 The second is the one that matters: **re-derive the queue.** S102 closed #115 and
-#278, so it is 17 issues, not 19 — and a founder action since may have unblocked
-something. Never inherit it.
+#278 and filed **#296**, so it is **18**, not 19 — and a founder action since may
+have unblocked something. Never inherit it.
 
 ### What is already known, so you do not re-derive it
 
@@ -125,9 +125,9 @@ so with the evidence and ship (1) alone — that is a complete session.
 | **Production** | 🟢 **UP** since 2026-09-03. `prod_pulse` exits **0**; the hourly sweep runs. ⚠️ **Nothing watches the bill** — operator 9 |
 | **`main`** | green — but ⚠️ **the last run that actually RAN `integration-emulator` was S101's, and it FAILED**; three docs-only runs skipped past it (lesson **160**). S102's merge re-runs it for real |
 | **Push, device side** | **STILL 0 of 4 registered.** Build **121** is on TestFlight, **uninstalled**, and §4.4 records that it does **not** carry ADR-077 D1 |
-| **The App Store listing** | 🔴 EMPTY and NOT SUBMITTABLE. 7/9 `en-US` fields blank; `tr` absent (#204 → operator 6(a)) |
+| **The App Store listing** | 🔴 EMPTY and NOT SUBMITTABLE. 7/9 `en-US` fields blank; `tr` absent (#204 → operator 6(a)) — **and its support/privacy URLs serve nothing** (#296 → operator **6(d)**, new at S102) |
 | **The ADR index** | **WHOLE — 77 records, 77 rows**, gated by ADR-067's lint |
-| **The queue** | **17 open**, after S102 closed **#115** and **#278** on fresh measurement. PR **#287** closed as superseded. **PR #172 (the nginx vhost) has been open since 2026-08-02 and nobody has decided it** |
+| **The queue** | **18 open**: S102 closed **#115** and **#278** on fresh measurement and filed **#296**. PR **#287** closed as superseded; **PR #172** now carries a stated blocker instead of dangling |
 | **Tests** | `flutter test` **1888** at S102's merge · `flutter analyze` clean · `dart format` clean (497 files) |
 | **#63** | **OPEN, and finally ASKED** — operator item **11**, with measured costs and no recommendation |
 
@@ -204,7 +204,7 @@ saying so. S102 found three real pieces of work while *believing* that claim.
 | **#226**, **#243**, **#247** | founder / lawyer | A consent re-gate, a privacy decision, a vendor sink |
 | **#242** | ADR-060 | Correctly unbuilt — no emitter before there is a sink |
 | **#250**, **#13** | M6.5 | Gate-3 gated |
-| **PR #172** | founder | An nginx vhost on the VPS, open since 2026-08-02. **Merge it, close it, or say what it waits on** |
+| **#296 / PR #172** | founder | ⚠️ **New, and a submission blocker.** The support and privacy URLs in `fastlane/metadata` point at `ikimiz.beyondkaira.com`, which **serves nothing** — TLS fails, HTTP 404, and the VPS certificate has no SAN for it (re-measured 2026-09-13; the cert was reissued in the interval and `ikimiz` still was not added). The AASA *is* fine, from `ikimiz.web.app`. **VPS or Firebase Hosting is one sentence from the founder**, and item 5 comes first either way — operator **6(d)** |
 
 ---
 

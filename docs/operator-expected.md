@@ -463,6 +463,54 @@ you less today than when this was last considered.**
 > real release. A dispatch uploads a real binary to your TestFlight; that is the
 > cost, and about 30 free macOS minutes otherwise.
 
+#### 6(d) — ⚠️ The two URLs Apple requires point at a domain that serves NOTHING (#296)
+
+**New at S102, and found by accident.** Independent of the copy being empty:
+`fastlane/metadata/{en-US,tr}/support_url.txt` and `privacy_url.txt` both point
+at **`https://ikimiz.beyondkaira.com/`**, and Apple requires both to be
+reachable. **Measured 2026-09-13:**
+
+| | |
+|---|---|
+| `https://ikimiz.beyondkaira.com/` | **TLS handshake fails** — no HTTP response at all |
+| `http://ikimiz.beyondkaira.com/` | **404** |
+| the VPS certificate | `CN = ams.beyondkaira.com`, SANs: `ams, bedirhandemirel, beyondkaira.com, brier, matbu, pulse, test, www, yanki` — **no `ikimiz`** |
+
+DNS points `ikimiz.beyondkaira.com` at the VPS (`161.97.172.146`), so the name
+resolves to a box with neither a certificate nor a vhost for it. HSTS on the
+apex means there is no degraded HTTP mode either.
+
+⚠️ **The certificate has been reissued since this was first reported** and
+`ikimiz` still was not added — PR #172 listed eight SANs on 2026-08-02 and there
+are nine today (`test.` was added). So it is not that nobody has touched the box.
+
+**The good news, measured at the same time:** the AASA *is* served and correct —
+`https://ikimiz.web.app/.well-known/apple-app-site-association` → **200,
+`application/json`**, which is ADR-040's claim holding up. What exists nowhere is
+`/privacy`: `ikimiz.web.app/privacy` is a **404**.
+
+**The decision that is yours, and it is one sentence: VPS or Firebase Hosting?**
+
+* **VPS** — PR **#172** implements it, on your own directive, with the nginx
+  config derived from `firebase.json` directive by directive so `cleanUrls`, the
+  `/i/**` invite rewrite and the AASA content type all survive. DNS already
+  points there. It needs the certificate reissued *with* `ikimiz` and the vhost
+  installed — on the box, which no session can reach.
+* **Firebase Hosting** — what `deploy-site.yml` assumes. It needs a Hosting site
+  named `ikimiz` in `hayatiapp-prod` with the custom domain connected, and a DNS
+  change away from the VPS.
+
+**Both cannot be right**, and whichever wins holds the certificate and serves
+every invite link ever shared.
+
+⚠️ **Note the ordering: this does not shortcut item 5.** `deploy-site.yml`
+renders `/privacy` from `docs/legal/` and **refuses by default** while those
+texts still say *"[FOUNDER LEGAL ENTITY — to be completed by the founder]"* —
+correctly, because a policy Apple points at must not say that. So the real
+sequence is **item 5 → a host decision → publish**. This item exists because
+even with the text finished, the URL currently goes nowhere, and that was not
+recorded anywhere.
+
 ### 7. Content — the largest single gap in the product
 
 **21 of 1000 questions exist** — measured today: 7 each in `solo_ar.json`,
@@ -611,7 +659,7 @@ These block **public launch**:
 1. ~~Nothing runs on the server~~ — ✅ **closed.** Billing restored 2026-09-03 and the 23:00 UTC sweep completed (`assigned=1, failed=0`); `prod_pulse` exits **0** (item 1).
 2. **Payments** — Google's side is done and proven; what remains is matching the token in RevenueCat's dashboard (item 2.1).
 3. **Push has never been delivered** — item 4; 0 of 4 devices registered. **Build 121 is on TestFlight and uninstalled**, and §4.4 says what it does and does not carry.
-4. **The App Store listing is not submittable** — seven of nine English fields empty at Apple, Turkish absent. Items 6(a) and 6(b).
+4. **The App Store listing is not submittable** — seven of nine English fields empty at Apple, Turkish absent (items 6(a), 6(b)) — **and the support and privacy URLs it carries serve nothing at all** (item 6(d), #296, measured 2026-09-13).
 5. **Prod-vs-`main` drift is unmeasured**, not passing — both checks skip for one missing secret (item 3). ⚠️ And it is no longer only a measurement gap: the **live ruleset is 62 lines behind `main`** (§4.3, #293).
 6. **Legal texts are unreviewed**, with three blanks — items 5 and 8.
 7. **Content is ~2% authored** — item 7.

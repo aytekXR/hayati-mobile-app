@@ -5221,6 +5221,37 @@ good news, and now true. Lesson **161**.
 * **PR #287** closed as superseded — it documents build **120** as the one to
   install, and `main` has recorded 120 installed and 121 shipped.
 
+### One more thing, found by accident while writing item 11
+
+Checking whether **PR #172** (the nginx vhost, open since 2026-08-02) was still
+needed turned into a submission blocker nobody had recorded. `fastlane/metadata/{en-US,tr}/`
+point Apple's **support** and **privacy** URLs at `https://ikimiz.beyondkaira.com/`,
+and that domain **serves nothing**: the TLS handshake fails (the VPS certificate
+is `CN = ams.beyondkaira.com` with nine SANs and **no `ikimiz`**) and plain HTTP
+is a 404. ⚠️ **The certificate has been reissued since the PR was opened and
+`ikimiz` still was not added** — `test.` was, so the box has been touched.
+
+The AASA is fine, and measured: `ikimiz.web.app/.well-known/apple-app-site-association`
+→ **200 `application/json`**, which is ADR-040's claim holding. What exists
+nowhere is `/privacy` — `ikimiz.web.app/privacy` is a **404**, and
+`deploy-site.yml` (which would render it from `docs/legal/`) **has never run**
+and refuses by default while the legal texts still carry the founder-entity
+placeholder. Correctly.
+
+Filed as **#296**, recorded as operator **6(d)**, and PR #172 now carries a
+comment stating what it waits on — *VPS or Firebase Hosting*, one sentence from
+the founder — instead of dangling for a seventh week.
+
+### The containment run
+
+`integration-emulator` is `main`-only, so the PR cannot run it; the job's own
+comment names the way round and it was used. `gh workflow run ci.yml --ref <branch>`
+→ run **34751782953** → **`integration-emulator success`** over a tree containing
+everything in `3b0eaf3`. ⚠️ Recorded in ADR-077 D3 as **containment, not
+diagnosis**: a pass is compatible with *"the flake did not happen this time"*,
+which is what a flake is. What it does refute is the regression hypothesis, which
+predicts a reproducible failure.
+
 ### Notes / debt logged
 
 * **Three lessons: 160, 161, 162.**

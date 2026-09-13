@@ -170,9 +170,37 @@ run passed:
 `timeout-minutes` — which is the difference between a Slack message and silence,
 and the whole point of that ADR.
 
+**And then it was measured directly, which is better than either argument.**
+`integration-emulator` is `main`-only, so a PR cannot run it — but the job's own
+comment names the way round that, and it was used: `gh workflow run ci.yml --ref
+<branch>` (`workflow_dispatch` is in its `if:`). Run **34751782953**, over
+`8a28215` — which contains everything in `3b0eaf3` — came back
+
+```
+integration-emulator   success
+ios-build-smoke        success
+quality                success
+```
+
+⚠️ **That is containment, not a diagnosis, and the difference matters.** A pass
+here is compatible with *"the flake did not happen this time"*, which is exactly
+what a flake is. It is worth having because the alternative hypothesis — a
+regression — predicts a **reproducible** failure over the same code, and this run
+refutes that prediction. The path evidence above is what carries the verdict; this
+is the cheap check that the verdict is not obviously wrong.
+
 ⚠️ **What this is NOT is a diagnosis of the flake.** `ci-debt #15` stays open and
 the simulator hang is still undiagnosed. What is decided here is only that
-ADR-076 did not cause it, on path evidence rather than on a rerun.
+ADR-076 did not cause it.
+
+**What the failing job's own diagnostic block did record**, and it narrows the
+hunt enough to be the next session's objective: at the moment the watchdog fired
+the simulator was `(Booted)`, ports **8080 / 9099 / 5001 all ANSWERING**, and the
+tool said `No tests ran.` beside *"Error waiting for a debug connection: **The
+log reader failed unexpectedly**"*. Not the emulators, not a dead simulator, not
+a slow runner: `flutter test` discovers the Dart VM service by **scraping the
+simulator's system log**, and that reader failed — after which silence is
+guaranteed, because the tests never start.
 
 ## Decision 4 — Build 121 carries the hole, and the founder is told that plainly
 
