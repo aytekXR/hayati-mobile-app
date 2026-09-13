@@ -43,3 +43,7 @@ web/public/
 # for `deliver` to pick up. Rendered from the app on every run, so committing
 # them would only create a second copy that can go stale against the widgets.
 /fastlane/screenshots/
+
+# ADR-078: the simulator log a wedged integration suite leaves behind. Written to
+# the workspace root so the job can upload it as an artifact; never committed.
+watchdog-device-log.txt
