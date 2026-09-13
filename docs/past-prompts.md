@@ -5263,8 +5263,14 @@ the very bug it guards.**
 |---|---|---|
 | `return false;` in the catch | fails ✅ | fails ✅ |
 | **`if (hasAddress) return false;`** | **PASSED** ❌ | fails ✅ |
-| `if (hasAddress) { return false; }` | **PASSED** ❌ | fails ✅ |
-| a `}` in a comment, then a return | **PASSED** ❌ | fails ✅ |
+| `if (hasAddress) { return false; }` | fails, but on the anti-vacuity check — never reached the invariant | fails ✅ |
+| **a `}` in a comment, then a return** | **PASSED** ❌ | fails ✅ |
+
+⚠️ **That third row said "PASSED" until the table was actually run.** It had been
+reasoned from the regex; restoring the old sentinel from `bc3accb` and running it
+showed the old guard did fail that mutation — by erroring in `setUpAll` on the
+`no {` assertion, never reaching the `return` check. **Right for the wrong
+reason**, inside an entry about a guard that was green for the wrong reason.
 
 The `return` scan had been anchored to the start of a line, because the catch
 body is all comments and its prose contains the word *return*. An anchor misses a

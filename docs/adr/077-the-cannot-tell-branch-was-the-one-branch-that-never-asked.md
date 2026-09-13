@@ -161,16 +161,27 @@ stopped at `source.indexOf('}', …)`, so a single `}` written inside one of the
 catch's own comment sentences would have silently truncated the window every
 assertion measures — green, over a fragment.
 
-**Re-mutation-checked, four ways, and the fourth is the one that matters:**
+**Re-mutation-checked, four ways — and the "before" column was MEASURED against
+the old sentinel restored from `bc3accb`, not derived from reading its regex:**
 
 | mutation into the catch | before | now |
 |---|---|---|
 | `return false;` | fails ✅ | fails ✅ |
 | **`if (hasAddress) return false;`** | **PASSES ❌** | fails ✅ |
-| `if (hasAddress) { return false; }` | **PASSES ❌** | fails ✅ |
-| a `}` in a comment, then `return false;` | **PASSES ❌** | fails ✅ |
+| `if (hasAddress) { return false; }` | fails — but by **accident** (see below) | fails ✅ |
+| **a `}` in a comment, then `return false;`** | **PASSES ❌** | fails ✅ |
 
-⚠️ **And the first attempt at that fourth mutation was itself broken** — a `\n`
+⚠️ **Two of those four, not three — and this table said three until it was run.**
+The first version of this ADR asserted that `if (hasAddress) { return false; }`
+also slipped through, reasoned from the regex. It does not: the old sentinel
+failed it, but on the **anti-vacuity** assertion (`the extracted body contains no
+{`), not on the `return` check at all — the test errored in `setUpAll` and never
+reached the invariant. The guard was right for the wrong reason, which is a
+different thing from being right, and only restoring the old file and running it
+showed the difference. **Lesson 153, in an ADR whose own subject is a guard that
+was green for the wrong reason.**
+
+⚠️ **And the first attempt at the fourth mutation was itself broken** — a `\n`
 inside a double-quoted shell argument stayed literal, so the whole insert landed
 as one comment line and the test passed for the wrong reason. Caught by reading
 the mutated file instead of the exit code. **Lesson 161 twice in one session.**
