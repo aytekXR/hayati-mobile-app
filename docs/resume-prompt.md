@@ -24,7 +24,11 @@
 > classification is a claim.**
 
 **Objective: make the `integration-emulator` wedge EXPLAIN itself — and find out
-whether the dependency that wedges can be removed (ci-debt #15 / #208).**
+whether the dependency that wedges can be removed.**
+
+*(The live issue is **#15**, open. **#208** is CLOSED and is cited throughout as
+history — it is the incident ADR-055's watchdog was built from, not an open
+ticket. Do not reopen it or treat it as work.)*
 
 This suite has hung **three times** — S065 (#208, 38 minutes of silence), S088
 (on a diff of docs and Python only), and S101's ADR-076 merge. Each time the
@@ -194,8 +198,8 @@ alone — that is a complete session.
 ⚠️ **Re-derive this; never inherit it.** As measured at S102's close, after this
 objective the board is:
 
-1. **This objective** — ci-debt #15/#208, above. The only unblocked engineering
-   with a real cost attached to leaving it.
+1. **This objective** — ci-debt **#15** (open; #208 is closed history), above.
+   The only unblocked engineering with a real cost attached to leaving it.
 2. **#250** (Android Auto-Backup vs `SharedPreferences`, three places) — real,
    and **M6.5/Gate-3 gated** by the roadmap. Do not start it without saying why
    the gate does not apply.

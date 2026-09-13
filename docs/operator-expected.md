@@ -436,7 +436,11 @@ is that **it now fails alone**: English publishes regardless.
 > **Say yes** → a session types `PUBLISH` into that same box and your store page
 > stops being blank.
 > **Say "let me read it first"** → nothing happens until you have.
-> **Say no** → #278 is closed rather than left looking open.
+> **Say no** → the lane is left built and unused, and this item closes as
+> won't-do. *(This line used to say "#278 is closed rather than left looking
+> open". #278 was the request to BUILD the per-locale writer and it closed on
+> 2026-09-13, built and self-tested — the mechanism is done either way. What is
+> still open is this question: whether to run it.)*
 
 #### 6(c) — May a session dispatch the release lane once?
 
