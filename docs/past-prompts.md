@@ -5429,9 +5429,51 @@ the boot step now also runs `log show` once while everything is healthy and prin
 the line count, because D1.2's control is worthless if the query does not work on
 this runner at all, and a wedge is the worst moment to find that out.
 
+### ⚠️ The instrument fired on a real wedge — and caught itself lying
+
+**The dispatch that was supposed to prove "no regression" hit the wedge instead**
+(run 34759401891, the fourth occurrence, first with the instrument in place).
+`auth_emulator_test.dart SILENT for 601s`, artifact uploaded, 15.8 MB.
+
+It produced what read like a first-try attribution: *770,920 lines in window, 0
+from the app, 0 VM-Service announcements, **app process alive***
+(`UIKitApplication:com.beyondkaira.hayati`). Row three of the table: the app
+launched and never reached the engine's listen.
+
+**The artifact refuted it.** Asked back to `13:26:04`; silence began `13:36:48`;
+delivered file ends **`13:28:43`**. `log show` emits oldest-first and the 30s
+safety bound killed it mid-stream, so the surviving slice was the one *furthest*
+from the launch. **D2.1 and D1.1 — both correct — combined into a confident wrong
+answer**, and D1.2's line-count control could not see it because 770,920 is not
+zero. `apsd` alone wrote 510,724 of those lines.
+
+**Retracted.** What survives is only what does not depend on the log: the app
+process was **alive** at capture time. That is new, and it is real.
+
+Fixed three ways — print the **delivered** span beside the requested one and say
+**CANNOT MEASURE** when it does not reach the silence; **filter** the verdict
+query so it completes inside the bound; count the app by **process** (`Runner[`),
+which the bundle id could not do (zero hits in 770,920 lines while the app ran).
+
+⚠️ **Then the fix had its own bug, caught locally:** `date -r <epoch>` is BSD, and
+on GNU `-r` means *reference file* — so the conversion returned empty on the
+platform that runs the self-test, and an empty string compares below every
+timestamp, meaning **the CANNOT MEASURE branch could never fire there**. BSD →
+GNU → **fail closed**.
+
+### And the round-trips stopped
+
+`session-context.md` listed `shellcheck` as absent. This session spent **two
+dispatches** on shellcheck findings (SC2012, SC2034) that one local command would
+have caught. **It installs without `sudo`** — the release tarball into
+`~/.local/bin`, and `curl` reaches GitHub releases even though git-over-HTTPS is
+intercepted here. The toolchain table now carries the three lines and the exact
+command `quality` runs. `xcrun` is recorded as absent in the same table, which is
+the constraint ADR-078 D3 is built around.
+
 ### Notes / debt logged
 
-* **Two lessons: 163, 164.**
+* **Three lessons: 163, 164, 165.**
 * **`ci-debt #15` updated and left OPEN** (D5). The wedge is still undiagnosed;
   this makes the next one attributable. *"The flake is handled"* is the summary
   that would otherwise get remembered (lesson 78).

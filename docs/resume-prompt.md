@@ -3,7 +3,7 @@
 > **This file contains ONE objective. That objective is the session; nothing else is.**
 > (`project-rules.md` #1, `session-rules.md` §1.)
 >
-> Read `session-context.md` and `session-lessons.md` (numbered to **164**) first.
+> Read `session-context.md` and `session-lessons.md` (numbered to **165**) first.
 > Re-derive the session number from `git log`.
 >
 > ⚠️ **BEFORE PLANNING, OPEN THE ADR THAT OWNS THIS OBJECTIVE** (lesson **145**).
@@ -109,7 +109,7 @@ and larger claim, worth making only with both numbers in hand.
 | **Push, device side** | **0 of 4 registered.** Build **121** on TestFlight, **uninstalled**; operator §4.4 records that it does not carry ADR-077 D1 |
 | **The ADR index** | **78 records, 78 rows** with ADR-078; gated by ADR-067's lint |
 | **The queue** | **18 open.** S102 closed #115 and #278 and filed #296; S103 closed nothing and **updated #15 rather than closing it**, deliberately |
-| **Tests** | `flutter test` **1888** · `flutter analyze` clean · `dart format` clean (497 files) · `integration_watchdog_test` **43** (was 30) · `slack_notify_test` 25 |
+| **Tests** | `flutter test` **1888** · `flutter analyze` clean · `dart format` clean (497 files) · `integration_watchdog_test` **46** (was 30) · `slack_notify_test` 25 · `shellcheck tool/ci/*.sh` clean **locally** |
 | **Coverage** | ⚠️ **87.75% measured against a 68% gate** — this session's objective |
 
 ### What S103 changed that a later session will trip over
@@ -119,8 +119,17 @@ and larger claim, worth making only with both numbers in hand.
   an unbounded call there can prevent `exit 124` and convert the job into the
   silent `cancelled` ADR-055 exists to eliminate (lesson **164**).
 * **The boot step runs `log show` once on a healthy simulator** and warns if it
-  returns nothing — ADR-078 D1.2's premise measured rather than assumed. If it
-  ever warns, the wedge capture's control is broken **before** a wedge happens.
+  returns nothing — ADR-078 D1.2's premise measured rather than assumed. Measured
+  on the runner: **60,861 lines** from a freshly booted sim, so the mechanism
+  exists. If it ever warns, the capture's control is broken **before** a wedge.
+* ⚠️ **The wedge happened again during S103 (run 34759401891) and the instrument
+  answered WRONGLY** — see ADR-078 **D1.3** and lesson **165**. The capture now
+  prints the **delivered** log span beside the requested one and says
+  **CANNOT MEASURE** when it does not reach the silence. **If you touch that
+  block, keep that property**: a negative result over an unverified window is the
+  most confident-looking output an instrument can produce.
+* **`shellcheck` is installable here without `sudo`** — `session-context.md` §3
+  now carries the three lines. S103 spent **two dispatches** learning that.
 * **A wedged run writes `watchdog-device-log.txt`** to the workspace root and the
   job uploads it on failure. It is `.gitignore`d.
 

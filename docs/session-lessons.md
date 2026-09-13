@@ -38,6 +38,29 @@ something, ask which of these you are standing in:
 
 ### Recent, in full
 
+**165 — Asking for the right window and GETTING it are two claims, and only one of them is usually checked.** *(S103, ADR-078 D1.3 — the instrument's first real wedge)*
+ADR-078's capture was built, reviewed, corrected once for asking too small a
+window (lesson **163**), self-tested, and then fired on a real hang. It reported:
+*770,920 lines in the window, 0 from the app, 0 VM-Service announcements, app
+process alive* — a clean, plausible attribution that would have sent the next
+session hunting the app's launch path.
+**The artifact said otherwise.** It asked back to `13:26:04`; the suite went
+silent at `13:36:48`; the delivered file ended at **`13:28:43`**. The window it
+answered about **never contained the launch**. Cause: `log show` emits
+oldest-first and the 30-second safety bound killed it mid-stream, so what
+survived was the slice *furthest* from the thing being measured — **two
+individually correct decisions producing a confident wrong answer.**
+⚠️ **And the control could not see it.** The instrument printed a line count
+precisely so *"no URI line"* could not be confused with *"the query failed"* —
+but 770,920 is not zero, so the control passed. **It checked that lines came
+back; it never checked that the WINDOW came back.** `apsd` alone wrote 510,724 of
+those lines.
+The fix generalises past logs: **print the span you were delivered next to the
+span you asked for, and refuse to answer when they do not overlap the thing you
+are measuring.** A negative result over an unverified window is not a
+measurement, and it is the most confident-looking output an instrument can
+produce.
+
 **164 — A guard's own failure mode is the one nobody tests, because testing it means making the guard fail.** *(S103, ADR-078 D2.2 — and S102, ADR-077 D5, one session earlier)*
 `integration_watchdog.sh` exists to convert a silent hang into a named failure.
 Its timeout path called `xcrun simctl list devices booted` — **unbounded** —
